@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Edge 网页目录助手",
+  "name": "网页内容大纲插件",
   "version": "0.1.0",
   "description": "为指定站点生成可折叠的浮动目录，支持左/右侧显示与多选择器配置（CSS/XPath）。",
   "permissions": [
