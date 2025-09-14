@@ -10,7 +10,18 @@
   "content_scripts": [
     {
       "matches": ["http://*/*", "https://*/*"],
-      "js": ["src/utils.js", "src/content.js"],
+      "js": [
+        "src/utils.js",
+        "src/utils/css-selector.js",
+        "src/utils/toc-builder.js",
+        "src/ui/collapsed-badge.js",
+        "src/ui/element-picker.js",
+        "src/ui/floating-panel.js",
+        "src/core/config-manager.js",
+        "src/core/mutation-observer.js",
+        "src/core/toc-app.js",
+        "src/content.js"
+      ],
       "css": ["src/content.css"],
       "run_at": "document_idle"
     }
