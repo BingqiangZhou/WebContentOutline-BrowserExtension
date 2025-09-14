@@ -22,7 +22,35 @@
         el,
         text: (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ')
       }))
-      .filter(item => keepEmpty ? true : (item.text && item.text.length > 0));
+      .filter(item => {
+        if (keepEmpty) return true;
+        
+        // 检查文本内容是否为空
+        if (!item.text || item.text.length === 0) return false;
+        
+        // 检查元素是否被隐藏
+        const el = item.el;
+        if (!el) return false;
+        
+        // 检查CSS显示属性
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+          return false;
+        }
+        
+        // 检查元素尺寸（宽度或高度为0可能表示隐藏）
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) {
+          return false;
+        }
+        
+        // 检查是否在视口外且被裁剪
+        if (style.overflow === 'hidden' && (rect.width === 0 || rect.height === 0)) {
+          return false;
+        }
+        
+        return true;
+      });
     return uniq;
   }
 
