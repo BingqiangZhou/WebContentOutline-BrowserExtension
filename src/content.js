@@ -35,11 +35,9 @@
 
   function renderCollapsedBadge(side, onExpand) {
     const badge = document.createElement('div');
-    // 基本类名，保证样式；再内联兜底样式避免外部CSS异常时不可见
     badge.className = `toc-collapsed-badge ${side === 'left' ? 'left' : 'right'}`;
     badge.textContent = '目录';
     badge.title = '展开目录';
-    badge.style.cssText += ';min-width:44px;text-align:center;';
 
     // 读取保存位置（每个域名记忆）
     const posKey = `tocBadgePos::${location.host}`;
@@ -50,7 +48,6 @@
         if (typeof left === 'number' && typeof top === 'number') {
           badge.style.left = left + 'px';
           badge.style.top = top + 'px';
-          // 移除侧位类，避免left/right样式覆盖
           badge.classList.remove('left', 'right');
         }
       }
@@ -112,66 +109,57 @@
     badge.addEventListener('mousedown', onMouseDown, true);
 
     document.documentElement.appendChild(badge);
-    // 可见性自检与兜底定位
-    try {
-      const w = badge.offsetWidth || 0;
-      const h = badge.offsetHeight || 0;
-      if (w === 0 || h === 0) {
-        // 强制兜底位置与样式
-        if (!badge.style.top) badge.style.top = '120px';
-        if (!badge.style.left && !badge.style.right) {
-          badge.style.right = '16px';
-        }
-        badge.style.padding = badge.style.padding || '8px 10px';
-        badge.style.background = badge.style.background || '#2f6feb';
-        badge.style.color = badge.style.color || '#fff';
-        badge.style.borderRadius = badge.style.borderRadius || '20px';
-        badge.style.zIndex = '2147483647';
-      }
-    } catch {}
-
-    // 附加安全兜底：若仍无可见尺寸，强制宽高和背景
-    if (!badge.offsetWidth || !badge.offsetHeight) {
-      badge.style.padding = '8px 10px';
-      badge.style.background = '#2f6feb';
-      badge.style.color = '#fff';
-      badge.style.borderRadius = '20px';
-      badge.style.boxShadow = '0 8px 24px rgba(0,0,0,0.2)';
-      badge.style.zIndex = '2147483647';
-      if (!badge.style.top) badge.style.top = '120px';
-      if (!badge.style.right && !badge.style.left) {
-        if (side === 'left') badge.style.left = '16px';
-        else badge.style.right = '16px';
-      }
-    }
 
     return {
       remove() { badge.remove(); }
     };
   }
 
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onManageSave, getNavLock, setNavLock) {
+  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onManageSave, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild) {
     const panel = document.createElement('div');
-    // 用户导航锁定由外层维护，这里仅触发解锁时机
     let unlockTimer = null;
     let scrollStopTimer = null;
-    const UNLOCK_AFTER_MS = 500;
-    const SCROLL_STOP_MS = 300;
+    const UNLOCK_AFTER_MS = 1000;
+    const SCROLL_STOP_MS = 500;
+    
     const unlockLater = () => {
       if (unlockTimer) clearTimeout(unlockTimer);
-      unlockTimer = setTimeout(() => { setNavLock(false); }, UNLOCK_AFTER_MS);
+      unlockTimer = setTimeout(() => { 
+        setNavLock(false);
+        // 检查是否有待处理的重建请求
+        if (getPendingRebuild && getPendingRebuild()) {
+          setTimeout(async () => {
+            if (getPendingRebuild && getPendingRebuild()) {
+              setPendingRebuild && setPendingRebuild(false);
+              try {
+                await onRefresh();
+              } catch (e) {}
+            }
+          }, 100);
+        }
+        // 延迟清除用户选择标记，确保IntersectionObserver不会立即覆盖
+        setTimeout(() => {
+          items.forEach(it => it._userSelected = false);
+        }, 200); // 200ms后清除用户选择标记
+      }, UNLOCK_AFTER_MS);
     };
+    
     const onScroll = () => {
       if (!getNavLock()) return;
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
-      scrollStopTimer = setTimeout(() => { setNavLock(false); }, SCROLL_STOP_MS);
+      scrollStopTimer = setTimeout(() => { 
+        setNavLock(false);
+        items.forEach(it => it._userSelected = false);
+      }, SCROLL_STOP_MS);
     };
+    
     window.addEventListener('scroll', onScroll, { passive: true });
     const cleanupLock = () => {
       window.removeEventListener('scroll', onScroll);
       if (unlockTimer) clearTimeout(unlockTimer);
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
     };
+    
     panel.className = `toc-floating ${side === 'left' ? 'left' : 'right'}`;
 
     const header = document.createElement('div');
@@ -209,16 +197,11 @@
     btnPick.title = '点击后在页面上选择一个元素以生成选择器';
     btnPick.addEventListener('click', () => onPick && onPick());
 
-
-
     const btnManage = document.createElement('button');
     btnManage.className = 'toc-btn';
     btnManage.textContent = '保存管理';
     btnManage.title = '查看/清空当前站点已保存的选择器';
     btnManage.addEventListener('click', () => onManageSave && onManageSave());
-
-    // 临时数量标记
-
 
     actions.appendChild(btnPick);
     actions.appendChild(btnRefresh);
@@ -232,7 +215,7 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
-      empty.textContent = '未找到目录项，可尝试点击右上角“刷新”。';
+      empty.textContent = '未找到目录项，可尝试点击右上角"刷新"。';
       list.appendChild(empty);
     } else {
       for (const item of items) {
@@ -242,18 +225,36 @@
         a.href = 'javascript:void(0)';
         a.addEventListener('click', (e) => {
           e.preventDefault();
-          // 用户点击时，先锁定active，避免IO抢占导致闪烁
+          
+          // 立即锁定导航，防止IntersectionObserver干扰
           setNavLock(true);
-          // 清除旧active
-          items.forEach(it => it._node && it._node.classList.remove('active'));
-          a.classList.add('active');
+          
+          // 先标记当前项为用户选择，防止被其他逻辑覆盖
+          item._userSelected = true;
+          
+          // 清除其他项的选中状态和active样式
+          items.forEach(it => {
+            if (it !== item) {
+              it._userSelected = false;
+              if (it._node) {
+                it._node.classList.remove('active');
+              }
+            }
+          });
+          
+          // 设置当前项的active样式（避免重复添加）
+          if (!a.classList.contains('active')) {
+            a.classList.add('active');
+          }
+          
           // 平滑滚动
           try {
             item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
           } catch {
             scrollToElement(item.el);
           }
-          // 设置延迟解锁，或等待滚动停止后解锁
+          
+          // 设置延迟解锁
           unlockLater();
         });
         item._node = a;
@@ -273,16 +274,43 @@
       const map = new Map(items.map(it => [it.el, it]));
       let active;
       const io = new IntersectionObserver((entries) => {
-        if (getNavLock()) return; // 用户导航锁定期间不更新active，避免闪烁
+        // 如果导航被锁定，完全跳过处理
+        if (getNavLock()) return;
+        
+        // 检查是否有用户手动选择的项目
+        const userSelected = items.find(it => it._userSelected);
+        if (userSelected) {
+          // 如果有用户选择的项目，确保其保持active状态，跳过其他处理
+          if (userSelected._node && !userSelected._node.classList.contains('active')) {
+            userSelected._node.classList.add('active');
+          }
+          return;
+        }
+        
+        // 找到当前可见的项目
+        const visibleItems = [];
         entries.forEach(entry => {
           const it = map.get(entry.target);
-          if (!it || !it._node) return;
-          if (entry.isIntersecting) {
-            if (active && active._node) active._node.classList.remove('active');
-            it._node.classList.add('active');
-            active = it;
+          if (it && it._node && entry.isIntersecting) {
+            visibleItems.push(it);
           }
         });
+        
+        // 如果有可见项目，选择第一个作为active
+        if (visibleItems.length > 0) {
+          const newActive = visibleItems[0];
+          
+          // 只有当新的active与当前active不同时才更新
+          if (active !== newActive) {
+            // 清除旧的active状态
+            if (active && active._node) {
+              active._node.classList.remove('active');
+            }
+            // 设置新的active状态
+            newActive._node.classList.add('active');
+            active = newActive;
+          }
+        }
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
       items.forEach(it => io.observe(it.el));
@@ -331,11 +359,11 @@
     const wrap = document.createElement('div');
     wrap.style.cssText = 'position:fixed;z-index:2147483647;bottom:20px;right:20px;background:#111;color:#fff;padding:10px;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.3);max-width:60vw;';
     wrap.innerHTML = `
-      <div style="font-size:13px;margin-bottom:6px">已生成选择器：</div>
-      <textarea style="width:420px;max-width:58vw;height:68px;font-size:12px;border-radius:6px;border:0;padding:8px;">${selector}</textarea>
+      <div style="font-size:13px;margin-bottom:6px;color:#fff;">已生成选择器：</div>
+      <textarea style="width:420px;max-width:58vw;height:68px;font-size:12px;border-radius:6px;border:1px solid #444;padding:8px;background:#fff;color:#222;resize:vertical;" readonly>${selector}</textarea>
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end">
-        <button data-act="save" style="padding:6px 10px;border-radius:6px;border:0;background:#059669;color:#fff;">保存为站点配置</button>
-        <button data-act="close" style="padding:6px 10px;border-radius:6px;border:1px solid #444;background:#222;color:#fff;">关闭</button>
+        <button data-act="save" style="padding:6px 10px;border-radius:6px;border:0;background:#059669;color:#fff;cursor:pointer;">保存为站点配置</button>
+        <button data-act="close" style="padding:6px 10px;border-radius:6px;border:1px solid #444;background:#222;color:#fff;cursor:pointer;">关闭</button>
       </div>
     `;
     const close = () => wrap.remove();
@@ -431,19 +459,21 @@
 
   function initForConfig(cfg) {
     const side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
-    const collapsedDefault = !!cfg.collapsedDefault;
-
-    // 取消临时选择器，直接基于已保存配置构建
-    // let tempSelectors = [];
 
     let items = buildTocItems(cfg, []);
     let badgeInstance = null;
     let panelInstance = null;
 
-    // 导航锁状态（供面板与观察器共享）
     let navLock = false;
     const getNavLock = () => navLock;
     const setNavLock = (v) => { navLock = !!v; };
+
+    // MutationObserver相关变量
+    let observer = null;
+    const DEBOUNCE_MS = 500;
+    let shouldRebuildAt = 0;
+    let pendingRebuild = false;
+    let tickTimer = null;
 
     async function manageSave() {
       try {
@@ -453,10 +483,10 @@
         const list = idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : [];
         const box = document.createElement('div');
         box.style.cssText = 'position:fixed;z-index:2147483647;bottom:20px;right:20px;background:#111;color:#fff;padding:10px;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.3);max-width:60vw;';
-        var _savedListHtml = (list && list.length ? list.map(function(s){ return (s.type + ':' + s.expr); }).join('<br>') : '（无）');
+        const savedListHtml = (list && list.length ? list.map(s => s.type + ':' + s.expr).join('<br>') : '（无）');
         box.innerHTML =
           '<div style="font-size:13px;margin-bottom:6px">当前站点（' + urlPattern + '）已保存选择器：' + (list ? list.length : 0) + '</div>' +
-          '<div style="max-height:180px;overflow:auto;font-size:12px;background:#1e1e1e;border-radius:6px;padding:6px;margin-bottom:8px;">' + _savedListHtml + '</div>' +
+          '<div style="max-height:180px;overflow:auto;font-size:12px;background:#1e1e1e;border-radius:6px;padding:6px;margin-bottom:8px;">' + savedListHtml + '</div>' +
           '<div style="display:flex;gap:8px;justify-content:flex-end">' +
           '  <button data-act="clear" style="padding:6px 10px;border-radius:6px;border:0;background:#b42318;color:#fff;">清空站点配置</button>' +
           '  <button data-act="close" style="padding:6px 10px;border-radius:6px;border:1px solid #444;background:#222;color:#fff;">关闭</button>' +
@@ -498,14 +528,58 @@
       } catch (e) {
         console.warn('[目录助手] 读取最新配置失败，使用内存状态', e);
       }
-      items = buildTocItems(cfg, []);
+      
+      const newItems = buildTocItems(cfg, []);
+      
+      // 检查是否需要重建：只有在用户交互锁定期间才跳过重建
+      if (panelInstance && getNavLock()) {
+        // 在锁定期间，保存新的items但不立即重建
+        items = newItems;
+        return;
+      }
+      
+      // 如果内容完全相同，避免不必要的重建（仅在非锁定状态下检查）
+      if (panelInstance && items.length === newItems.length && items.length > 0) {
+        let contentIdentical = true;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].text !== newItems[i].text || items[i].el !== newItems[i].el) {
+            contentIdentical = false;
+            break;
+          }
+        }
+        
+        if (contentIdentical) {
+          // 内容完全相同，不需要重建
+          return;
+        }
+      }
+      
+      // 保存当前活跃项的状态
+      let currentActiveItem = null;
+      let wasLocked = getNavLock();
+      if (panelInstance && items.length > 0) {
+        currentActiveItem = items.find(item => item._node && item._node.classList.contains('active'));
+      }
+      
+      items = newItems;
       if (panelInstance) {
         panelInstance.remove();
-        panelInstance = renderFloatingPanel(side, items, collapse, rebuild, startPick, manageSave, getNavLock, setNavLock);
+        panelInstance = renderFloatingPanel(side, items, collapse, rebuild, startPick, manageSave, getNavLock, setNavLock, () => pendingRebuild, (val) => { pendingRebuild = val; });
+        
+        // 恢复之前的活跃状态
+        if (currentActiveItem && items.length > 0) {
+          // 尝试找到相同文本的项目来恢复状态
+          const matchingItem = items.find(item => item.text === currentActiveItem.text);
+          if (matchingItem && matchingItem._node) {
+            matchingItem._node.classList.add('active');
+            if (wasLocked) {
+              matchingItem._userSelected = true;
+              setNavLock(true);
+            }
+          }
+        }
       }
     };
-
-    // 清理临时逻辑已移除
 
     function startPick() {
       const picker = createElementPicker((el) => {
@@ -557,16 +631,36 @@
       // 展开前先确保 items 基于最新存储
       await rebuild();
       if (!panelInstance) {
-        panelInstance = renderFloatingPanel(side, items, collapse, rebuild, startPick, manageSave, getNavLock, setNavLock);
+        panelInstance = renderFloatingPanel(side, items, collapse, rebuild, startPick, manageSave, getNavLock, setNavLock, () => pendingRebuild, (val) => { pendingRebuild = val; });
       }
     }
 
+    // 检查是否有有效的元素选择器
+    function hasValidSelectors() {
+      if (cfg.selectors && cfg.selectors.length > 0) {
+        return true;
+      }
+      
+      const commonSelectors = [
+        'h1, h2, h3, h4, h5, h6',
+        '[id*="title"], [class*="title"]',
+        '[id*="heading"], [class*="heading"]'
+      ];
+      
+      for (let selector of commonSelectors) {
+        try {
+          if (document.querySelector(selector)) {
+            return true;
+          }
+        } catch (e) {
+          console.warn('[目录助手] 选择器错误:', selector, e);
+        }
+      }
+      
+      return false;
+    }
+
     // Observe & Debounce: 稳健版（标志+轮询tick，避免丢计时器）
-    let observer = null;
-    const DEBOUNCE_MS = 500;
-    let shouldRebuildAt = 0;      // 时间戳：最早重建时间
-    let pendingRebuild = false;   // 锁定期积攒一次重建
-    let tickTimer = null;
 
     function hasMeaningfulChange(mutations) {
       for (const m of mutations) {
@@ -595,16 +689,26 @@
           shouldRebuildAt = 0;
           pendingRebuild = false;
           try {
+            // 页面内容变化时总是执行重建
+            await rebuild();
+          } catch (e) {}
+        }
+        // 处理解锁后的待处理重建
+        if (pendingRebuild && !getNavLock()) {
+          pendingRebuild = false;
+          try {
             await rebuild();
           } catch (e) {}
         }
       }, 200); // 轮询粒度200ms，轻量
     }
 
-    if (typeof MutationObserver !== 'undefined') {
+    // 只有在有有效选择器的情况下才启动观察器
+    if (typeof MutationObserver !== 'undefined' && hasValidSelectors()) {
+      console.debug('[目录助手] 检测到有效选择器，启动页面变化监听');
       observer = new MutationObserver((mutations) => {
         if (!hasMeaningfulChange(mutations)) return;
-        // 每次变化推迟到当前时间+DEBOUNCE_MS
+        // 每次变化推迟到当前时间+DEBOUNCE_MS (500ms)
         shouldRebuildAt = Date.now() + DEBOUNCE_MS;
         ensureTick();
       });
@@ -614,9 +718,11 @@
         characterData: true,
         attributes: true
       });
+    } else {
+      console.debug('[目录助手] 没有有效的元素选择器，跳过页面变化监听');
     }
 
-    // 总是先折叠为右侧“目录”按钮，用户点击后再展开
+    // 总是先折叠为右侧"目录"按钮，用户点击后再展开
     collapse();
   }
 

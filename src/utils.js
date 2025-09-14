@@ -63,22 +63,6 @@ function findMatchingConfig(configs, url) {
 }
 
 /**
- * Evaluate an XPath and return nodes in document order
- * @param {string} expr
- * @param {Document|Element} ctx
- * @returns {Element[]}
- */
-function evaluateXPath(expr, ctx = document) {
-  const snapshot = document.evaluate(expr, ctx, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-  const nodes = [];
-  for (let i = 0; i < snapshot.snapshotLength; i++) {
-    const node = snapshot.snapshotItem(i);
-    if (node && node.nodeType === 1) nodes.push(node);
-  }
-  return nodes;
-}
-
-/**
  * Collect nodes by a selector config
  * @param {{type: 'css'|'xpath', expr: string}} selector
  * @returns {Element[]}
@@ -87,7 +71,13 @@ function collectBySelector(selector) {
   if (!selector || !selector.expr) return [];
   if (selector.type === 'xpath') {
     try {
-      return evaluateXPath(selector.expr);
+      const snapshot = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const nodes = [];
+      for (let i = 0; i < snapshot.snapshotLength; i++) {
+        const node = snapshot.snapshotItem(i);
+        if (node && node.nodeType === 1) nodes.push(node);
+      }
+      return nodes;
     } catch {
       return [];
     }
