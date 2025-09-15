@@ -52,8 +52,8 @@ function drawListIcon(size, enabled) {
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, size, size);
 
-    const fg = enabled ? '#00C853' : '#8A8A8A';
-    const bullet = enabled ? '#00C853' : '#6E6E6E';
+    const fg = enabled ? '#2f6feb' : '#8A8A8A';
+    const bullet = enabled ? '#2f6feb' : '#6E6E6E';
 
     const padding = Math.round(size * 0.15); // 15% padding
     const lineHeight = Math.round(size * 0.16);
