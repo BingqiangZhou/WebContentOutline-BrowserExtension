@@ -15,15 +15,18 @@
       const list = idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : [];
       
       const box = document.createElement('div');
-      box.style.cssText = 'position:fixed;z-index:2147483647;bottom:20px;right:20px;background:#111;color:#fff;padding:10px;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.3);max-width:60vw;';
+      box.className = 'toc-overlay';
       
       const savedListHtml = (list && list.length ? list.map(s => s.type + ':' + s.expr).join('<br>') : '（无）');
       box.innerHTML =
-        '<div style="font-size:13px;margin-bottom:6px">当前站点（' + urlPattern + '）已保存选择器：' + (list ? list.length : 0) + '</div>' +
-        '<div style="max-height:180px;overflow:auto;font-size:12px;background:#1e1e1e;border-radius:6px;padding:6px;margin-bottom:8px;">' + savedListHtml + '</div>' +
-        '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-        '  <button data-act="clear" style="padding:6px 10px;border-radius:6px;border:0;background:#b42318;color:#fff;">清空站点配置</button>' +
-        '  <button data-act="close" style="padding:6px 10px;border-radius:6px;border:1px solid #444;background:#222;color:#fff;">关闭</button>' +
+        '<div class="toc-overlay-header">站点配置 - ' + urlPattern + '</div>' +
+        '<div class="toc-overlay-body">' +
+        '  <div style="font-size:13px;margin-bottom:6px">已保存选择器（' + (list ? list.length : 0) + '）</div>' +
+        '  <div class="toc-overlay-list">' + savedListHtml + '</div>' +
+        '</div>' +
+        '<div class="toc-overlay-actions">' +
+        '  <button class="toc-btn toc-btn-danger" data-act="clear">清空站点配置</button>' +
+        '  <button class="toc-btn" data-act="close">关闭</button>' +
         '</div>';
       
       const close = () => box.remove();

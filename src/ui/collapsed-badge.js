@@ -18,21 +18,16 @@
       if (saved) {
         const { left, top } = JSON.parse(saved);
         if (typeof left === 'number' && typeof top === 'number') {
-          // 检查保存的位置是否在当前屏幕范围内
+          // 保存/应用均使用视口坐标（position:fixed）
           const bw = 80; // 预估badge宽度
           const bh = 32; // 预估badge高度
           const maxLeft = window.innerWidth - bw - 4;
           const maxTop = window.innerHeight - bh - 4;
-          const docLeft = left - window.scrollX;
-          const docTop = top - window.scrollY;
-          
-          // 如果位置在屏幕范围内，则使用保存的位置
-          if (docLeft >= 4 && docLeft <= maxLeft && docTop >= 4 && docTop <= maxTop) {
-            badge.style.left = left + 'px';
-            badge.style.top = top + 'px';
+          if (left >= 4 && left <= maxLeft && top >= 4 && top <= maxTop) {
+            badge.style.setProperty('left', left + 'px', 'important');
+            badge.style.setProperty('top', top + 'px', 'important');
             badge.classList.remove('left', 'right');
           }
-          // 否则使用默认位置（不设置left/top，保持CSS中的默认位置）
         }
       }
     } catch {}
@@ -93,14 +88,10 @@
       left = Math.max(minLeft, Math.min(maxLeft, left));
       top = Math.max(minTop, Math.min(maxTop, top));
       
-      // 转换为文档坐标
-      const docLeft = left + window.scrollX;
-      const docTop = top + window.scrollY;
-      
-      badge.style.left = docLeft + 'px';
-      badge.style.top = docTop + 'px';
-      badge.style.right = 'auto';
-      badge.style.bottom = 'auto';
+      badge.style.setProperty('left', left + 'px', 'important');
+      badge.style.setProperty('top', top + 'px', 'important');
+      badge.style.setProperty('right', 'auto', 'important');
+      badge.style.setProperty('bottom', 'auto', 'important');
       
       // 移除侧位类，使用绝对定位
       badge.classList.remove('left', 'right');
@@ -124,11 +115,11 @@
       if (!drag.moved) {
         onExpand();
       } else {
-        // 保存位置（使用文档坐标）
+        // 保存位置（使用视口坐标）
         try {
           const rect = badge.getBoundingClientRect();
-          const left = rect.left + window.scrollX;
-          const top = rect.top + window.scrollY;
+          const left = Math.max(4, Math.min(window.innerWidth - rect.width - 4, rect.left));
+          const top = Math.max(4, Math.min(window.innerHeight - rect.height - 4, rect.top));
           localStorage.setItem(posKey, JSON.stringify({ left, top }));
         } catch (err) {
           console.warn('[目录助手] 保存位置失败:', err);

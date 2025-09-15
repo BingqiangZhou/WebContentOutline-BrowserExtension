@@ -2,7 +2,8 @@
  * Storage keys
  */
 const STORAGE_KEYS = {
-  TOC_CONFIGS: 'tocConfigs'
+  TOC_CONFIGS: 'tocConfigs',
+  SITE_ENABLE_MAP: 'tocSiteEnabledMap'
 };
 
 /**
@@ -37,6 +38,90 @@ function saveConfigs(configs) {
       resolve();
     }
   });
+}
+
+/**
+ * Get site enabled map { origin: boolean }
+ * @returns {Promise<Record<string, boolean>>}
+ */
+function getEnabledMap() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.sync.get([STORAGE_KEYS.SITE_ENABLE_MAP], (res) => {
+        resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
+      });
+    } catch (e) {
+      const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
+      resolve(raw ? JSON.parse(raw) : {});
+    }
+  });
+}
+
+/**
+ * Save site enabled map
+ * @param {Record<string, boolean>} map
+ */
+function saveEnabledMap(map) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.sync.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => resolve());
+    } catch (e) {
+      localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
+      resolve();
+    }
+  });
+}
+
+/**
+ * Get origin string from a URL
+ * @param {string} url
+ */
+function originFromUrl(url) {
+  try {
+    return new URL(url).origin;
+  } catch (e) {
+    try {
+      return location.origin;
+    } catch (_) {
+      return '';
+    }
+  }
+}
+
+/**
+ * Whether current origin (or provided origin) is enabled. Default: disabled (false)
+ * @param {string} [origin]
+ * @returns {Promise<boolean>}
+ */
+async function getSiteEnabledByOrigin(origin) {
+  const map = await getEnabledMap();
+  const key = origin || (typeof location !== 'undefined' ? location.origin : '');
+  return !!(key && map[key]);
+}
+
+/**
+ * Set enabled state for an origin
+ * @param {string} origin
+ * @param {boolean} enabled
+ */
+async function setSiteEnabledByOrigin(origin, enabled) {
+  const map = await getEnabledMap();
+  map[origin] = !!enabled;
+  await saveEnabledMap(map);
+  return !!map[origin];
+}
+
+/**
+ * Toggle enabled state for an origin and return the new state
+ * @param {string} origin
+ * @returns {Promise<boolean>}
+ */
+async function toggleSiteEnabledByOrigin(origin) {
+  const map = await getEnabledMap();
+  const next = !map[origin];
+  map[origin] = next;
+  await saveEnabledMap(map);
+  return next;
 }
 
 /**
@@ -128,6 +213,12 @@ window.TOC_UTILS = {
   STORAGE_KEYS,
   getConfigs,
   saveConfigs,
+  getEnabledMap,
+  saveEnabledMap,
+  originFromUrl,
+  getSiteEnabledByOrigin,
+  setSiteEnabledByOrigin,
+  toggleSiteEnabledByOrigin,
   findMatchingConfig,
   collectBySelector,
   uniqueInDocumentOrder,

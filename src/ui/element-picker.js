@@ -7,13 +7,15 @@
    */
   function showPickerResult(selector, saveCb) {
     const wrap = document.createElement('div');
-    wrap.style.cssText = 'position:fixed;z-index:2147483647;bottom:20px;right:20px;background:#111;color:#fff;padding:10px;border-radius:8px;box-shadow:0 6px 16px rgba(0,0,0,.3);max-width:60vw;';
+    wrap.className = 'toc-overlay';
     wrap.innerHTML = `
-      <div style="font-size:13px;margin-bottom:6px;color:#fff;">已生成选择器：</div>
-      <textarea style="width:420px;max-width:58vw;height:68px;font-size:12px;border-radius:6px;border:1px solid #444;padding:8px;background:#fff;color:#222;resize:vertical;" readonly>${selector}</textarea>
-      <div style="margin-top:8px;display:flex;gap:8px;justify-content:flex-end">
-        <button data-act="save" style="padding:6px 10px;border-radius:6px;border:0;background:#059669;color:#fff;cursor:pointer;">保存为站点配置</button>
-        <button data-act="close" style="padding:6px 10px;border-radius:6px;border:1px solid #444;background:#222;color:#fff;cursor:pointer;">关闭</button>
+      <div class="toc-overlay-header">已生成选择器</div>
+      <div class="toc-overlay-body">
+        <textarea class="toc-overlay-textarea" readonly>${selector}</textarea>
+      </div>
+      <div class="toc-overlay-actions">
+        <button class="toc-btn toc-btn-primary" data-act="save">保存为站点配置</button>
+        <button class="toc-btn" data-act="close">关闭</button>
       </div>
     `;
     const close = () => wrap.remove();
