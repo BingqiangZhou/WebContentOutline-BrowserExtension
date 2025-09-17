@@ -3,19 +3,25 @@
  */
 const STORAGE_KEYS = {
   TOC_CONFIGS: 'tocConfigs',
-  SITE_ENABLE_MAP: 'tocSiteEnabledMap'
+  SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+  PANEL_STATE_MAP: 'tocPanelExpandedMap'
 };
 
 /**
- * Get configs from chrome.storage.sync
+ * Get configs from chrome.storage.local
  * @returns {Promise<Array>}
  */
 function getConfigs() {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.get([STORAGE_KEYS.TOC_CONFIGS], (res) => {
-        resolve(res[STORAGE_KEYS.TOC_CONFIGS] || []);
-      });
+      if (chrome?.storage?.local) {
+        chrome.storage.local.get([STORAGE_KEYS.TOC_CONFIGS], (res) => {
+          resolve(res[STORAGE_KEYS.TOC_CONFIGS] || []);
+        });
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
+        resolve(raw ? JSON.parse(raw) : []);
+      }
     } catch (e) {
       // Fallback for non-extension context
       const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
@@ -25,14 +31,19 @@ function getConfigs() {
 }
 
 /**
- * Save configs to chrome.storage.sync
+ * Save configs to chrome.storage.local
  * @param {Array} configs
  * @returns {Promise<void>}
  */
 function saveConfigs(configs) {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs }, () => resolve());
+      if (chrome?.storage?.local) {
+        chrome.storage.local.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs }, () => resolve());
+      } else {
+        localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
+        resolve();
+      }
     } catch (e) {
       localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
       resolve();
@@ -41,15 +52,20 @@ function saveConfigs(configs) {
 }
 
 /**
- * Get site enabled map { origin: boolean }
+ * Get site enabled map { origin: boolean } from chrome.storage.local
  * @returns {Promise<Record<string, boolean>>}
  */
 function getEnabledMap() {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.get([STORAGE_KEYS.SITE_ENABLE_MAP], (res) => {
-        resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
-      });
+      if (chrome?.storage?.local) {
+        chrome.storage.local.get([STORAGE_KEYS.SITE_ENABLE_MAP], (res) => {
+          resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
+        });
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
+        resolve(raw ? JSON.parse(raw) : {});
+      }
     } catch (e) {
       const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
       resolve(raw ? JSON.parse(raw) : {});
@@ -58,18 +74,77 @@ function getEnabledMap() {
 }
 
 /**
- * Save site enabled map
+ * Save site enabled map to chrome.storage.local
  * @param {Record<string, boolean>} map
  */
 function saveEnabledMap(map) {
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => resolve());
+      if (chrome?.storage?.local) {
+        chrome.storage.local.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => resolve());
+      } else {
+        localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
+        resolve();
+      }
     } catch (e) {
       localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
       resolve();
     }
   });
+}
+
+/**
+ * Get panel expanded state map { origin: boolean } from chrome.storage.local
+ */
+function getPanelStateMap() {
+  return new Promise((resolve) => {
+    try {
+      if (chrome?.storage?.local) {
+        chrome.storage.local.get([STORAGE_KEYS.PANEL_STATE_MAP], (res) => {
+          resolve(res[STORAGE_KEYS.PANEL_STATE_MAP] || {});
+        });
+      } else {
+        const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
+        resolve(raw ? JSON.parse(raw) : {});
+      }
+    } catch (e) {
+      const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
+      resolve(raw ? JSON.parse(raw) : {});
+    }
+  });
+}
+
+/**
+ * Save panel expanded state map
+ * @param {Record<string, boolean>} map
+ */
+function savePanelStateMap(map) {
+  return new Promise((resolve) => {
+    try {
+      if (chrome?.storage?.local) {
+        chrome.storage.local.set({ [STORAGE_KEYS.PANEL_STATE_MAP]: map }, () => resolve());
+      } else {
+        localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
+        resolve();
+      }
+    } catch (e) {
+      localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
+      resolve();
+    }
+  });
+}
+
+async function getPanelExpandedByOrigin(origin) {
+  const map = await getPanelStateMap();
+  const key = origin || (typeof location !== 'undefined' ? location.origin : '');
+  return !!(key && map[key]);
+}
+
+async function setPanelExpandedByOrigin(origin, expanded) {
+  const map = await getPanelStateMap();
+  map[origin] = !!expanded;
+  await savePanelStateMap(map);
+  return !!map[origin];
 }
 
 /**
@@ -219,6 +294,10 @@ window.TOC_UTILS = {
   getSiteEnabledByOrigin,
   setSiteEnabledByOrigin,
   toggleSiteEnabledByOrigin,
+  getPanelStateMap,
+  savePanelStateMap,
+  getPanelExpandedByOrigin,
+  setPanelExpandedByOrigin,
   findMatchingConfig,
   collectBySelector,
   uniqueInDocumentOrder,

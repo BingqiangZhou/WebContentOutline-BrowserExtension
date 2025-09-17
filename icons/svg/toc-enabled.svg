@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Enabled list icon in #2f6feb to match collapsed badge color -->
+  <g>
+    <!-- bullets -->
+    <rect x="16" y="18" width="14" height="14" rx="3" fill="#2f6feb"/>
+    <rect x="16" y="56" width="14" height="14" rx="3" fill="#2f6feb"/>
+    <rect x="16" y="94" width="14" height="14" rx="3" fill="#2f6feb"/>
+    <!-- lines -->
+    <path d="M44 25 H112" stroke="#2f6feb" stroke-width="10" stroke-linecap="round"/>
+    <path d="M44 63 H112" stroke="#2f6feb" stroke-width="10" stroke-linecap="round"/>
+    <path d="M44 101 H112" stroke="#2f6feb" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

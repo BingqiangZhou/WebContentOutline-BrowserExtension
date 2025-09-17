@@ -6,6 +6,8 @@
   const { renderCollapsedBadge, renderFloatingPanel, createElementPicker, showPickerResult } = window.TOC_UI || {};
   const { buildClassSelector, cssPathFor } = window.CSS_SELECTOR || {};
   const { manageSave, saveSelector, updateConfigFromStorage } = window.CONFIG_MANAGER || {};
+  const { setPanelExpandedByOrigin } = window.TOC_UTILS || {};
+
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
 
   /**
@@ -18,6 +20,7 @@
     let badgeInstance = null;
     let panelInstance = null;
     let mutationObserver = null;
+    let pickerInstance = null;
 
     let navLock = false;
     const getNavLock = () => navLock;
@@ -104,7 +107,14 @@
     function startPick() {
       if (!createElementPicker || !showPickerResult) return;
       
-      const picker = createElementPicker((el) => {
+      // 如果已有正在拾取的实例，先清理，避免鼠标状态残留
+      try {
+        if (pickerInstance && pickerInstance.cleanup) {
+          pickerInstance.cleanup();
+        }
+      } catch (_) {}
+      
+      pickerInstance = createElementPicker((el) => {
         // 优先 class 选择器，不足时生成路径
         let sel = '';
         const cls = buildClassSelector ? buildClassSelector(el) : '';
@@ -121,8 +131,11 @@
             alert('保存失败，请查看控制台。');
           }
         });
+        // 拾取完成，清理实例引用
+        pickerInstance = null;
       }, () => {
         // canceled
+        pickerInstance = null;
       });
     }
 
@@ -134,10 +147,14 @@
         panelInstance.remove(); 
         panelInstance = null; 
       }
+      // 若正在拾取，折叠时强制取消
+      try { if (pickerInstance && pickerInstance.cleanup) { pickerInstance.cleanup(); pickerInstance = null; } } catch (_) {}
       if (!badgeInstance && renderCollapsedBadge) {
         console.debug('[目录助手] 折叠模式初始化，准备渲染按钮');
         badgeInstance = renderCollapsedBadge(side, expand);
       }
+      // persist state: collapsed=false (expanded flag false)
+      try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
     }
 
     /**
@@ -158,6 +175,8 @@
           mutationObserver ? mutationObserver.setPendingRebuild : () => {}
         );
       }
+      // persist state: expanded=true
+      try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, true); } catch (_) {}
     }
 
     // 启动变化监听器
@@ -173,16 +192,17 @@
     window.TOC_APP = window.TOC_APP || {};
     window.TOC_APP.rebuild = rebuild;
 
-    return {
-      rebuild,
-      collapse,
-      expand,
-      destroy() {
-        if (badgeInstance) badgeInstance.remove();
-        if (panelInstance) panelInstance.remove();
-        if (mutationObserver) mutationObserver.disconnect();
-      }
-    };
+      return {
+        rebuild,
+        collapse,
+        expand,
+        destroy() {
+          if (badgeInstance) badgeInstance.remove();
+          if (panelInstance) panelInstance.remove();
+          if (mutationObserver) mutationObserver.disconnect();
+          try { if (pickerInstance && pickerInstance.cleanup) { pickerInstance.cleanup(); pickerInstance = null; } } catch (_) {}
+        }
+      };
   }
 
   // 导出到全局

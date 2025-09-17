@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Disabled list icon in gray tones -->
+  <g>
+    <!-- bullets (slightly darker gray) -->
+    <rect x="16" y="18" width="14" height="14" rx="3" fill="#6E6E6E"/>
+    <rect x="16" y="56" width="14" height="14" rx="3" fill="#6E6E6E"/>
+    <rect x="16" y="94" width="14" height="14" rx="3" fill="#6E6E6E"/>
+    <!-- lines -->
+    <path d="M44 25 H112" stroke="#8A8A8A" stroke-width="10" stroke-linecap="round"/>
+    <path d="M44 63 H112" stroke="#8A8A8A" stroke-width="10" stroke-linecap="round"/>
+    <path d="M44 101 H112" stroke="#8A8A8A" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

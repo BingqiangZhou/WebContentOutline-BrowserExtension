@@ -1,35 +1,42 @@
 // Background service worker for MV3 - per-site enable/disable and dynamic icon
 
-// Storage keys
-const STORAGE_KEYS = {
-  SITE_ENABLE_MAP: 'tocSiteEnabledMap'
-};
+// ---- Site-level storage (chrome.storage.local) ----
+const STORAGE_KEYS = { SITE_ENABLE_MAP: 'tocSiteEnabledMap' };
 
-// ---- Storage helpers ----
+function originFromUrl(url) {
+  try { return new URL(url).origin; } catch { return ''; }
+}
+
 function getEnabledMap() {
+  const KEY = STORAGE_KEYS.SITE_ENABLE_MAP;
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.get([STORAGE_KEYS.SITE_ENABLE_MAP], (res) => {
-        resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
-      });
+      if (chrome?.storage?.local) {
+        chrome.storage.local.get([KEY], (res) => resolve(res[KEY] || {}));
+      } else {
+        resolve({});
+      }
     } catch (e) {
+      console.warn('[toc] getEnabledMap failed:', e);
       resolve({});
     }
   });
 }
 
 function saveEnabledMap(map) {
+  const KEY = STORAGE_KEYS.SITE_ENABLE_MAP;
   return new Promise((resolve) => {
     try {
-      chrome.storage.sync.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => resolve());
+      if (chrome?.storage?.local) {
+        chrome.storage.local.set({ [KEY]: map }, () => resolve());
+      } else {
+        resolve();
+      }
     } catch (e) {
+      console.warn('[toc] saveEnabledMap failed:', e);
       resolve();
     }
   });
-}
-
-function originFromUrl(url) {
-  try { return new URL(url).origin; } catch { return ''; }
 }
 
 async function getEnabledByOrigin(origin) {
@@ -45,76 +52,127 @@ async function toggleEnabledByOrigin(origin) {
   return next;
 }
 
-// ---- Icon drawing ----
-function drawListIcon(size, enabled) {
+// ---- Icon paths ----
+function getIconPathMap(enabled) {
+  const base = enabled ? 'icons/png/toc-enabled' : 'icons/png/toc-disabled';
   try {
-    const canvas = new OffscreenCanvas(size, size);
-    const ctx = canvas.getContext('2d');
-    ctx.clearRect(0, 0, size, size);
-
-    const fg = enabled ? '#2f6feb' : '#8A8A8A';
-    const bullet = enabled ? '#2f6feb' : '#6E6E6E';
-
-    const padding = Math.round(size * 0.15); // 15% padding
-    const lineHeight = Math.round(size * 0.16);
-    const gap = Math.round(size * 0.08);
-    const bulletSize = Math.max(1, Math.round(size * 0.14));
-
-    let xText = padding + bulletSize + Math.round(size * 0.10);
-    let y = padding;
-
-    ctx.lineWidth = Math.max(1, Math.round(size * 0.10));
-    ctx.lineCap = 'round';
-
-    for (let i = 0; i < 3; i++) {
-      // Bullet squares
-      ctx.fillStyle = bullet;
-      const bx = padding;
-      const by = y + Math.floor((lineHeight - bulletSize) / 2);
-      const br = Math.max(1, Math.round(bulletSize * 0.2));
-      ctx.beginPath();
-      if (typeof ctx.roundRect === 'function') {
-        ctx.roundRect(bx, by, bulletSize, bulletSize, br);
-        ctx.fill();
-      } else {
-        ctx.fillRect(bx, by, bulletSize, bulletSize);
-      }
-
-      // Lines
-      ctx.strokeStyle = fg;
-      ctx.beginPath();
-      ctx.moveTo(xText, y + Math.floor(lineHeight / 2));
-      ctx.lineTo(size - padding, y + Math.floor(lineHeight / 2));
-      ctx.stroke();
-
-      y += lineHeight + gap;
-    }
-
-    return ctx.getImageData(0, 0, size, size);
-  } catch (e) {
-    // Fallback: transparent image
-    try { return new ImageData(size, size); } catch { return null; }
+    return {
+      "16": chrome.runtime.getURL(`${base}-16.png`),
+      "32": chrome.runtime.getURL(`${base}-32.png`)
+    };
+  } catch (_) {
+    // Fallback to relative if runtime not ready
+    return {
+      "16": `${base}-16.png`,
+      "32": `${base}-32.png`
+    };
   }
 }
 
-async function buildIconImages(enabled) {
-  const sizes = [16, 32, 48, 128];
-  const imageData = {};
-  for (const s of sizes) {
-    const data = drawListIcon(s, enabled);
-    if (data) imageData[s] = data;
-  }
-  return imageData;
+// ---- Action helpers (callback -> Promise with error logging) ----
+function setActionIconAsync(details) {
+  return new Promise((resolve) => {
+    try {
+      chrome.action.setIcon(details, () => {
+        const err = chrome.runtime?.lastError;
+        if (err) console.warn('[toc] setIcon error:', err, details);
+        resolve(!err);
+      });
+    } catch (e) {
+      console.warn('[toc] setIcon threw:', e, details);
+      resolve(false);
+    }
+  });
+}
+
+function setActionTitleAsync(details) {
+  return new Promise((resolve) => {
+    try {
+      chrome.action.setTitle(details, () => {
+        const err = chrome.runtime?.lastError;
+        if (err) console.warn('[toc] setTitle error:', err, details);
+        resolve(!err);
+      });
+    } catch (e) {
+      console.warn('[toc] setTitle threw:', e, details);
+      resolve(false);
+    }
+  });
+}
+
+async function setGlobalDefaultIconDisabled() {
+  try {
+    const path = getIconPathMap(false);
+    await setActionIconAsync({ path });
+    await setActionTitleAsync({ title: '网页目录助手：禁用（按站点，点击启用）' });
+  } catch (e) { console.warn('[toc] setGlobalDefaultIconDisabled failed:', e); }
 }
 
 async function updateIconForTab(tabId, url) {
-  if (!tabId || !url || !/^https?:\/\//i.test(url)) return;
-  const origin = originFromUrl(url);
+  if (!tabId) return;
+  let finalUrl = url;
+  if (!finalUrl || !/^https?:\/\//i.test(finalUrl)) {
+    try {
+      const t = await chrome.tabs.get(tabId);
+      finalUrl = t?.url || '';
+    } catch (_) {}
+  }
+
+  // If still no http(s) URL, set disabled icon as a safe default and return
+  if (!finalUrl || !/^https?:\/\//i.test(finalUrl)) {
+    const fallbackPath = getIconPathMap(false);
+    console.debug('[toc] updateIconForTab: non-http(s), set disabled', { tabId, finalUrl });
+    await setActionIconAsync({ tabId, path: fallbackPath });
+    await setActionTitleAsync({ tabId, title: '网页内容大纲：禁用（按站点，点击启用）' });
+    return;
+  }
+
+  const origin = originFromUrl(finalUrl);
   const enabled = await getEnabledByOrigin(origin);
-  const images = await buildIconImages(enabled);
   try {
-    await chrome.action.setIcon({ tabId, imageData: images });
-    await chrome.action.setTitle({ tabId, title: enabled ? '网页内容大纲：启用（点击禁用本网站）' : '网页内容大纲：禁用（点击启用本网站）' });
+    const path = getIconPathMap(enabled);
+    console.debug('[toc] updateIconForTab', { tabId, url: finalUrl, origin, enabled, path });
+    const okDict = await setActionIconAsync({ tabId, path });
+    if (!okDict) {
+      // fallback to single 32px path
+      const single = enabled ? 'icons/png/toc-enabled-32.png' : 'icons/png/toc-disabled-32.png';
+      const singleAbs = (typeof chrome?.runtime?.getURL === 'function') ? chrome.runtime.getURL(single) : single;
+      console.debug('[toc] setIcon fallback(single)', { tabId, singleAbs });
+      await setActionIconAsync({ tabId, path: singleAbs });
+    }
+    await setActionTitleAsync({ tabId, title: enabled ? '网页目录助手：启用（按站点，点击禁用）' : '网页目录助手：禁用（按站点，点击启用）' });
+  } catch (e) { console.warn('[toc] updateIconForTab failed:', e, { tabId, url: finalUrl, enabled }); }
+}
+
+async function updateIconsForOrigin(origin) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const t of tabs) {
+      if (t.id && t.url && originFromUrl(t.url) === origin) {
+        await updateIconForTab(t.id, t.url);
+      }
+    }
+  } catch (e) {}
+}
+
+async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
+  try {
+    const tabs = await chrome.tabs.query({});
+    for (const t of tabs) {
+      if (!t.id || !t.url) continue;
+      if (originFromUrl(t.url) !== origin) continue;
+      if (exceptTabId && t.id === exceptTabId) continue;
+      try {
+        chrome.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void chrome.runtime.lastError; });
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+// Request the content script in a tab to open the TOC panel
+async function requestOpenPanel(tabId) {
+  try {
+    chrome.tabs.sendMessage(tabId, { type: 'toc:openPanel' }, () => { void chrome.runtime.lastError; });
   } catch (e) {}
 }
 
@@ -123,17 +181,22 @@ async function handleActionClick(tab) {
   const url = tab.url;
   if (!/^https?:\/\//i.test(url)) return;
   const origin = originFromUrl(url);
+  console.debug('[toc] action click', { tabId: tab.id, url, origin });
   const enabled = await toggleEnabledByOrigin(origin);
-
-  // Update icon
   await updateIconForTab(tab.id, url);
+  // Also refresh icons for other tabs of the same origin
+  await updateIconsForOrigin(origin);
 
-  // Notify content script
+  // Broadcast enable state to same-origin tabs so their UIs update/cleanup
+  await broadcastEnabledToOrigin(origin, enabled, tab.id);
+
   try {
-    chrome.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled }, () => {
-      // ignore response
-    });
+    chrome.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled }, () => { void chrome.runtime.lastError; });
   } catch (e) {}
+
+  if (enabled) {
+    await requestOpenPanel(tab.id);
+  }
 }
 
 // ---- Event wiring ----
@@ -141,22 +204,60 @@ chrome.action.onClicked.addListener(handleActionClick);
 
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
-    const tab = await chrome.tabs.get(activeInfo.tabId);
-    if (tab && tab.id) await updateIconForTab(tab.id, tab.url || '');
+    await updateIconForTab(activeInfo.tabId);
   } catch (e) {}
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' || changeInfo.url) {
-    updateIconForTab(tabId, (changeInfo.url || tab?.url || '')); 
+    updateIconForTab(tabId);
   }
+});
+
+chrome.tabs.onCreated.addListener(async (tab) => {
+  try {
+    if (tab && tab.id) await updateIconForTab(tab.id);
+  } catch (e) {}
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
   try {
+    await setGlobalDefaultIconDisabled();
+    const tabs = await chrome.tabs.query({});
+    for (const t of tabs) {
+      if (t.id) await updateIconForTab(t.id);
+    }
+  } catch (e) {}
+});
+
+chrome.runtime.onStartup.addListener(async () => {
+  try {
+    await setGlobalDefaultIconDisabled();
     const tabs = await chrome.tabs.query({});
     for (const t of tabs) {
       if (t.id && t.url) await updateIconForTab(t.id, t.url);
     }
   } catch (e) {}
+});
+
+// Set default disabled icon at service worker initialization as well
+(async () => {
+  await setGlobalDefaultIconDisabled();
+})();
+
+// Allow content scripts to request an immediate icon sync before UI setup
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  try {
+    if (!msg || !msg.type) return;
+    if (msg.type === 'toc:ensureIcon') {
+      const tabId = sender?.tab?.id;
+      if (!tabId) { sendResponse && sendResponse({ ok: false, reason: 'no-tab' }); return; }
+      updateIconForTab(tabId).then(() => {
+        sendResponse && sendResponse({ ok: true });
+      }).catch(() => {
+        sendResponse && sendResponse({ ok: false });
+      });
+      return true; // async response
+    }
+  } catch (_) {}
 });
