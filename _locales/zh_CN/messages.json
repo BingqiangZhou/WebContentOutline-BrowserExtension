@@ -1,0 +1,14 @@
+{
+    "extensionName": {
+      "message": "网页目录助手",
+      "description": "The name of the extension, displayed in the web store and browser."
+    },
+    "extensionDescription": {
+      "message": "为网页内容生成可折叠的目录，支持CSS选择器配置，并提供元素拾取。点击扩展图标可按站点启用/禁用。",
+      "description": "A short description of the extension's purpose and features."
+    },
+    "browserActionTitle": {
+      "message": "网页目录助手",
+      "description": "The tooltip text displayed when hovering over the extension's icon in the browser toolbar."
+    }
+}
