@@ -1,7 +1,7 @@
 # 网页目录助手 / Web TOC Assistant
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Edge Extension](https://img.shields.io/badge/Edge-Extension-blue.svg)](https://microsoftedge.microsoft.com/addons/)
+[![Edge Extension](https://img.shields.io/badge/Edge-Extension-blue.svg)](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/mv3/)
 
 一个智能的网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
