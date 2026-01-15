@@ -2,11 +2,18 @@
 (() => {
   'use strict';
 
+  /**
+   * 获取本地化消息
+   */
+  function msg(key) {
+    return chrome.i18n.getMessage(key) || key;
+  }
+
   const { getConfigs, findMatchingConfig, getSiteEnabledByOrigin, getPanelExpandedByOrigin } = window.TOC_UTILS || {};
   const { initForConfig } = window.TOC_APP || {};
 
   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) {
-    console.error('[目录助手] 缺少必要的依赖模块');
+    console.error(msg('logPrefix') + ' ' + msg('logMissingDependencies'));
     return;
   }
 
@@ -24,14 +31,14 @@
           selectors: [],
           collapsedDefault: false
         };
-        console.debug('[目录助手] 未找到配置，使用默认空配置启动面板');
+        console.debug(msg('logPrefix') + ' ' + msg('logNoConfigFound'));
       } else {
-        console.debug('[目录助手] 命中配置', cfg.urlPattern);
+        console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
       // 直接初始化并保存实例，供后续销毁
       appInstance = initForConfig(cfg);
     } catch (err) {
-      console.error('[目录助手] 初始化失败', err);
+      console.error(msg('logPrefix') + ' ' + msg('logInitFailed'), err);
     }
   }
 
@@ -49,7 +56,7 @@
   }
 
   async function main() {
-    console.debug('[目录助手] 内容脚本启动于', location.href);
+    console.debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
     try {
       // 先请求后台根据站点状态同步一次图标，再决定是否渲染目录
       await new Promise((resolve) => {
@@ -69,10 +76,10 @@
           }
         } catch (_) {}
       } else {
-        console.debug('[目录助手] 当前站点处于禁用状态，未初始化面板');
+        console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
     } catch (e) {
-      console.warn('[目录助手] 读取启用状态失败，默认禁用', e);
+      console.warn(msg('logPrefix') + ' ' + msg('logReadEnabledFailed'), e);
     }
   }
 

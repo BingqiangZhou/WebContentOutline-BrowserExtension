@@ -1,0 +1,138 @@
+{
+  "extensionName": {
+    "message": "Web TOC Assistant",
+    "description": "The name of the extension, displayed in the web store and browser."
+  },
+  "extensionDescription": {
+    "message": "Generate a collapsible table of contents for web pages, supports CSS selector configuration, and provides element picker. Click extension icon to enable/disable per site.",
+    "description": "A short description of the extension's purpose and features."
+  },
+  "browserActionTitle": {
+    "message": "Web TOC Assistant",
+    "description": "The tooltip text displayed when hovering over the extension's icon in the browser toolbar."
+  },
+  "tocTitle": {
+    "message": "TOC",
+    "description": "Short text for Table of Contents"
+  },
+  "buttonCollapse": {
+    "message": "Collapse",
+    "description": "Button text to collapse the TOC panel"
+  },
+  "buttonCollapseTitle": {
+    "message": "Collapse to floating button",
+    "description": "Tooltip for collapse button"
+  },
+  "buttonRefresh": {
+    "message": "Refresh",
+    "description": "Button text to refresh the TOC"
+  },
+  "buttonRefreshTitle": {
+    "message": "Re-scan page to generate TOC",
+    "description": "Tooltip for refresh button"
+  },
+  "buttonPickElement": {
+    "message": "Pick Element",
+    "description": "Button text to activate element picker"
+  },
+  "buttonPickElementTitle": {
+    "message": "Click then select an element on the page to generate a selector",
+    "description": "Tooltip for pick element button"
+  },
+  "buttonManageSave": {
+    "message": "Manage Save",
+    "description": "Button text to manage saved configurations"
+  },
+  "buttonManageSaveTitle": {
+    "message": "View/Clear saved selectors for current site",
+    "description": "Tooltip for manage save button"
+  },
+  "emptyTocMessage": {
+    "message": "No TOC items found. Try refreshing the page or clicking the Refresh button.",
+    "description": "Message displayed when no TOC items are found"
+  },
+  "badgeTitle": {
+    "message": "Expand TOC",
+    "description": "Tooltip for the collapsed badge button"
+  },
+  "pickerResultTitle": {
+    "message": "Selector Generated",
+    "description": "Title of the picker result dialog"
+  },
+  "buttonSaveAsConfig": {
+    "message": "Save as Site Config",
+    "description": "Button text to save selector as site configuration"
+  },
+  "buttonClose": {
+    "message": "Close",
+    "description": "Button text to close dialog"
+  },
+  "configDialogTitle": {
+    "message": "Site Configuration",
+    "description": "Title of the configuration management dialog"
+  },
+  "configSavedSelectors": {
+    "message": "Saved Selectors",
+    "description": "Label for saved selectors list"
+  },
+  "configNoSelectors": {
+    "message": "(None)",
+    "description": "Text displayed when no selectors are saved"
+  },
+  "buttonClearConfig": {
+    "message": "Clear Site Config",
+    "description": "Button text to clear site configuration"
+  },
+  "errorOperationFailed": {
+    "message": "Operation failed. Please check the console.",
+    "description": "Error message when operation fails"
+  },
+  "logPrefix": {
+    "message": "[TOC Assistant]",
+    "description": "Prefix for console log messages"
+  },
+  "logMissingDependencies": {
+    "message": "Missing required dependency modules",
+    "description": "Error message when dependencies are missing"
+  },
+  "logNoConfigFound": {
+    "message": "No configuration found, starting panel with default empty config",
+    "description": "Debug message when no config is found"
+  },
+  "logConfigMatched": {
+    "message": "Configuration matched",
+    "description": "Debug message when configuration is matched"
+  },
+  "logInitFailed": {
+    "message": "Initialization failed",
+    "description": "Error message when initialization fails"
+  },
+  "logContentScriptStarted": {
+    "message": "Content script started at",
+    "description": "Debug message when content script starts"
+  },
+  "logSiteDisabled": {
+    "message": "Current site is disabled, panel not initialized",
+    "description": "Debug message when site is disabled"
+  },
+  "logReadEnabledFailed": {
+    "message": "Failed to read enabled state, defaulting to disabled",
+    "description": "Warning message when reading enabled state fails"
+  },
+  "logReadConfigFailed": {
+    "message": "Failed to read latest config, using memory state",
+    "description": "Warning message when reading config fails"
+  },
+  "logSavePositionFailed": {
+    "message": "Failed to save position:",
+    "description": "Warning message when saving position fails"
+  },
+  "logSaveConfigFailed": {
+    "message": "Failed to save site configuration",
+    "description": "Error message when saving config fails"
+  },
+  "logClearConfigFailed": {
+    "message": "Failed to read/clear site configuration",
+    "description": "Error message when clearing config fails"
+  }
+}

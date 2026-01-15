@@ -3,19 +3,26 @@
   'use strict';
 
   /**
+   * 获取本地化消息
+   */
+  function msg(key) {
+    return chrome.i18n.getMessage(key) || key;
+  }
+
+  /**
    * 显示拾取结果对话框
    */
   function showPickerResult(selector, saveCb) {
     const wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
     wrap.innerHTML = `
-      <div class="toc-overlay-header">已生成选择器</div>
+      <div class="toc-overlay-header">${msg('pickerResultTitle')}</div>
       <div class="toc-overlay-body">
         <textarea class="toc-overlay-textarea" readonly>${selector}</textarea>
       </div>
       <div class="toc-overlay-actions">
-        <button class="toc-btn toc-btn-primary" data-act="save">保存为站点配置</button>
-        <button class="toc-btn" data-act="close">关闭</button>
+        <button class="toc-btn toc-btn-primary" data-act="save">${msg('buttonSaveAsConfig')}</button>
+        <button class="toc-btn" data-act="close">${msg('buttonClose')}</button>
       </div>
     `;
     const close = () => wrap.remove();
@@ -100,7 +107,7 @@
 
     // 20s 超时自动取消，避免遗留状态
     let timeoutId = setTimeout(() => { cleanup(); onCancel && onCancel(); }, 20000);
-    
+
     function cleanup() {
       document.removeEventListener('mousemove', move, true);
       document.removeEventListener('click', click, true);
@@ -110,7 +117,7 @@
       if (highlight && highlight.parentNode) highlight.parentNode.removeChild(highlight);
       document.body.style.cursor = prevCursor || '';
     }
-    
+
     return { cleanup };
   }
 

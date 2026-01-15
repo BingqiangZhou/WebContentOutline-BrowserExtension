@@ -1,14 +1,138 @@
 {
-    "extensionName": {
-      "message": "网页目录助手",
-      "description": "The name of the extension, displayed in the web store and browser."
-    },
-    "extensionDescription": {
-      "message": "为网页内容生成可折叠的目录，支持CSS选择器配置，并提供元素拾取。点击扩展图标可按站点启用/禁用。",
-      "description": "A short description of the extension's purpose and features."
-    },
-    "browserActionTitle": {
-      "message": "网页目录助手",
-      "description": "The tooltip text displayed when hovering over the extension's icon in the browser toolbar."
-    }
+  "extensionName": {
+    "message": "网页目录助手",
+    "description": "扩展名称，显示在应用商店和浏览器中"
+  },
+  "extensionDescription": {
+    "message": "为网页内容生成可折叠的目录，支持CSS选择器配置，并提供元素拾取。点击扩展图标可按站点启用/禁用。",
+    "description": "扩展功能和用途的简短描述"
+  },
+  "browserActionTitle": {
+    "message": "网页目录助手",
+    "description": "鼠标悬停在扩展图标时显示的提示文本"
+  },
+  "tocTitle": {
+    "message": "目录",
+    "description": "目录的简短文本"
+  },
+  "buttonCollapse": {
+    "message": "收起",
+    "description": "收起目录面板的按钮文本"
+  },
+  "buttonCollapseTitle": {
+    "message": "收起为浮动按钮",
+    "description": "收起按钮的提示文本"
+  },
+  "buttonRefresh": {
+    "message": "刷新",
+    "description": "刷新目录的按钮文本"
+  },
+  "buttonRefreshTitle": {
+    "message": "重新扫描页面生成目录",
+    "description": "刷新按钮的提示文本"
+  },
+  "buttonPickElement": {
+    "message": "拾取元素",
+    "description": "激活元素拾取器的按钮文本"
+  },
+  "buttonPickElementTitle": {
+    "message": "点击后在页面上选择一个元素以生成选择器",
+    "description": "拾取元素按钮的提示文本"
+  },
+  "buttonManageSave": {
+    "message": "保存管理",
+    "description": "管理已保存配置的按钮文本"
+  },
+  "buttonManageSaveTitle": {
+    "message": "查看/清空当前站点已保存的选择器",
+    "description": "保存管理按钮的提示文本"
+  },
+  "emptyTocMessage": {
+    "message": "未找到目录项，请尝试刷新网页或点击刷新按钮。",
+    "description": "未找到目录项时显示的消息"
+  },
+  "badgeTitle": {
+    "message": "展开目录",
+    "description": "折叠按钮的提示文本"
+  },
+  "pickerResultTitle": {
+    "message": "已生成选择器",
+    "description": "拾取结果对话框的标题"
+  },
+  "buttonSaveAsConfig": {
+    "message": "保存为站点配置",
+    "description": "将选择器保存为站点配置的按钮文本"
+  },
+  "buttonClose": {
+    "message": "关闭",
+    "description": "关闭对话框的按钮文本"
+  },
+  "configDialogTitle": {
+    "message": "站点配置",
+    "description": "配置管理对话框的标题"
+  },
+  "configSavedSelectors": {
+    "message": "已保存选择器",
+    "description": "已保存选择器列表的标签"
+  },
+  "configNoSelectors": {
+    "message": "（无）",
+    "description": "没有保存选择器时显示的文本"
+  },
+  "buttonClearConfig": {
+    "message": "清空站点配置",
+    "description": "清空站点配置的按钮文本"
+  },
+  "errorOperationFailed": {
+    "message": "操作失败，请查看控制台。",
+    "description": "操作失败时的错误消息"
+  },
+  "logPrefix": {
+    "message": "[目录助手]",
+    "description": "控制台日志消息的前缀"
+  },
+  "logMissingDependencies": {
+    "message": "缺少必要的依赖模块",
+    "description": "缺少依赖模块时的错误消息"
+  },
+  "logNoConfigFound": {
+    "message": "未找到配置，使用默认空配置启动面板",
+    "description": "未找到配置时的调试消息"
+  },
+  "logConfigMatched": {
+    "message": "命中配置",
+    "description": "配置匹配时的调试消息"
+  },
+  "logInitFailed": {
+    "message": "初始化失败",
+    "description": "初始化失败时的错误消息"
+  },
+  "logContentScriptStarted": {
+    "message": "内容脚本启动于",
+    "description": "内容脚本启动时的调试消息"
+  },
+  "logSiteDisabled": {
+    "message": "当前站点处于禁用状态，未初始化面板",
+    "description": "站点禁用时的调试消息"
+  },
+  "logReadEnabledFailed": {
+    "message": "读取启用状态失败，默认禁用",
+    "description": "读取启用状态失败时的警告消息"
+  },
+  "logReadConfigFailed": {
+    "message": "读取最新配置失败，使用内存状态",
+    "description": "读取配置失败时的警告消息"
+  },
+  "logSavePositionFailed": {
+    "message": "保存位置失败:",
+    "description": "保存位置失败时的警告消息"
+  },
+  "logSaveConfigFailed": {
+    "message": "保存站点配置失败",
+    "description": "保存配置失败时的错误消息"
+  },
+  "logClearConfigFailed": {
+    "message": "读取/清空站点配置失败",
+    "description": "清空配置失败时的错误消息"
+  }
 }
