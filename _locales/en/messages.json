@@ -4,7 +4,7 @@
     "description": "The name of the extension, displayed in the web store and browser."
   },
   "extensionDescription": {
-    "message": "Generate a collapsible table of contents for web pages, supports CSS selector configuration, and provides element picker. Click extension icon to enable/disable per site.",
+    "message": "Auto-generate TOC for any webpage with CSS selector support. Click icon to enable/disable per site.",
     "description": "A short description of the extension's purpose and features."
   },
   "browserActionTitle": {
