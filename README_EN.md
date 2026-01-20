@@ -1,6 +1,7 @@
 # Web TOC Assistant / 网页目录助手
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
 [![Edge Extension](https://img.shields.io/badge/Edge-Extension-blue.svg)](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/mv3/)
 
@@ -26,7 +27,7 @@ An intelligent web table of contents generator that automatically creates intera
 
 ### 📍 Flexible UI Interaction
 - **Floating Panel**: Expandable TOC panel with left/right side display support
-- **Draggable Button**: Collapsed "目录" button supports drag positioning
+- **Draggable Button**: Collapsed "TOC" button supports drag positioning
 - **Position Memory**: Remembers button position per domain, uses default position when out of viewport
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
@@ -63,13 +64,13 @@ An intelligent web table of contents generator that automatically creates intera
 **How**: Click the "Web TOC Assistant" icon in the browser toolbar
 
 **Effect**:
-- Enabled state: Icon turns blue, "目录" floating button appears on page
+- Enabled state: Icon turns blue, "TOC" floating button appears on page
 - Disabled state: Icon turns gray, floating button disappears
 - Sync effect: Other tabs of the same site automatically sync state
 
 #### 2. Expand TOC Panel
 
-**How**: Click the "目录" floating button on the page
+**How**: Click the "TOC" floating button on the page
 
 **Default Behavior**:
 - Automatically recognizes h1-h6 headers on the page
@@ -91,11 +92,11 @@ An intelligent web table of contents generator that automatically creates intera
 
 **Steps**:
 1. Expand the TOC panel
-2. Click "拾取元素" (Pick Element) button
+2. Click "Pick Element" button
 3. Move mouse over the page - target elements will be highlighted
 4. Click the element you want to identify
 5. CSS selector is auto-generated and previewed
-6. Click "Save" to save selector as current site configuration
+6. Click "Save as Site Config" to save selector as current site configuration
 
 **Notes**:
 - Press ESC to cancel pick mode
@@ -105,7 +106,7 @@ An intelligent web table of contents generator that automatically creates intera
 
 #### 5. Manage Site Configuration
 
-**How**: Click "保存管理" (Save Management) button in the TOC panel
+**How**: Click "Manage Saves" button in the TOC panel
 
 **Functions**:
 - View all configurations for current site
@@ -114,7 +115,7 @@ An intelligent web table of contents generator that automatically creates intera
 
 #### 6. Adjust Button Position
 
-**How**: Drag the "目录" floating button to any position
+**How**: Drag the "TOC" floating button to any position
 
 **Effect**:
 - Button remembers current position (saved per domain)
@@ -123,7 +124,7 @@ An intelligent web table of contents generator that automatically creates intera
 
 #### 7. Refresh TOC
 
-**How**: Click "刷新" (Refresh) button in the TOC panel
+**How**: Click "Refresh" button in the TOC panel
 
 **When to use**:
 - After dynamic page content changes
@@ -274,7 +275,7 @@ Site configuration is stored in `chrome.storage.local`:
 
 ## 🔧 FAQ
 
-### Q: Can't see the "目录" button?
+### Q: Can't see the "TOC" button?
 **A:** Check the following:
 1. Confirm extension is properly installed and enabled
 2. Click toolbar icon to confirm current site is enabled
