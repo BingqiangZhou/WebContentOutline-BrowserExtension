@@ -12,7 +12,7 @@
 An intelligent web table of contents generator that automatically creates interactive floating TOC for any website to enhance reading experience.
 
 <p align="left">
-  <img src="dist/descriptions/Gemini_Generated_screenshots.png" alt="Web TOC Assistant Screenshot" width="800"/>
+  <img src="dist/descriptions/Gemini_Generated_screenshots1280x800.png" alt="Web TOC Assistant Screenshot" width="800"/>
 </p>
 
 ## ✨ 核心功能 / Key Features
