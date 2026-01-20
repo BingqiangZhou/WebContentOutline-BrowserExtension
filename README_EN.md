@@ -11,6 +11,10 @@ An intelligent web table of contents generator that automatically creates intera
 
 一个智能的网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
 
+<p align="left">
+  <img src="dist/descriptions/Gemini_Generated_screenshots.png" alt="Web TOC Assistant Screenshot" width="800"/>
+</p>
+
 ## ✨ Key Features / 核心功能
 
 ### 🎯 Smart TOC Generation
