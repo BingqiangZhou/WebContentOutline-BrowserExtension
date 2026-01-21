@@ -332,9 +332,21 @@ function uniqueInDocumentOrder(list) {
   }
   arr.sort((a, b) => {
     if (a === b) return 0;
-    const pos = a.compareDocumentPosition(b);
-    if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-    if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+    // 检查元素是否在同一文档中
+    if (!a.isConnected || !b.isConnected) {
+      // 如果有元素不在文档中，保持原有顺序
+      return 0;
+    }
+    try {
+      const pos = a.compareDocumentPosition(b);
+      if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
+      if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
+      if (pos & Node.DOCUMENT_POSITION_CONTAINS) return -1;
+      if (pos & Node.DOCUMENT_POSITION_CONTAINED_BY) return 1;
+    } catch (e) {
+      // compareDocumentPosition可能失败，保持原有顺序
+      console.warn('[目录助手] compareDocumentPosition失败:', e);
+    }
     return 0;
   });
   return arr;

@@ -61,9 +61,14 @@
       
       // 保存当前活跃项的状态
       let currentActiveItem = null;
+      let activeItemIndex = -1;  // 保存活跃项的索引
       let wasLocked = getNavLock();
       if (panelInstance && items.length > 0) {
         currentActiveItem = items.find(item => item._node && item._node.classList.contains('active'));
+        // 保存活跃项在数组中的索引位置
+        if (currentActiveItem) {
+          activeItemIndex = items.indexOf(currentActiveItem);
+        }
       }
 
       // 取消之前的恢复定时器，防止过期回调执行
@@ -92,11 +97,27 @@
             }
           });
 
-          // 尝试找到相同文本的项目来恢复状态
-          const matchingItem = items.find(item => item.text === currentActiveItem.text);
+          // 优先使用索引匹配，其次使用元素引用匹配，最后使用文本匹配
+          let matchingItem = null;
+
+          // 1. 尝试使用索引匹配（最准确）
+          if (activeItemIndex >= 0 && activeItemIndex < items.length) {
+            matchingItem = items[activeItemIndex];
+          }
+
+          // 2. 如果索引匹配失败，尝试使用元素引用匹配
+          if (!matchingItem && currentActiveItem.el) {
+            matchingItem = items.find(item => item.el === currentActiveItem.el);
+          }
+
+          // 3. 如果元素引用匹配失败，使用文本匹配（可能不准确）
+          if (!matchingItem) {
+            matchingItem = items.find(item => item.text === currentActiveItem.text);
+          }
+
           if (matchingItem && matchingItem._node) {
-            // 延迟设置active状态，确保DOM已经完全渲染
-            activeRestoreTimeout = setTimeout(() => {
+            // 使用requestAnimationFrame确保DOM已完全渲染
+            const restoreActive = () => {
               // 检查节点是否仍然有效（未被移除）
               if (matchingItem._node && document.contains(matchingItem._node)) {
                 matchingItem._node.classList.add('active');
@@ -106,7 +127,11 @@
                 }
               }
               activeRestoreTimeout = null;
-            }, 50);
+            };
+            // 先用requestAnimationFrame等待下一帧渲染，再用setTimeout确保样式已应用
+            requestAnimationFrame(() => {
+              activeRestoreTimeout = setTimeout(restoreActive, 0);
+            });
           }
         }
       }

@@ -31,7 +31,9 @@
               setPendingRebuild && setPendingRebuild(false);
               try {
                 await onRefresh();
-              } catch (e) {}
+              } catch (e) {
+                console.warn('[目录助手] 解锁后刷新失败:', e);
+              }
             }
           }, 100);
         }
@@ -252,9 +254,12 @@
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
       // 延迟启动IntersectionObserver，避免与初始状态恢复冲突
-      setTimeout(() => {
-        items.forEach(it => intersectionObserver.observe(it.el));
-      }, 100);
+      // 使用requestAnimationFrame确保在下一帧渲染后启动
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          items.forEach(it => intersectionObserver.observe(it.el));
+        });
+      });
     }
 
     return {

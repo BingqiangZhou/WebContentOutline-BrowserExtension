@@ -47,12 +47,16 @@
       if (appInstance && appInstance.destroy) {
         appInstance.destroy();
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn(msg('logPrefix') + ' 停止应用失败:', e);
+    }
     appInstance = null;
     // 强力清理兜底：移除任何遗留的目录 UI 节点
     try {
       document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay').forEach(n => n.remove());
-    } catch (_) {}
+    } catch (e) {
+      console.warn(msg('logPrefix') + ' 清理DOM节点失败:', e);
+    }
   }
 
   async function main() {
@@ -155,9 +159,13 @@
         } else {
           stopApp();
         }
-      } catch (_) {}
+      } catch (e) {
+        console.warn(msg('logPrefix') + ' storage变化处理失败:', e);
+      }
     });
-  } catch (_) {}
+  } catch (e) {
+    console.warn(msg('logPrefix') + ' storage监听器注册失败:', e);
+  }
 
   // 启动应用（等待文档就绪）
   if (document.readyState === 'loading') {

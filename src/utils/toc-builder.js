@@ -24,11 +24,20 @@
     
     const keepEmpty = !!(cfg && cfg.keepEmptyText);
     const uniq = uniqueInDocumentOrder(elements)
-      .map((el, i) => ({
-        id: 'toc-item-' + i,
-        el,
-        text: (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ')
-      }))
+      .map((el, i) => {
+        // 提取文本，限制最大长度为200字符
+        let rawText = el.innerText || el.textContent || '';
+        rawText = rawText.trim().replace(/\s+/g, ' ');
+        const maxLength = 200;
+        const text = rawText.length > maxLength
+          ? rawText.substring(0, maxLength) + '...'
+          : rawText;
+        return {
+          id: 'toc-item-' + i,
+          el,
+          text
+        };
+      })
       .filter(item => {
         if (keepEmpty) return true;
         
@@ -47,13 +56,22 @@
         
         // 检查元素尺寸（宽度或高度为0可能表示隐藏）
         const rect = el.getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0) {
+        if (rect.width === 0 || rect.height === 0) {
           return false;
         }
-        
-        // 检查是否在视口外且被裁剪
-        if (style.overflow === 'hidden' && (rect.width === 0 || rect.height === 0)) {
-          return false;
+
+        // 检查是否在视口外且被裁剪（overflow为hidden时额外检查）
+        if (style.overflow === 'hidden') {
+          // 已经在上面检查过尺寸为0的情况，这里检查其他可能的隐藏情况
+          const parent = el.parentElement;
+          if (parent) {
+            const parentRect = parent.getBoundingClientRect();
+            // 如果元素完全被父元素裁剪（元素在父元素范围外且父元素overflow:hidden）
+            if (rect.right < parentRect.left || rect.left > parentRect.right ||
+                rect.bottom < parentRect.top || rect.top > parentRect.bottom) {
+              return false;
+            }
+          }
         }
         
         return true;

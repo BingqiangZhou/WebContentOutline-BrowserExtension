@@ -16,9 +16,15 @@
    */
   async function siteConfig(cfg) {
     try {
-      // 如果对话框已存在，不再重复创建
+      // 如果对话框已存在，将其聚焦并返回
       const existing = document.querySelector('.toc-overlay');
       if (existing) {
+        // 闪烁效果提示用户对话框已存在
+        existing.style.transition = 'box-shadow 0.15s ease';
+        existing.style.setProperty('box-shadow', '0 0 0 4px rgba(47, 111, 235, 0.4), 0 8px 24px rgba(0,0,0,0.15)', 'important');
+        setTimeout(() => {
+          existing.style.setProperty('box-shadow', '0 8px 24px rgba(0,0,0,0.15)', 'important');
+        }, 200);
         return;
       }
 

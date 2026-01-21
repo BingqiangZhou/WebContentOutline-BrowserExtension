@@ -37,7 +37,9 @@
           }
         }
       }
-    } catch {}
+    } catch (e) {
+      console.warn('[目录助手] 读取badge位置失败:', e);
+    }
 
     // 拖拽支持
     let drag = { active: false, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };

@@ -10,6 +10,7 @@
     let shouldRebuildAt = 0;
     let pendingRebuild = false;
     let tickTimer = null;
+    let tickRunning = false;  // 添加标志防止重复启动
 
     /**
      * 检查是否有有意义的变化
@@ -32,7 +33,9 @@
      * 确保定时器运行
      */
     function ensureTick() {
-      if (tickTimer) return;
+      // 使用双重检查防止并发情况下重复启动
+      if (tickRunning || tickTimer) return;
+      tickRunning = true;
       tickTimer = setInterval(async () => {
         const now = Date.now();
         if (getNavLock()) {
@@ -46,14 +49,18 @@
           try {
             // 页面内容变化时总是执行重建
             await onRebuild();
-          } catch (e) {}
+          } catch (e) {
+            console.warn('[目录助手] 重建TOC失败:', e);
+          }
         }
         // 处理解锁后的待处理重建
         if (pendingRebuild && !getNavLock()) {
           pendingRebuild = false;
           try {
             await onRebuild();
-          } catch (e) {}
+          } catch (e) {
+            console.warn('[目录助手] 待处理重建失败:', e);
+          }
         }
       }, 200); // 轮询粒度200ms，轻量
     }
@@ -122,6 +129,7 @@
               clearInterval(tickTimer);
               tickTimer = null;
             }
+            tickRunning = false;  // 重置运行标志
           },
           getPendingRebuild: () => pendingRebuild,
           setPendingRebuild: (val) => { pendingRebuild = val; }

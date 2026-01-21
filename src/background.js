@@ -4,7 +4,7 @@
 const STORAGE_KEYS = { SITE_ENABLE_MAP: 'tocSiteEnabledMap' };
 
 function originFromUrl(url) {
-  try { return new URL(url).origin; } catch { return ''; }
+  try { return new URL(url).origin; } catch (e) { return ''; }
 }
 
 function getEnabledMap() {
@@ -222,7 +222,10 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' || changeInfo.url) {
-    updateIconForTab(tabId);
+    // 异步更新图标，添加错误处理
+    updateIconForTab(tabId).catch((e) => {
+      console.warn('[toc] onUpdated: updateIconForTab failed:', e);
+    });
   }
 });
 

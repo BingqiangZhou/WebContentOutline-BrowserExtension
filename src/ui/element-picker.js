@@ -15,16 +15,40 @@
   function showPickerResult(selector, saveCb) {
     const wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
-    wrap.innerHTML = `
-      <div class="toc-overlay-header">${msg('pickerResultTitle')}</div>
-      <div class="toc-overlay-body">
-        <textarea class="toc-overlay-textarea" readonly>${selector}</textarea>
-      </div>
-      <div class="toc-overlay-actions">
-        <button class="toc-btn toc-btn-primary" data-act="save">${msg('buttonSaveAsConfig')}</button>
-        <button class="toc-btn" data-act="close">${msg('buttonClose')}</button>
-      </div>
-    `;
+
+    // 使用textContent而非innerHTML避免XSS
+    const header = document.createElement('div');
+    header.className = 'toc-overlay-header';
+    header.textContent = msg('pickerResultTitle');
+
+    const body = document.createElement('div');
+    body.className = 'toc-overlay-body';
+    const textarea = document.createElement('textarea');
+    textarea.className = 'toc-overlay-textarea';
+    textarea.readOnly = true;
+    textarea.textContent = selector; // 使用textContent防止XSS
+    body.appendChild(textarea);
+
+    const actions = document.createElement('div');
+    actions.className = 'toc-overlay-actions';
+
+    const btnSave = document.createElement('button');
+    btnSave.className = 'toc-btn toc-btn-primary';
+    btnSave.dataset.act = 'save';
+    btnSave.textContent = msg('buttonSaveAsConfig');
+
+    const btnClose = document.createElement('button');
+    btnClose.className = 'toc-btn';
+    btnClose.dataset.act = 'close';
+    btnClose.textContent = msg('buttonClose');
+
+    actions.appendChild(btnSave);
+    actions.appendChild(btnClose);
+
+    wrap.appendChild(header);
+    wrap.appendChild(body);
+    wrap.appendChild(actions);
+
     const close = () => wrap.remove();
     wrap.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act]');
@@ -129,7 +153,20 @@
     document.addEventListener('keydown', key, true);
 
     // 20s 超时自动取消，避免遗留状态
-    let timeoutId = setTimeout(() => { cleanup(); onCancel && onCancel(); }, 20000);
+    let timeoutId = setTimeout(() => {
+      try {
+        cleanup();
+      } catch (e) {
+        console.warn('[目录助手] cleanup失败，强制取消元素拾取:', e);
+      } finally {
+        // 确保onCancel总是被调用
+        try {
+          onCancel && onCancel();
+        } catch (e) {
+          console.warn('[目录助手] onCancel回调失败:', e);
+        }
+      }
+    }, 20000);
 
     function cleanup() {
       document.removeEventListener('mousemove', move, true);
