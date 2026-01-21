@@ -7,7 +7,7 @@
 
 **[English](README.md)** | [中文](README_CN.md)
 
-An intelligent web table of contents generator that automatically creates interactive floating TOC for any website to enhance reading experience.
+A web table of contents generator that automatically creates interactive floating TOC for any website to enhance reading experience.
 
 <p align="left">
   <img src="dist/descriptions/Gemini_Generated_screenshots1280x800.png" alt="Web TOC Assistant Screenshot" width="800"/>
@@ -15,9 +15,9 @@ An intelligent web table of contents generator that automatically creates intera
 
 ## ✨ Key Features
 
-### 🎯 Smart TOC Generation
+### 🎯 TOC Generation
 - **Default Header Recognition**: Automatically uses page header structure (h1-h6 tags) when no selectors are configured
-- **Smart Filtering**: Automatically filters hidden elements and empty text to ensure all TOC items are visible and valid
+- **Automatic Filtering**: Automatically filters hidden elements and empty text to ensure all TOC items are visible and valid
 - **Custom Selectors**: Supports CSS and XPath selectors to adapt to various website structures
 - **Real-time Updates**: Automatically regenerates TOC when page content changes (500ms debounce)
 
@@ -25,7 +25,7 @@ An intelligent web table of contents generator that automatically creates intera
 - **Hover Highlighting**: Real-time highlighting of target elements as you move your mouse
 - **One-click Selector Generation**: Automatically generates CSS selector when you click an element
 - **Config Saving**: Saves selectors as site-specific configurations
-- **Smart Exclusion**: Automatically excludes extension's own UI elements
+- **Automatic Exclusion**: Automatically excludes extension's own UI elements
 
 ### 📍 Flexible UI Interaction
 - **Floating Panel**: Expandable TOC panel with left/right side display support
@@ -33,7 +33,7 @@ An intelligent web table of contents generator that automatically creates intera
 - **Position Memory**: Remembers button position per domain, uses default position when out of viewport
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
-### 🔄 Smart Navigation Experience
+### 🔄 Navigation Experience
 - **Current Position Highlighting**: Automatically highlights the TOC item corresponding to current reading position (IntersectionObserver)
 - **Navigation Locking**: Locks highlighting during user clicks to prevent jumping
 - **State Recovery**: Automatically restores highlight state after page changes
@@ -53,8 +53,17 @@ An intelligent web table of contents generator that automatically creates intera
 
 ### Installation
 
+#### Method 1: Install from Web Store (Recommended)
+
+1. **Chrome**: Visit [Chrome Web Store](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
+2. **Edge**: Visit [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
+3. Click "Add to Chrome/Edge" to install
+4. Visit any webpage to start using
+
+#### Method 2: Load Unpacked Extension (Developer Mode)
+
 1. Download project files to your local machine
-2. Open Edge browser and navigate to `edge://extensions/`
+2. Open Chrome browser and navigate to `chrome://extensions/` or Edge browser to `edge://extensions/`
 3. Enable "Developer Mode"
 4. Click "Load unpacked" and select the project folder
 5. Visit any webpage to start using

@@ -7,7 +7,7 @@
 
 **[English](README.md)** | [中文](README_CN.md)
 
-一个智能的网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
+一个网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
 
 <p align="left">
   <img src="dist/descriptions/Gemini_Generated_screenshots1280x800.png" alt="Web TOC Assistant Screenshot" width="800"/>
@@ -15,9 +15,9 @@
 
 ## ✨ 核心功能
 
-### 🎯 智能目录生成
+### 🎯 目录生成
 - **默认标题识别**：没有配置选择器时，自动使用页面标题结构（h1-h6标签）
-- **智能过滤**：自动过滤隐藏元素和空文本内容，确保目录项都是可见的有效内容
+- **自动过滤**：自动过滤隐藏元素和空文本内容，确保目录项都是可见的有效内容
 - **自定义选择器**：支持CSS和XPath选择器，适配各种网站结构
 - **实时更新**：页面内容变化时自动重新生成目录（防抖500ms）
 
@@ -25,7 +25,7 @@
 - **鼠标悬停高亮**：移动鼠标实时高亮目标元素
 - **一键生成选择器**：点击元素自动生成CSS选择器
 - **配置保存**：将选择器保存为站点专属配置
-- **智能排除**：自动排除扩展自身的UI元素
+- **自动排除**：自动排除扩展自身的UI元素
 
 ### 📍 灵活的界面交互
 - **浮动面板**：可展开的目录面板，支持左右侧显示
@@ -33,7 +33,7 @@
 - **位置记忆**：按域名记住按钮位置，超出屏幕时使用默认位置
 - **平滑滚动**：点击目录项平滑滚动到对应位置
 
-### 🔄 智能导航体验
+### 🔄 导航体验
 - **当前位置高亮**：自动高亮当前阅读位置对应的目录项（IntersectionObserver）
 - **导航锁定**：用户点击导航时锁定高亮，防止滚动时跳动
 - **状态恢复**：页面变化后自动恢复高亮状态
@@ -53,8 +53,17 @@
 
 ### 安装步骤
 
+#### 方法一：从应用商店安装（推荐）
+
+1. **Chrome 浏览器**：访问 [Chrome 网上应用店](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
+2. **Edge 浏览器**：访问 [Microsoft Edge 加载项](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
+3. 点击"添加至 Chrome/Edge"按钮安装
+4. 安装完成后访问任意网页即可使用
+
+#### 方法二：加载已解压的扩展程序（开发者模式）
+
 1. 下载项目文件到本地
-2. 打开Edge浏览器，访问 `edge://extensions/`
+2. 打开 Chrome 浏览器访问 `chrome://extensions/` 或 Edge 浏览器访问 `edge://extensions/`
 3. 开启"开发人员模式"（Developer Mode）
 4. 点击"加载已解压的扩展程序"（Load unpacked），选择项目文件夹
 5. 安装完成后访问任意网页即可使用
