@@ -13,6 +13,12 @@
    * 显示拾取结果对话框
    */
   function showPickerResult(selector, saveCb) {
+    // 如果已有对话框，先关闭它（互斥机制：只显示一个对话框）
+    const existing = document.querySelector('.toc-overlay');
+    if (existing) {
+      existing.remove();
+    }
+
     const wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
 

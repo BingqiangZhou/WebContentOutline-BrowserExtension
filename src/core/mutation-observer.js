@@ -2,6 +2,9 @@
 (() => {
   'use strict';
 
+  // 全局标志：扩展上下文是否有效
+  let isExtensionContextValid = true;
+
   /**
    * 创建页面变化监听器
    */
@@ -11,6 +14,33 @@
     let pendingRebuild = false;
     let tickTimer = null;
     let tickRunning = false;  // 添加标志防止重复启动
+
+    // 包装重建函数，添加扩展上下文失效检测
+    const safeRebuild = async () => {
+      if (!isExtensionContextValid) {
+        console.debug('[目录助手] 扩展上下文已失效，停止重建');
+        return;
+      }
+
+      try {
+        await onRebuild();
+      } catch (e) {
+        // 检测是否是扩展上下文失效错误
+        if (e && e.message && e.message.includes('Extension context invalidated')) {
+          console.warn('[目录助手] 检测到扩展上下文失效，停止后续重建操作');
+          isExtensionContextValid = false;
+          // 停止定时器和观察器
+          if (tickTimer) {
+            clearInterval(tickTimer);
+            tickTimer = null;
+          }
+          tickRunning = false;
+          return;
+        }
+        // 其他错误继续抛出
+        throw e;
+      }
+    };
 
     /**
      * 检查是否有有意义的变化
@@ -45,6 +75,14 @@
 
       tickRunning = true;
       tickTimer = setInterval(() => {
+        // 检查扩展上下文是否仍然有效
+        if (!isExtensionContextValid) {
+          clearInterval(tickTimer);
+          tickTimer = null;
+          tickRunning = false;
+          return;
+        }
+
         const now = Date.now();
         if (getNavLock()) {
           // 锁定期间仅置位，等解锁后一次性执行
@@ -54,14 +92,14 @@
         if (shouldRebuildAt > 0 && now >= shouldRebuildAt) {
           shouldRebuildAt = 0;
           pendingRebuild = false;
-          // 使用异步处理但不等待，避免setInterval回调堆积
-          onRebuild().catch(e => console.warn('[目录助手] 重建TOC失败:', e));
+          // 使用安全包装的重建函数
+          safeRebuild();
         }
         // 处理解锁后的待处理重建
         if (pendingRebuild && !getNavLock()) {
           pendingRebuild = false;
-          // 使用异步处理但不等待
-          onRebuild().catch(e => console.warn('[目录助手] 待处理重建失败:', e));
+          // 使用安全包装的重建函数
+          safeRebuild();
         }
       }, 200); // 轮询粒度200ms，轻量
     }
@@ -110,12 +148,18 @@
         console.debug('[目录助手] 检测到有效选择器，启动页面变化监听');
 
         const observer = new MutationObserver((mutations) => {
+          // 检查扩展上下文是否仍然有效
+          if (!isExtensionContextValid) {
+            observer.disconnect();
+            return;
+          }
+
           if (!hasMeaningfulChange(mutations)) return;
           // 每次变化推迟到当前时间+DEBOUNCE_MS (500ms)
           shouldRebuildAt = Date.now() + DEBOUNCE_MS;
           ensureTick();
         });
-        
+
         observer.observe(document.documentElement, {
           childList: true,
           subtree: true,

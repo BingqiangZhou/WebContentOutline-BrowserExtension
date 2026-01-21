@@ -83,6 +83,10 @@
     "message": "Clear Site Config",
     "description": "Button text to clear site configuration"
   },
+  "buttonDeleteSelector": {
+    "message": "Delete this selector",
+    "description": "Tooltip for delete selector button"
+  },
   "errorOperationFailed": {
     "message": "Operation failed. Please check the console.",
     "description": "Error message when operation fails"

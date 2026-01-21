@@ -16,16 +16,10 @@
    */
   async function siteConfig(cfg) {
     try {
-      // 如果对话框已存在，将其聚焦并返回
+      // 如果已有对话框，先关闭它（互斥机制：只显示一个对话框）
       const existing = document.querySelector('.toc-overlay');
       if (existing) {
-        // 闪烁效果提示用户对话框已存在
-        existing.style.transition = 'box-shadow 0.15s ease';
-        existing.style.setProperty('box-shadow', '0 0 0 4px rgba(47, 111, 235, 0.4), 0 8px 24px rgba(0,0,0,0.15)', 'important');
-        setTimeout(() => {
-          existing.style.setProperty('box-shadow', '0 8px 24px rgba(0,0,0,0.15)', 'important');
-        }, 200);
-        return;
+        existing.remove();
       }
 
       const configs = await getConfigs();
@@ -48,23 +42,71 @@
 
       // 创建计数标签
       const countLabel = document.createElement('div');
-      countLabel.style.cssText = 'font-size:13px;margin-bottom:6px';
+      countLabel.className = 'toc-config-count';
       countLabel.textContent = msg('configSavedSelectors') + ' (' + (list ? list.length : 0) + ')';
       body.appendChild(countLabel);
 
-      // 创建选择器列表（使用DOM避免XSS）
+      // 创建选择器列表（每个选择器可单独删除）
       const listDiv = document.createElement('div');
       listDiv.className = 'toc-overlay-list';
-      if (list && list.length) {
-        list.forEach(s => {
-          const item = document.createElement('div');
-          // 使用textContent安全地插入内容
-          item.textContent = s.type + ':' + s.expr;
-          listDiv.appendChild(item);
-        });
-      } else {
-        listDiv.textContent = msg('configNoSelectors');
-      }
+
+      // 刷新列表的函数
+      const refreshList = async (selectors) => {
+        listDiv.innerHTML = '';
+        if (selectors && selectors.length) {
+          selectors.forEach((s, sIndex) => {
+            const item = document.createElement('div');
+            item.className = 'toc-selector-item';
+
+            // 选择器文本
+            const textSpan = document.createElement('span');
+            textSpan.className = 'toc-selector-text';
+            textSpan.textContent = s.type + ':' + s.expr;
+            item.appendChild(textSpan);
+
+            // 删除按钮
+            const deleteBtn = document.createElement('span');
+            deleteBtn.className = 'toc-selector-delete';
+            deleteBtn.textContent = '✕';
+            deleteBtn.title = msg('buttonDeleteSelector') || '删除此选择器';
+            deleteBtn.dataset.index = sIndex;
+
+            // 点击删除按钮
+            deleteBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const indexToDelete = parseInt(deleteBtn.dataset.index, 10);
+              if (!isNaN(indexToDelete) && idx >= 0) {
+                // 从配置中删除
+                const updatedSelectors = [...configs[idx].selectors];
+                updatedSelectors.splice(indexToDelete, 1);
+                configs[idx].selectors = updatedSelectors;
+                await saveConfigs(configs);
+                cfg.selectors = updatedSelectors;
+
+                // 刷新列表
+                await refreshList(updatedSelectors);
+
+                // 更新计数
+                countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
+
+                // 触发重建
+                if (window.TOC_APP && window.TOC_APP.rebuild) {
+                  await window.TOC_APP.rebuild();
+                }
+              }
+            });
+
+            item.appendChild(deleteBtn);
+            listDiv.appendChild(item);
+          });
+        } else {
+          listDiv.textContent = msg('configNoSelectors');
+        }
+      };
+
+      // 初始渲染列表
+      await refreshList(list);
+
       body.appendChild(listDiv);
       box.appendChild(body);
 

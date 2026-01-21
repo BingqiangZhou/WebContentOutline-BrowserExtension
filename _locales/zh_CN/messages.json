@@ -83,6 +83,10 @@
     "message": "清空站点配置",
     "description": "清空站点配置的按钮文本"
   },
+  "buttonDeleteSelector": {
+    "message": "删除此选择器",
+    "description": "删除选择器按钮的提示文本"
+  },
   "errorOperationFailed": {
     "message": "操作失败，请查看控制台。",
     "description": "操作失败时的错误消息"
