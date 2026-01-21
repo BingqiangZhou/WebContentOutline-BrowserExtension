@@ -45,6 +45,8 @@
       const close = () => box.remove();
 
       box.addEventListener('click', async (e) => {
+        // 检查 e.target 是否存在且是元素节点
+        if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
         const btn = e.target.closest('[data-act]');
         if (!btn) return;
         const act = btn.dataset.act;

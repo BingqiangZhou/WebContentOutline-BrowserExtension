@@ -12,7 +12,14 @@ function getEnabledMap() {
   return new Promise((resolve) => {
     try {
       if (chrome?.storage?.local) {
-        chrome.storage.local.get([KEY], (res) => resolve(res[KEY] || {}));
+        chrome.storage.local.get([KEY], (res) => {
+          if (chrome.runtime.lastError) {
+            console.warn('[toc] getEnabledMap storage error:', chrome.runtime.lastError);
+            resolve({});
+          } else {
+            resolve(res[KEY] || {});
+          }
+        });
       } else {
         resolve({});
       }
@@ -28,7 +35,12 @@ function saveEnabledMap(map) {
   return new Promise((resolve) => {
     try {
       if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [KEY]: map }, () => resolve());
+        chrome.storage.local.set({ [KEY]: map }, () => {
+          if (chrome.runtime.lastError) {
+            console.warn('[toc] saveEnabledMap storage error:', chrome.runtime.lastError);
+          }
+          resolve();
+        });
       } else {
         resolve();
       }

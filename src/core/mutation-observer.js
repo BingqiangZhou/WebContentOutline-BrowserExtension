@@ -89,10 +89,18 @@
      * 启动监听器
      */
     function start(cfg) {
+      // 防止多次调用导致定时器泄漏：先清理旧定时器
+      if (tickTimer) {
+        clearInterval(tickTimer);
+        tickTimer = null;
+      }
+      shouldRebuildAt = 0;
+      pendingRebuild = false;
+
       // 只有在有有效选择器的情况下才启动观察器
       if (typeof MutationObserver !== 'undefined' && hasValidSelectors(cfg)) {
         console.debug('[目录助手] 检测到有效选择器，启动页面变化监听');
-        
+
         const observer = new MutationObserver((mutations) => {
           if (!hasMeaningfulChange(mutations)) return;
           // 每次变化推迟到当前时间+DEBOUNCE_MS (500ms)

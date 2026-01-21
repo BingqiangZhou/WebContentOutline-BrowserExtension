@@ -21,6 +21,7 @@
     let panelInstance = null;
     let mutationObserver = null;
     let pickerInstance = null;
+    let activeRestoreTimeout = null;  // 用于取消过期的恢复定时器
 
     let navLock = false;
     const getNavLock = () => navLock;
@@ -64,7 +65,13 @@
       if (panelInstance && items.length > 0) {
         currentActiveItem = items.find(item => item._node && item._node.classList.contains('active'));
       }
-      
+
+      // 取消之前的恢复定时器，防止过期回调执行
+      if (activeRestoreTimeout) {
+        clearTimeout(activeRestoreTimeout);
+        activeRestoreTimeout = null;
+      }
+
       items = newItems;
       if (panelInstance) {
         panelInstance.remove();
@@ -74,7 +81,7 @@
           mutationObserver ? mutationObserver.getPendingRebuild : () => false,
           mutationObserver ? mutationObserver.setPendingRebuild : () => {}
         ) : null;
-        
+
         // 恢复之前的活跃状态
         if (currentActiveItem && items.length > 0) {
           // 先清除所有可能的active状态，避免重复
@@ -84,17 +91,21 @@
               item._userSelected = false;
             }
           });
-          
+
           // 尝试找到相同文本的项目来恢复状态
           const matchingItem = items.find(item => item.text === currentActiveItem.text);
           if (matchingItem && matchingItem._node) {
             // 延迟设置active状态，确保DOM已经完全渲染
-            setTimeout(() => {
-              matchingItem._node.classList.add('active');
-              if (wasLocked) {
-                matchingItem._userSelected = true;
-                setNavLock(true);
+            activeRestoreTimeout = setTimeout(() => {
+              // 检查节点是否仍然有效（未被移除）
+              if (matchingItem._node && document.contains(matchingItem._node)) {
+                matchingItem._node.classList.add('active');
+                if (wasLocked) {
+                  matchingItem._userSelected = true;
+                  setNavLock(true);
+                }
               }
+              activeRestoreTimeout = null;
             }, 50);
           }
         }
@@ -197,6 +208,11 @@
         collapse,
         expand,
         destroy() {
+          // 清理恢复定时器
+          if (activeRestoreTimeout) {
+            clearTimeout(activeRestoreTimeout);
+            activeRestoreTimeout = null;
+          }
           if (badgeInstance) badgeInstance.remove();
           if (panelInstance) panelInstance.remove();
           if (mutationObserver) mutationObserver.disconnect();

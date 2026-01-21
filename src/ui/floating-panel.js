@@ -16,6 +16,7 @@
     const panel = document.createElement('div');
     let unlockTimer = null;
     let scrollStopTimer = null;
+    let intersectionObserver = null;  // IntersectionObserver 实例
     const UNLOCK_AFTER_MS = 1000;
     const SCROLL_STOP_MS = 500;
 
@@ -55,6 +56,10 @@
       window.removeEventListener('scroll', onScroll);
       if (unlockTimer) clearTimeout(unlockTimer);
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
+      if (intersectionObserver) {
+        intersectionObserver.disconnect();
+        intersectionObserver = null;
+      }
     };
 
     panel.className = `toc-floating ${side === 'left' ? 'left' : 'right'}`;
@@ -206,7 +211,7 @@
         active = null;
       };
 
-      const io = new IntersectionObserver((entries) => {
+      intersectionObserver = new IntersectionObserver((entries) => {
         // 如果导航被锁定，完全跳过处理
         if (getNavLock()) return;
 
@@ -248,7 +253,7 @@
 
       // 延迟启动IntersectionObserver，避免与初始状态恢复冲突
       setTimeout(() => {
-        items.forEach(it => io.observe(it.el));
+        items.forEach(it => intersectionObserver.observe(it.el));
       }, 100);
     }
 

@@ -27,10 +27,11 @@
     `;
     const close = () => wrap.remove();
     wrap.addEventListener('click', (e) => {
-      const t = e.target;
-      if (!t || !t.dataset) return;
-      if (t.dataset.act === 'close') close();
-      if (t.dataset.act === 'save') saveCb && saveCb(selector, close);
+      const btn = e.target.closest('[data-act]');
+      if (!btn) return;
+      const act = btn.dataset.act;
+      if (act === 'close') close();
+      if (act === 'save') saveCb && saveCb(selector, close);
     });
     document.documentElement.appendChild(wrap);
     return { close };
@@ -40,6 +41,13 @@
    * 创建元素拾取器
    */
   function createElementPicker(onPicked, onCancel) {
+    // 检查 DOM 是否准备好
+    if (!document.body) {
+      console.warn('[目录助手] DOM 未准备好，无法启动元素拾取器');
+      onCancel && onCancel();
+      return { cleanup: () => {} };
+    }
+
     // highlighter box that never captures events
     const highlight = document.createElement('div');
     highlight.style.cssText = 'position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:2147483647;left:0;top:0;width:0;height:0;';
@@ -48,6 +56,20 @@
     // set cursor crosshair without overlay
     const prevCursor = document.body.style.cursor;
     document.body.style.cursor = 'crosshair';
+
+    // 获取实际的元素节点（处理文本节点情况）
+    function getElementNode(node) {
+      if (!node) return null;
+      // 如果是文本节点，返回其父元素
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.parentElement;
+      }
+      // 如果是元素节点，直接返回
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        return node;
+      }
+      return null;
+    }
 
     function isUiElement(el) {
       // avoid highlighting our own panel or badge
@@ -68,10 +90,10 @@
     }
 
     function move(e) {
-      // Use target directly; if it's UI element, find underlying elementFromPoint ignoring our highlight (pointer-events:none)
-      let el = e.target;
+      // 获取实际的元素节点（处理文本节点）
+      let el = getElementNode(e.target);
       if (isUiElement(el)) {
-        el = document.elementFromPoint(e.clientX, e.clientY);
+        el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
         if (isUiElement(el)) return; // still UI, skip
       }
       if (el && el !== highlight) box(el);
@@ -79,9 +101,10 @@
 
     function click(e) {
       e.preventDefault();
-      let el = e.target;
+      // 获取实际的元素节点（处理文本节点）
+      let el = getElementNode(e.target);
       if (isUiElement(el)) {
-        el = document.elementFromPoint(e.clientX, e.clientY);
+        el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
         if (isUiElement(el)) {
           // click on UI; ignore
           return;

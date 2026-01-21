@@ -140,8 +140,21 @@
     badge.addEventListener('mousedown', onMouseDown, true);
     document.documentElement.appendChild(badge);
 
+    // 清理函数：移除事件监听器
+    function cleanup() {
+      badge.removeEventListener('mousedown', onMouseDown, true);
+      // 确保拖拽事件也被清理（防止异常情况）
+      if (drag.active) {
+        document.removeEventListener('mousemove', onMouseMove, true);
+        document.removeEventListener('mouseup', onMouseUp, true);
+      }
+    }
+
     return {
-      remove() { badge.remove(); }
+      remove() {
+        cleanup();
+        badge.remove();
+      }
     };
   }
 

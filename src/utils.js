@@ -12,11 +12,22 @@ const STORAGE_KEYS = {
  * @returns {Promise<Array>}
  */
 function getConfigs() {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       if (chrome?.storage?.local) {
         chrome.storage.local.get([STORAGE_KEYS.TOC_CONFIGS], (res) => {
-          resolve(res[STORAGE_KEYS.TOC_CONFIGS] || []);
+          if (chrome.runtime.lastError) {
+            console.error('[目录助手] 读取配置失败:', chrome.runtime.lastError);
+            // 降级到 localStorage
+            try {
+              const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
+              resolve(raw ? JSON.parse(raw) : []);
+            } catch {
+              resolve([]);
+            }
+          } else {
+            resolve(res[STORAGE_KEYS.TOC_CONFIGS] || []);
+          }
         });
       } else {
         const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
@@ -36,10 +47,23 @@ function getConfigs() {
  * @returns {Promise<void>}
  */
 function saveConfigs(configs) {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     try {
       if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs }, () => resolve());
+        chrome.storage.local.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[目录助手] 保存配置失败:', chrome.runtime.lastError);
+            // 降级到 localStorage
+            try {
+              localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
+              resolve();
+            } catch {
+              reject();
+            }
+          } else {
+            resolve();
+          }
+        });
       } else {
         localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
         resolve();
@@ -60,7 +84,17 @@ function getEnabledMap() {
     try {
       if (chrome?.storage?.local) {
         chrome.storage.local.get([STORAGE_KEYS.SITE_ENABLE_MAP], (res) => {
-          resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
+          if (chrome.runtime.lastError) {
+            console.error('[目录助手] 读取启用状态失败:', chrome.runtime.lastError);
+            try {
+              const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
+              resolve(raw ? JSON.parse(raw) : {});
+            } catch {
+              resolve({});
+            }
+          } else {
+            resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
+          }
         });
       } else {
         const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
@@ -81,7 +115,19 @@ function saveEnabledMap(map) {
   return new Promise((resolve) => {
     try {
       if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => resolve());
+        chrome.storage.local.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[目录助手] 保存启用状态失败:', chrome.runtime.lastError);
+            try {
+              localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
+              resolve();
+            } catch {
+              resolve();
+            }
+          } else {
+            resolve();
+          }
+        });
       } else {
         localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
         resolve();
@@ -101,7 +147,17 @@ function getPanelStateMap() {
     try {
       if (chrome?.storage?.local) {
         chrome.storage.local.get([STORAGE_KEYS.PANEL_STATE_MAP], (res) => {
-          resolve(res[STORAGE_KEYS.PANEL_STATE_MAP] || {});
+          if (chrome.runtime.lastError) {
+            console.error('[目录助手] 读取面板状态失败:', chrome.runtime.lastError);
+            try {
+              const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
+              resolve(raw ? JSON.parse(raw) : {});
+            } catch {
+              resolve({});
+            }
+          } else {
+            resolve(res[STORAGE_KEYS.PANEL_STATE_MAP] || {});
+          }
         });
       } else {
         const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
@@ -122,7 +178,19 @@ function savePanelStateMap(map) {
   return new Promise((resolve) => {
     try {
       if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [STORAGE_KEYS.PANEL_STATE_MAP]: map }, () => resolve());
+        chrome.storage.local.set({ [STORAGE_KEYS.PANEL_STATE_MAP]: map }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('[目录助手] 保存面板状态失败:', chrome.runtime.lastError);
+            try {
+              localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
+              resolve();
+            } catch {
+              resolve();
+            }
+          } else {
+            resolve();
+          }
+        });
       } else {
         localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
         resolve();
