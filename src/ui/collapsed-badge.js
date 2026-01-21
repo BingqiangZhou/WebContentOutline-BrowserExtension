@@ -20,21 +20,28 @@
 
     // 读取保存位置（每个域名记忆）
     const posKey = `tocBadgePos::${location.host}`;
+    // 先创建badge并添加到DOM以获取实际尺寸
+    document.documentElement.appendChild(badge);
+
     try {
       const saved = localStorage.getItem(posKey);
       if (saved) {
         const { left, top } = JSON.parse(saved);
         if (typeof left === 'number' && typeof top === 'number') {
           // 保存/应用均使用视口坐标（position:fixed）
-          const bw = 80; // 预估badge宽度
-          const bh = 32; // 预估badge高度
-          const maxLeft = window.innerWidth - bw - 4;
-          const maxTop = window.innerHeight - bh - 4;
-          if (left >= 4 && left <= maxLeft && top >= 4 && top <= maxTop) {
-            badge.style.setProperty('left', left + 'px', 'important');
-            badge.style.setProperty('top', top + 'px', 'important');
-            badge.classList.remove('left', 'right');
-          }
+          // 使用实际badge尺寸而非硬编码值
+          // 使用requestAnimationFrame确保DOM已渲染后再读取尺寸
+          requestAnimationFrame(() => {
+            const bw = badge.offsetWidth || 80;
+            const bh = badge.offsetHeight || 32;
+            const maxLeft = window.innerWidth - bw - 4;
+            const maxTop = window.innerHeight - bh - 4;
+            if (left >= 4 && left <= maxLeft && top >= 4 && top <= maxTop) {
+              badge.style.setProperty('left', left + 'px', 'important');
+              badge.style.setProperty('top', top + 'px', 'important');
+              badge.classList.remove('left', 'right');
+            }
+          });
         }
       }
     } catch (e) {
@@ -140,7 +147,7 @@
     }
 
     badge.addEventListener('mousedown', onMouseDown, true);
-    document.documentElement.appendChild(badge);
+    // badge已在前面添加到DOM
 
     // 清理函数：移除事件监听器
     function cleanup() {

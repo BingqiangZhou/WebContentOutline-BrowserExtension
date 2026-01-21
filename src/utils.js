@@ -323,33 +323,39 @@ function collectBySelector(selector) {
  */
 function uniqueInDocumentOrder(list) {
   const set = new Set();
-  const arr = [];
-  for (const el of list) {
+  // 使用数组记录元素及其原始索引，以便在排序失败时保持原始顺序
+  const arrWithIndex = [];
+  for (let i = 0; i < list.length; i++) {
+    const el = list[i];
     if (!el) continue;
     if (set.has(el)) continue;
     set.add(el);
-    arr.push(el);
+    arrWithIndex.push({ el, originalIndex: i });
   }
-  arr.sort((a, b) => {
-    if (a === b) return 0;
+
+  arrWithIndex.sort((a, b) => {
+    if (a.el === b.el) return 0;
     // 检查元素是否在同一文档中
-    if (!a.isConnected || !b.isConnected) {
-      // 如果有元素不在文档中，保持原有顺序
-      return 0;
+    if (!a.el.isConnected || !b.el.isConnected) {
+      // 如果有元素不在文档中，保持原始顺序
+      return a.originalIndex - b.originalIndex;
     }
     try {
-      const pos = a.compareDocumentPosition(b);
+      const pos = a.el.compareDocumentPosition(b.el);
       if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
       if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
       if (pos & Node.DOCUMENT_POSITION_CONTAINS) return -1;
       if (pos & Node.DOCUMENT_POSITION_CONTAINED_BY) return 1;
+      // 如果无法确定位置，保持原始顺序
+      return a.originalIndex - b.originalIndex;
     } catch (e) {
-      // compareDocumentPosition可能失败，保持原有顺序
+      // compareDocumentPosition可能失败，保持原始顺序
       console.warn('[目录助手] compareDocumentPosition失败:', e);
+      return a.originalIndex - b.originalIndex;
     }
-    return 0;
   });
-  return arr;
+
+  return arrWithIndex.map(item => item.el);
 }
 
 /**

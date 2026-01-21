@@ -228,16 +228,16 @@ async function handleActionClick(tab) {
 // ---- Event wiring ----
 chrome.action.onClicked.addListener(handleActionClick);
 
-chrome.tabs.onActivated.addListener(async (activeInfo) => {
-  try {
-    await updateIconForTab(activeInfo.tabId);
-  } catch (e) {
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  // 异步更新图标，不阻塞事件处理
+  updateIconForTab(activeInfo.tabId).catch(e => {
     console.warn('[toc] onActivated: updateIconForTab failed:', e, { tabId: activeInfo.tabId });
-  }
+  });
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' || changeInfo.url) {
+  // 只在页面加载完成时更新图标，避免频繁更新
+  if (changeInfo.status === 'complete') {
     // 异步更新图标，添加错误处理
     updateIconForTab(tabId).catch((e) => {
       console.warn('[toc] onUpdated: updateIconForTab failed:', e);
@@ -257,9 +257,14 @@ chrome.runtime.onInstalled.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
     const tabs = await chrome.tabs.query({});
-    for (const t of tabs) {
-      if (t.id) await updateIconForTab(t.id);
-    }
+    // 并行更新所有标签页图标，提高性能
+    const updatePromises = tabs.map(t => {
+      if (t.id) return updateIconForTab(t.id).catch(e => {
+        console.warn('[toc] onInstalled: updateIconForTab failed for tab', t.id, e);
+      });
+      return Promise.resolve();
+    });
+    await Promise.all(updatePromises);
   } catch (e) {
     console.warn('[toc] onInstalled failed:', e);
   }
@@ -269,9 +274,14 @@ chrome.runtime.onStartup.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
     const tabs = await chrome.tabs.query({});
-    for (const t of tabs) {
-      if (t.id && t.url) await updateIconForTab(t.id, t.url);
-    }
+    // 并行更新所有标签页图标，提高性能
+    const updatePromises = tabs.map(t => {
+      if (t.id && t.url) return updateIconForTab(t.id, t.url).catch(e => {
+        console.warn('[toc] onStartup: updateIconForTab failed for tab', t.id, e);
+      });
+      return Promise.resolve();
+    });
+    await Promise.all(updatePromises);
   } catch (e) {
     console.warn('[toc] onStartup failed:', e);
   }

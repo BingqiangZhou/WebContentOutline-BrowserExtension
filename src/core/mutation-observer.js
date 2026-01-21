@@ -34,9 +34,17 @@
      */
     function ensureTick() {
       // 使用双重检查防止并发情况下重复启动
-      if (tickRunning || tickTimer) return;
+      // 如果定时器已存在，直接返回
+      if (tickTimer) return;
+      // 如果正在运行但定时器不存在（异常状态），重置运行标志
+      if (tickRunning && !tickTimer) {
+        tickRunning = false;
+      }
+      // 再次检查后启动
+      if (tickTimer) return;
+
       tickRunning = true;
-      tickTimer = setInterval(async () => {
+      tickTimer = setInterval(() => {
         const now = Date.now();
         if (getNavLock()) {
           // 锁定期间仅置位，等解锁后一次性执行
@@ -46,21 +54,14 @@
         if (shouldRebuildAt > 0 && now >= shouldRebuildAt) {
           shouldRebuildAt = 0;
           pendingRebuild = false;
-          try {
-            // 页面内容变化时总是执行重建
-            await onRebuild();
-          } catch (e) {
-            console.warn('[目录助手] 重建TOC失败:', e);
-          }
+          // 使用异步处理但不等待，避免setInterval回调堆积
+          onRebuild().catch(e => console.warn('[目录助手] 重建TOC失败:', e));
         }
         // 处理解锁后的待处理重建
         if (pendingRebuild && !getNavLock()) {
           pendingRebuild = false;
-          try {
-            await onRebuild();
-          } catch (e) {
-            console.warn('[目录助手] 待处理重建失败:', e);
-          }
+          // 使用异步处理但不等待
+          onRebuild().catch(e => console.warn('[目录助手] 待处理重建失败:', e));
         }
       }, 200); // 轮询粒度200ms，轻量
     }

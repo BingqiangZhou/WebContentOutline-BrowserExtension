@@ -38,8 +38,11 @@
       
       // 检查是否需要重建：只有在用户交互锁定期间才跳过重建
       if (panelInstance && getNavLock()) {
-        // 在锁定期间，保存新的items但不立即重建
+        // 在锁定期间，保存新的items但不立即重建，并设置pending标志
         items = newItems;
+        if (mutationObserver && mutationObserver.setPendingRebuild) {
+          mutationObserver.setPendingRebuild(true);
+        }
         return;
       }
       
@@ -64,7 +67,15 @@
       let activeItemIndex = -1;  // 保存活跃项的索引
       let wasLocked = getNavLock();
       if (panelInstance && items.length > 0) {
-        currentActiveItem = items.find(item => item._node && item._node.classList.contains('active'));
+        // 更安全的查找方式：先检查_node存在性，再检查classList
+        currentActiveItem = items.find(item => {
+          if (!item || !item._node) return false;
+          try {
+            return item._node.classList && item._node.classList.contains('active');
+          } catch (e) {
+            return false;
+          }
+        });
         // 保存活跃项在数组中的索引位置
         if (currentActiveItem) {
           activeItemIndex = items.indexOf(currentActiveItem);
@@ -73,7 +84,14 @@
 
       // 取消之前的恢复定时器，防止过期回调执行
       if (activeRestoreTimeout) {
-        clearTimeout(activeRestoreTimeout);
+        // 根据ID类型选择正确的清理方法（setTimeout或requestAnimationFrame）
+        try {
+          if (typeof activeRestoreTimeout === 'number') {
+            cancelAnimationFrame(activeRestoreTimeout);
+          }
+        } catch (e) {
+          // 忽略清理失败
+        }
         activeRestoreTimeout = null;
       }
 
@@ -116,22 +134,24 @@
           }
 
           if (matchingItem && matchingItem._node) {
-            // 使用requestAnimationFrame确保DOM已完全渲染
+            // 简化的恢复逻辑：使用requestAnimationFrame确保DOM已完全渲染
             const restoreActive = () => {
               // 检查节点是否仍然有效（未被移除）
-              if (matchingItem._node && document.contains(matchingItem._node)) {
-                matchingItem._node.classList.add('active');
-                if (wasLocked) {
-                  matchingItem._userSelected = true;
-                  setNavLock(true);
+              try {
+                if (matchingItem._node && document.contains(matchingItem._node)) {
+                  matchingItem._node.classList.add('active');
+                  if (wasLocked) {
+                    matchingItem._userSelected = true;
+                    setNavLock(true);
+                  }
                 }
+              } catch (e) {
+                // 忽略设置失败
               }
               activeRestoreTimeout = null;
             };
-            // 先用requestAnimationFrame等待下一帧渲染，再用setTimeout确保样式已应用
-            requestAnimationFrame(() => {
-              activeRestoreTimeout = setTimeout(restoreActive, 0);
-            });
+            // 使用requestAnimationFrame确保下一帧渲染后执行
+            activeRestoreTimeout = requestAnimationFrame(restoreActive);
           }
         }
       }
@@ -221,12 +241,12 @@
       mutationObserver = observerFactory.start(cfg);
     }
 
-    // 总是先折叠为右侧"目录"按钮，用户点击后再展开
-    collapse();
-
-    // 导出rebuild方法供外部调用
+    // 导出rebuild方法供外部调用（必须在return之前）
     window.TOC_APP = window.TOC_APP || {};
     window.TOC_APP.rebuild = rebuild;
+
+    // 总是先折叠为右侧"目录"按钮，用户点击后再展开
+    collapse();
 
       return {
         rebuild,
@@ -235,7 +255,13 @@
         destroy() {
           // 清理恢复定时器
           if (activeRestoreTimeout) {
-            clearTimeout(activeRestoreTimeout);
+            try {
+              if (typeof activeRestoreTimeout === 'number') {
+                cancelAnimationFrame(activeRestoreTimeout);
+              }
+            } catch (e) {
+              // 忽略清理失败
+            }
             activeRestoreTimeout = null;
           }
           if (badgeInstance) badgeInstance.remove();

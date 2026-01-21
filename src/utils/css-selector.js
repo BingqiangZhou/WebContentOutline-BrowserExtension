@@ -3,12 +3,26 @@
   'use strict';
 
   /**
+   * 转义CSS类名中的特殊字符
+   * @param {string} className
+   * @returns {string}
+   */
+  function escapeCssClass(className) {
+    // 需要转义的特殊字符：.!#$%&*+./=?^`{|}~等
+    // 根据CSS规范，类名中的特殊字符需要用反斜杠转义
+    return className.replace(/([.!#$%&*+\/=?^`{|}~\[\]\\()])/g, '\\$1');
+  }
+
+  /**
    * 构建类选择器
    */
   function buildClassSelector(el) {
     if (!el || !el.classList || el.classList.length === 0) return '';
     const classes = Array.from(el.classList).slice(0, 3); // limit to first 3
-    return classes.length ? '.' + classes.join('.') : '';
+    if (classes.length === 0) return '';
+    // 转义每个类名中的特殊字符
+    const escaped = classes.map(escapeCssClass);
+    return '.' + escaped.join('.');
   }
 
   /**

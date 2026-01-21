@@ -38,9 +38,13 @@
           }, 100);
         }
         // 延迟清除用户选择标记，确保IntersectionObserver不会立即覆盖
+        // 延迟足够长的时间，让用户滚动操作完成
         setTimeout(() => {
-          items.forEach(it => it._userSelected = false);
-        }, 200); // 200ms后清除用户选择标记
+          // 清除所有项目的用户选择标记
+          items.forEach(it => {
+            it._userSelected = false;
+          });
+        }, 200); // 200ms后清除所有用户选择标记
       }, UNLOCK_AFTER_MS);
     };
 

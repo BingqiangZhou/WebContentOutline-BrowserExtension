@@ -90,7 +90,7 @@
   // 监听后台切换事件
   try {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-      if (!msg) return;
+      if (!msg || !msg.type) return;
 
       // 请求直接打开目录面板
       if (msg.type === 'toc:openPanel') {
@@ -154,8 +154,9 @@
         const next = !!map[location.origin];
         if (next === currentEnabled) return;
         currentEnabled = next;
+        // 使用异步处理但不等待，避免阻塞
         if (next) {
-          startApp();
+          startApp().catch(err => console.warn(msg('logPrefix') + ' startApp失败:', err));
         } else {
           stopApp();
         }

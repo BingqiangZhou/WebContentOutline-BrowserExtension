@@ -174,8 +174,24 @@
       document.removeEventListener('keydown', key, true);
       document.removeEventListener('contextmenu', onCtx, true);
       if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
-      if (highlight && highlight.parentNode) highlight.parentNode.removeChild(highlight);
-      document.body.style.cursor = prevCursor || '';
+      // 更安全的DOM移除：检查节点仍然在文档中
+      if (highlight) {
+        try {
+          if (highlight.parentNode && document.contains(highlight)) {
+            highlight.parentNode.removeChild(highlight);
+          }
+        } catch (e) {
+          // 忽略移除失败，节点可能已被移除
+        }
+      }
+      // 恢复光标（添加存在性检查）
+      try {
+        if (document.body) {
+          document.body.style.cursor = prevCursor || '';
+        }
+      } catch (e) {
+        // 忽略光标恢复失败
+      }
     }
 
     return { cleanup };

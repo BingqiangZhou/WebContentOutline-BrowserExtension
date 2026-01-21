@@ -91,8 +91,9 @@
       box.addEventListener('click', async (e) => {
         // 检查 e.target 是否存在且是元素节点
         if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
+        // 安全地使用closest，确保当前目标是元素节点
         const btn = e.target.closest('[data-act]');
-        if (!btn) return;
+        if (!btn || btn.nodeType !== Node.ELEMENT_NODE) return;
         const act = btn.dataset.act;
         if (act === 'close') close();
         if (act === 'clear') {
