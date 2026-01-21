@@ -56,7 +56,7 @@ All modules expose APIs via `window` object (content script context):
 - `window.CSS_SELECTOR` - Selector generation: `buildClassSelector()`, `cssPathFor()`
 - `window.TOC_BUILDER` - TOC building: `buildTocItems()`, `buildTocItemsFromSelectors()`
 - `window.TOC_UI` - UI components: panel rendering, badge, element picker
-- `window.CONFIG_MANAGER` - Config management: `manageSave()`, `saveSelector()`
+- `window.CONFIG_MANAGER` - Config management: `siteConfig()`, `saveSelector()`
 - `window.MUTATION_OBSERVER` - DOM observer with debounced rebuilds
 - `window.TOC_APP` - Main app: `initForConfig()`, `expand()`, `collapse()`, `rebuild()`
 

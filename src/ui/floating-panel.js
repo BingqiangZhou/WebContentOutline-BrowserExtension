@@ -12,7 +12,7 @@
   /**
    * 渲染浮动面板
    */
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onManageSave, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild) {
+  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild) {
     const panel = document.createElement('div');
     let unlockTimer = null;
     let scrollStopTimer = null;
@@ -95,9 +95,9 @@
 
     const btnManage = document.createElement('button');
     btnManage.className = 'toc-btn';
-    btnManage.textContent = msg('buttonManageSave');
-    btnManage.title = msg('buttonManageSaveTitle');
-    btnManage.addEventListener('click', () => onManageSave && onManageSave());
+    btnManage.textContent = msg('buttonSiteConfig');
+    btnManage.title = msg('buttonSiteConfigTitle');
+    btnManage.addEventListener('click', () => onSiteConfig && onSiteConfig());
 
     // 右侧按钮组
     const actionsRight = document.createElement('div');

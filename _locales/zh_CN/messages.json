@@ -39,13 +39,13 @@
     "message": "点击后在页面上选择一个元素以生成选择器",
     "description": "拾取元素按钮的提示文本"
   },
-  "buttonManageSave": {
-    "message": "保存管理",
-    "description": "管理已保存配置的按钮文本"
+  "buttonSiteConfig": {
+    "message": "站点配置",
+    "description": "管理站点配置的按钮文本"
   },
-  "buttonManageSaveTitle": {
+  "buttonSiteConfigTitle": {
     "message": "查看/清空当前站点已保存的选择器",
-    "description": "保存管理按钮的提示文本"
+    "description": "站点配置按钮的提示文本"
   },
   "emptyTocMessage": {
     "message": "未找到目录项，请尝试刷新网页或点击刷新按钮。",

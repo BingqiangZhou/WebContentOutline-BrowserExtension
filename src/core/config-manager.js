@@ -12,10 +12,16 @@
   const { getConfigs, saveConfigs } = window.TOC_UTILS || {};
 
   /**
-   * 管理保存的配置
+   * 管理站点配置
    */
-  async function manageSave(cfg) {
+  async function siteConfig(cfg) {
     try {
+      // 如果对话框已存在，不再重复创建
+      const existing = document.querySelector('.toc-overlay');
+      if (existing) {
+        return;
+      }
+
       const configs = await getConfigs();
       const urlPattern = `${location.protocol}//${location.host}/*`;
       const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);
@@ -39,10 +45,11 @@
       const close = () => box.remove();
 
       box.addEventListener('click', async (e) => {
-        const t = e.target;
-        if (!t || !t.dataset) return;
-        if (t.dataset.act === 'close') close();
-        if (t.dataset.act === 'clear') {
+        const btn = e.target.closest('[data-act]');
+        if (!btn) return;
+        const act = btn.dataset.act;
+        if (act === 'close') close();
+        if (act === 'clear') {
           if (idx >= 0) {
             configs.splice(idx, 1);
             await saveConfigs(configs);
@@ -116,7 +123,7 @@
 
   // 导出到全局
   window.CONFIG_MANAGER = {
-    manageSave,
+    siteConfig,
     saveSelector,
     updateConfigFromStorage
   };

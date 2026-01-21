@@ -39,13 +39,13 @@
     "message": "Click then select an element on the page to generate a selector",
     "description": "Tooltip for pick element button"
   },
-  "buttonManageSave": {
-    "message": "Manage Save",
-    "description": "Button text to manage saved configurations"
+  "buttonSiteConfig": {
+    "message": "Site Config",
+    "description": "Button text to manage site configuration"
   },
-  "buttonManageSaveTitle": {
+  "buttonSiteConfigTitle": {
     "message": "View/Clear saved selectors for current site",
-    "description": "Tooltip for manage save button"
+    "description": "Tooltip for site config button"
   },
   "emptyTocMessage": {
     "message": "No TOC items found. Try refreshing the page or clicking the Refresh button.",

@@ -50,7 +50,7 @@ window.TOC_UTILS          // 基础工具：存储、DOM操作、选择器匹配
 window.CSS_SELECTOR       // CSS选择器生成：buildClassSelector, cssPathFor
 window.TOC_BUILDER        // TOC构建：buildTocItems, buildTocItemsFromSelectors
 window.TOC_UI            // UI组件：renderFloatingPanel, renderCollapsedBadge, createElementPicker
-window.CONFIG_MANAGER    // 配置管理：manageSave, saveSelector, updateConfigFromStorage
+window.CONFIG_MANAGER    // 配置管理：siteConfig, saveSelector, updateConfigFromStorage
 window.MUTATION_OBSERVER // 页面监听：createMutationObserver
 window.TOC_APP          // 主应用：initForConfig, rebuild
 ```

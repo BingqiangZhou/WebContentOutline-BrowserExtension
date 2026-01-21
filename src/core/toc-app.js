@@ -5,7 +5,7 @@
   const { buildTocItems } = window.TOC_BUILDER || {};
   const { renderCollapsedBadge, renderFloatingPanel, createElementPicker, showPickerResult } = window.TOC_UI || {};
   const { buildClassSelector, cssPathFor } = window.CSS_SELECTOR || {};
-  const { manageSave, saveSelector, updateConfigFromStorage } = window.CONFIG_MANAGER || {};
+  const { siteConfig, saveSelector, updateConfigFromStorage } = window.CONFIG_MANAGER || {};
   const { setPanelExpandedByOrigin } = window.TOC_UTILS || {};
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
@@ -69,8 +69,8 @@
       if (panelInstance) {
         panelInstance.remove();
         panelInstance = renderFloatingPanel ? renderFloatingPanel(
-          side, items, collapse, rebuild, startPick, 
-          () => manageSave(cfg), getNavLock, setNavLock, 
+          side, items, collapse, rebuild, startPick,
+          () => siteConfig(cfg), getNavLock, setNavLock,
           mutationObserver ? mutationObserver.getPendingRebuild : () => false,
           mutationObserver ? mutationObserver.setPendingRebuild : () => {}
         ) : null;
@@ -169,8 +169,8 @@
       await rebuild();
       if (!panelInstance && renderFloatingPanel) {
         panelInstance = renderFloatingPanel(
-          side, items, collapse, rebuild, startPick, 
-          () => manageSave(cfg), getNavLock, setNavLock,
+          side, items, collapse, rebuild, startPick,
+          () => siteConfig(cfg), getNavLock, setNavLock,
           mutationObserver ? mutationObserver.getPendingRebuild : () => false,
           mutationObserver ? mutationObserver.setPendingRebuild : () => {}
         );
