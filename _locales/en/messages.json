@@ -134,5 +134,17 @@
   "logClearConfigFailed": {
     "message": "Failed to read/clear site configuration",
     "description": "Error message when clearing config fails"
+  },
+  "titleDisabled": {
+    "message": "Web TOC Assistant: Disabled (per-site, click to enable)",
+    "description": "Icon title when extension is disabled for current site"
+  },
+  "titleEnabled": {
+    "message": "Web TOC Assistant: Enabled (per-site, click to disable)",
+    "description": "Icon title when extension is enabled for current site"
+  },
+  "titleDisabledFallback": {
+    "message": "Web TOC: Disabled (per-site, click to enable)",
+    "description": "Fallback icon title for non-http pages"
   }
 }

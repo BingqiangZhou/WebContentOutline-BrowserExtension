@@ -134,5 +134,17 @@
   "logClearConfigFailed": {
     "message": "读取/清空站点配置失败",
     "description": "清空配置失败时的错误消息"
+  },
+  "titleDisabled": {
+    "message": "网页目录助手：禁用（按站点，点击启用）",
+    "description": "扩展禁用时的图标标题"
+  },
+  "titleEnabled": {
+    "message": "网页目录助手：启用（按站点，点击禁用）",
+    "description": "扩展启用时的图标标题"
+  },
+  "titleDisabledFallback": {
+    "message": "网页目录：禁用（按站点，点击启用）",
+    "description": "非http页面的备用图标标题"
   }
 }

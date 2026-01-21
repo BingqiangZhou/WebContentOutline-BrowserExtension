@@ -36,17 +36,55 @@
       const box = document.createElement('div');
       box.className = 'toc-overlay';
 
-      const savedListHtml = (list && list.length ? list.map(s => s.type + ':' + s.expr).join('<br>') : msg('configNoSelectors'));
-      box.innerHTML =
-        '<div class="toc-overlay-header">' + msg('configDialogTitle') + ' - ' + urlPattern + '</div>' +
-        '<div class="toc-overlay-body">' +
-        '  <div style="font-size:13px;margin-bottom:6px">' + msg('configSavedSelectors') + ' (' + (list ? list.length : 0) + ')</div>' +
-        '  <div class="toc-overlay-list">' + savedListHtml + '</div>' +
-        '</div>' +
-        '<div class="toc-overlay-actions">' +
-        '  <button class="toc-btn toc-btn-danger" data-act="clear">' + msg('buttonClearConfig') + '</button>' +
-        '  <button class="toc-btn" data-act="close">' + msg('buttonClose') + '</button>' +
-        '</div>';
+      // 创建头部
+      const header = document.createElement('div');
+      header.className = 'toc-overlay-header';
+      header.textContent = msg('configDialogTitle') + ' - ' + urlPattern;
+      box.appendChild(header);
+
+      // 创建主体
+      const body = document.createElement('div');
+      body.className = 'toc-overlay-body';
+
+      // 创建计数标签
+      const countLabel = document.createElement('div');
+      countLabel.style.cssText = 'font-size:13px;margin-bottom:6px';
+      countLabel.textContent = msg('configSavedSelectors') + ' (' + (list ? list.length : 0) + ')';
+      body.appendChild(countLabel);
+
+      // 创建选择器列表（使用DOM避免XSS）
+      const listDiv = document.createElement('div');
+      listDiv.className = 'toc-overlay-list';
+      if (list && list.length) {
+        list.forEach(s => {
+          const item = document.createElement('div');
+          // 使用textContent安全地插入内容
+          item.textContent = s.type + ':' + s.expr;
+          listDiv.appendChild(item);
+        });
+      } else {
+        listDiv.textContent = msg('configNoSelectors');
+      }
+      body.appendChild(listDiv);
+      box.appendChild(body);
+
+      // 创建操作按钮区
+      const actions = document.createElement('div');
+      actions.className = 'toc-overlay-actions';
+
+      const btnClear = document.createElement('button');
+      btnClear.className = 'toc-btn toc-btn-danger';
+      btnClear.dataset.act = 'clear';
+      btnClear.textContent = msg('buttonClearConfig');
+
+      const btnClose = document.createElement('button');
+      btnClose.className = 'toc-btn';
+      btnClose.dataset.act = 'close';
+      btnClose.textContent = msg('buttonClose');
+
+      actions.appendChild(btnClear);
+      actions.appendChild(btnClose);
+      box.appendChild(actions);
 
       const close = () => box.remove();
 

@@ -116,7 +116,8 @@ async function setGlobalDefaultIconDisabled() {
   try {
     const path = getIconPathMap(false);
     await setActionIconAsync({ path });
-    await setActionTitleAsync({ title: '网页目录助手：禁用（按站点，点击启用）' });
+    const title = chrome.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled';
+    await setActionTitleAsync({ title });
   } catch (e) { console.warn('[toc] setGlobalDefaultIconDisabled failed:', e); }
 }
 
@@ -135,7 +136,8 @@ async function updateIconForTab(tabId, url) {
     const fallbackPath = getIconPathMap(false);
     console.debug('[toc] updateIconForTab: non-http(s), set disabled', { tabId, finalUrl });
     await setActionIconAsync({ tabId, path: fallbackPath });
-    await setActionTitleAsync({ tabId, title: '网页内容大纲：禁用（按站点，点击启用）' });
+    const fallbackTitle = chrome.i18n.getMessage('titleDisabledFallback') || 'Web TOC: Disabled';
+    await setActionTitleAsync({ tabId, title: fallbackTitle });
     return;
   }
 
@@ -152,7 +154,9 @@ async function updateIconForTab(tabId, url) {
       console.debug('[toc] setIcon fallback(single)', { tabId, singleAbs });
       await setActionIconAsync({ tabId, path: singleAbs });
     }
-    await setActionTitleAsync({ tabId, title: enabled ? '网页目录助手：启用（按站点，点击禁用）' : '网页目录助手：禁用（按站点，点击启用）' });
+    const titleKey = enabled ? 'titleEnabled' : 'titleDisabled';
+    const title = chrome.i18n.getMessage(titleKey) || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
+    await setActionTitleAsync({ tabId, title });
   } catch (e) { console.warn('[toc] updateIconForTab failed:', e, { tabId, url: finalUrl, enabled }); }
 }
 
@@ -164,7 +168,9 @@ async function updateIconsForOrigin(origin) {
         await updateIconForTab(t.id, t.url);
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] updateIconsForOrigin failed:', e, { origin });
+  }
 }
 
 async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
@@ -176,16 +182,22 @@ async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
       if (exceptTabId && t.id === exceptTabId) continue;
       try {
         chrome.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void chrome.runtime.lastError; });
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[toc] sendMessage to tab failed:', e, { tabId: t.id, url: t.url });
+      }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] broadcastEnabledToOrigin failed:', e, { origin, enabled });
+  }
 }
 
 // Request the content script in a tab to open the TOC panel
 async function requestOpenPanel(tabId) {
   try {
     chrome.tabs.sendMessage(tabId, { type: 'toc:openPanel' }, () => { void chrome.runtime.lastError; });
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] requestOpenPanel failed:', e, { tabId });
+  }
 }
 
 async function handleActionClick(tab) {
@@ -204,7 +216,9 @@ async function handleActionClick(tab) {
 
   try {
     chrome.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled }, () => { void chrome.runtime.lastError; });
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] sendMessage in handleActionClick failed:', e, { tabId: tab.id, enabled });
+  }
 
   if (enabled) {
     await requestOpenPanel(tab.id);
@@ -217,7 +231,9 @@ chrome.action.onClicked.addListener(handleActionClick);
 chrome.tabs.onActivated.addListener(async (activeInfo) => {
   try {
     await updateIconForTab(activeInfo.tabId);
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] onActivated: updateIconForTab failed:', e, { tabId: activeInfo.tabId });
+  }
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -232,7 +248,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onCreated.addListener(async (tab) => {
   try {
     if (tab && tab.id) await updateIconForTab(tab.id);
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] onCreated: updateIconForTab failed:', e, { tabId: tab?.id });
+  }
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -242,7 +260,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     for (const t of tabs) {
       if (t.id) await updateIconForTab(t.id);
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] onInstalled failed:', e);
+  }
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -252,7 +272,9 @@ chrome.runtime.onStartup.addListener(async () => {
     for (const t of tabs) {
       if (t.id && t.url) await updateIconForTab(t.id, t.url);
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[toc] onStartup failed:', e);
+  }
 });
 
 // Set default disabled icon at service worker initialization as well
@@ -269,10 +291,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!tabId) { sendResponse && sendResponse({ ok: false, reason: 'no-tab' }); return; }
       updateIconForTab(tabId).then(() => {
         sendResponse && sendResponse({ ok: true });
-      }).catch(() => {
+      }).catch((e) => {
+        console.warn('[toc] onMessage: updateIconForTab failed:', e, { tabId });
         sendResponse && sendResponse({ ok: false });
       });
       return true; // async response
     }
-  } catch (_) {}
+  } catch (e) {
+    console.warn('[toc] onMessage handler failed:', e);
+  }
 });
