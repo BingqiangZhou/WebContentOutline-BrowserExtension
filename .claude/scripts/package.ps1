@@ -25,6 +25,7 @@ New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
 $excludePatterns = @(
     "\.claude",
     "\.git",
+    "\.github",
     "^dist\\",
     "^node_modules\\",
     "^CLAUDE\.md$"

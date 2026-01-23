@@ -16,6 +16,7 @@ You are tasked with packaging the browser extension as a distributable zip file.
 3. **Include** all files EXCEPT:
    - Claude-related files: `.claude/`, `CLAUDE.md`, `.claude-*`
    - Git-related files: `.git/`, `.gitignore`, `.gitattributes`
+   - GitHub workflows: `.github/`
    - Distribution folder: `dist/`
    - Node modules (if any): `node_modules/`
 4. **Preserve the original folder structure** for included files
@@ -47,6 +48,7 @@ mkdir -p dist/packages
 zip -r "dist/packages/v${VERSION}.zip" . -x \
     ".claude/*" "CLAUDE.md" ".claude-*" \
     ".git/*" ".gitignore" ".gitattributes" \
+    ".github/*" \
     "dist/*" \
     "node_modules/*"
 

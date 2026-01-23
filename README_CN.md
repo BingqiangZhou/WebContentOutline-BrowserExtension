@@ -360,6 +360,10 @@
 
 本项目采用 MIT 开源协议 - 详见 [LICENSE](LICENSE) 文件。
 
+## 📝 更新日志
+
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本历史和更新内容。
+
 ---
 
 **如果这个项目对你有帮助，请给个 ⭐ Star 支持一下！**

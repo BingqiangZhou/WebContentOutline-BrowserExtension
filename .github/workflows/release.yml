@@ -1,0 +1,79 @@
+name: Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version from manifest.json
+        id: get-version
+        run: |
+          VERSION=$(jq -r '.version' manifest.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_version=v$VERSION" >> $GITHUB_OUTPUT
+          echo "Package version: $VERSION"
+
+      - name: Create packages directory
+        run: mkdir -p dist/packages
+
+      - name: Package extension
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          zip -r "dist/packages/v${VERSION}.zip" . -x \
+            ".claude/*" \
+            "CLAUDE.md" \
+            ".claude-*" \
+            ".git/*" \
+            ".gitignore" \
+            ".gitattributes" \
+            "dist/*" \
+            "node_modules/*" \
+            ".github/workflows/*"
+          echo "Package created: dist/packages/v${VERSION}.zip"
+
+      - name: Get package file size
+        id: package-info
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          FILE_SIZE=$(stat -f%z "dist/packages/v${VERSION}.zip" 2>/dev/null || stat -c%s "dist/packages/v${VERSION}.zip")
+          echo "size=$FILE_SIZE" >> $GITHUB_OUTPUT
+          echo "Package size: $FILE_SIZE bytes"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get-version.outputs.tag_version }}
+          name: Release ${{ steps.get-version.outputs.tag_version }}
+          body: |
+            ## Web TOC Assistant ${{ steps.get-version.outputs.tag_version }}
+
+            ### Installation
+            1. Download the `webtoc-assistant-v${{ steps.get-version.outputs.version }}.zip` file below
+            2. Open Edge/Chrome and navigate to `edge://extensions/` or `chrome://extensions/`
+            3. Enable "Developer mode"
+            4. Click "Load unpacked" and select the extracted folder
+
+            ### Changes
+            See commit history for changes in this release.
+          files: dist/packages/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rename asset
+        run: |
+          VERSION="${{ steps.get-version.outputs.version }}"
+          mv "dist/packages/v${VERSION}.zip" "dist/packages/webtoc-assistant-v${VERSION}.zip"

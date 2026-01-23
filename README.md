@@ -360,6 +360,10 @@ Issues and Pull Requests are welcome!
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
 
+## 📝 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and updates.
+
 ---
 
 **If this project helps you, please give it a ⭐ Star!**
