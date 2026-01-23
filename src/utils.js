@@ -11,34 +11,20 @@ const STORAGE_KEYS = {
  * Get configs from chrome.storage.local
  * @returns {Promise<Array>}
  */
-function getConfigs() {
-  return new Promise((resolve, reject) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.get([STORAGE_KEYS.TOC_CONFIGS], (res) => {
-          if (chrome.runtime.lastError) {
-            console.error('[目录助手] 读取配置失败:', chrome.runtime.lastError);
-            // 降级到 localStorage
-            try {
-              const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
-              resolve(raw ? JSON.parse(raw) : []);
-            } catch {
-              resolve([]);
-            }
-          } else {
-            resolve(res[STORAGE_KEYS.TOC_CONFIGS] || []);
-          }
-        });
-      } else {
-        const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
-        resolve(raw ? JSON.parse(raw) : []);
-      }
-    } catch (e) {
-      // Fallback for non-extension context
+async function getConfigs() {
+  try {
+    if (chrome?.storage?.local) {
+      const res = await chrome.storage.local.get([STORAGE_KEYS.TOC_CONFIGS]);
+      return res[STORAGE_KEYS.TOC_CONFIGS] || [];
+    } else {
       const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
-      resolve(raw ? JSON.parse(raw) : []);
+      return raw ? JSON.parse(raw) : [];
     }
-  });
+  } catch (e) {
+    // Fallback to localStorage on error
+    const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
+    return raw ? JSON.parse(raw) : [];
+  }
 }
 
 /**
@@ -46,160 +32,86 @@ function getConfigs() {
  * @param {Array} configs
  * @returns {Promise<void>}
  */
-function saveConfigs(configs) {
-  return new Promise((resolve, reject) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('[目录助手] 保存配置失败:', chrome.runtime.lastError);
-            // 降级到 localStorage
-            try {
-              localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
-              resolve();
-            } catch {
-              reject();
-            }
-          } else {
-            resolve();
-          }
-        });
-      } else {
-        localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
-        resolve();
-      }
-    } catch (e) {
+async function saveConfigs(configs) {
+  try {
+    if (chrome?.storage?.local) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs });
+    } else {
       localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
-      resolve();
     }
-  });
+  } catch (e) {
+    // Fallback to localStorage on error
+    localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
+  }
 }
 
 /**
  * Get site enabled map { origin: boolean } from chrome.storage.local
  * @returns {Promise<Record<string, boolean>>}
  */
-function getEnabledMap() {
-  return new Promise((resolve) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.get([STORAGE_KEYS.SITE_ENABLE_MAP], (res) => {
-          if (chrome.runtime.lastError) {
-            console.error('[目录助手] 读取启用状态失败:', chrome.runtime.lastError);
-            try {
-              const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
-              resolve(raw ? JSON.parse(raw) : {});
-            } catch {
-              resolve({});
-            }
-          } else {
-            resolve(res[STORAGE_KEYS.SITE_ENABLE_MAP] || {});
-          }
-        });
-      } else {
-        const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
-        resolve(raw ? JSON.parse(raw) : {});
-      }
-    } catch (e) {
+async function getEnabledMap() {
+  try {
+    if (chrome?.storage?.local) {
+      const res = await chrome.storage.local.get([STORAGE_KEYS.SITE_ENABLE_MAP]);
+      return res[STORAGE_KEYS.SITE_ENABLE_MAP] || {};
+    } else {
       const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
-      resolve(raw ? JSON.parse(raw) : {});
+      return raw ? JSON.parse(raw) : {};
     }
-  });
+  } catch (e) {
+    const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
+    return raw ? JSON.parse(raw) : {};
+  }
 }
 
 /**
  * Save site enabled map to chrome.storage.local
  * @param {Record<string, boolean>} map
  */
-function saveEnabledMap(map) {
-  return new Promise((resolve) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('[目录助手] 保存启用状态失败:', chrome.runtime.lastError);
-            try {
-              localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
-              resolve();
-            } catch {
-              resolve();
-            }
-          } else {
-            resolve();
-          }
-        });
-      } else {
-        localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
-        resolve();
-      }
-    } catch (e) {
+async function saveEnabledMap(map) {
+  try {
+    if (chrome?.storage?.local) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map });
+    } else {
       localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
-      resolve();
     }
-  });
+  } catch (e) {
+    localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
+  }
 }
 
 /**
  * Get panel expanded state map { origin: boolean } from chrome.storage.local
  */
-function getPanelStateMap() {
-  return new Promise((resolve) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.get([STORAGE_KEYS.PANEL_STATE_MAP], (res) => {
-          if (chrome.runtime.lastError) {
-            console.error('[目录助手] 读取面板状态失败:', chrome.runtime.lastError);
-            try {
-              const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
-              resolve(raw ? JSON.parse(raw) : {});
-            } catch {
-              resolve({});
-            }
-          } else {
-            resolve(res[STORAGE_KEYS.PANEL_STATE_MAP] || {});
-          }
-        });
-      } else {
-        const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
-        resolve(raw ? JSON.parse(raw) : {});
-      }
-    } catch (e) {
+async function getPanelStateMap() {
+  try {
+    if (chrome?.storage?.local) {
+      const res = await chrome.storage.local.get([STORAGE_KEYS.PANEL_STATE_MAP]);
+      return res[STORAGE_KEYS.PANEL_STATE_MAP] || {};
+    } else {
       const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
-      resolve(raw ? JSON.parse(raw) : {});
+      return raw ? JSON.parse(raw) : {};
     }
-  });
+  } catch (e) {
+    const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
+    return raw ? JSON.parse(raw) : {};
+  }
 }
 
 /**
  * Save panel expanded state map
  * @param {Record<string, boolean>} map
  */
-function savePanelStateMap(map) {
-  return new Promise((resolve) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [STORAGE_KEYS.PANEL_STATE_MAP]: map }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('[目录助手] 保存面板状态失败:', chrome.runtime.lastError);
-            try {
-              localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
-              resolve();
-            } catch {
-              resolve();
-            }
-          } else {
-            resolve();
-          }
-        });
-      } else {
-        localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
-        resolve();
-      }
-    } catch (e) {
+async function savePanelStateMap(map) {
+  try {
+    if (chrome?.storage?.local) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.PANEL_STATE_MAP]: map });
+    } else {
       localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
-      resolve();
     }
-  });
+  } catch (e) {
+    localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
+  }
 }
 
 async function getPanelExpandedByOrigin(origin) {

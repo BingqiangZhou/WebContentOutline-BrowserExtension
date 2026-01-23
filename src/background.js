@@ -7,48 +7,30 @@ function originFromUrl(url) {
   try { return new URL(url).origin; } catch (e) { return ''; }
 }
 
-function getEnabledMap() {
+async function getEnabledMap() {
   const KEY = STORAGE_KEYS.SITE_ENABLE_MAP;
-  return new Promise((resolve) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.get([KEY], (res) => {
-          if (chrome.runtime.lastError) {
-            console.warn('[toc] getEnabledMap storage error:', chrome.runtime.lastError);
-            resolve({});
-          } else {
-            resolve(res[KEY] || {});
-          }
-        });
-      } else {
-        resolve({});
-      }
-    } catch (e) {
-      console.warn('[toc] getEnabledMap failed:', e);
-      resolve({});
+  try {
+    if (chrome?.storage?.local) {
+      const res = await chrome.storage.local.get([KEY]);
+      return res[KEY] || {};
+    } else {
+      return {};
     }
-  });
+  } catch (e) {
+    console.warn('[toc] getEnabledMap failed:', e);
+    return {};
+  }
 }
 
-function saveEnabledMap(map) {
+async function saveEnabledMap(map) {
   const KEY = STORAGE_KEYS.SITE_ENABLE_MAP;
-  return new Promise((resolve) => {
-    try {
-      if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [KEY]: map }, () => {
-          if (chrome.runtime.lastError) {
-            console.warn('[toc] saveEnabledMap storage error:', chrome.runtime.lastError);
-          }
-          resolve();
-        });
-      } else {
-        resolve();
-      }
-    } catch (e) {
-      console.warn('[toc] saveEnabledMap failed:', e);
-      resolve();
+  try {
+    if (chrome?.storage?.local) {
+      await chrome.storage.local.set({ [KEY]: map });
     }
-  });
+  } catch (e) {
+    console.warn('[toc] saveEnabledMap failed:', e);
+  }
 }
 
 async function getEnabledByOrigin(origin) {

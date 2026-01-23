@@ -85,7 +85,6 @@
 
         // 取消之前的恢复定时器，防止过期回调执行
         if (activeRestoreTimeout) {
-          // 根据ID类型选择正确的清理方法（setTimeout或requestAnimationFrame）
           try {
             if (typeof activeRestoreTimeout === 'number') {
               cancelAnimationFrame(activeRestoreTimeout);
@@ -158,16 +157,26 @@
         }
       } catch (e) {
         // 检测是否是扩展上下文失效错误
-        if (e && e.message && e.message.includes('Extension context invalidated')) {
-          console.warn('[目录助手] 扩展上下文已失效，停止TOC操作');
+        const isContextInvalidated =
+          (e && e.message && (
+            e.message.includes('Extension context invalidated') ||
+            e.message.includes('context invalidated') ||
+            e.message.includes('Extension context')
+          )) ||
+          (e && e.toString && e.toString().includes('Extension context invalidated'));
+
+        if (isContextInvalidated) {
+          console.debug('[目录助手] 扩展上下文已失效，静默停止TOC操作');
           // 断开观察器，停止后续的自动重建
           if (mutationObserver && mutationObserver.disconnect) {
-            mutationObserver.disconnect();
+            try {
+              mutationObserver.disconnect();
+            } catch (_) {}
           }
           return;
         }
-        // 其他错误继续抛出
-        throw e;
+        // 其他错误静默忽略，避免干扰用户体验
+        console.debug('[目录助手] rebuild操作失败:', e);
       }
     };
 
@@ -175,78 +184,115 @@
      * 开始元素拾取
      */
     function startPick() {
-      if (!createElementPicker || !showPickerResult) return;
-      
-      // 如果已有正在拾取的实例，先清理，避免鼠标状态残留
       try {
-        if (pickerInstance && pickerInstance.cleanup) {
-          pickerInstance.cleanup();
-        }
-      } catch (_) {}
-      
-      pickerInstance = createElementPicker((el) => {
-        // 优先 class 选择器，不足时生成路径
-        let sel = '';
-        const cls = buildClassSelector ? buildClassSelector(el) : '';
-        if (cls) sel = `${el.tagName.toLowerCase()}${cls}`;
-        if (!sel && cssPathFor) sel = cssPathFor(el);
-        
-        showPickerResult(sel, async (selector, onDone) => {
-          const success = await saveSelector(selector, cfg);
-          if (success) {
-            onDone && onDone();
-            // 保存后直接重建（仅基于持久配置）
-            await rebuild();
-          } else {
-            alert('保存失败，请查看控制台。');
+        if (!createElementPicker || !showPickerResult) return;
+
+        // 如果已有正在拾取的实例，先清理，避免鼠标状态残留
+        try {
+          if (pickerInstance && pickerInstance.cleanup) {
+            pickerInstance.cleanup();
           }
+        } catch (_) {}
+
+        pickerInstance = createElementPicker((el) => {
+          // 优先 class 选择器，不足时生成路径
+          let sel = '';
+          const cls = buildClassSelector ? buildClassSelector(el) : '';
+          if (cls) sel = `${el.tagName.toLowerCase()}${cls}`;
+          if (!sel && cssPathFor) sel = cssPathFor(el);
+
+          showPickerResult(sel, async (selector, onDone) => {
+            try {
+              const success = await saveSelector(selector, cfg);
+              if (success) {
+                onDone && onDone();
+                // 保存后直接重建（仅基于持久配置）
+                await rebuild();
+              } else {
+                alert('保存失败，请查看控制台。');
+              }
+            } catch (e) {
+              // 静默忽略扩展上下文失效错误
+              const isContextInvalidated =
+                (e && e.message && (
+                  e.message.includes('Extension context invalidated') ||
+                  e.message.includes('context invalidated') ||
+                  e.message.includes('Extension context')
+                )) ||
+                (e && e.toString && e.toString().includes('Extension context invalidated'));
+
+              if (!isContextInvalidated) {
+                console.debug('[目录助手] 保存选择器失败:', e);
+              }
+            }
+          });
+          // 拾取完成，清理实例引用
+          pickerInstance = null;
+        }, () => {
+          // canceled
+          pickerInstance = null;
         });
-        // 拾取完成，清理实例引用
-        pickerInstance = null;
-      }, () => {
-        // canceled
-        pickerInstance = null;
-      });
+      } catch (e) {
+        console.debug('[目录助手] 启动元素拾取失败:', e);
+      }
     }
 
     /**
      * 折叠面板
      */
     function collapse() {
-      if (panelInstance) { 
-        panelInstance.remove(); 
-        panelInstance = null; 
+      try {
+        if (panelInstance) {
+          panelInstance.remove();
+          panelInstance = null;
+        }
+        // 若正在拾取，折叠时强制取消
+        try { if (pickerInstance && pickerInstance.cleanup) { pickerInstance.cleanup(); pickerInstance = null; } } catch (_) {}
+        if (!badgeInstance && renderCollapsedBadge) {
+          badgeInstance = renderCollapsedBadge(side, expand);
+        }
+        // persist state: collapsed=false (expanded flag false)
+        try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
+      } catch (e) {
+        console.debug('[目录助手] 折叠操作失败:', e);
       }
-      // 若正在拾取，折叠时强制取消
-      try { if (pickerInstance && pickerInstance.cleanup) { pickerInstance.cleanup(); pickerInstance = null; } } catch (_) {}
-      if (!badgeInstance && renderCollapsedBadge) {
-        console.debug('[目录助手] 折叠模式初始化，准备渲染按钮');
-        badgeInstance = renderCollapsedBadge(side, expand);
-      }
-      // persist state: collapsed=false (expanded flag false)
-      try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
     }
 
     /**
      * 展开面板
      */
     async function expand() {
-      if (badgeInstance) { 
-        badgeInstance.remove(); 
-        badgeInstance = null; 
+      try {
+        if (badgeInstance) {
+          badgeInstance.remove();
+          badgeInstance = null;
+        }
+        // 展开前先确保 items 基于最新存储
+        await rebuild();
+        if (!panelInstance && renderFloatingPanel) {
+          panelInstance = renderFloatingPanel(
+            side, items, collapse, rebuild, startPick,
+            () => siteConfig(cfg), getNavLock, setNavLock,
+            mutationObserver ? mutationObserver.getPendingRebuild : () => false,
+            mutationObserver ? mutationObserver.setPendingRebuild : () => {}
+          );
+        }
+        // persist state: expanded=true
+        try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, true); } catch (_) {}
+      } catch (e) {
+        // 静默忽略扩展上下文失效错误
+        const isContextInvalidated =
+          (e && e.message && (
+            e.message.includes('Extension context invalidated') ||
+            e.message.includes('context invalidated') ||
+            e.message.includes('Extension context')
+          )) ||
+          (e && e.toString && e.toString().includes('Extension context invalidated'));
+
+        if (!isContextInvalidated) {
+          console.debug('[目录助手] 展开操作失败:', e);
+        }
       }
-      // 展开前先确保 items 基于最新存储
-      await rebuild();
-      if (!panelInstance && renderFloatingPanel) {
-        panelInstance = renderFloatingPanel(
-          side, items, collapse, rebuild, startPick,
-          () => siteConfig(cfg), getNavLock, setNavLock,
-          mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-          mutationObserver ? mutationObserver.setPendingRebuild : () => {}
-        );
-      }
-      // persist state: expanded=true
-      try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, true); } catch (_) {}
     }
 
     // 启动变化监听器
