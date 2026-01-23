@@ -185,7 +185,7 @@ For complex page structures, you can use XPath:
 ├── _locales/                  # Internationalization
 │   ├── en/
 │   │   └── messages.json      # English translation
-│   └── zh/
+│   └── zh_CN/
 │       └── messages.json      # Chinese translation
 ├── src/
 │   ├── background.js          # Background service worker

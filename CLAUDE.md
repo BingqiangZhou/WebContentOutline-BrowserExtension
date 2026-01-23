@@ -172,7 +172,7 @@ Selectors (CSS/XPath)
 ## Manifest V3 Specifics
 
 - `permissions`: ["storage", "tabs"] - no host permissions
-- `default_locale`: "zh" - i18n support
+- `default_locale`: "zh_CN" - i18n support
 - Content scripts run at `document_idle`
 - Service worker for background logic
 

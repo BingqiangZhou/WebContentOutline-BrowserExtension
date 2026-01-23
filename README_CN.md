@@ -185,7 +185,7 @@
 ├── _locales/                  # 国际化文件
 │   ├── en/
 │   │   └── messages.json      # 英文翻译
-│   └── zh/
+│   └── zh_CN/
 │       └── messages.json      # 中文翻译
 ├── src/
 │   ├── background.js          # 后台服务工作者

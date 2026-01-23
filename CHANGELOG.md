@@ -36,7 +36,7 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ### 新增 / Added
 - 国际化 (i18n) 支持 / Internationalization (i18n) support
-- 默认中文 (`zh`) 语言环境 / Default Chinese (`zh`) locale
+- 默认中文 (`zh_CN`) 语言环境 / Default Chinese (`zh_CN`) locale
 - 本地化的消息和 UI 元素 / Localized messages and UI elements
 - 每站点启用/禁用 UI 功能 / Per-site enable/disable UI functionality
 - 站点级启用/禁用切换，带持久化状态 / Site-level enable/disable toggle with persistent state
