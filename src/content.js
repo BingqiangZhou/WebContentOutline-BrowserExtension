@@ -111,7 +111,7 @@
       }
 
       // 启用状态切换
-      if (msg.type !== 'toc:updateEnabled' && msg.type !== 'TOC_UPDATE_ENABLED') return;
+      if (msg.type !== 'toc:updateEnabled') return;
       const enabled = !!msg.enabled;
       if (enabled === currentEnabled) {
         sendResponse && sendResponse({ ok: true, unchanged: true });

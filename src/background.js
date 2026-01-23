@@ -65,51 +65,38 @@ async function toggleEnabledByOrigin(origin) {
 }
 
 // ---- Icon paths ----
+// In MV3, setIcon with tabId requires absolute paths via chrome.runtime.getURL()
 function getIconPathMap(enabled) {
   const base = enabled ? 'icons/png/toc-enabled' : 'icons/png/toc-disabled';
+  return {
+    "16": chrome.runtime.getURL(`${base}-16.png`),
+    "32": chrome.runtime.getURL(`${base}-32.png`),
+    "48": chrome.runtime.getURL(`${base}-48.png`),
+    "128": chrome.runtime.getURL(`${base}-128.png`)
+  };
+}
+
+// ---- Action helpers ----
+// In MV3, chrome.action.setIcon returns a Promise, no callback needed
+async function setActionIconAsync(details) {
   try {
-    return {
-      "16": chrome.runtime.getURL(`${base}-16.png`),
-      "32": chrome.runtime.getURL(`${base}-32.png`)
-    };
-  } catch (_) {
-    // Fallback to relative if runtime not ready
-    return {
-      "16": `${base}-16.png`,
-      "32": `${base}-32.png`
-    };
+    await chrome.action.setIcon(details);
+    return true;
+  } catch (e) {
+    console.error('[toc] setIcon error:', e.message);
+    return false;
   }
 }
 
-// ---- Action helpers (callback -> Promise with error logging) ----
-function setActionIconAsync(details) {
-  return new Promise((resolve) => {
-    try {
-      chrome.action.setIcon(details, () => {
-        const err = chrome.runtime?.lastError;
-        if (err) console.warn('[toc] setIcon error:', err, details);
-        resolve(!err);
-      });
-    } catch (e) {
-      console.warn('[toc] setIcon threw:', e, details);
-      resolve(false);
-    }
-  });
-}
-
-function setActionTitleAsync(details) {
-  return new Promise((resolve) => {
-    try {
-      chrome.action.setTitle(details, () => {
-        const err = chrome.runtime?.lastError;
-        if (err) console.warn('[toc] setTitle error:', err, details);
-        resolve(!err);
-      });
-    } catch (e) {
-      console.warn('[toc] setTitle threw:', e, details);
-      resolve(false);
-    }
-  });
+// In MV3, chrome.action.setTitle returns a Promise, no callback needed
+async function setActionTitleAsync(details) {
+  try {
+    await chrome.action.setTitle(details);
+    return true;
+  } catch (e) {
+    console.warn('[toc] setTitle error:', e.message, details);
+    return false;
+  }
 }
 
 async function setGlobalDefaultIconDisabled() {
@@ -134,7 +121,6 @@ async function updateIconForTab(tabId, url) {
   // If still no http(s) URL, set disabled icon as a safe default and return
   if (!finalUrl || !/^https?:\/\//i.test(finalUrl)) {
     const fallbackPath = getIconPathMap(false);
-    console.debug('[toc] updateIconForTab: non-http(s), set disabled', { tabId, finalUrl });
     await setActionIconAsync({ tabId, path: fallbackPath });
     const fallbackTitle = chrome.i18n.getMessage('titleDisabledFallback') || 'Web TOC: Disabled';
     await setActionTitleAsync({ tabId, title: fallbackTitle });
@@ -145,19 +131,11 @@ async function updateIconForTab(tabId, url) {
   const enabled = await getEnabledByOrigin(origin);
   try {
     const path = getIconPathMap(enabled);
-    console.debug('[toc] updateIconForTab', { tabId, url: finalUrl, origin, enabled, path });
-    const okDict = await setActionIconAsync({ tabId, path });
-    if (!okDict) {
-      // fallback to single 32px path
-      const single = enabled ? 'icons/png/toc-enabled-32.png' : 'icons/png/toc-disabled-32.png';
-      const singleAbs = (typeof chrome?.runtime?.getURL === 'function') ? chrome.runtime.getURL(single) : single;
-      console.debug('[toc] setIcon fallback(single)', { tabId, singleAbs });
-      await setActionIconAsync({ tabId, path: singleAbs });
-    }
+    await setActionIconAsync({ tabId, path });
     const titleKey = enabled ? 'titleEnabled' : 'titleDisabled';
     const title = chrome.i18n.getMessage(titleKey) || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
     await setActionTitleAsync({ tabId, title });
-  } catch (e) { console.warn('[toc] updateIconForTab failed:', e, { tabId, url: finalUrl, enabled }); }
+  } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
 }
 
 async function updateIconsForOrigin(origin) {
@@ -205,9 +183,20 @@ async function handleActionClick(tab) {
   const url = tab.url;
   if (!/^https?:\/\//i.test(url)) return;
   const origin = originFromUrl(url);
-  console.debug('[toc] action click', { tabId: tab.id, url, origin });
+
   const enabled = await toggleEnabledByOrigin(origin);
-  await updateIconForTab(tab.id, url);
+
+  // Update icon for current tab
+  const path = getIconPathMap(enabled);
+  try {
+    await setActionIconAsync({ tabId: tab.id, path });
+    const titleKey = enabled ? 'titleEnabled' : 'titleDisabled';
+    const title = chrome.i18n.getMessage(titleKey) || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
+    await setActionTitleAsync({ tabId: tab.id, title });
+  } catch (e) {
+    console.error('[toc] failed to set icon:', e);
+  }
+
   // Also refresh icons for other tabs of the same origin
   await updateIconsForOrigin(origin);
 
@@ -217,7 +206,7 @@ async function handleActionClick(tab) {
   try {
     chrome.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled }, () => { void chrome.runtime.lastError; });
   } catch (e) {
-    console.warn('[toc] sendMessage in handleActionClick failed:', e, { tabId: tab.id, enabled });
+    console.warn('[toc] sendMessage in handleActionClick failed:', e);
   }
 
   if (enabled) {
@@ -229,9 +218,8 @@ async function handleActionClick(tab) {
 chrome.action.onClicked.addListener(handleActionClick);
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
-  // 异步更新图标，不阻塞事件处理
   updateIconForTab(activeInfo.tabId).catch(e => {
-    console.warn('[toc] onActivated: updateIconForTab failed:', e, { tabId: activeInfo.tabId });
+    console.warn('[toc] onActivated: updateIconForTab failed:', e);
   });
 });
 
