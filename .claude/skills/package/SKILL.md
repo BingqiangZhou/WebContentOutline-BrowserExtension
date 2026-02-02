@@ -20,6 +20,7 @@ You are tasked with packaging the browser extension as a distributable zip file.
    - Distribution folder: `dist/`
    - Node modules (if any): `node_modules/`
 4. **Preserve the original folder structure** for included files
+5. **Create and push git tag** for the version (e.g., `v0.4.1`) to remote, triggering GitHub Action
 
 ## Implementation
 
@@ -47,6 +48,11 @@ zip -r "dist/packages/v${VERSION}.zip" . -x \
     "node_modules/*"
 
 echo "Package created: dist/packages/v${VERSION}.zip"
+
+# Create and push git tag
+git tag -a "v${VERSION}" -m "Release v${VERSION}"
+git push origin "v${VERSION}"
+echo "Git tag v${VERSION} created and pushed to remote"
 ```
 
 ## Verification
@@ -55,3 +61,4 @@ After creating the zip, verify:
 1. The zip file exists at the expected path
 2. The file name matches the version format (e.g., `v0.4.1.zip`)
 3. Report the file size of the created zip
+4. The git tag was created and pushed to remote successfully (check with `git ls-remote --tags origin`)

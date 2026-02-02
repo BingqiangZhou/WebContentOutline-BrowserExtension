@@ -76,3 +76,29 @@ Remove-Item -Recurse -Force $tempDir -ErrorAction SilentlyContinue
 $fileSize = (Get-Item $zipPath).Length
 Write-Host "Package created: $zipPath"
 Write-Host "File size: $fileSize bytes"
+
+# Create and push git tag
+Write-Host "Creating git tag $version..."
+git tag -a "$version" -m "Release $version"
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Git tag $version created successfully"
+
+    # Push tag to remote
+    Write-Host "Pushing tag $version to remote..."
+    git push origin "$version"
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Tag $version pushed to remote successfully"
+
+        # Get repository info for GitHub Actions URL
+        $remoteUrl = git config --get remote.origin.url
+        if ($remoteUrl -match 'github\.com[/:]([^/]+)/([^/.]+)') {
+            $repo = "$($matches[1])/$($matches[2])"
+            Write-Host "GitHub Actions: https://github.com/$repo/actions"
+        }
+    } else {
+        Write-Host "Warning: Failed to push tag to remote"
+    }
+} else {
+    Write-Host "Warning: Failed to create git tag (tag may already exist)"
+    Write-Host "To force delete and recreate, run: git tag -d $version && git push origin :refs/tags/$version"
+}

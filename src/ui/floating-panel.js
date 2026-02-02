@@ -352,7 +352,10 @@
       };
 
       intersectionObserver = new IntersectionObserver((entries) => {
+        // Skip updates during rebuild to prevent page jumps
         if (getNavLock()) return;
+        const { isRebuilding } = window.TOC_APP || {};
+        if (isRebuilding && isRebuilding()) return;
 
         const userSelected = items.find(it => it._userSelected);
         if (userSelected) {

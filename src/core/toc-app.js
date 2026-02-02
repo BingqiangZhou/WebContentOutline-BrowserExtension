@@ -16,6 +16,9 @@
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
 
+  // Global rebuild flag to prevent IntersectionObserver interference
+  let isRebuilding = false;
+
   // Constants
   const PANEL_WIDTH = 280;
   const PANEL_HEIGHT = 400;
@@ -97,7 +100,15 @@
     };
 
     const restoreActiveSnapshot = (snapshot) => {
-      if (!snapshot || !snapshot.currentActiveItem || items.length === 0) return;
+      if (!snapshot || !snapshot.currentActiveItem || items.length === 0) {
+        // Clear rebuild flag even if no restore happens
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
+        });
+        return;
+      }
 
       items.forEach(item => {
         if (item._node) {
@@ -129,28 +140,67 @@
             }
           } catch (_) {}
           activeRestoreTimeout = null;
+          // Clear rebuild flag after restoration is complete
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
         };
         activeRestoreTimeout = requestAnimationFrame(restoreActive);
+      } else {
+        // No matching item found, clear flag
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
+        });
       }
     };
 
     const rebuild = async () => {
       try {
+        // Set rebuild flag to prevent IntersectionObserver interference
+        isRebuilding = true;
+
         if (updateConfigFromStorage) {
           await updateConfigFromStorage(cfg);
         }
 
         const newItems = buildTocItems ? buildTocItems(cfg, []) : [];
 
-        if (panelInstance && getNavLock()) {
+        // Skip rebuild if panel doesn't exist (badge mode) - nothing to update
+        if (!panelInstance) {
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
+          return;
+        }
+
+        if (getNavLock()) {
           items = newItems;
           if (mutationObserver && mutationObserver.setPendingRebuild) {
             mutationObserver.setPendingRebuild(true);
           }
+          // Reset flag when deferring rebuild
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
           return;
         }
 
-        if (panelInstance && isContentIdentical(items, newItems)) {
+        // Skip rebuild if content is identical
+        if (isContentIdentical(items, newItems)) {
+          // Reset flag when content is identical
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
+          return;
+        }
+
+        // Skip rebuild if both old and new are empty - no change needed
+        if (items.length === 0 && newItems.length === 0) {
+          requestAnimationFrame(() => {
+            isRebuilding = false;
+          });
           return;
         }
 
@@ -158,28 +208,30 @@
         cancelActiveRestore();
 
         items = newItems;
-        if (panelInstance) {
-          let panelPos = null;
-          let rebuildSide = 'right';
-          const currentPanelEl = document.querySelector('.toc-floating');
-          if (currentPanelEl) {
-            const rect = currentPanelEl.getBoundingClientRect();
-            rebuildSide = rect.right > (window.innerWidth / 2) ? 'right' : 'left';
-            panelPos = { left: rect.left, top: rect.top };
-          }
-
-          panelInstance.remove();
-          panelInstance = renderFloatingPanel ? renderFloatingPanel(
-            rebuildSide, items, collapse, rebuild, startPick,
-            () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
-            mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-            mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-            panelPos
-          ) : null;
-
-          restoreActiveSnapshot(activeSnapshot);
+        let panelPos = null;
+        let rebuildSide = 'right';
+        const currentPanelEl = document.querySelector('.toc-floating');
+        if (currentPanelEl) {
+          const rect = currentPanelEl.getBoundingClientRect();
+          rebuildSide = rect.right > (window.innerWidth / 2) ? 'right' : 'left';
+          panelPos = { left: rect.left, top: rect.top };
         }
+
+        panelInstance.remove();
+        panelInstance = renderFloatingPanel ? renderFloatingPanel(
+          rebuildSide, items, collapse, rebuild, startPick,
+          () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
+          mutationObserver ? mutationObserver.getPendingRebuild : () => false,
+          mutationObserver ? mutationObserver.setPendingRebuild : () => {},
+          panelPos
+        ) : null;
+
+        restoreActiveSnapshot(activeSnapshot);
       } catch (e) {
+        // Reset flag on error
+        requestAnimationFrame(() => {
+          isRebuilding = false;
+        });
         if (isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
           if (mutationObserver && mutationObserver.disconnect) {
@@ -360,6 +412,7 @@
 
     window.TOC_APP = window.TOC_APP || {};
     window.TOC_APP.rebuild = rebuild;
+    window.TOC_APP.isRebuilding = () => isRebuilding;
 
     collapse();
 
