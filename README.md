@@ -39,6 +39,7 @@ A web table of contents generator that automatically creates interactive floatin
 - **Current Position Highlighting**: Automatically highlights the TOC item corresponding to current reading position (IntersectionObserver)
 - **Navigation Locking**: Locks highlighting during user clicks to prevent jumping
 - **State Recovery**: Automatically restores highlight state after page changes
+- **Anti-Jump Mechanism**: Prevents page jumping during auto-refresh and rebuilds
 
 ### ⚙️ Site Configuration Management
 - **Wildcard Matching**: URL pattern matching with wildcard support (e.g., `https://example.com/*`)

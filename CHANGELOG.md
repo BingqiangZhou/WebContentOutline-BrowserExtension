@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#051---2026-02-03)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#052---2026-02-03)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.5.2](#052---2026-02-03) - 2026-02-03
 - [0.5.1](#051---2026-02-03) - 2026-02-03
 - [0.5.0](#050---2026-02-03) - 2026-02-03
 - [0.4.1](#041---2026-01-23) - 2026-01-23
@@ -18,6 +19,24 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.5.2] - 2026-02-03
+
+### 🐛 修复 / Fixed
+- **防止页面跳动 / Fixed page jumping**
+  - 修复定时刷新时页面跳动的问题 / Fixed page jumping issue during auto-refresh
+  - 修复 TOC 内容为空时仍触发重建导致跳动 / Fixed rebuild triggering when TOC is empty causing page jumps
+- **重建优化 / Rebuild optimization**
+  - 添加重建中状态标志，防止 IntersectionObserver 干扰 / Added rebuild state flag to prevent IntersectionObserver interference
+  - 优化重建逻辑，跳过不必要的重建（空内容、相同内容、badge 模式） / Optimized rebuild logic to skip unnecessary rebuilds (empty content, identical content, badge mode)
+  - 确保所有代码路径正确重置重建标志 / Ensured rebuild flag is properly reset in all code paths
+
+### ⚡ 技术改进 / Technical Improvements
+- 新增 `window.TOC_APP.isRebuilding()` API 用于检查重建状态 / Added `window.TOC_APP.isRebuilding()` API to check rebuild state
+- IntersectionObserver 现在在重建期间跳过 active 状态更新 / IntersectionObserver now skips active state updates during rebuild
+- 改进错误处理，确保重建标志在异常情况下也能正确重置 / Improved error handling to ensure rebuild flag resets correctly in exceptional cases
 
 ---
 
