@@ -1,4 +1,4 @@
-# 网页目录助手 / Web TOC Assistant
+﻿# 网页目录助手 / Web TOC Assistant
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
@@ -214,7 +214,8 @@
 - **扩展标准**：Manifest V3
 - **开发语言**：原生 JavaScript + CSS3（无构建系统）
 - **存储方案**：`chrome.storage.local` API
-- **权限需求**：`storage`、`tabs`
+- **权限需求**：`storage`、`tabs`、`scripting`
+- **站点权限**：`http://*/*`、`https://*/*`
 
 ### 架构设计
 

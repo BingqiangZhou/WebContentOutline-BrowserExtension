@@ -1,22 +1,21 @@
-// 浮动面板组件
+
 (() => {
   'use strict';
 
-  /**
-   * 获取本地化消息
-   */
-  function msg(key) {
-    return chrome.i18n.getMessage(key) || key;
-  }
+  
+  const { msg } = window.TOC_UTILS || {};
+  const safeMsg = msg || ((key) => {
+    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
+  });
 
-  /**
-   * 渲染浮动面板
-   */
+  
   function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild) {
     const panel = document.createElement('div');
     let unlockTimer = null;
     let scrollStopTimer = null;
-    let intersectionObserver = null;  // IntersectionObserver 实例
+        let intersectionObserver = null;
+    const pickerStartEvent = 'toc-picker-start';
+    const pickerEndEvent = 'toc-picker-end';
     const UNLOCK_AFTER_MS = 1000;
     const SCROLL_STOP_MS = 500;
 
@@ -24,7 +23,7 @@
       if (unlockTimer) clearTimeout(unlockTimer);
       unlockTimer = setTimeout(() => {
         setNavLock(false);
-        // 检查是否有待处理的重建请求
+
         if (getPendingRebuild && getPendingRebuild()) {
           setTimeout(async () => {
             if (getPendingRebuild && getPendingRebuild()) {
@@ -32,19 +31,18 @@
               try {
                 await onRefresh();
               } catch (e) {
-                console.warn('[目录助手] 解锁后刷新失败:', e);
+                console.warn('[toc] refresh after unlock failed', e);
               }
             }
           }, 100);
         }
-        // 延迟清除用户选择标记，确保IntersectionObserver不会立即覆盖
-        // 延迟足够长的时间，让用户滚动操作完成
+
         setTimeout(() => {
-          // 清除所有项目的用户选择标记
+
           items.forEach(it => {
             it._userSelected = false;
           });
-        }, 200); // 200ms后清除所有用户选择标记
+                }, 200);
       }, UNLOCK_AFTER_MS);
     };
 
@@ -73,51 +71,48 @@
     const header = document.createElement('div');
     header.className = 'toc-header';
 
-    // 创建标题行容器（包含标题和收起按钮）
     const headerRow = document.createElement('div');
     headerRow.className = 'toc-header-row';
 
     const titleSpan = document.createElement('span');
     titleSpan.className = 'toc-title';
-    titleSpan.textContent = msg('tocTitle');
+    titleSpan.textContent = safeMsg('tocTitle');
 
     const btnCollapse = document.createElement('button');
     btnCollapse.className = 'toc-btn';
-    btnCollapse.textContent = msg('buttonCollapse');
-    btnCollapse.title = msg('buttonCollapseTitle');
+    btnCollapse.textContent = safeMsg('buttonCollapse');
+    btnCollapse.title = safeMsg('buttonCollapseTitle');
     btnCollapse.addEventListener('click', () => onCollapse());
 
     headerRow.appendChild(titleSpan);
     headerRow.appendChild(btnCollapse);
 
-    // 创建操作按钮容器（包含左右两部分）
     const actions = document.createElement('div');
     actions.className = 'toc-actions';
 
-    // 左侧按钮组
     const actionsLeft = document.createElement('div');
     actionsLeft.className = 'toc-actions-left';
 
     const btnPick = document.createElement('button');
     btnPick.className = 'toc-btn';
-    btnPick.textContent = msg('buttonPickElement');
-    btnPick.title = msg('buttonPickElementTitle');
+    btnPick.textContent = safeMsg('buttonPickElement');
+    btnPick.title = safeMsg('buttonPickElementTitle');
+    btnPick.setAttribute('aria-pressed', 'false');
     btnPick.addEventListener('click', () => onPick && onPick());
 
     const btnManage = document.createElement('button');
     btnManage.className = 'toc-btn';
-    btnManage.textContent = msg('buttonSiteConfig');
-    btnManage.title = msg('buttonSiteConfigTitle');
+    btnManage.textContent = safeMsg('buttonSiteConfig');
+    btnManage.title = safeMsg('buttonSiteConfigTitle');
     btnManage.addEventListener('click', () => onSiteConfig && onSiteConfig());
 
-    // 右侧按钮组
     const actionsRight = document.createElement('div');
     actionsRight.className = 'toc-actions-right';
 
     const btnRefresh = document.createElement('button');
     btnRefresh.className = 'toc-btn';
-    btnRefresh.textContent = msg('buttonRefresh');
-    btnRefresh.title = msg('buttonRefreshTitle');
+    btnRefresh.textContent = safeMsg('buttonRefresh');
+    btnRefresh.title = safeMsg('buttonRefreshTitle');
     {
       let refreshing = false;
       btnRefresh.addEventListener('click', async () => {
@@ -147,67 +142,90 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
-      empty.textContent = msg('emptyTocMessage');
+      empty.textContent = safeMsg('emptyTocMessage');
       list.appendChild(empty);
     } else {
-      // 初始化时确保所有项目都没有active状态和用户选择标记
+
       items.forEach(item => {
         item._userSelected = false;
       });
 
-      for (const item of items) {
+      const handleItemClick = (item, node, e) => {
+        e.preventDefault();
+
+        setNavLock(true);
+
+        items.forEach(it => {
+          it._userSelected = false;
+          if (it._node) {
+            it._node.classList.remove('active');
+          }
+        });
+
+        item._userSelected = true;
+        node.classList.add('active');
+
+        try {
+          item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch {
+          const { scrollToElement } = window.TOC_UTILS || {};
+          if (scrollToElement) scrollToElement(item.el);
+        }
+
+        unlockLater();
+      };
+
+      items.forEach((item, index) => {
         const a = document.createElement('a');
         a.className = 'toc-item';
         a.textContent = item.text;
         a.href = 'javascript:void(0)';
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-
-          // 立即锁定导航，防止IntersectionObserver干扰
-          setNavLock(true);
-
-          // 先清除所有项的选中状态和active样式
-          items.forEach(it => {
-            it._userSelected = false;
-            if (it._node) {
-              it._node.classList.remove('active');
-            }
-          });
-
-          // 标记当前项为用户选择并设置active样式
-          item._userSelected = true;
-          a.classList.add('active');
-
-          // 平滑滚动
-          try {
-            item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          } catch {
-            const { scrollToElement } = window.TOC_UTILS || {};
-            if (scrollToElement) scrollToElement(item.el);
-          }
-
-          // 设置延迟解锁
-          unlockLater();
-        });
+        a.dataset.index = String(index);
         item._node = a;
         list.appendChild(a);
-      }
+      });
+
+      list.addEventListener('click', (e) => {
+        const node = e.target.closest('.toc-item');
+        if (!node || !list.contains(node)) return;
+        const idx = parseInt(node.dataset.index, 10);
+        const item = items[idx];
+        if (!item) return;
+        handleItemClick(item, node, e);
+      });
     }
 
     panel.appendChild(header);
     panel.appendChild(list);
     document.documentElement.appendChild(panel);
 
-    // 清理钩子
     const origRemove = panel.remove.bind(panel);
-    panel.remove = () => { cleanupLock(); origRemove(); };
+    const onPickerStart = () => {
+      btnPick.classList.add('toc-btn-active');
+      btnPick.setAttribute('aria-pressed', 'true');
+    };
+    const onPickerEnd = () => {
+      btnPick.classList.remove('toc-btn-active');
+      btnPick.setAttribute('aria-pressed', 'false');
+      if (document.activeElement === btnPick) {
+        btnPick.blur();
+      }
+    };
+    window.addEventListener(pickerStartEvent, onPickerStart);
+    window.addEventListener(pickerEndEvent, onPickerEnd);
+
+    panel.remove = () => {
+      cleanupLock();
+      window.removeEventListener(pickerStartEvent, onPickerStart);
+      window.removeEventListener(pickerEndEvent, onPickerEnd);
+      origRemove();
+    };
 
     // Active highlight via IntersectionObserver
     if (items.length && 'IntersectionObserver' in window) {
       const map = new Map(items.map(it => [it.el, it]));
       let active;
 
-      // 初始化时清除所有active状态，避免重复
       const clearAllActive = () => {
         items.forEach(item => {
           if (item._node) {
@@ -218,13 +236,12 @@
       };
 
       intersectionObserver = new IntersectionObserver((entries) => {
-        // 如果导航被锁定，完全跳过处理
+
         if (getNavLock()) return;
 
-        // 检查是否有用户手动选择的项目
         const userSelected = items.find(it => it._userSelected);
         if (userSelected) {
-          // 如果有用户选择的项目，先清除所有active状态，然后只设置用户选择的项目
+
           clearAllActive();
           if (userSelected._node && !userSelected._node.classList.contains('active')) {
             userSelected._node.classList.add('active');
@@ -233,7 +250,6 @@
           return;
         }
 
-        // 找到当前可见的项目
         const visibleItems = [];
         entries.forEach(entry => {
           const it = map.get(entry.target);
@@ -242,23 +258,19 @@
           }
         });
 
-        // 如果有可见项目，选择第一个作为active
         if (visibleItems.length > 0) {
           const newActive = visibleItems[0];
 
-          // 只有当新的active与当前active不同时才更新
           if (active !== newActive) {
-            // 清除所有active状态
+
             clearAllActive();
-            // 设置新的active状态
+
             newActive._node.classList.add('active');
             active = newActive;
           }
         }
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
-      // 延迟启动IntersectionObserver，避免与初始状态恢复冲突
-      // 使用requestAnimationFrame确保在下一帧渲染后启动
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           items.forEach(it => intersectionObserver.observe(it.el));
@@ -271,7 +283,10 @@
     };
   }
 
-  // 导出到全局
   window.TOC_UI = window.TOC_UI || {};
   window.TOC_UI.renderFloatingPanel = renderFloatingPanel;
 })();
+
+
+
+

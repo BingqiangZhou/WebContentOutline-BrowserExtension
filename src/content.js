@@ -1,24 +1,47 @@
-// TOC内容脚本 - 重构版本（增加按站点启用/禁用）
 (() => {
   'use strict';
 
-  /**
-   * 获取本地化消息
-   */
-  function msg(key) {
-    return chrome.i18n.getMessage(key) || key;
-  }
+  if (window.__TOC_ASSISTANT_LOADED__) return;
+  window.__TOC_ASSISTANT_LOADED__ = true;
 
-  const { getConfigs, findMatchingConfig, getSiteEnabledByOrigin, getPanelExpandedByOrigin } = window.TOC_UTILS || {};
+  const {
+    msg,
+    getConfigs,
+    findMatchingConfig,
+    getSiteEnabledByOrigin,
+    getPanelExpandedByOrigin,
+    getBadgePosByHost,
+    setBadgePosByHost
+  } = window.TOC_UTILS || {};
   const { initForConfig } = window.TOC_APP || {};
 
+  const safeMsg = msg || ((key) => {
+    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
+  });
+
   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) {
-    console.error(msg('logPrefix') + ' ' + msg('logMissingDependencies'));
+    console.error(safeMsg('logPrefix') + ' ' + safeMsg('logMissingDependencies'));
     return;
   }
 
   let appInstance = null;
   let currentEnabled = false;
+
+  async function migrateLegacyBadgePos() {
+    try {
+      if (!setBadgePosByHost) return;
+      const legacyKey = `tocBadgePos::${location.host}`;
+      const raw = localStorage.getItem(legacyKey);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.left === 'number' && typeof parsed.top === 'number') {
+        if (!getBadgePosByHost || !(await getBadgePosByHost(location.host))) {
+          await setBadgePosByHost(location.host, parsed);
+        }
+        localStorage.removeItem(legacyKey);
+      }
+    } catch (_) {}
+  }
 
   async function startApp() {
     try {
@@ -31,14 +54,13 @@
           selectors: [],
           collapsedDefault: false
         };
-        console.debug(msg('logPrefix') + ' ' + msg('logNoConfigFound'));
+        console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logNoConfigFound'));
       } else {
-        console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
+        console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logConfigMatched'), cfg.urlPattern);
       }
-      // 直接初始化并保存实例，供后续销毁
       appInstance = initForConfig(cfg);
     } catch (err) {
-      console.error(msg('logPrefix') + ' ' + msg('logInitFailed'), err);
+      console.error(safeMsg('logPrefix') + ' ' + safeMsg('logInitFailed'), err);
     }
   }
 
@@ -48,21 +70,20 @@
         appInstance.destroy();
       }
     } catch (e) {
-      console.warn(msg('logPrefix') + ' 停止应用失败:', e);
+      console.warn(safeMsg('logPrefix') + ' stop failed:', e);
     }
     appInstance = null;
-    // 强力清理兜底：移除任何遗留的目录 UI 节点
     try {
       document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay').forEach(n => n.remove());
     } catch (e) {
-      console.warn(msg('logPrefix') + ' 清理DOM节点失败:', e);
+      console.warn(safeMsg('logPrefix') + ' cleanup DOM failed:', e);
     }
   }
 
   async function main() {
-    console.debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
+    console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logContentScriptStarted'), location.href);
     try {
-      // 先请求后台根据站点状态同步一次图标，再决定是否渲染目录
+      await migrateLegacyBadgePos();
       await new Promise((resolve) => {
         try {
           chrome.runtime.sendMessage({ type: 'toc:ensureIcon' }, () => { void chrome.runtime?.lastError; resolve(); });
@@ -74,25 +95,28 @@
       if (currentEnabled) {
         await startApp();
         try {
-          const expanded = await getPanelExpandedByOrigin();
+          const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
           if (expanded && appInstance && appInstance.expand) {
             await appInstance.expand();
           }
         } catch (_) {}
       } else {
-        console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
+        console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logSiteDisabled'));
       }
     } catch (e) {
-      console.warn(msg('logPrefix') + ' ' + msg('logReadEnabledFailed'), e);
+      console.warn(safeMsg('logPrefix') + ' ' + safeMsg('logReadEnabledFailed'), e);
     }
   }
 
-  // 监听后台切换事件
   try {
     chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       if (!msg || !msg.type) return;
 
-      // 请求直接打开目录面板
+      if (msg.type === 'toc:ping') {
+        sendResponse && sendResponse({ ok: true });
+        return;
+      }
+
       if (msg.type === 'toc:openPanel') {
         (async () => {
           try {
@@ -107,10 +131,9 @@
             sendResponse && sendResponse({ ok: false, error: String(err) });
           }
         })();
-        return true; // 异步响应
+        return true;
       }
 
-      // 启用状态切换
       if (msg.type !== 'toc:updateEnabled') return;
       const enabled = !!msg.enabled;
       if (enabled === currentEnabled) {
@@ -121,7 +144,7 @@
       if (enabled) {
         startApp().then(async () => {
           try {
-            const expanded = await getPanelExpandedByOrigin();
+            const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
             if (expanded && appInstance && appInstance.expand) {
               await appInstance.expand();
             }
@@ -130,17 +153,14 @@
             sendResponse && sendResponse({ ok: true });
           }
         }).catch(() => sendResponse && sendResponse({ ok: false }));
-        return true; // 异步响应
-      } else {
-        stopApp();
-        sendResponse && sendResponse({ ok: true });
+        return true;
       }
-    });
-  } catch (e) {
-    // ignore
-  }
 
-  // 监听 storage 变化，作为消息丢失时的兜底同步（本扩展使用 chrome.storage.local）
+      stopApp();
+      sendResponse && sendResponse({ ok: true });
+    });
+  } catch (_) {}
+
   try {
     const KEY = (window.TOC_UTILS && window.TOC_UTILS.STORAGE_KEYS && window.TOC_UTILS.STORAGE_KEYS.SITE_ENABLE_MAP)
       ? window.TOC_UTILS.STORAGE_KEYS.SITE_ENABLE_MAP
@@ -154,24 +174,23 @@
         const next = !!map[location.origin];
         if (next === currentEnabled) return;
         currentEnabled = next;
-        // 使用异步处理但不等待，避免阻塞
         if (next) {
-          startApp().catch(err => console.warn(msg('logPrefix') + ' startApp失败:', err));
+          startApp().catch(err => console.warn(safeMsg('logPrefix') + ' startApp failed:', err));
         } else {
           stopApp();
         }
       } catch (e) {
-        console.warn(msg('logPrefix') + ' storage变化处理失败:', e);
+        console.warn(safeMsg('logPrefix') + ' storage change failed:', e);
       }
     });
   } catch (e) {
-    console.warn(msg('logPrefix') + ' storage监听器注册失败:', e);
+    console.warn(safeMsg('logPrefix') + ' storage listener failed:', e);
   }
 
-  // 启动应用（等待文档就绪）
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { main(); }, { once: true });
   } else {
     main();
   }
 })();
+

@@ -1,4 +1,4 @@
-# CLAUDE.md
+﻿# CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
@@ -34,7 +34,7 @@ No automated test framework. Manual testing required by loading the extension an
 
 ### Module Dependency Layers (Critical Load Order)
 
-The extension uses a **layered module system** with dependency injection via global namespaces. The load order in `manifest.json` is critical:
+The extension uses a **layered module system** with dependency injection via global namespaces. The load order is defined in `src/background.js` (the `CONTENT_SCRIPTS` array) and is critical:
 
 ```
 Layer 1: utils.js
@@ -171,9 +171,10 @@ Selectors (CSS/XPath)
 
 ## Manifest V3 Specifics
 
-- `permissions`: ["storage", "tabs"] - no host permissions
+- `permissions`: ["storage", "tabs", "scripting"]
+- `host_permissions`: ["http://*/*", "https://*/*"]
 - `default_locale`: "zh_CN" - i18n support
-- Content scripts run at `document_idle`
+- Content scripts are injected dynamically via `chrome.scripting` when a site is enabled
 - Service worker for background logic
 
 ## Common Modification Patterns
@@ -181,7 +182,7 @@ Selectors (CSS/XPath)
 ### Adding a new content script module
 1. Create file in appropriate directory (`utils/`, `ui/`, `core/`)
 2. Expose API via `window.MODULE_NAME`
-3. Add to `manifest.json` content_scripts.js array in correct dependency order
+3. Add to `src/background.js` `CONTENT_SCRIPTS` array in correct dependency order
 4. Add dependency checks in consuming modules
 
 ### Modifying TOC building logic

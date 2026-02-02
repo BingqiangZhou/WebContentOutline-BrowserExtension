@@ -1,50 +1,70 @@
-// 页面变化监听模块
 (() => {
   'use strict';
 
-  // 全局标志：扩展上下文是否有效
   let isExtensionContextValid = true;
 
-  /**
-   * 创建页面变化监听器
-   */
   function createMutationObserver(onRebuild, getNavLock) {
     const DEBOUNCE_MS = 500;
-    let shouldRebuildAt = 0;
+    let debounceTimer = null;
     let pendingRebuild = false;
-    let tickTimer = null;
-    let tickRunning = false;  // 添加标志防止重复启动
+    let unlockTimer = null;
 
-    // 包装重建函数，添加扩展上下文失效检测
-    const safeRebuild = async () => {
-      if (!isExtensionContextValid) {
-        console.debug('[目录助手] 扩展上下文已失效，停止重建');
-        return;
+    const stopTimers = () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
       }
+      if (unlockTimer) {
+        clearTimeout(unlockTimer);
+        unlockTimer = null;
+      }
+    };
 
+    const safeRebuild = async () => {
+      if (!isExtensionContextValid) return;
       try {
         await onRebuild();
       } catch (e) {
-        // 检测是否是扩展上下文失效错误
         if (e && e.message && e.message.includes('Extension context invalidated')) {
-          console.warn('[目录助手] 检测到扩展上下文失效，停止后续重建操作');
           isExtensionContextValid = false;
-          // 停止定时器和观察器
-          if (tickTimer) {
-            clearInterval(tickTimer);
-            tickTimer = null;
-          }
-          tickRunning = false;
+          stopTimers();
           return;
         }
-        // 其他错误继续抛出
         throw e;
       }
     };
 
-    /**
-     * 检查是否有有意义的变化
-     */
+    function waitForUnlock() {
+      if (unlockTimer) return;
+      const check = () => {
+        unlockTimer = null;
+        if (!isExtensionContextValid) return;
+        if (!getNavLock()) {
+          if (pendingRebuild) {
+            pendingRebuild = false;
+            safeRebuild();
+          }
+          return;
+        }
+        unlockTimer = setTimeout(check, 200);
+      };
+      unlockTimer = setTimeout(check, 200);
+    }
+
+    function scheduleRebuild() {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        debounceTimer = null;
+        if (getNavLock()) {
+          pendingRebuild = true;
+          waitForUnlock();
+          return;
+        }
+        pendingRebuild = false;
+        safeRebuild();
+      }, DEBOUNCE_MS);
+    }
+
     function hasMeaningfulChange(mutations) {
       for (const m of mutations) {
         if (m.type === 'childList') {
@@ -53,114 +73,52 @@
         if (m.type === 'characterData') return true;
         if (m.type === 'attributes') {
           const name = m.attributeName || '';
-          if (name === 'hidden' || name.startsWith('data-') || name.startsWith('aria-')) return true;
+          if (name === 'hidden' || name === 'style' || name === 'class' || name === 'id' ||
+              name === 'aria-hidden' || name === 'aria-expanded' || name === 'open') {
+            return true;
+          }
         }
       }
       return false;
     }
 
-    /**
-     * 确保定时器运行
-     */
-    function ensureTick() {
-      // 使用双重检查防止并发情况下重复启动
-      // 如果定时器已存在，直接返回
-      if (tickTimer) return;
-      // 如果正在运行但定时器不存在（异常状态），重置运行标志
-      if (tickRunning && !tickTimer) {
-        tickRunning = false;
-      }
-      // 再次检查后启动
-      if (tickTimer) return;
-
-      tickRunning = true;
-      tickTimer = setInterval(() => {
-        // 检查扩展上下文是否仍然有效
-        if (!isExtensionContextValid) {
-          clearInterval(tickTimer);
-          tickTimer = null;
-          tickRunning = false;
-          return;
-        }
-
-        const now = Date.now();
-        if (getNavLock()) {
-          // 锁定期间仅置位，等解锁后一次性执行
-          if (shouldRebuildAt > 0) pendingRebuild = true;
-          return;
-        }
-        if (shouldRebuildAt > 0 && now >= shouldRebuildAt) {
-          shouldRebuildAt = 0;
-          pendingRebuild = false;
-          // 使用安全包装的重建函数
-          safeRebuild();
-        }
-        // 处理解锁后的待处理重建
-        if (pendingRebuild && !getNavLock()) {
-          pendingRebuild = false;
-          // 使用安全包装的重建函数
-          safeRebuild();
-        }
-      }, 200); // 轮询粒度200ms，轻量
-    }
-
-    /**
-     * 检查是否有有效的选择器
-     */
     function hasValidSelectors(cfg) {
       if (cfg.selectors && cfg.selectors.length > 0) {
         return true;
       }
-      
+
       const commonSelectors = [
         'h1, h2, h3, h4, h5, h6',
         '[id*="title"], [class*="title"]',
         '[id*="heading"], [class*="heading"]'
       ];
-      
+
       for (let selector of commonSelectors) {
         try {
           if (document.querySelector(selector)) {
             return true;
           }
-        } catch (e) {
-          console.warn('[目录助手] 选择器错误:', selector, e);
-        }
+        } catch (_) {}
       }
-      
+
       return false;
     }
 
-    /**
-     * 启动监听器
-     */
     function start(cfg) {
-      // 防止多次调用导致定时器泄漏：先清理旧定时器
-      if (tickTimer) {
-        clearInterval(tickTimer);
-        tickTimer = null;
-      }
-      shouldRebuildAt = 0;
+      stopTimers();
       pendingRebuild = false;
 
-      // 只有在有有效选择器的情况下才启动观察器
       if (typeof MutationObserver !== 'undefined' && hasValidSelectors(cfg)) {
-        console.debug('[目录助手] 检测到有效选择器，启动页面变化监听');
-
         const observer = new MutationObserver((mutations) => {
-          // 检查扩展上下文是否仍然有效
           if (!isExtensionContextValid) {
             observer.disconnect();
             return;
           }
-
           if (!hasMeaningfulChange(mutations)) return;
-          // 每次变化推迟到当前时间+DEBOUNCE_MS (500ms)
-          shouldRebuildAt = Date.now() + DEBOUNCE_MS;
-          ensureTick();
+          scheduleRebuild();
         });
 
-        observer.observe(document.documentElement, {
+        observer.observe(document.body || document.documentElement, {
           childList: true,
           subtree: true,
           characterData: true,
@@ -170,30 +128,28 @@
         return {
           disconnect() {
             observer.disconnect();
-            if (tickTimer) {
-              clearInterval(tickTimer);
-              tickTimer = null;
-            }
-            tickRunning = false;  // 重置运行标志
+            stopTimers();
           },
           getPendingRebuild: () => pendingRebuild,
-          setPendingRebuild: (val) => { pendingRebuild = val; }
-        };
-      } else {
-        console.debug('[目录助手] 没有有效的元素选择器，跳过页面变化监听');
-        return {
-          disconnect() {},
-          getPendingRebuild: () => false,
-          setPendingRebuild: () => {}
+          setPendingRebuild: (val) => {
+            pendingRebuild = !!val;
+            if (pendingRebuild) waitForUnlock();
+          }
         };
       }
+
+      return {
+        disconnect() { stopTimers(); },
+        getPendingRebuild: () => false,
+        setPendingRebuild: () => {}
+      };
     }
 
     return { start };
   }
 
-  // 导出到全局
   window.MUTATION_OBSERVER = {
     createMutationObserver
   };
 })();
+

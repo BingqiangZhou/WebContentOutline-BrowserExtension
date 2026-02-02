@@ -4,27 +4,59 @@
 const STORAGE_KEYS = {
   TOC_CONFIGS: 'tocConfigs',
   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-  PANEL_STATE_MAP: 'tocPanelExpandedMap'
+  PANEL_STATE_MAP: 'tocPanelExpandedMap',
+  BADGE_POS_MAP: 'tocBadgePosMap'
 };
+
+/**
+ * Get i18n message safely.
+ * @param {string} key
+ * @returns {string}
+ */
+function msg(key) {
+  try {
+    return chrome.i18n.getMessage(key) || key;
+  } catch (_) {
+    return key;
+  }
+}
+
+/**
+ * Read a value from chrome.storage.local with fallback.
+ * @param {string} key
+ * @param {*} fallback
+ * @returns {Promise<*>}
+ */
+async function getStorage(key, fallback) {
+  try {
+    if (chrome?.storage?.local) {
+      const res = await chrome.storage.local.get([key]);
+      return res[key] ?? fallback;
+    }
+  } catch (_) {}
+  return fallback;
+}
+
+/**
+ * Write a value to chrome.storage.local.
+ * @param {string} key
+ * @param {*} value
+ * @returns {Promise<void>}
+ */
+async function setStorage(key, value) {
+  try {
+    if (chrome?.storage?.local) {
+      await chrome.storage.local.set({ [key]: value });
+    }
+  } catch (_) {}
+}
 
 /**
  * Get configs from chrome.storage.local
  * @returns {Promise<Array>}
  */
 async function getConfigs() {
-  try {
-    if (chrome?.storage?.local) {
-      const res = await chrome.storage.local.get([STORAGE_KEYS.TOC_CONFIGS]);
-      return res[STORAGE_KEYS.TOC_CONFIGS] || [];
-    } else {
-      const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
-      return raw ? JSON.parse(raw) : [];
-    }
-  } catch (e) {
-    // Fallback to localStorage on error
-    const raw = localStorage.getItem(STORAGE_KEYS.TOC_CONFIGS);
-    return raw ? JSON.parse(raw) : [];
-  }
+  return await getStorage(STORAGE_KEYS.TOC_CONFIGS, []);
 }
 
 /**
@@ -33,16 +65,7 @@ async function getConfigs() {
  * @returns {Promise<void>}
  */
 async function saveConfigs(configs) {
-  try {
-    if (chrome?.storage?.local) {
-      await chrome.storage.local.set({ [STORAGE_KEYS.TOC_CONFIGS]: configs });
-    } else {
-      localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
-    }
-  } catch (e) {
-    // Fallback to localStorage on error
-    localStorage.setItem(STORAGE_KEYS.TOC_CONFIGS, JSON.stringify(configs));
-  }
+  await setStorage(STORAGE_KEYS.TOC_CONFIGS, configs);
 }
 
 /**
@@ -50,18 +73,7 @@ async function saveConfigs(configs) {
  * @returns {Promise<Record<string, boolean>>}
  */
 async function getEnabledMap() {
-  try {
-    if (chrome?.storage?.local) {
-      const res = await chrome.storage.local.get([STORAGE_KEYS.SITE_ENABLE_MAP]);
-      return res[STORAGE_KEYS.SITE_ENABLE_MAP] || {};
-    } else {
-      const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
-      return raw ? JSON.parse(raw) : {};
-    }
-  } catch (e) {
-    const raw = localStorage.getItem(STORAGE_KEYS.SITE_ENABLE_MAP);
-    return raw ? JSON.parse(raw) : {};
-  }
+  return await getStorage(STORAGE_KEYS.SITE_ENABLE_MAP, {});
 }
 
 /**
@@ -69,33 +81,14 @@ async function getEnabledMap() {
  * @param {Record<string, boolean>} map
  */
 async function saveEnabledMap(map) {
-  try {
-    if (chrome?.storage?.local) {
-      await chrome.storage.local.set({ [STORAGE_KEYS.SITE_ENABLE_MAP]: map });
-    } else {
-      localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
-    }
-  } catch (e) {
-    localStorage.setItem(STORAGE_KEYS.SITE_ENABLE_MAP, JSON.stringify(map));
-  }
+  await setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
 }
 
 /**
  * Get panel expanded state map { origin: boolean } from chrome.storage.local
  */
 async function getPanelStateMap() {
-  try {
-    if (chrome?.storage?.local) {
-      const res = await chrome.storage.local.get([STORAGE_KEYS.PANEL_STATE_MAP]);
-      return res[STORAGE_KEYS.PANEL_STATE_MAP] || {};
-    } else {
-      const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
-      return raw ? JSON.parse(raw) : {};
-    }
-  } catch (e) {
-    const raw = localStorage.getItem(STORAGE_KEYS.PANEL_STATE_MAP);
-    return raw ? JSON.parse(raw) : {};
-  }
+  return await getStorage(STORAGE_KEYS.PANEL_STATE_MAP, {});
 }
 
 /**
@@ -103,15 +96,34 @@ async function getPanelStateMap() {
  * @param {Record<string, boolean>} map
  */
 async function savePanelStateMap(map) {
-  try {
-    if (chrome?.storage?.local) {
-      await chrome.storage.local.set({ [STORAGE_KEYS.PANEL_STATE_MAP]: map });
-    } else {
-      localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
-    }
-  } catch (e) {
-    localStorage.setItem(STORAGE_KEYS.PANEL_STATE_MAP, JSON.stringify(map));
-  }
+  await setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
+}
+
+/**
+ * Get badge position map { host: { left, top } }
+ */
+async function getBadgePosMap() {
+  return await getStorage(STORAGE_KEYS.BADGE_POS_MAP, {});
+}
+
+/**
+ * Save badge position map
+ * @param {Record<string, {left:number, top:number}>} map
+ */
+async function saveBadgePosMap(map) {
+  await setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
+}
+
+async function getBadgePosByHost(host) {
+  const map = await getBadgePosMap();
+  return map[host] || null;
+}
+
+async function setBadgePosByHost(host, pos) {
+  const map = await getBadgePosMap();
+  map[host] = pos;
+  await saveBadgePosMap(map);
+  return map[host];
 }
 
 async function getPanelExpandedByOrigin(origin) {
@@ -235,7 +247,7 @@ function collectBySelector(selector) {
  */
 function uniqueInDocumentOrder(list) {
   const set = new Set();
-  // 使用数组记录元素及其原始索引，以便在排序失败时保持原始顺序
+  // Track original index to keep stable order when sorting is ambiguous.
   const arrWithIndex = [];
   for (let i = 0; i < list.length; i++) {
     const el = list[i];
@@ -247,9 +259,8 @@ function uniqueInDocumentOrder(list) {
 
   arrWithIndex.sort((a, b) => {
     if (a.el === b.el) return 0;
-    // 检查元素是否在同一文档中
+    // If elements are not connected, preserve original order.
     if (!a.el.isConnected || !b.el.isConnected) {
-      // 如果有元素不在文档中，保持原始顺序
       return a.originalIndex - b.originalIndex;
     }
     try {
@@ -258,11 +269,11 @@ function uniqueInDocumentOrder(list) {
       if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
       if (pos & Node.DOCUMENT_POSITION_CONTAINS) return -1;
       if (pos & Node.DOCUMENT_POSITION_CONTAINED_BY) return 1;
-      // 如果无法确定位置，保持原始顺序
+      // If position cannot be determined, preserve original order.
       return a.originalIndex - b.originalIndex;
     } catch (e) {
-      // compareDocumentPosition可能失败，保持原始顺序
-      console.warn('[目录助手] compareDocumentPosition失败:', e);
+      // compareDocumentPosition can fail; preserve original order.
+      console.warn('[toc] compareDocumentPosition failed:', e);
       return a.originalIndex - b.originalIndex;
     }
   });
@@ -282,8 +293,13 @@ function scrollToElement(el) {
   }
 }
 
-window.TOC_UTILS = {
+const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : self);
+
+ROOT.TOC_UTILS = {
   STORAGE_KEYS,
+  msg,
+  getStorage,
+  setStorage,
   getConfigs,
   saveConfigs,
   getEnabledMap,
@@ -296,8 +312,14 @@ window.TOC_UTILS = {
   savePanelStateMap,
   getPanelExpandedByOrigin,
   setPanelExpandedByOrigin,
+  getBadgePosMap,
+  saveBadgePosMap,
+  getBadgePosByHost,
+  setBadgePosByHost,
   findMatchingConfig,
   collectBySelector,
   uniqueInDocumentOrder,
   scrollToElement
 };
+
+

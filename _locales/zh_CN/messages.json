@@ -4,7 +4,7 @@
     "description": "扩展名称，显示在应用商店和浏览器中"
   },
   "extensionDescription": {
-    "message": "为网页内容生成可折叠的目录，支持CSS选择器配置，并提供元素拾取。点击扩展图标可按站点启用/禁用。",
+    "message": "为网页内容自动生成可折叠目录，支持 CSS 选择器配置，并提供元素拾取，点击图标可按站点启用/禁用",
     "description": "扩展功能和用途的简短描述"
   },
   "browserActionTitle": {
@@ -48,7 +48,7 @@
     "description": "站点配置按钮的提示文本"
   },
   "emptyTocMessage": {
-    "message": "未找到目录项，请尝试刷新网页或点击刷新按钮。",
+    "message": "未找到目录项，请尝试刷新页面或点击刷新按钮",
     "description": "未找到目录项时显示的消息"
   },
   "badgeTitle": {
@@ -84,11 +84,11 @@
     "description": "清空站点配置的按钮文本"
   },
   "buttonDeleteSelector": {
-    "message": "删除此选择器",
+    "message": "删除该选择器",
     "description": "删除选择器按钮的提示文本"
   },
   "errorOperationFailed": {
-    "message": "操作失败，请查看控制台。",
+    "message": "操作失败，请检查控制台",
     "description": "操作失败时的错误消息"
   },
   "logPrefix": {
@@ -112,7 +112,7 @@
     "description": "初始化失败时的错误消息"
   },
   "logContentScriptStarted": {
-    "message": "内容脚本启动于",
+    "message": "内容脚本已启动",
     "description": "内容脚本启动时的调试消息"
   },
   "logSiteDisabled": {
@@ -149,6 +149,10 @@
   },
   "titleDisabledFallback": {
     "message": "网页目录：禁用（按站点，点击启用）",
-    "description": "非http页面的备用图标标题"
+    "description": "非 http 页面时的备用图标标题"
+  },
+  "titleInjectionFailed": {
+    "message": "网页目录助手：注入失败（点击重试）",
+    "description": "内容脚本注入失败时的图标标题"
   }
 }

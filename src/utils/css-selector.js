@@ -1,33 +1,24 @@
-// CSS选择器生成工具
+
 (() => {
   'use strict';
 
-  /**
-   * 转义CSS类名中的特殊字符
-   * @param {string} className
-   * @returns {string}
-   */
+  
   function escapeCssClass(className) {
-    // 需要转义的特殊字符：.!#$%&*+./=?^`{|}~等
-    // 根据CSS规范，类名中的特殊字符需要用反斜杠转义
+
     return className.replace(/([.!#$%&*+\/=?^`{|}~\[\]\\()])/g, '\\$1');
   }
 
-  /**
-   * 构建类选择器
-   */
+  
   function buildClassSelector(el) {
     if (!el || !el.classList || el.classList.length === 0) return '';
     const classes = Array.from(el.classList).slice(0, 3); // limit to first 3
     if (classes.length === 0) return '';
-    // 转义每个类名中的特殊字符
+
     const escaped = classes.map(escapeCssClass);
     return '.' + escaped.join('.');
   }
 
-  /**
-   * 为元素生成CSS路径
-   */
+  
   function cssPathFor(el, maxDepth = 4) {
     if (!el || el.nodeType !== 1) return '';
     const parts = [];
@@ -60,7 +51,6 @@
     return parts.join(' > ');
   }
 
-  // 导出到全局
   window.CSS_SELECTOR = {
     buildClassSelector,
     cssPathFor

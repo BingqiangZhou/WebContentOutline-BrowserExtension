@@ -1,13 +1,13 @@
-/* TOC 扩展样式重置和保护 */
+/* TOC UI reset and isolation */
 .toc-floating,
 .toc-floating *,
-/* 仅重置 badge 的子元素，避免覆盖根元素的内联定位样式 */
+/* Reset only badge children to avoid overriding inline positioning */
 .toc-collapsed-badge * {
   all: unset !important;
   box-sizing: border-box !important;
 }
 
-/* 恢复必要的样式继承 */
+/* Restore required inherited styles */
 .toc-floating * {
   font-family: inherit !important;
   color: inherit !important;
@@ -100,7 +100,7 @@
   padding: 6px !important;
 }
 
-/* 选择器列表项 */
+/* Selector list item */
 .toc-selector-item {
   display: flex !important;
   align-items: center !important;
@@ -117,7 +117,7 @@
   background: rgba(0,0,0,0.04) !important;
 }
 
-/* 选择器文本 */
+/* Selector text */
 .toc-selector-text {
   flex: 1 !important;
   font-size: 12px !important;
@@ -130,7 +130,7 @@
   min-width: 0 !important;
 }
 
-/* 删除按钮 - 绝对定位，浮动显示，不占据布局空间 */
+/* Delete button - absolute overlay, no layout shift */
 .toc-selector-delete {
   position: absolute !important;
   right: 8px !important;
@@ -165,7 +165,7 @@
   transform: translateY(-50%) scale(0.95) !important;
 }
 
-/* 计数标签样式 */
+/* Count label */
 .toc-config-count {
   font-size: 13px !important;
   margin-bottom: 6px !important;
@@ -303,6 +303,11 @@
   outline: none !important;
 }
 
+.toc-btn.toc-btn-active {
+  background: rgba(0,0,0,0.06) !important;
+  color: #333 !important;
+}
+
 .toc-btn-primary {
   background: #2f6feb !important;
   color: #fff !important;
@@ -312,7 +317,7 @@
   color: #fff !important;
 }
 
-/* 危险操作按钮，例如清空配置 */
+/* Destructive action button */
 .toc-btn-danger {
   background: #b42318 !important;
   color: #fff !important;
@@ -594,6 +599,11 @@
   }
 
   .toc-btn:focus {
+    background: rgba(255,255,255,0.1) !important;
+    color: #e0e0e0 !important;
+  }
+
+  .toc-btn.toc-btn-active {
     background: rgba(255,255,255,0.1) !important;
     color: #e0e0e0 !important;
   }

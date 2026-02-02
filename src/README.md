@@ -1,4 +1,4 @@
-# TOC 扩展代码结构说明
+﻿# TOC 扩展代码结构说明
 
 ## 项目概述
 
@@ -35,7 +35,7 @@ src/
 
 ## 🔧 模块加载顺序
 
-按 `manifest.json` 中定义的依赖顺序：
+模块通过 `src/background.js` 中的 `CONTENT_SCRIPTS` 数组按依赖顺序动态注入：
 
 1. **基础层** - `utils.js` (127行)
 2. **工具层** - `utils/css-selector.js` (51行) + `utils/toc-builder.js` (81行)
@@ -167,7 +167,7 @@ if (!getConfigs || !initForConfig) {
 
 ### 添加新功能
 1. 在对应模块目录创建新文件
-2. 更新 `manifest.json` 加载顺序
+2. 更新 `src/background.js` 中的 `CONTENT_SCRIPTS` 加载顺序
 3. 通过全局命名空间暴露API
 4. 在依赖模块中引入使用
 

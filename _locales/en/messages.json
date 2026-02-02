@@ -150,5 +150,9 @@
   "titleDisabledFallback": {
     "message": "Web TOC: Disabled (per-site, click to enable)",
     "description": "Fallback icon title for non-http pages"
+  },
+  "titleInjectionFailed": {
+    "message": "Web TOC Assistant: Injection failed (click to retry)",
+    "description": "Icon title when content script injection fails"
   }
 }

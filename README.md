@@ -1,4 +1,4 @@
-# Web TOC Assistant
+﻿# Web TOC Assistant
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
@@ -214,7 +214,8 @@ For complex page structures, you can use XPath:
 - **Extension Standard**: Manifest V3
 - **Language**: Vanilla JavaScript + CSS3 (No build system)
 - **Storage**: `chrome.storage.local` API
-- **Permissions**: `storage`, `tabs`
+- **Permissions**: `storage`, `tabs`, `scripting`
+- **Host Permissions**: `http://*/*`, `https://*/*`
 
 ### Architecture
 
