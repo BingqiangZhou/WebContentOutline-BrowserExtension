@@ -128,7 +128,7 @@ async function setBadgePosByHost(host, pos) {
 }
 
 /**
- * Get panel position map { host: { left, top } }
+ * Get panel position map { host: { left, top, right } }
  */
 async function getPanelPosMap() {
   return await getStorage(STORAGE_KEYS.PANEL_POS_MAP, {});
@@ -136,7 +136,7 @@ async function getPanelPosMap() {
 
 /**
  * Save panel position map
- * @param {Record<string, {left:number, top:number}>} map
+ * @param {Record<string, {left:number, top:number, right:number}>} map
  */
 async function savePanelPosMap(map) {
   await setStorage(STORAGE_KEYS.PANEL_POS_MAP, map);

@@ -1,8 +1,20 @@
 // Background service worker for MV3 - per-site enable/disable, icon state, and dynamic injection
 
-importScripts('./utils.js');
-const { STORAGE_KEYS: SHARED_STORAGE_KEYS, originFromUrl: sharedOriginFromUrl, msg: sharedMsg } = globalThis.TOC_UTILS || {};
-const BG_STORAGE_KEYS = SHARED_STORAGE_KEYS || { SITE_ENABLE_MAP: 'tocSiteEnabledMap' };
+// Storage keys needed by background.js
+const BG_STORAGE_KEYS = {
+  SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+  PANEL_STATE_MAP: 'tocPanelExpandedMap',
+  BADGE_POS_MAP: 'tocBadgePosMap'
+};
+
+// Helper: get origin from URL
+function originFromUrl(url) {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return '';
+  }
+}
 
 const CONTENT_SCRIPTS = [
   'src/utils.js',
@@ -24,11 +36,6 @@ const SESSION_KEYS = {
 const INJECTION_COOLDOWN_MS = 1200;
 const INJECTION_PING_RETRY_MS = 200;
 const injectionInFlight = new Map();
-
-function originFromUrl(url) {
-  if (sharedOriginFromUrl) return sharedOriginFromUrl(url);
-  try { return new URL(url).origin; } catch (_) { return ''; }
-}
 
 function isHttpUrl(url) {
   return !!(url && /^https?:\/\//i.test(url));
@@ -105,7 +112,7 @@ async function setGlobalDefaultIconDisabled() {
   try {
     const path = getIconPathMap(false);
     await setActionIconAsync({ path });
-    const title = ((sharedMsg && sharedMsg('titleDisabled')) || chrome.i18n.getMessage('titleDisabled')) || 'Web TOC: Disabled';
+    const title = chrome.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled';
     await setActionTitleAsync({ title });
   } catch (e) { console.warn('[toc] setGlobalDefaultIconDisabled failed:', e); }
 }
@@ -123,7 +130,7 @@ async function updateIconForTab(tabId, url) {
   if (!finalUrl || !isHttpUrl(finalUrl)) {
     const fallbackPath = getIconPathMap(false);
     await setActionIconAsync({ tabId, path: fallbackPath });
-    const fallbackTitle = ((sharedMsg && sharedMsg('titleDisabledFallback')) || chrome.i18n.getMessage('titleDisabledFallback')) || 'Web TOC: Disabled';
+    const fallbackTitle = chrome.i18n.getMessage('titleDisabledFallback') || 'Web TOC: Disabled';
     await setActionTitleAsync({ tabId, title: fallbackTitle });
     return;
   }
@@ -134,7 +141,7 @@ async function updateIconForTab(tabId, url) {
     const path = getIconPathMap(enabled);
     await setActionIconAsync({ tabId, path });
     const titleKey = enabled ? 'titleEnabled' : 'titleDisabled';
-    const title = ((sharedMsg && sharedMsg(titleKey)) || chrome.i18n.getMessage(titleKey)) || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
+    const title = chrome.i18n.getMessage(titleKey) || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
     await setActionTitleAsync({ tabId, title });
   } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
 }
@@ -216,7 +223,7 @@ async function setInjectionBadge(tabId, failed) {
     if (failed) {
       await chrome.action.setBadgeText({ tabId, text: '!' });
       await chrome.action.setBadgeBackgroundColor({ tabId, color: '#d93025' });
-      const title = ((sharedMsg && sharedMsg('titleInjectionFailed')) || chrome.i18n.getMessage('titleInjectionFailed'))
+      const title = chrome.i18n.getMessage('titleInjectionFailed')
         || 'Web TOC Assistant: Injection failed (click to retry)';
       await setActionTitleAsync({ tabId, title });
     } else {

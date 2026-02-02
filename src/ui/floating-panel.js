@@ -3,38 +3,29 @@
   'use strict';
 
 
-  const { msg, getBadgePosByHost, setBadgePosByHost, getPanelPosByHost, setPanelPosByHost } = window.TOC_UTILS || {};
+  const { msg, setBadgePosByHost } = window.TOC_UTILS || {};
   const safeMsg = msg || ((key) => {
     try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
   });
 
   
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, badgePos, useRightPos) {
+  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos) {
     const panel = document.createElement('div');
     let unlockTimer = null;
     let scrollStopTimer = null;
-        let intersectionObserver = null;
+    let intersectionObserver = null;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
     const UNLOCK_AFTER_MS = 1000;
     const SCROLL_STOP_MS = 500;
 
-    // Initially hide to prevent flicker at default position
     panel.style.visibility = 'hidden';
 
-    // Apply position based on saved position if available
-    const hasSavedPos = badgePos && typeof badgePos.top === 'number';
-    if (hasSavedPos) {
-      panel.style.setProperty('top', badgePos.top + 'px', 'important');
-      if (useRightPos && badgePos.right) {
-        // Use right positioning for right side
-        panel.style.setProperty('right', (window.innerWidth - badgePos.right) + 'px', 'important');
-        panel.style.setProperty('left', 'auto', 'important');
-      } else {
-        // Use left positioning
-        panel.style.setProperty('left', badgePos.left + 'px', 'important');
-        panel.style.setProperty('right', 'auto', 'important');
-      }
+    // Apply saved position
+    if (panelPos && typeof panelPos.top === 'number') {
+      panel.style.setProperty('top', panelPos.top + 'px', 'important');
+      panel.style.setProperty('left', panelPos.left + 'px', 'important');
+      panel.style.setProperty('right', 'auto', 'important');
       panel.style.setProperty('bottom', 'auto', 'important');
     }
 
@@ -85,7 +76,7 @@
       }
     };
 
-    panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'}`;
+    panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'} toc-floating-expand`;
 
     const header = document.createElement('div');
     header.className = 'toc-header';
@@ -218,9 +209,13 @@
     panel.appendChild(list);
     document.documentElement.appendChild(panel);
 
-    // Show panel after it's added to DOM
+    // Show panel and trigger expand animation
     requestAnimationFrame(() => {
       panel.style.visibility = '';
+      panel.classList.add('toc-expanded');
+      setTimeout(() => {
+        panel.classList.remove('toc-floating-expand', 'toc-expanded');
+      }, 300);
     });
 
     // Make header draggable
@@ -293,21 +288,29 @@
       drag.active = false;
 
       if (drag.moved) {
-        // Save both panel and badge positions (sync them)
-        try {
-          const rect = panel.getBoundingClientRect();
-          const left = rect.left;
-          const right = rect.right;
-          const top = rect.top;
-          // Sync both positions so badge and panel stay in the same place
-          if (setPanelPosByHost) {
-            setPanelPosByHost(location.host, { left, top, right });
+        // Save collapse button center position (for alignment with collapsed badge)
+        const savePosition = () => {
+          try {
+            const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+            if (collapseBtn && setBadgePosByHost) {
+              const btnRect = collapseBtn.getBoundingClientRect();
+
+              setBadgePosByHost(location.host, {
+                x: btnRect.left + btnRect.width / 2,
+                y: btnRect.top + btnRect.height / 2
+              });
+            }
+          } catch (err) {
+            console.warn(safeMsg('logSavePositionFailed'), err);
           }
-          if (setBadgePosByHost) {
-            setBadgePosByHost(location.host, { left, top, right });
-          }
-        } catch (err) {
-          console.warn(safeMsg('logSavePositionFailed'), err);
+        };
+
+        // Defer storage write to idle time to reduce main thread blocking
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(() => savePosition(), { timeout: 2000 });
+        } else {
+          // Fallback for browsers without requestIdleCallback
+          setTimeout(() => savePosition(), 0);
         }
       }
 
@@ -346,7 +349,12 @@
 
     // Active highlight via IntersectionObserver
     if (items.length && 'IntersectionObserver' in window) {
-      const map = new Map(items.map(it => [it.el, it]));
+      const map = new Map();
+      items.forEach(it => {
+        if (it.el) {
+          map.set(it.el, it);
+        }
+      });
       let active;
 
       const clearAllActive = () => {
@@ -396,7 +404,13 @@
 
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          items.forEach(it => intersectionObserver.observe(it.el));
+          if (intersectionObserver) {
+            items.forEach(it => {
+              if (it.el && document.contains(it.el)) {
+                intersectionObserver.observe(it.el);
+              }
+            });
+          }
         });
       });
     }
