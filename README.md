@@ -1,9 +1,9 @@
-﻿# Web TOC Assistant
+# Web TOC Assistant
 
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Chrome Extension](https://img.shields.io/badge/Chrome-Extension-green.svg)](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
-[![Edge Extension](https://img.shields.io/badge/Edge-Extension-blue.svg)](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/mv3/)
+[![License](https://img.shields.io/TOC button/license-MIT-blue.svg)](LICENSE)
+[![Chrome Extension](https://img.shields.io/TOC button/Chrome-Extension-green.svg)](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
+[![Edge Extension](https://img.shields.io/TOC button/Edge-Extension-blue.svg)](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
+[![Manifest V3](https://img.shields.io/TOC button/Manifest-V3-green.svg)](https://developer.chrome.com/docs/extensions/mv3/)
 
 **[English](README.md)** | [中文](README_CN.md)
 
@@ -17,7 +17,8 @@ A web table of contents generator that automatically creates interactive floatin
 
 ### 🎯 TOC Generation
 - **Default Header Recognition**: Automatically uses page header structure (h1-h6 tags) when no selectors are configured
-- **Automatic Filtering**: Automatically filters hidden elements and empty text to ensure all TOC items are visible and valid
+- **Enhanced Visibility Detection**: Advanced element filtering using computed styles, bounding rects, and parent clipping detection to ensure only truly visible elements are included
+- **Automatic Filtering**: Automatically filters hidden elements (display:none, visibility:hidden, opacity:0), zero-size elements, and overflow-clipped content
 - **Custom Selectors**: Supports CSS and XPath selectors to adapt to various website structures
 - **Real-time Updates**: Automatically regenerates TOC when page content changes (500ms debounce)
 
@@ -29,8 +30,9 @@ A web table of contents generator that automatically creates interactive floatin
 
 ### 📍 Flexible UI Interaction
 - **Floating Panel**: Expandable TOC panel with left/right side display support
+- **Draggable Panel**: Drag the panel header to reposition; position is automatically saved
 - **Draggable Button**: Collapsed "TOC" button supports drag positioning
-- **Position Memory**: Remembers button position per domain, uses default position when out of viewport
+- **Position Memory**: Remembers panel and button position per domain, synchronizes positions when collapsing/expanding
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
 ### 🔄 Navigation Experience
@@ -124,13 +126,16 @@ A web table of contents generator that automatically creates interactive floatin
 - Clear current site configuration
 - View URL matching rules
 
-#### 6. Adjust Button Position
+#### 6. Adjust Button and Panel Position
 
-**How**: Drag the "TOC" floating button to any position
+**How**:
+- Drag the "TOC" floating button to any position
+- Drag the panel header to any position when expanded
 
 **Effect**:
-- Button remembers current position (saved per domain)
+- Button and panel remember current position (saved per domain)
 - Automatically restores on page refresh or next visit
+- Positions synchronize when collapsing/expanding
 - Uses default position if saved position is out of viewport
 
 #### 7. Refresh TOC
@@ -171,6 +176,16 @@ For complex page structures, you can use XPath:
 - `//*[@class='title']` - Any element with class "title"
 - `//div[@id='content']//h3` - Headers within specific container
 
+### Advanced Features
+
+#### Draggable Panel
+**How**: Click and drag the panel header to reposition
+
+**Effect**:
+- Panel position is automatically saved per domain
+- Position syncs with TOC button position when collapsing/expanding
+- Cursor changes to indicate draggable state
+
 ## 🛠️ Technical Implementation
 
 ### Project Structure
@@ -197,7 +212,7 @@ For complex page structures, you can use XPath:
 │   │   ├── css-selector.js   # CSS selector generation
 │   │   └── toc-builder.js    # TOC building logic
 │   ├── ui/                    # UI components
-│   │   ├── collapsed-badge.js    # Collapsed button
+│   │   ├── collapsed-TOC button.js    # Collapsed button
 │   │   ├── element-picker.js     # Element picker
 │   │   └── floating-panel.js     # Floating panel
 │   └── core/                  # Core logic
@@ -222,7 +237,7 @@ For complex page structures, you can use XPath:
 **Modular Design**: 10 module files loaded in dependency order
 - Layer 1: `utils.js` - Base utilities
 - Layer 2: `utils/css-selector.js`, `utils/toc-builder.js` - Utility modules
-- Layer 3: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI components
+- Layer 3: `ui/collapsed-TOC button.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI components
 - Layer 4: `core/config-manager.js`, `core/mutation-observer.js`, `core/toc-app.js` - Core logic
 - Layer 5: `content.js` - Entry point
 
@@ -267,6 +282,12 @@ Site configuration is stored in `chrome.storage.local`:
   },
   "tocPanelExpandedMap": {
     "https://example.com": true
+  },
+  "tocBadgePosMap": {
+    "example.com": { "left": 100, "top": 200, "right": 180 }
+  },
+  "tocPanelPosMap": {
+    "example.com": { "left": 100, "top": 200, "right": 380 }
   }
 }
 ```
@@ -276,6 +297,8 @@ Site configuration is stored in `chrome.storage.local`:
 - `side`: Panel display position (`left` or `right`)
 - `selectors`: Selector array, supports mixing CSS and XPath
 - `collapsedDefault`: Default collapsed state
+- `tocBadgePosMap`: Badge position storage per domain (includes `left`, `top`, `right`)
+- `tocPanelPosMap`: Panel position storage per domain (includes `left`, `top`, `right`)
 
 ## 🎯 Use Cases
 

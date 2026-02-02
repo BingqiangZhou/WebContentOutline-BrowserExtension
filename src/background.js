@@ -383,7 +383,12 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
     if (enabled) {
       await ensureContentScript(tab.id, tab.url);
     }
-  }).catch(() => {});
+  }).catch((e) => {
+    // Tab may have been closed before we could process it
+    if (!e?.message?.includes('No tab with id')) {
+      console.debug('[toc] onActivated: get tab failed:', e);
+    }
+  });
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -484,6 +489,3 @@ async function getTabsByOrigin(origin) {
     return originFromUrl(t.url) === origin;
   });
 }
-
-
-

@@ -2,14 +2,14 @@
 (() => {
   'use strict';
 
-  
-  const { msg } = window.TOC_UTILS || {};
+
+  const { msg, getBadgePosByHost, setBadgePosByHost, getPanelPosByHost, setPanelPosByHost } = window.TOC_UTILS || {};
   const safeMsg = msg || ((key) => {
     try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
   });
 
   
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild) {
+  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, badgePos, useRightPos) {
     const panel = document.createElement('div');
     let unlockTimer = null;
     let scrollStopTimer = null;
@@ -18,6 +18,25 @@
     const pickerEndEvent = 'toc-picker-end';
     const UNLOCK_AFTER_MS = 1000;
     const SCROLL_STOP_MS = 500;
+
+    // Initially hide to prevent flicker at default position
+    panel.style.visibility = 'hidden';
+
+    // Apply position based on saved position if available
+    const hasSavedPos = badgePos && typeof badgePos.top === 'number';
+    if (hasSavedPos) {
+      panel.style.setProperty('top', badgePos.top + 'px', 'important');
+      if (useRightPos && badgePos.right) {
+        // Use right positioning for right side
+        panel.style.setProperty('right', (window.innerWidth - badgePos.right) + 'px', 'important');
+        panel.style.setProperty('left', 'auto', 'important');
+      } else {
+        // Use left positioning
+        panel.style.setProperty('left', badgePos.left + 'px', 'important');
+        panel.style.setProperty('right', 'auto', 'important');
+      }
+      panel.style.setProperty('bottom', 'auto', 'important');
+    }
 
     const unlockLater = () => {
       if (unlockTimer) clearTimeout(unlockTimer);
@@ -66,7 +85,7 @@
       }
     };
 
-    panel.className = `toc-floating ${side === 'left' ? 'left' : 'right'}`;
+    panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'}`;
 
     const header = document.createElement('div');
     header.className = 'toc-header';
@@ -199,6 +218,105 @@
     panel.appendChild(list);
     document.documentElement.appendChild(panel);
 
+    // Show panel after it's added to DOM
+    requestAnimationFrame(() => {
+      panel.style.visibility = '';
+    });
+
+    // Make header draggable
+    let drag = { active: false, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+
+    function onMouseDown(e) {
+      // Only allow dragging from the header
+      if (!e.target.closest('.toc-header')) return;
+
+      drag.active = true;
+      drag.startX = e.clientX;
+      drag.startY = e.clientY;
+      drag.moved = false;
+
+      const rect = panel.getBoundingClientRect();
+      drag.offsetX = e.clientX - rect.left;
+      drag.offsetY = e.clientY - rect.top;
+
+      panel.style.cursor = 'grabbing';
+      panel.style.userSelect = 'none';
+
+      document.addEventListener('mousemove', onMouseMove, true);
+      document.addEventListener('mouseup', onMouseUp, true);
+
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    function onMouseMove(e) {
+      if (!drag.active) return;
+
+      const dx = e.clientX - drag.startX;
+      const dy = e.clientY - drag.startY;
+
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        drag.moved = true;
+      }
+
+      let left = e.clientX - drag.offsetX;
+      let top = e.clientY - drag.offsetY;
+
+      const pw = panel.offsetWidth || 280;
+      const ph = panel.offsetHeight || 400;
+
+      const minLeft = 4;
+      const minTop = 4;
+      const maxLeft = window.innerWidth - pw - 4;
+      const maxTop = window.innerHeight - ph - 4;
+
+      left = Math.max(minLeft, Math.min(maxLeft, left));
+      top = Math.max(minTop, Math.min(maxTop, top));
+
+      panel.style.setProperty('left', left + 'px', 'important');
+      panel.style.setProperty('top', top + 'px', 'important');
+      panel.style.setProperty('right', 'auto', 'important');
+      panel.style.setProperty('bottom', 'auto', 'important');
+
+      e.preventDefault();
+    }
+
+    function onMouseUp(e) {
+      if (!drag.active) return;
+
+      document.removeEventListener('mousemove', onMouseMove, true);
+      document.removeEventListener('mouseup', onMouseUp, true);
+
+      panel.style.cursor = '';
+      panel.style.userSelect = '';
+
+      drag.active = false;
+
+      if (drag.moved) {
+        // Save both panel and badge positions (sync them)
+        try {
+          const rect = panel.getBoundingClientRect();
+          const left = rect.left;
+          const right = rect.right;
+          const top = rect.top;
+          // Sync both positions so badge and panel stay in the same place
+          if (setPanelPosByHost) {
+            setPanelPosByHost(location.host, { left, top, right });
+          }
+          if (setBadgePosByHost) {
+            setBadgePosByHost(location.host, { left, top, right });
+          }
+        } catch (err) {
+          console.warn(safeMsg('logSavePositionFailed'), err);
+        }
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    panel.addEventListener('mousedown', onMouseDown, true);
+
     const origRemove = panel.remove.bind(panel);
     const onPickerStart = () => {
       btnPick.classList.add('toc-btn-active');
@@ -218,6 +336,11 @@
       cleanupLock();
       window.removeEventListener(pickerStartEvent, onPickerStart);
       window.removeEventListener(pickerEndEvent, onPickerEnd);
+      panel.removeEventListener('mousedown', onMouseDown, true);
+      if (drag.active) {
+        document.removeEventListener('mousemove', onMouseMove, true);
+        document.removeEventListener('mouseup', onMouseUp, true);
+      }
       origRemove();
     };
 

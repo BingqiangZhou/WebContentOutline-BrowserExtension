@@ -1,23 +1,51 @@
 (() => {
   'use strict';
 
-  const { msg, getBadgePosByHost, setBadgePosByHost } = window.TOC_UTILS || {};
+  const { msg, getBadgePosByHost, setBadgePosByHost, setPanelPosByHost } = window.TOC_UTILS || {};
   const safeMsg = msg || ((key) => {
     try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
   });
 
-  function renderCollapsedBadge(side, onExpand) {
+  function renderCollapsedBadge(side, onExpand, panelPos) {
     const badge = document.createElement('div');
     badge.className = `toc-collapsed-badge ${side === 'left' ? 'left' : 'right'}`;
     badge.textContent = safeMsg('tocTitle');
     badge.title = safeMsg('badgeTitle');
 
+    // Initially hide to prevent flicker at default position
+    badge.style.visibility = 'hidden';
+
     document.documentElement.appendChild(badge);
 
     const applySavedPos = (savedPos) => {
       if (!savedPos) return;
-      const { left, top } = savedPos;
-      if (typeof left === 'number' && typeof top === 'number') {
+      const { left, right, top } = savedPos;
+
+      // Determine if should use right positioning
+      // If right is provided and element is on right side of screen, use right
+      const screenCenter = window.innerWidth / 2;
+      const useRight = typeof right === 'number' && right > screenCenter;
+
+      if (useRight) {
+        // Use right positioning
+        if (typeof right === 'number' && typeof top === 'number') {
+          requestAnimationFrame(() => {
+            const bw = badge.offsetWidth || 80;
+            const bh = badge.offsetHeight || 32;
+            const maxTop = window.innerHeight - bh - 4;
+            const minRight = 4;
+            const maxRight = window.innerWidth - 4;
+            const rightDist = window.innerWidth - right;
+            if (rightDist >= minRight && rightDist <= maxRight && top >= 4 && top <= maxTop) {
+              badge.style.setProperty('right', rightDist + 'px', 'important');
+              badge.style.setProperty('left', 'auto', 'important');
+              badge.style.setProperty('top', top + 'px', 'important');
+              badge.classList.remove('left', 'right');
+            }
+          });
+        }
+      } else if (typeof left === 'number' && typeof top === 'number') {
+        // Use left positioning
         requestAnimationFrame(() => {
           const bw = badge.offsetWidth || 80;
           const bh = badge.offsetHeight || 32;
@@ -25,6 +53,7 @@
           const maxTop = window.innerHeight - bh - 4;
           if (left >= 4 && left <= maxLeft && top >= 4 && top <= maxTop) {
             badge.style.setProperty('left', left + 'px', 'important');
+            badge.style.setProperty('right', 'auto', 'important');
             badge.style.setProperty('top', top + 'px', 'important');
             badge.classList.remove('left', 'right');
           }
@@ -47,20 +76,40 @@
     };
 
     const restoreSavedPos = async () => {
+      let applied = false;
       try {
-        if (getBadgePosByHost) {
-          const savedPos = await getBadgePosByHost(location.host);
-          if (savedPos) return applySavedPos(savedPos);
+        // Use provided panel position first (from collapse)
+        if (panelPos) {
+          applySavedPos(panelPos);
+          applied = true;
         }
-        const legacyPos = readLegacyPos();
-        if (legacyPos && setBadgePosByHost) {
-          await setBadgePosByHost(location.host, legacyPos);
-          applySavedPos(legacyPos);
+        // Otherwise try to get from storage
+        if (!applied && getBadgePosByHost) {
+          const savedPos = await getBadgePosByHost(location.host);
+          if (savedPos) {
+            applySavedPos(savedPos);
+            applied = true;
+          }
+        }
+        if (!applied) {
+          const legacyPos = readLegacyPos();
+          if (legacyPos && setBadgePosByHost) {
+            await setBadgePosByHost(location.host, legacyPos);
+            applySavedPos(legacyPos);
+            applied = true;
+          }
         }
       } catch (_) {}
+      return applied;
     };
 
-    restoreSavedPos();
+    // Restore position then show badge
+    restoreSavedPos().finally(() => {
+      // Show badge after position restoration completes
+      requestAnimationFrame(() => {
+        badge.style.visibility = '';
+      });
+    });
 
     let drag = { active: false, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
 
@@ -137,9 +186,16 @@
         try {
           const rect = badge.getBoundingClientRect();
           const left = Math.max(4, Math.min(window.innerWidth - rect.width - 4, rect.left));
+          const right = rect.right;
           const top = Math.max(4, Math.min(window.innerHeight - rect.height - 4, rect.top));
+
+          // Sync both badge and panel positions
           if (setBadgePosByHost) {
-            setBadgePosByHost(location.host, { left, top });
+            setBadgePosByHost(location.host, { left, top, right });
+          }
+          // Panel should be at the same horizontal position, same vertical position
+          if (setPanelPosByHost) {
+            setPanelPosByHost(location.host, { left, top, right });
           }
         } catch (err) {
           console.warn(safeMsg('logSavePositionFailed'), err);

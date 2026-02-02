@@ -179,13 +179,14 @@
   margin-top: 8px !important;
 }
 
-.toc-floating.right { 
-  right: 16px !important; 
+.toc-floating-right {
+  right: 16px !important;
   left: auto !important;
 }
-.toc-floating.left { 
-  left: 16px !important; 
+.toc-floating-left {
+  left: 16px !important;
   right: auto !important;
+  transform-origin: left center !important;
 }
 
 .toc-header {
@@ -196,6 +197,7 @@
   gap: 6px !important;
   background: #f6f7f9 !important;
   border-bottom: 1px solid rgba(0,0,0,0.06) !important;
+  cursor: grab !important;
 }
 
 .toc-header-row {

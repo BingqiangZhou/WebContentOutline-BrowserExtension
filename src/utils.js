@@ -5,7 +5,8 @@ const STORAGE_KEYS = {
   TOC_CONFIGS: 'tocConfigs',
   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
   PANEL_STATE_MAP: 'tocPanelExpandedMap',
-  BADGE_POS_MAP: 'tocBadgePosMap'
+  BADGE_POS_MAP: 'tocBadgePosMap',
+  PANEL_POS_MAP: 'tocPanelPosMap'
 };
 
 /**
@@ -123,6 +124,33 @@ async function setBadgePosByHost(host, pos) {
   const map = await getBadgePosMap();
   map[host] = pos;
   await saveBadgePosMap(map);
+  return map[host];
+}
+
+/**
+ * Get panel position map { host: { left, top } }
+ */
+async function getPanelPosMap() {
+  return await getStorage(STORAGE_KEYS.PANEL_POS_MAP, {});
+}
+
+/**
+ * Save panel position map
+ * @param {Record<string, {left:number, top:number}>} map
+ */
+async function savePanelPosMap(map) {
+  await setStorage(STORAGE_KEYS.PANEL_POS_MAP, map);
+}
+
+async function getPanelPosByHost(host) {
+  const map = await getPanelPosMap();
+  return map[host] || null;
+}
+
+async function setPanelPosByHost(host, pos) {
+  const map = await getPanelPosMap();
+  map[host] = pos;
+  await savePanelPosMap(map);
   return map[host];
 }
 
@@ -316,6 +344,10 @@ ROOT.TOC_UTILS = {
   saveBadgePosMap,
   getBadgePosByHost,
   setBadgePosByHost,
+  getPanelPosMap,
+  savePanelPosMap,
+  getPanelPosByHost,
+  setPanelPosByHost,
   findMatchingConfig,
   collectBySelector,
   uniqueInDocumentOrder,

@@ -5,7 +5,7 @@
   const { renderCollapsedBadge, renderFloatingPanel, createElementPicker, showPickerResult } = window.TOC_UI || {};
   const { buildClassSelector, cssPathFor } = window.CSS_SELECTOR || {};
   const { siteConfig, saveSelector, updateConfigFromStorage } = window.CONFIG_MANAGER || {};
-  const { setPanelExpandedByOrigin, msg } = window.TOC_UTILS || {};
+  const { setPanelExpandedByOrigin, msg, getPanelPosByHost, setPanelPosByHost } = window.TOC_UTILS || {};
   const safeMsg = msg || ((key) => {
     try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
   });
@@ -135,12 +135,36 @@
 
         items = newItems;
         if (panelInstance) {
+          // Get current panel position before removing
+          let currentPanelPos = null;
+          let rebuildSide = 'right'; // Default side
+          let useRightPos = false;
+          const currentPanelEl = document.querySelector('.toc-floating');
+          if (currentPanelEl) {
+            const rect = currentPanelEl.getBoundingClientRect();
+            const screenCenter = window.innerWidth / 2;
+            // Determine side based on panel position
+            const panelRight = rect.left + rect.width;
+            rebuildSide = panelRight > screenCenter ? 'right' : 'left';
+            useRightPos = panelRight > screenCenter;
+
+            currentPanelPos = {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              width: rect.width,
+              height: rect.height
+            };
+          }
+
           panelInstance.remove();
           panelInstance = renderFloatingPanel ? renderFloatingPanel(
-            side, items, collapse, rebuild, startPick,
+            rebuildSide, items, collapse, rebuild, startPick,
             () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
             mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-            mutationObserver ? mutationObserver.setPendingRebuild : () => {}
+            mutationObserver ? mutationObserver.setPendingRebuild : () => {},
+            currentPanelPos,
+            useRightPos
           ) : null;
 
           restoreActiveSnapshot(activeSnapshot);
@@ -209,13 +233,29 @@
 
     function collapse() {
       try {
+        // Get current panel position before removing
+        let panelPosForBadge = null;
+        if (panelInstance) {
+          const panelEl = document.querySelector('.toc-floating');
+          if (panelEl) {
+            const rect = panelEl.getBoundingClientRect();
+            panelPosForBadge = {
+              left: rect.left,
+              right: rect.right,
+              top: rect.top,
+              width: rect.width,
+              height: rect.height
+            };
+          }
+        }
+
         if (panelInstance) {
           panelInstance.remove();
           panelInstance = null;
         }
 
         if (!badgeInstance && renderCollapsedBadge) {
-          badgeInstance = renderCollapsedBadge(side, expand);
+          badgeInstance = renderCollapsedBadge(side, expand, panelPosForBadge);
         }
         // persist state: collapsed=false (expanded flag false)
         try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
@@ -226,19 +266,71 @@
 
     async function expand() {
       try {
+        // Determine which side to expand based on screen center
+        const screenCenter = window.innerWidth / 2;
+        let expandSide = 'right'; // Default side
+        let useRightPos = false;  // Whether to use right positioning
+
+        // Priority: saved panel position > badge position > default
+        let panelPos = null;
+
+        // Check for saved panel position first
+        if (getPanelPosByHost) {
+          panelPos = await getPanelPosByHost(location.host);
+        }
+
+        // Remove badge and get its position if no panel position saved
+        if (!panelPos && badgeInstance) {
+          const badgeEl = document.querySelector('.toc-collapsed-badge');
+          if (badgeEl) {
+            const rect = badgeEl.getBoundingClientRect();
+            const badgeRight = rect.left + rect.width;
+            // Determine side based on badge position relative to screen center
+            expandSide = badgeRight > screenCenter ? 'right' : 'left';
+            // If on right side, use right positioning
+            useRightPos = badgeRight > screenCenter;
+
+            panelPos = {
+              left: rect.left,
+              top: rect.top,
+              right: rect.right,
+              width: rect.width,
+              height: rect.height
+            };
+          }
+        }
+
+        // Always remove badge instance when expanding
         if (badgeInstance) {
           badgeInstance.remove();
           badgeInstance = null;
         }
 
+        // Determine side from panel position if available
+        // Side should be based on where the panel will appear, not badge center
+        if (panelPos) {
+          const panelWidth = panelPos.width || 280;
+          const panelRight = (panelPos.right || (panelPos.left + panelWidth));
+          // If panel's right edge is past screen center, it's on the right side
+          expandSide = panelRight > screenCenter ? 'right' : 'left';
+          useRightPos = panelRight > screenCenter;
+        }
+
         await rebuild();
 
-        if (!panelInstance && renderFloatingPanel) {
+        // Always create panel
+        if (renderFloatingPanel) {
+          if (panelInstance) {
+            panelInstance.remove();
+            panelInstance = null;
+          }
           panelInstance = renderFloatingPanel(
-            side, items, collapse, rebuild, startPick,
+            expandSide, items, collapse, rebuild, startPick,
             () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
             mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-            mutationObserver ? mutationObserver.setPendingRebuild : () => {}
+            mutationObserver ? mutationObserver.setPendingRebuild : () => {},
+            panelPos,
+            useRightPos
           );
         }
         // persist state: expanded=true

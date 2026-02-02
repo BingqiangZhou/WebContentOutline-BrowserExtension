@@ -1,4 +1,4 @@
-﻿# TOC 扩展代码结构说明
+# TOC 扩展代码结构说明
 
 ## 项目概述
 
@@ -46,13 +46,13 @@ src/
 ## 🌐 全局命名空间设计
 
 ```javascript
-window.TOC_UTILS          // 基础工具：存储、DOM操作、选择器匹配
+window.TOC_UTILS          // 基础工具：存储、DOM操作、选择器匹配、位置管理
 window.CSS_SELECTOR       // CSS选择器生成：buildClassSelector, cssPathFor
 window.TOC_BUILDER        // TOC构建：buildTocItems, buildTocItemsFromSelectors
 window.TOC_UI            // UI组件：renderFloatingPanel, renderCollapsedBadge, createElementPicker
 window.CONFIG_MANAGER    // 配置管理：siteConfig, saveSelector, updateConfigFromStorage
 window.MUTATION_OBSERVER // 页面监听：createMutationObserver
-window.TOC_APP          // 主应用：initForConfig, rebuild
+window.TOC_APP          // 主应用：initForConfig, expand, collapse, rebuild
 ```
 
 ## 🏗️ 架构设计原则
@@ -86,14 +86,33 @@ if (!getConfigs || !initForConfig) {
 ### 基础工具层 (127行)
 **utils.js** - 提供扩展的基础能力
 - 存储操作：`getConfigs()`, `saveConfigs()`
+- TOC按钮位置管理：`getBadgePosByHost()`, `setBadgePosByHost()`
+- 面板位置管理：`getPanelPosByHost()`, `setPanelPosByHost()`
 - 选择器执行：`collectBySelector()`
 - DOM操作：`uniqueInDocumentOrder()`, `scrollToElement()`
 - URL匹配：`findMatchingConfig()`
+
+### 工具模块层 (132行)
+**css-selector.js** (51行) - CSS选择器生成
+- 优先使用 class 选择器
+- 回退到路径选择器（nth-of-type）
+- 优化代码可读性和可维护性
+
+**toc-builder.js** (81行) - TOC构建和元素过滤
+- 选择器执行（CSS/XPath）
+- 增强的元素可见性检测：
+  - 计算样式检查（display、visibility、opacity）
+  - 边界矩形检测（零尺寸元素过滤）
+  - 父元素溢出裁剪检测（overflow:hidden）
+  - offsetParent 检查（排除隐藏在 DOM 树外的元素）
+- 元素去重排序（compareDocumentPosition）
 
 ### UI组件层 (461行)
 **collapsed-badge.js** (148行) - 折叠状态按钮
 - 可拖拽定位，支持位置记忆
 - 跨域名位置持久化
+- 支持左右侧位置（left/right）
+- 与面板位置同步（折叠时继承面板位置）
 - 防止意外触发的拖拽检测
 
 **element-picker.js** (108行) - 元素拾取器
@@ -106,6 +125,8 @@ if (!getConfigs || !initForConfig) {
 - IntersectionObserver自动高亮
 - 用户选择锁定机制
 - 操作按钮集成
+- 可拖拽标题栏（拖拽时保存位置，与TOC按钮位置同步）
+- 支持左右侧位置（left/right）
 
 ### 核心逻辑层 (405行)
 **config-manager.js** (108行) - 配置管理
@@ -114,7 +135,7 @@ if (!getConfigs || !initForConfig) {
 - 配置清空功能
 
 **mutation-observer.js** (130行) - 页面监听
-- 智能变化检测
+- 自动变化检测
 - 防抖重建机制
 - 导航锁定期间的延迟处理
 
@@ -122,6 +143,7 @@ if (!getConfigs || !initForConfig) {
 - 组件生命周期管理
 - 状态同步和事件协调
 - 重建逻辑和优化
+- 面板/TOC按钮位置同步（折叠/展开时保持位置一致）
 
 ## 🛡️ 样式保护机制
 
@@ -148,7 +170,7 @@ if (!getConfigs || !initForConfig) {
 
 ## ⚡ 性能优化策略
 
-### 1. 智能重建机制
+### 1. 自动重建机制
 - 内容相同时跳过重建
 - 用户交互期间延迟重建
 - 防抖处理页面变化

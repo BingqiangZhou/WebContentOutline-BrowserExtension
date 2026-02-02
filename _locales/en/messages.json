@@ -112,7 +112,7 @@
     "description": "Error message when initialization fails"
   },
   "logContentScriptStarted": {
-    "message": "Content script started at",
+    "message": "Content script started",
     "description": "Debug message when content script starts"
   },
   "logSiteDisabled": {
