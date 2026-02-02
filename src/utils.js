@@ -1,3 +1,6 @@
+(() => {
+  if (globalThis.TOC_UTILS) return;
+
 /**
  * Storage keys
  */
@@ -353,5 +356,5 @@ ROOT.TOC_UTILS = {
   uniqueInDocumentOrder,
   scrollToElement
 };
-
+})();
 

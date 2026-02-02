@@ -1,6 +1,10 @@
 (() => {
   'use strict';
 
+  // Prevent multiple initialization
+  if (window.__TOC_APP_LOADED__) return;
+  window.__TOC_APP_LOADED__ = true;
+
   const { buildTocItems } = window.TOC_BUILDER || {};
   const { renderCollapsedBadge, renderFloatingPanel, createElementPicker, showPickerResult } = window.TOC_UI || {};
   const { buildClassSelector, cssPathFor } = window.CSS_SELECTOR || {};
@@ -11,6 +15,11 @@
   });
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
+
+  // Constants
+  const PANEL_WIDTH = 280;
+  const PANEL_HEIGHT = 400;
+  const BUTTON_OFFSET = 20;
 
   const isContextInvalidatedError = (e) => {
     return !!(e && (
@@ -25,6 +34,11 @@
 
   function initForConfig(cfg) {
     const side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+
+    // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
+    try {
+      document.querySelectorAll('.toc-collapsed-badge, .toc-floating').forEach(el => el.remove());
+    } catch (_) {}
 
     let items = buildTocItems ? buildTocItems(cfg, []) : [];
     let badgeInstance = null;
@@ -45,6 +59,16 @@
         } catch (_) {}
         activeRestoreTimeout = null;
       }
+    };
+
+    // Helper to constrain position to screen bounds
+    const constrainPosition = (left, top, width = PANEL_WIDTH, height = PANEL_HEIGHT) => {
+      const maxLeft = window.innerWidth - width - 4;
+      const maxTop = window.innerHeight - height - 4;
+      return {
+        left: Math.max(4, Math.min(maxLeft, left)),
+        top: Math.max(4, Math.min(maxTop, top))
+      };
     };
 
     const isContentIdentical = (prevItems, nextItems) => {
@@ -141,12 +165,7 @@
           if (currentPanelEl) {
             const rect = currentPanelEl.getBoundingClientRect();
             rebuildSide = rect.right > (window.innerWidth / 2) ? 'right' : 'left';
-            panelPos = {
-              left: rect.left,
-              top: rect.top,
-              right: rect.right,
-              width: rect.width
-            };
+            panelPos = { left: rect.left, top: rect.top };
           }
 
           panelInstance.remove();
@@ -224,15 +243,17 @@
 
     function collapse() {
       try {
-        // Get collapse button center position to pass to badge
+        // Get collapse button center position
         let buttonCenter = null;
         const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
         if (collapseBtn) {
-          const btnRect = collapseBtn.getBoundingClientRect();
-          buttonCenter = {
-            x: btnRect.left + btnRect.width / 2,
-            y: btnRect.top + btnRect.height / 2
-          };
+          const rect = collapseBtn.getBoundingClientRect();
+          const x = rect.left + rect.width / 2;
+          const y = rect.top + rect.height / 2;
+          if (Number.isFinite(x) && Number.isFinite(y)) {
+            buttonCenter = { x, y };
+            setBadgePosByHost && setBadgePosByHost(location.host, buttonCenter);
+          }
         }
 
         if (panelInstance) {
@@ -243,7 +264,7 @@
         if (!badgeInstance && renderCollapsedBadge) {
           badgeInstance = renderCollapsedBadge(side, expand, buttonCenter);
         }
-        try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
+        setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, false);
       } catch (e) {
         console.debug('[toc] collapse failed:', e);
       }
@@ -251,47 +272,27 @@
 
     async function expand() {
       try {
-        const panelWidth = 280;
         let expandSide = 'right';
-        let panelPos = null;
         let savedPos = null;
+        let panelPos = null;
 
         // Get saved badge center position
         if (getBadgePosByHost) {
           savedPos = await getBadgePosByHost(location.host);
-          if (savedPos && savedPos.x !== undefined) {
-            // Determine side based on badge position
+          if (savedPos && Number.isFinite(savedPos.x)) {
             expandSide = savedPos.x > (window.innerWidth / 2) ? 'right' : 'left';
 
-            // Calculate panel position to align collapse button center with badge center
-            // The collapse button is positioned: header padding (10px) + button padding (6px) + half button width from panel edge
-            // We use a reasonable offset for the button center from panel edge
-            const buttonCenterFromEdge = 20; // Approximate offset: padding + half button width
-
+            // Calculate panel position to align button center with saved badge center
             let panelLeft;
             if (expandSide === 'right') {
-              // For right side: button center is left of panel right edge
-              // panelRight = buttonCenter + buttonCenterFromEdge
-              const panelRight = savedPos.x + buttonCenterFromEdge;
-              panelLeft = panelRight - panelWidth;
+              panelLeft = savedPos.x + BUTTON_OFFSET - PANEL_WIDTH;
             } else {
-              // For left side: button center is right of panel left edge
-              // panelLeft = buttonCenter - (panelWidth - buttonCenterFromEdge)
-              panelLeft = savedPos.x - (panelWidth - buttonCenterFromEdge);
+              panelLeft = savedPos.x - BUTTON_OFFSET;
             }
 
-            // Constrain panel position to screen bounds
-            const maxLeft = window.innerWidth - panelWidth - 4;
-            const maxTop = window.innerHeight - 400 - 4;  // Approx panel height
-            panelLeft = Math.max(4, Math.min(maxLeft, panelLeft));
-            const panelTop = Math.max(4, Math.min(maxTop, (savedPos.y ?? 120) - 12));
-
-            panelPos = {
-              left: panelLeft,
-              top: panelTop,
-              right: panelLeft + panelWidth,
-              width: panelWidth
-            };
+            // Constrain to screen bounds
+            const constrained = constrainPosition(panelLeft, (Number.isFinite(savedPos.y) ? savedPos.y : 120) - BUTTON_OFFSET);
+            panelPos = { left: constrained.left, top: constrained.top };
           }
         }
 
@@ -313,28 +314,34 @@
             () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
             mutationObserver ? mutationObserver.getPendingRebuild : () => false,
             mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-            panelPos
+            panelPos  // Pass calculated position to avoid flicker
           );
         }
 
-        // After panel is rendered, fine-tune position to perfectly align button center with saved badge center
-        if (panelPos && savedPos && savedPos.x !== undefined) {
+        // Fine-tune after render for perfect alignment
+        if (savedPos && panelPos && (Number.isFinite(savedPos.x) || Number.isFinite(savedPos.y))) {
           requestAnimationFrame(() => {
-            const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
-            const panelEl = document.querySelector('.toc-floating');
-            if (collapseBtn && panelEl) {
-              const btnRect = collapseBtn.getBoundingClientRect();
-              const currentBtnCenterX = btnRect.left + btnRect.width / 2;
-              const targetBtnCenterX = savedPos.x;
-              const offsetX = targetBtnCenterX - currentBtnCenterX;
+            requestAnimationFrame(() => {
+              const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
+              const panelEl = document.querySelector('.toc-floating');
+              if (collapseBtn && panelEl && collapseBtn.getBoundingClientRect().width > 0) {
+                const btnRect = collapseBtn.getBoundingClientRect();
+                const offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - (btnRect.left + btnRect.width / 2)) : 0;
+                const offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - (btnRect.top + btnRect.height / 2)) : 0;
 
-              if (Math.abs(offsetX) > 1) {
-                const currentLeft = parseFloat(panelEl.style.left) || panelEl.getBoundingClientRect().left;
-                const newLeft = currentLeft + offsetX;
-                panelEl.style.setProperty('left', newLeft + 'px', 'important');
-                panelEl.style.setProperty('right', 'auto', 'important');
+                if (Math.abs(offsetX) > 1 || Math.abs(offsetY) > 1) {
+                  const rect = panelEl.getBoundingClientRect();
+                  const pw = panelEl.offsetWidth || PANEL_WIDTH;
+                  const ph = panelEl.offsetHeight || PANEL_HEIGHT;
+                  const constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
+
+                  panelEl.style.setProperty('left', constrained.left + 'px', 'important');
+                  panelEl.style.setProperty('top', constrained.top + 'px', 'important');
+                  panelEl.style.setProperty('right', 'auto', 'important');
+                  panelEl.style.setProperty('bottom', 'auto', 'important');
+                }
               }
-            }
+            });
           });
         }
 

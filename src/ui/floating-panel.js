@@ -1,28 +1,33 @@
-
 (() => {
   'use strict';
-
 
   const { msg, setBadgePosByHost } = window.TOC_UTILS || {};
   const safeMsg = msg || ((key) => {
     try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
   });
 
-  
+  const UNLOCK_AFTER_MS = 1000;
+  const SCROLL_STOP_MS = 500;
+  const PANEL_WIDTH = 280;
+  const PANEL_HEIGHT = 400;
+
   function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos) {
+    // Remove any existing panel to prevent duplicates
+    try {
+      document.querySelectorAll('.toc-floating').forEach(el => el.remove());
+    } catch (_) {}
+
     const panel = document.createElement('div');
     let unlockTimer = null;
     let scrollStopTimer = null;
     let intersectionObserver = null;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
-    const UNLOCK_AFTER_MS = 1000;
-    const SCROLL_STOP_MS = 500;
 
     panel.style.visibility = 'hidden';
 
     // Apply saved position
-    if (panelPos && typeof panelPos.top === 'number') {
+    if (panelPos && Number.isFinite(panelPos.top) && Number.isFinite(panelPos.left)) {
       panel.style.setProperty('top', panelPos.top + 'px', 'important');
       panel.style.setProperty('left', panelPos.left + 'px', 'important');
       panel.style.setProperty('right', 'auto', 'important');
@@ -48,11 +53,10 @@
         }
 
         setTimeout(() => {
-
           items.forEach(it => {
             it._userSelected = false;
           });
-                }, 200);
+        }, 200);
       }, UNLOCK_AFTER_MS);
     };
 
@@ -123,18 +127,16 @@
     btnRefresh.className = 'toc-btn';
     btnRefresh.textContent = safeMsg('buttonRefresh');
     btnRefresh.title = safeMsg('buttonRefreshTitle');
-    {
-      let refreshing = false;
-      btnRefresh.addEventListener('click', async () => {
-        if (refreshing) return;
-        refreshing = true;
-        try {
-          if (onRefresh) await onRefresh();
-        } finally {
-          refreshing = false;
-        }
-      });
-    }
+    let refreshing = false;
+    btnRefresh.addEventListener('click', async () => {
+      if (refreshing) return;
+      refreshing = true;
+      try {
+        if (onRefresh) await onRefresh();
+      } finally {
+        refreshing = false;
+      }
+    });
 
     actionsLeft.appendChild(btnPick);
     actionsLeft.appendChild(btnManage);
@@ -155,7 +157,6 @@
       empty.textContent = safeMsg('emptyTocMessage');
       list.appendChild(empty);
     } else {
-
       items.forEach(item => {
         item._userSelected = false;
       });
@@ -257,16 +258,13 @@
       let left = e.clientX - drag.offsetX;
       let top = e.clientY - drag.offsetY;
 
-      const pw = panel.offsetWidth || 280;
-      const ph = panel.offsetHeight || 400;
-
-      const minLeft = 4;
-      const minTop = 4;
+      const pw = panel.offsetWidth || PANEL_WIDTH;
+      const ph = panel.offsetHeight || PANEL_HEIGHT;
       const maxLeft = window.innerWidth - pw - 4;
       const maxTop = window.innerHeight - ph - 4;
 
-      left = Math.max(minLeft, Math.min(maxLeft, left));
-      top = Math.max(minTop, Math.min(maxTop, top));
+      left = Math.max(4, Math.min(maxLeft, left));
+      top = Math.max(4, Math.min(maxTop, top));
 
       panel.style.setProperty('left', left + 'px', 'important');
       panel.style.setProperty('top', top + 'px', 'important');
@@ -284,34 +282,21 @@
 
       panel.style.cursor = '';
       panel.style.userSelect = '';
-
       drag.active = false;
 
       if (drag.moved) {
-        // Save collapse button center position (for alignment with collapsed badge)
-        const savePosition = () => {
-          try {
-            const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
-            if (collapseBtn && setBadgePosByHost) {
-              const btnRect = collapseBtn.getBoundingClientRect();
-
-              setBadgePosByHost(location.host, {
-                x: btnRect.left + btnRect.width / 2,
-                y: btnRect.top + btnRect.height / 2
-              });
+        // Save collapse button center position
+        try {
+          const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+          if (collapseBtn && setBadgePosByHost) {
+            const btnRect = collapseBtn.getBoundingClientRect();
+            const x = btnRect.left + btnRect.width / 2;
+            const y = btnRect.top + btnRect.height / 2;
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+              setBadgePosByHost(location.host, { x, y });
             }
-          } catch (err) {
-            console.warn(safeMsg('logSavePositionFailed'), err);
           }
-        };
-
-        // Defer storage write to idle time to reduce main thread blocking
-        if (typeof requestIdleCallback !== 'undefined') {
-          requestIdleCallback(() => savePosition(), { timeout: 2000 });
-        } else {
-          // Fallback for browsers without requestIdleCallback
-          setTimeout(() => savePosition(), 0);
-        }
+        } catch (_) {}
       }
 
       e.preventDefault();
@@ -367,12 +352,10 @@
       };
 
       intersectionObserver = new IntersectionObserver((entries) => {
-
         if (getNavLock()) return;
 
         const userSelected = items.find(it => it._userSelected);
         if (userSelected) {
-
           clearAllActive();
           if (userSelected._node && !userSelected._node.classList.contains('active')) {
             userSelected._node.classList.add('active');
@@ -391,11 +374,8 @@
 
         if (visibleItems.length > 0) {
           const newActive = visibleItems[0];
-
           if (active !== newActive) {
-
             clearAllActive();
-
             newActive._node.classList.add('active');
             active = newActive;
           }
@@ -423,7 +403,3 @@
   window.TOC_UI = window.TOC_UI || {};
   window.TOC_UI.renderFloatingPanel = renderFloatingPanel;
 })();
-
-
-
-
