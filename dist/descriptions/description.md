@@ -8,7 +8,7 @@
 
 ## What is Web TOC Assistant?
 
-Web TOC Assistant is a smart browser extension that automatically generates a floating, interactive table of contents (TOC) for any webpage you visit. It transforms long, scrolling pages into easily navigable documents with just one click.
+Web TOC Assistant is a browser extension that automatically generates a floating, interactive table of contents (TOC) for any webpage you visit. It transforms long, scrolling pages into easily navigable documents with just one click.
 
 ## Why Install Web TOC Assistant?
 
@@ -50,10 +50,11 @@ Automatically adapts to your browser's theme:
 
 ## Key Features
 
-### Smart TOC Generation
+### Automatic TOC Generation
 
 - **Automatic Header Detection** - Recognizes standard HTML headings (h1-h6) by default
-- **Intelligent Filtering** - Skips hidden elements and empty content
+- **Enhanced Visibility Detection** - Advanced filtering using computed styles, bounding rects, and parent clipping checks
+- **Content Filtering** - Skips hidden elements, zero-size elements, and overflow-clipped content
 - **Real-time Updates** - Automatically rebuilds TOC when page content changes
 - **Debounced Scanning** - 500ms debounce prevents excessive updates
 
@@ -67,14 +68,16 @@ Automatically adapts to your browser's theme:
 ### Flexible UI
 
 - **Floating Panel** - Expandable TOC panel with left/right side positioning
-- **Draggable Badge** - Collapsed "TOC" button that you can position anywhere
-- **Position Memory** - Remembers button position per domain
+- **Draggable Panel Header** - Drag the panel header to reposition; position automatically saved
+- **Draggable TOC Button** - Collapsed "TOC" button that you can position anywhere
+- **Position Memory & Sync** - Remembers button and panel position per domain; positions synchronize when collapsing/expanding
+- **Smooth Animations** - Fluid panel expand/collapse transitions for better user experience
 - **Smooth Scrolling** - Click any TOC item to smoothly scroll to that section
 - **Theme-Aware Design** - Adapts to light/dark mode automatically
 - **Fixed Width Dialogs** - All dialogs maintain consistent 280px width with text ellipsis
 - **Dialog Mutual Exclusion** - Only one dialog shown at a time for cleaner UI
 
-### Smart Navigation
+### Auto Navigation
 
 - **Current Position Highlighting** - Automatically highlights your current reading location
 - **Navigation Locking** - Prevents jumping when you manually click TOC items
@@ -101,6 +104,7 @@ Automatically adapts to your browser's theme:
    - View all saved selectors for current site
    - Hover over any selector to reveal delete button
    - Click ✕ to remove individual selectors
+4. **Reposition UI** - Drag the TOC button or panel header to any position; positions are saved and synchronized
 
 ### Theme Switching
 
@@ -152,7 +156,7 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 
 ## 什么是网页目录助手？
 
-网页目录助手是一款智能浏览器扩展，可以自动为任何网页生成浮动的、可交互的目录。它让冗长的滚动页面变得易于导航，只需轻轻一点。
+网页目录助手是一款浏览器扩展，可以自动为任何网页生成浮动的、可交互的目录。它让冗长的滚动页面变得易于导航，只需轻轻一点。
 
 ## 为什么要安装网页目录助手？
 
@@ -194,10 +198,11 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 
 ## 核心功能
 
-### 智能目录生成
+### 自动目录生成
 
 - **自动标题识别** - 默认识别标准 HTML 标题（h1-h6）
-- **智能过滤** - 跳过隐藏元素和空内容
+- **增强可见性检测** - 使用计算样式、边界矩形和父元素裁剪检查进行高级过滤
+- **内容过滤** - 跳过隐藏元素、零尺寸元素和溢出裁剪内容
 - **实时更新** - 页面内容变化时自动重建目录
 - **防抖扫描** - 500ms 防抖避免频繁更新
 
@@ -211,14 +216,16 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 ### 灵活的界面
 
 - **浮动面板** - 可展开的目录面板，支持左右侧定位
-- **可拖拽按钮** - 可拖动的"目录"按钮，可放置在任何位置
-- **位置记忆** - 按域名记住按钮位置
+- **可拖拽面板** - 拖拽面板标题栏可重新定位，位置自动保存
+- **可拖拽TOC按钮** - 可拖动的"目录"按钮，可放置在任何位置
+- **位置记忆与同步** - 按域名记住按钮和面板位置，折叠/展开时自动同步
+- **流畅动画** - 平滑的面板展开/折叠过渡效果，提升用户体验
 - **平滑滚动** - 点击任何目录项平滑滚动到该部分
 - **主题自适应** - 自动适应浅色/深色主题
 - **固定宽度对话框** - 所有对话框保持一致的 280px 宽度，长文本自动省略
 - **对话框互斥** - 同一时间只显示一个对话框，界面更整洁
 
-### 智能导航
+### 自动导航
 
 - **当前位置高亮** - 自动高亮当前阅读位置
 - **导航锁定** - 手动点击目录项时防止跳动
@@ -245,6 +252,7 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
    - 查看当前站点所有已保存的选择器
    - 悬停在任何选择器上显示删除按钮
    - 点击 ✕ 删除单个选择器
+4. **调整界面位置** - 拖动TOC按钮或面板标题栏到任意位置，位置会自动保存并同步
 
 ### 主题切换
 

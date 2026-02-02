@@ -14,34 +14,34 @@
 
 ```
 src/
-├── content.js (49行)           # 主入口文件 - 应用启动和初始化
-├── utils.js (127行)            # 基础工具函数 - 存储、选择器、DOM操作
-├── content.css (306行)         # 样式文件 - 包含防御性CSS保护
+├── content.js (161行)          # 主入口文件 - 应用启动和初始化
+├── utils.js (360行)            # 基础工具函数 - 存储、选择器、DOM操作、位置管理
+├── content.css (336行)         # 样式文件 - 包含防御性CSS保护和动画
 ├── README.md                   # 项目文档
 ├── utils/                      # 工具模块 (132行)
 │   ├── css-selector.js (51行)  # CSS选择器生成工具
 │   └── toc-builder.js (81行)   # TOC构建逻辑和元素过滤
-├── ui/                         # UI组件模块 (461行)
-│   ├── collapsed-badge.js (148行) # 可拖拽折叠按钮
+├── ui/                         # UI组件模块 (652行)
+│   ├── collapsed-badge.js (139行) # 可拖拽折叠按钮（优化渲染逻辑）
 │   ├── element-picker.js (108行)  # 交互式元素拾取器
-│   └── floating-panel.js (205行)  # 主浮动面板和目录列表
-└── core/                       # 核心逻辑模块 (405行)
+│   └── floating-panel.js (405行)  # 主浮动面板和目录列表（优化状态管理）
+└── core/                       # 核心逻辑模块 (630行)
     ├── config-manager.js (108行)  # 配置管理和持久化
     ├── mutation-observer.js (130行) # 页面变化监听
-    └── toc-app.js (167行)         # 主应用逻辑和组件协调
+    └── toc-app.js (392行)         # 主应用逻辑和组件协调（防止重复初始化）
 ```
 
-**总计**: 1174 行代码，平均每个模块 117 行
+**总计**: 2211 行代码（v0.5.1 重构优化后）
 
 ## 🔧 模块加载顺序
 
 模块通过 `src/background.js` 中的 `CONTENT_SCRIPTS` 数组按依赖顺序动态注入：
 
-1. **基础层** - `utils.js` (127行)
+1. **基础层** - `utils.js` (360行)
 2. **工具层** - `utils/css-selector.js` (51行) + `utils/toc-builder.js` (81行)
-3. **UI层** - `ui/collapsed-badge.js` (148行) + `ui/element-picker.js` (108行) + `ui/floating-panel.js` (205行)
-4. **核心层** - `core/config-manager.js` (108行) + `core/mutation-observer.js` (130行) + `core/toc-app.js` (167行)
-5. **入口层** - `content.js` (49行)
+3. **UI层** - `ui/collapsed-badge.js` (139行) + `ui/element-picker.js` (108行) + `ui/floating-panel.js` (405行)
+4. **核心层** - `core/config-manager.js` (108行) + `core/mutation-observer.js` (130行) + `core/toc-app.js` (392行)
+5. **入口层** - `content.js` (161行)
 
 ## 🌐 全局命名空间设计
 
@@ -83,7 +83,7 @@ if (!getConfigs || !initForConfig) {
 
 ## 🎯 核心功能模块详解
 
-### 基础工具层 (127行)
+### 基础工具层 (360行)
 **utils.js** - 提供扩展的基础能力
 - 存储操作：`getConfigs()`, `saveConfigs()`
 - TOC按钮位置管理：`getBadgePosByHost()`, `setBadgePosByHost()`
@@ -107,8 +107,8 @@ if (!getConfigs || !initForConfig) {
   - offsetParent 检查（排除隐藏在 DOM 树外的元素）
 - 元素去重排序（compareDocumentPosition）
 
-### UI组件层 (461行)
-**collapsed-badge.js** (148行) - 折叠状态按钮
+### UI组件层 (652行)
+**collapsed-badge.js** (139行) - 折叠状态按钮
 - 可拖拽定位，支持位置记忆
 - 跨域名位置持久化
 - 支持左右侧位置（left/right）
@@ -120,7 +120,7 @@ if (!getConfigs || !initForConfig) {
 - 避免选中扩展自身UI
 - 支持ESC取消和右键取消
 
-**floating-panel.js** (205行) - 主浮动面板
+**floating-panel.js** (405行) - 主浮动面板
 - 目录列表渲染和交互
 - IntersectionObserver自动高亮
 - 用户选择锁定机制
@@ -128,7 +128,7 @@ if (!getConfigs || !initForConfig) {
 - 可拖拽标题栏（拖拽时保存位置，与TOC按钮位置同步）
 - 支持左右侧位置（left/right）
 
-### 核心逻辑层 (405行)
+### 核心逻辑层 (630行)
 **config-manager.js** (108行) - 配置管理
 - 站点配置的保存和读取
 - 选择器管理界面
@@ -139,7 +139,7 @@ if (!getConfigs || !initForConfig) {
 - 防抖重建机制
 - 导航锁定期间的延迟处理
 
-**toc-app.js** (167行) - 主应用协调器
+**toc-app.js** (392行) - 主应用协调器
 - 组件生命周期管理
 - 状态同步和事件协调
 - 重建逻辑和优化
@@ -147,7 +147,7 @@ if (!getConfigs || !initForConfig) {
 
 ## 🛡️ 样式保护机制
 
-### CSS防御策略 (306行样式)
+### CSS防御策略 (336行样式)
 1. **优先级保护**: 所有样式使用 `!important`
 2. **全局重置**: 防止网站样式干扰
 3. **属性覆盖**: 重置所有可能被影响的CSS属性

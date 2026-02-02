@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#050---2026-02-03)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#051---2026-02-03)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.5.1](#051---2026-02-03) - 2026-02-03
 - [0.5.0](#050---2026-02-03) - 2026-02-03
 - [0.4.1](#041---2026-01-23) - 2026-01-23
 - [0.4.0](#040---2026-01-22) - 2026-01-22
@@ -17,6 +18,24 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.5.1] - 2026-02-03
+
+### 🔧 更改 / Changed
+- **渲染逻辑优化 / Rendering logic optimization**
+  - 防止重复初始化，提高稳定性 / Prevented duplicate initialization for improved stability
+  - 优化状态管理，减少代码冗余 / Optimized state management, reduced code redundancy
+- **交互体验增强 / Enhanced interaction experience**
+  - 平滑的面板展开/折叠过渡动画 / Smooth panel expand/collapse transition animations
+  - 改进TOC按钮和面板位置同步机制 / Improved position synchronization between TOC button and panel
+  - 优化拖拽交互，提升操作流畅度 / Enhanced drag interaction for smoother operation
+
+### ⚡ 技术改进 / Technical Improvements
+- 新增CSS过渡动画样式 / Added CSS styles for transition animations
+- 改进组件生命周期管理和事件监听器清理 / Improved component lifecycle management and event listener cleanup
+- 代码精简优化 / Code refinement and optimization
 
 ---
 
