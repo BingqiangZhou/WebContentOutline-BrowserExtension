@@ -23,19 +23,13 @@ You are tasked with packaging the browser extension as a distributable zip file.
 
 ## Implementation
 
-Use the PowerShell script at `.claude/scripts/package.ps1`:
+Execute the PowerShell script in this skill directory:
 
 ```powershell
-pwsh -ExecutionPolicy Bypass -File .claude/scripts/package.ps1
+powershell -ExecutionPolicy Bypass -File .claude/skills/package/scripts/package.ps1
 ```
 
-Or on Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .claude/scripts/package.ps1
-```
-
-For manual packaging on Unix-like systems (Linux/macOS), use `zip` command:
+For Unix-like systems (Linux/macOS), use `zip` command:
 
 ```bash
 # Read version
