@@ -154,5 +154,9 @@
   "titleInjectionFailed": {
     "message": "网页目录助手：注入失败（点击重试）",
     "description": "内容脚本注入失败时的图标标题"
+  },
+  "truncatedNotice": {
+    "message": "为保证性能，目录最多显示 400 项。请优化选择器以缩小范围。",
+    "description": "目录项过多时的截断提示"
   }
 }

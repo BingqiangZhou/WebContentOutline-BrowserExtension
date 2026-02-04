@@ -285,10 +285,7 @@
     "https://example.com": true
   },
   "tocBadgePosMap": {
-    "example.com": { "left": 100, "top": 200, "right": 180 }
-  },
-  "tocPanelPosMap": {
-    "example.com": { "left": 100, "top": 200, "right": 380 }
+    "example.com": { "x": 100, "y": 200 }
   }
 }
 ```
@@ -298,8 +295,7 @@
 - `side`：面板显示位置（`left` 或 `right`）
 - `selectors`：选择器数组，支持 CSS 和 XPath 混用
 - `collapsedDefault`：默认是否折叠
-- `tocBadgePosMap`：TOC按钮位置存储（按域名），包含 `left`、`top`、`right`
-- `tocPanelPosMap`：面板位置存储（按域名），包含 `left`、`top`、`right`
+- `tocBadgePosMap`：TOC 按钮中心点位置存储（按域名），包含 `x`、`y`
 
 ## 🎯 适用场景
 

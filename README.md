@@ -285,10 +285,7 @@ Site configuration is stored in `chrome.storage.local`:
     "https://example.com": true
   },
   "tocBadgePosMap": {
-    "example.com": { "left": 100, "top": 200, "right": 180 }
-  },
-  "tocPanelPosMap": {
-    "example.com": { "left": 100, "top": 200, "right": 380 }
+    "example.com": { "x": 100, "y": 200 }
   }
 }
 ```
@@ -298,8 +295,7 @@ Site configuration is stored in `chrome.storage.local`:
 - `side`: Panel display position (`left` or `right`)
 - `selectors`: Selector array, supports mixing CSS and XPath
 - `collapsedDefault`: Default collapsed state
-- `tocBadgePosMap`: Badge position storage per domain (includes `left`, `top`, `right`)
-- `tocPanelPosMap`: Panel position storage per domain (includes `left`, `top`, `right`)
+- `tocBadgePosMap`: Badge center position per domain (includes `x`, `y`)
 
 ## 🎯 Use Cases
 
