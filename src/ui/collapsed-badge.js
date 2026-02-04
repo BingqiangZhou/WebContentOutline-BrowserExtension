@@ -1,10 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg, getBadgePosByHost, setBadgePosByHost } = window.TOC_UTILS || {};
-  const safeMsg = msg || ((key) => {
-    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
-  });
+  const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost } = window.TOC_UTILS || {};
 
   // Constants
   const BADGE_WIDTH = 80;
@@ -20,8 +17,8 @@
 
     const badge = document.createElement('div');
     badge.className = `toc-collapsed-badge ${side === 'left' ? 'left' : 'right'}`;
-    badge.textContent = safeMsg('tocTitle');
-    badge.title = safeMsg('badgeTitle');
+    badge.textContent = msg('tocTitle');
+    badge.title = msg('badgeTitle');
 
     badge.style.visibility = 'hidden';
     // Set initial default position BEFORE adding to DOM to prevent (0,0) flash
@@ -61,54 +58,33 @@
     restorePosition();
 
     // Drag handling
-    let drag = { active: false, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
-
-    function onMouseDown(e) {
-      if (e.target !== badge) return;
-      drag.active = true;
-      drag.startX = e.clientX;
-      drag.startY = e.clientY;
-      drag.moved = false;
-      const rect = badge.getBoundingClientRect();
-      drag.offsetX = e.clientX - rect.left;
-      drag.offsetY = e.clientY - rect.top;
-      badge.style.cursor = 'grabbing';
-      badge.style.userSelect = 'none';
-      document.addEventListener('mousemove', onMouseMove, true);
-      document.addEventListener('mouseup', onMouseUp, true);
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    function onMouseMove(e) {
-      if (!drag.active) return;
-      if (Math.abs(e.clientX - drag.startX) > 3 || Math.abs(e.clientY - drag.startY) > 3) {
-        drag.moved = true;
-      }
-      const bw = badge.offsetWidth || BADGE_WIDTH;
-      const bh = badge.offsetHeight || BADGE_HEIGHT;
-      let left = e.clientX - drag.offsetX;
-      let top = e.clientY - drag.offsetY;
-      left = Math.max(4, Math.min(window.innerWidth - bw - 4, left));
-      top = Math.max(4, Math.min(window.innerHeight - bh - 4, top));
-      badge.style.setProperty('left', left + 'px', 'important');
-      badge.style.setProperty('top', top + 'px', 'important');
-      badge.style.setProperty('right', 'auto', 'important');
-      badge.style.setProperty('bottom', 'auto', 'important');
-      e.preventDefault();
-    }
-
-    function onMouseUp(e) {
-      if (!drag.active) return;
-      document.removeEventListener('mousemove', onMouseMove, true);
-      document.removeEventListener('mouseup', onMouseUp, true);
-      badge.style.cursor = '';
-      badge.style.userSelect = '';
-      drag.active = false;
-
-      if (!drag.moved) {
-        onExpand();
-      } else {
+    const { createDragController } = window.TOC_DRAG || {};
+    const dragController = createDragController ? createDragController({
+      element: badge,
+      shouldStart: (e) => e.target === badge,
+      onStart: () => {
+        badge.style.cursor = 'grabbing';
+        badge.style.userSelect = 'none';
+      },
+      onMove: (drag, e) => {
+        const bw = badge.offsetWidth || BADGE_WIDTH;
+        const bh = badge.offsetHeight || BADGE_HEIGHT;
+        let left = e.clientX - drag.offsetX;
+        let top = e.clientY - drag.offsetY;
+        left = Math.max(4, Math.min(window.innerWidth - bw - 4, left));
+        top = Math.max(4, Math.min(window.innerHeight - bh - 4, top));
+        badge.style.setProperty('left', left + 'px', 'important');
+        badge.style.setProperty('top', top + 'px', 'important');
+        badge.style.setProperty('right', 'auto', 'important');
+        badge.style.setProperty('bottom', 'auto', 'important');
+      },
+      onEnd: (drag) => {
+        badge.style.cursor = '';
+        badge.style.userSelect = '';
+        if (!drag.moved) {
+          onExpand();
+          return;
+        }
         // Save badge center position
         const rect = badge.getBoundingClientRect();
         const x = rect.left + rect.width / 2;
@@ -117,19 +93,11 @@
           setBadgePosByHost(location.host, { x, y });
         }
       }
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    badge.addEventListener('mousedown', onMouseDown, true);
+    }) : null;
 
     return {
       remove() {
-        badge.removeEventListener('mousedown', onMouseDown, true);
-        if (drag.active) {
-          document.removeEventListener('mousemove', onMouseMove, true);
-          document.removeEventListener('mouseup', onMouseUp, true);
-        }
+        dragController && dragController.destroy && dragController.destroy();
         badge.remove();
       }
     };

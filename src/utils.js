@@ -4,13 +4,12 @@
 /**
  * Storage keys
  */
-const STORAGE_KEYS = {
-  TOC_CONFIGS: 'tocConfigs',
-  SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-  PANEL_STATE_MAP: 'tocPanelExpandedMap',
-  BADGE_POS_MAP: 'tocBadgePosMap',
-  PANEL_POS_MAP: 'tocPanelPosMap'
-};
+ const STORAGE_KEYS = {
+   TOC_CONFIGS: 'tocConfigs',
+   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+   PANEL_STATE_MAP: 'tocPanelExpandedMap',
+   BADGE_POS_MAP: 'tocBadgePosMap'
+ };
 
 /**
  * Get i18n message safely.
@@ -127,33 +126,6 @@ async function setBadgePosByHost(host, pos) {
   const map = await getBadgePosMap();
   map[host] = pos;
   await saveBadgePosMap(map);
-  return map[host];
-}
-
-/**
- * Get panel position map { host: { left, top, right } }
- */
-async function getPanelPosMap() {
-  return await getStorage(STORAGE_KEYS.PANEL_POS_MAP, {});
-}
-
-/**
- * Save panel position map
- * @param {Record<string, {left:number, top:number, right:number}>} map
- */
-async function savePanelPosMap(map) {
-  await setStorage(STORAGE_KEYS.PANEL_POS_MAP, map);
-}
-
-async function getPanelPosByHost(host) {
-  const map = await getPanelPosMap();
-  return map[host] || null;
-}
-
-async function setPanelPosByHost(host, pos) {
-  const map = await getPanelPosMap();
-  map[host] = pos;
-  await savePanelPosMap(map);
   return map[host];
 }
 
@@ -326,35 +298,31 @@ function scrollToElement(el) {
 
 const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : self);
 
-ROOT.TOC_UTILS = {
-  STORAGE_KEYS,
-  msg,
-  getStorage,
-  setStorage,
-  getConfigs,
-  saveConfigs,
-  getEnabledMap,
-  saveEnabledMap,
-  originFromUrl,
-  getSiteEnabledByOrigin,
-  setSiteEnabledByOrigin,
-  toggleSiteEnabledByOrigin,
-  getPanelStateMap,
-  savePanelStateMap,
-  getPanelExpandedByOrigin,
-  setPanelExpandedByOrigin,
-  getBadgePosMap,
-  saveBadgePosMap,
-  getBadgePosByHost,
-  setBadgePosByHost,
-  getPanelPosMap,
-  savePanelPosMap,
-  getPanelPosByHost,
-  setPanelPosByHost,
-  findMatchingConfig,
-  collectBySelector,
-  uniqueInDocumentOrder,
-  scrollToElement
-};
+ ROOT.TOC_UTILS = {
+   STORAGE_KEYS,
+   msg,
+   getStorage,
+   setStorage,
+   getConfigs,
+   saveConfigs,
+   getEnabledMap,
+   saveEnabledMap,
+   originFromUrl,
+   getSiteEnabledByOrigin,
+   setSiteEnabledByOrigin,
+   toggleSiteEnabledByOrigin,
+   getPanelStateMap,
+   savePanelStateMap,
+   getPanelExpandedByOrigin,
+   setPanelExpandedByOrigin,
+   getBadgePosMap,
+   saveBadgePosMap,
+   getBadgePosByHost,
+   setBadgePosByHost,
+   findMatchingConfig,
+   collectBySelector,
+   uniqueInDocumentOrder,
+   scrollToElement
+ };
 })();
 

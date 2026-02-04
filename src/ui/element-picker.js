@@ -1,10 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg } = window.TOC_UTILS || {};
-  const safeMsg = msg || ((key) => {
-    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
-  });
+  const { msg = (key) => key } = window.TOC_UTILS || {};
 
   function showPickerResult(selector, saveCb) {
     const existing = document.querySelector('.toc-overlay');
@@ -17,7 +14,7 @@
 
     const header = document.createElement('div');
     header.className = 'toc-overlay-header';
-    header.textContent = safeMsg('pickerResultTitle');
+    header.textContent = msg('pickerResultTitle');
 
     const body = document.createElement('div');
     body.className = 'toc-overlay-body';
@@ -33,12 +30,12 @@
     const btnSave = document.createElement('button');
     btnSave.className = 'toc-btn toc-btn-primary';
     btnSave.dataset.act = 'save';
-    btnSave.textContent = safeMsg('buttonSaveAsConfig');
+    btnSave.textContent = msg('buttonSaveAsConfig');
 
     const btnClose = document.createElement('button');
     btnClose.className = 'toc-btn';
     btnClose.dataset.act = 'close';
-    btnClose.textContent = safeMsg('buttonClose');
+    btnClose.textContent = msg('buttonClose');
 
     actions.appendChild(btnSave);
     actions.appendChild(btnClose);

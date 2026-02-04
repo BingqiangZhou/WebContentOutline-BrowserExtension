@@ -9,10 +9,12 @@
   const { renderCollapsedBadge, renderFloatingPanel, createElementPicker, showPickerResult } = window.TOC_UI || {};
   const { buildClassSelector, cssPathFor } = window.CSS_SELECTOR || {};
   const { siteConfig, saveSelector, updateConfigFromStorage } = window.CONFIG_MANAGER || {};
-  const { setPanelExpandedByOrigin, msg, getBadgePosByHost, setBadgePosByHost } = window.TOC_UTILS || {};
-  const safeMsg = msg || ((key) => {
-    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
-  });
+  const {
+    setPanelExpandedByOrigin,
+    msg = (key) => key,
+    getBadgePosByHost,
+    setBadgePosByHost
+  } = window.TOC_UTILS || {};
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
 
@@ -43,7 +45,16 @@
       document.querySelectorAll('.toc-collapsed-badge, .toc-floating').forEach(el => el.remove());
     } catch (_) {}
 
-    let items = buildTocItems ? buildTocItems(cfg, []) : [];
+    const buildNow = () => {
+      try {
+        const res = buildTocItems ? buildTocItems(cfg, []) : null;
+        if (res && Array.isArray(res.items)) return res;
+        if (Array.isArray(res)) return { items: res, meta: null };
+      } catch (_) {}
+      return { items: [], meta: null };
+    };
+
+    let { items, meta: tocMeta } = buildNow();
     let badgeInstance = null;
     let panelInstance = null;
     let mutationObserver = null;
@@ -166,11 +177,12 @@
         }
 
         const prevItems = items;
-        const newItems = buildTocItems ? buildTocItems(cfg, []) : [];
+        const { items: newItems, meta: newMeta } = buildNow();
 
         // Badge mode: update in-memory items so next expand is fresh, but skip UI rebuild.
         if (!panelInstance) {
           items = newItems;
+          tocMeta = newMeta;
           requestAnimationFrame(() => {
             isRebuilding = false;
           });
@@ -179,6 +191,7 @@
 
         if (getNavLock()) {
           items = newItems;
+          tocMeta = newMeta;
           if (mutationObserver && mutationObserver.setPendingRebuild) {
             mutationObserver.setPendingRebuild(true);
           }
@@ -210,6 +223,7 @@
         cancelActiveRestore();
 
         items = newItems;
+        tocMeta = newMeta;
         let panelPos = null;
         let rebuildSide = 'right';
         const currentPanelEl = document.querySelector('.toc-floating');
@@ -225,7 +239,8 @@
           () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
           mutationObserver ? mutationObserver.getPendingRebuild : () => false,
           mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-          panelPos
+          panelPos,
+          tocMeta
         ) : null;
 
         restoreActiveSnapshot(activeSnapshot);
@@ -276,7 +291,7 @@
                 onDone && onDone();
                 await rebuild();
               } else {
-                alert(safeMsg('errorOperationFailed'));
+                alert(msg('errorOperationFailed'));
               }
             } catch (e) {
               if (!isContextInvalidatedError(e)) {
@@ -368,7 +383,8 @@
             () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
             mutationObserver ? mutationObserver.getPendingRebuild : () => false,
             mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-            panelPos  // Pass calculated position to avoid flicker
+            panelPos,  // Pass calculated position to avoid flicker
+            tocMeta
           );
         }
 

@@ -1,10 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg, getConfigs, saveConfigs } = window.TOC_UTILS || {};
-  const safeMsg = msg || ((key) => {
-    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
-  });
+  const { msg = (key) => key, getConfigs, saveConfigs } = window.TOC_UTILS || {};
 
   async function siteConfig(cfg) {
     try {
@@ -23,7 +20,7 @@
 
       const header = document.createElement('div');
       header.className = 'toc-overlay-header';
-      header.textContent = safeMsg('configDialogTitle') + ' - ' + urlPattern;
+      header.textContent = msg('configDialogTitle') + ' - ' + urlPattern;
       box.appendChild(header);
 
       const body = document.createElement('div');
@@ -31,7 +28,7 @@
 
       const countLabel = document.createElement('div');
       countLabel.className = 'toc-config-count';
-      countLabel.textContent = safeMsg('configSavedSelectors') + ' (' + (list ? list.length : 0) + ')';
+      countLabel.textContent = msg('configSavedSelectors') + ' (' + (list ? list.length : 0) + ')';
       body.appendChild(countLabel);
 
       const listDiv = document.createElement('div');
@@ -52,7 +49,7 @@
             const deleteBtn = document.createElement('span');
             deleteBtn.className = 'toc-selector-delete';
             deleteBtn.textContent = 'x';
-            deleteBtn.title = safeMsg('buttonDeleteSelector') || 'Delete selector';
+            deleteBtn.title = msg('buttonDeleteSelector') || 'Delete selector';
             deleteBtn.dataset.index = String(sIndex);
 
             deleteBtn.addEventListener('click', async (e) => {
@@ -66,7 +63,7 @@
                 cfg.selectors = updatedSelectors;
 
                 await refreshList(updatedSelectors);
-                countLabel.textContent = safeMsg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
+                countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
 
                 if (window.TOC_APP && window.TOC_APP.rebuild) {
                   await window.TOC_APP.rebuild();
@@ -78,7 +75,7 @@
             listDiv.appendChild(item);
           });
         } else {
-          listDiv.textContent = safeMsg('configNoSelectors');
+          listDiv.textContent = msg('configNoSelectors');
         }
       };
 
@@ -93,12 +90,12 @@
       const btnClear = document.createElement('button');
       btnClear.className = 'toc-btn toc-btn-danger';
       btnClear.dataset.act = 'clear';
-      btnClear.textContent = safeMsg('buttonClearConfig');
+      btnClear.textContent = msg('buttonClearConfig');
 
       const btnClose = document.createElement('button');
       btnClose.className = 'toc-btn';
       btnClose.dataset.act = 'close';
-      btnClose.textContent = safeMsg('buttonClose');
+      btnClose.textContent = msg('buttonClose');
 
       actions.appendChild(btnClear);
       actions.appendChild(btnClose);
@@ -127,8 +124,8 @@
 
       document.documentElement.appendChild(box);
     } catch (e) {
-      console.error(safeMsg('logClearConfigFailed'), e);
-      alert(safeMsg('errorOperationFailed'));
+      console.error(msg('logClearConfigFailed'), e);
+      alert(msg('errorOperationFailed'));
     }
   }
 
@@ -154,7 +151,7 @@
       await saveConfigs(configs);
       return true;
     } catch (e) {
-      console.error(safeMsg('logSaveConfigFailed'), e);
+      console.error(msg('logSaveConfigFailed'), e);
       return false;
     }
   }
@@ -173,7 +170,7 @@
         cfg.selectors = [];
       }
     } catch (e) {
-      console.warn(safeMsg('logReadConfigFailed'), e);
+      console.warn(msg('logReadConfigFailed'), e);
     }
   }
 

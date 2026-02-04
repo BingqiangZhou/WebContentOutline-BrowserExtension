@@ -5,7 +5,7 @@
   window.__TOC_ASSISTANT_LOADED__ = true;
 
   const {
-    msg,
+    msg = (key) => key,
     getConfigs,
     findMatchingConfig,
     getSiteEnabledByOrigin,
@@ -15,12 +15,8 @@
   } = window.TOC_UTILS || {};
   const { initForConfig } = window.TOC_APP || {};
 
-  const safeMsg = msg || ((key) => {
-    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
-  });
-
   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) {
-    console.error(safeMsg('logPrefix') + ' ' + safeMsg('logMissingDependencies'));
+    console.error(msg('logPrefix') + ' ' + msg('logMissingDependencies'));
     return;
   }
 
@@ -54,13 +50,13 @@
           selectors: [],
           collapsedDefault: false
         };
-        console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logNoConfigFound'));
+        console.debug(msg('logPrefix') + ' ' + msg('logNoConfigFound'));
       } else {
-        console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logConfigMatched'), cfg.urlPattern);
+        console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
       appInstance = initForConfig(cfg);
     } catch (err) {
-      console.error(safeMsg('logPrefix') + ' ' + safeMsg('logInitFailed'), err);
+      console.error(msg('logPrefix') + ' ' + msg('logInitFailed'), err);
     }
   }
 
@@ -70,18 +66,18 @@
         appInstance.destroy();
       }
     } catch (e) {
-      console.warn(safeMsg('logPrefix') + ' stop failed:', e);
+      console.warn(msg('logPrefix') + ' stop failed:', e);
     }
     appInstance = null;
     try {
       document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay').forEach(n => n.remove());
     } catch (e) {
-      console.warn(safeMsg('logPrefix') + ' cleanup DOM failed:', e);
+      console.warn(msg('logPrefix') + ' cleanup DOM failed:', e);
     }
   }
 
   async function main() {
-    console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logContentScriptStarted'), location.href);
+    console.debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
     try {
       await migrateLegacyBadgePos();
       await new Promise((resolve) => {
@@ -101,10 +97,10 @@
           }
         } catch (_) {}
       } else {
-        console.debug(safeMsg('logPrefix') + ' ' + safeMsg('logSiteDisabled'));
+        console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
     } catch (e) {
-      console.warn(safeMsg('logPrefix') + ' ' + safeMsg('logReadEnabledFailed'), e);
+      console.warn(msg('logPrefix') + ' ' + msg('logReadEnabledFailed'), e);
     }
   }
 
@@ -175,16 +171,16 @@
         if (next === currentEnabled) return;
         currentEnabled = next;
         if (next) {
-          startApp().catch(err => console.warn(safeMsg('logPrefix') + ' startApp failed:', err));
+          startApp().catch(err => console.warn(msg('logPrefix') + ' startApp failed:', err));
         } else {
           stopApp();
         }
       } catch (e) {
-        console.warn(safeMsg('logPrefix') + ' storage change failed:', e);
+        console.warn(msg('logPrefix') + ' storage change failed:', e);
       }
     });
   } catch (e) {
-    console.warn(safeMsg('logPrefix') + ' storage listener failed:', e);
+    console.warn(msg('logPrefix') + ' storage listener failed:', e);
   }
 
   if (document.readyState === 'loading') {

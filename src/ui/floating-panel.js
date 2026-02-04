@@ -1,17 +1,14 @@
 (() => {
   'use strict';
 
-  const { msg, setBadgePosByHost } = window.TOC_UTILS || {};
-  const safeMsg = msg || ((key) => {
-    try { return chrome.i18n.getMessage(key) || key; } catch (_) { return key; }
-  });
+  const { msg = (key) => key, setBadgePosByHost } = window.TOC_UTILS || {};
 
   const UNLOCK_AFTER_MS = 1000;
   const SCROLL_STOP_MS = 500;
   const PANEL_WIDTH = 280;
   const PANEL_HEIGHT = 400;
 
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos) {
+  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta) {
     // Remove any existing panel to prevent duplicates
     try {
       document.querySelectorAll('.toc-floating').forEach(el => el.remove());
@@ -90,12 +87,12 @@
 
     const titleSpan = document.createElement('span');
     titleSpan.className = 'toc-title';
-    titleSpan.textContent = safeMsg('tocTitle');
+    titleSpan.textContent = msg('tocTitle');
 
     const btnCollapse = document.createElement('button');
     btnCollapse.className = 'toc-btn';
-    btnCollapse.textContent = safeMsg('buttonCollapse');
-    btnCollapse.title = safeMsg('buttonCollapseTitle');
+    btnCollapse.textContent = msg('buttonCollapse');
+    btnCollapse.title = msg('buttonCollapseTitle');
     btnCollapse.addEventListener('click', () => onCollapse());
 
     headerRow.appendChild(titleSpan);
@@ -109,15 +106,15 @@
 
     const btnPick = document.createElement('button');
     btnPick.className = 'toc-btn';
-    btnPick.textContent = safeMsg('buttonPickElement');
-    btnPick.title = safeMsg('buttonPickElementTitle');
+    btnPick.textContent = msg('buttonPickElement');
+    btnPick.title = msg('buttonPickElementTitle');
     btnPick.setAttribute('aria-pressed', 'false');
     btnPick.addEventListener('click', () => onPick && onPick());
 
     const btnManage = document.createElement('button');
     btnManage.className = 'toc-btn';
-    btnManage.textContent = safeMsg('buttonSiteConfig');
-    btnManage.title = safeMsg('buttonSiteConfigTitle');
+    btnManage.textContent = msg('buttonSiteConfig');
+    btnManage.title = msg('buttonSiteConfigTitle');
     btnManage.addEventListener('click', () => onSiteConfig && onSiteConfig());
 
     const actionsRight = document.createElement('div');
@@ -125,8 +122,8 @@
 
     const btnRefresh = document.createElement('button');
     btnRefresh.className = 'toc-btn';
-    btnRefresh.textContent = safeMsg('buttonRefresh');
-    btnRefresh.title = safeMsg('buttonRefreshTitle');
+    btnRefresh.textContent = msg('buttonRefresh');
+    btnRefresh.title = msg('buttonRefreshTitle');
     let refreshing = false;
     btnRefresh.addEventListener('click', async () => {
       if (refreshing) return;
@@ -151,11 +148,11 @@
     const list = document.createElement('div');
     list.className = 'toc-list';
 
-    if (items && items.__tocTruncated) {
+    if (tocMeta && tocMeta.truncated) {
       const note = document.createElement('div');
       note.className = 'toc-empty';
-      const max = items.__tocMaxItems || 400;
-      const msgText = safeMsg('truncatedNotice');
+      const max = tocMeta.maxItems || 400;
+      const msgText = msg('truncatedNotice');
       note.textContent = msgText && msgText !== 'truncatedNotice'
         ? msgText
         : `For performance, TOC shows at most ${max} items. Refine selectors to narrow results.`;
@@ -165,7 +162,7 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
-      empty.textContent = safeMsg('emptyTocMessage');
+      empty.textContent = msg('emptyTocMessage');
       list.appendChild(empty);
     } else {
       items.forEach(item => {
@@ -243,71 +240,37 @@
     });
 
     // Make header draggable
-    let drag = { active: false, startX: 0, startY: 0, offsetX: 0, offsetY: 0, moved: false };
+    const { createDragController } = window.TOC_DRAG || {};
+    const dragController = createDragController ? createDragController({
+      element: panel,
+      shouldStart: (e) => !!(e && e.target && e.target.closest && e.target.closest('.toc-header')),
+      getRect: () => panel.getBoundingClientRect(),
+      onStart: () => {
+        panel.style.cursor = 'grabbing';
+        panel.style.userSelect = 'none';
+      },
+      onMove: (drag, e) => {
+        let left = e.clientX - drag.offsetX;
+        let top = e.clientY - drag.offsetY;
 
-    function onMouseDown(e) {
-      // Only allow dragging from the header
-      if (!e.target.closest('.toc-header')) return;
+        const pw = panel.offsetWidth || PANEL_WIDTH;
+        const ph = panel.offsetHeight || PANEL_HEIGHT;
+        const maxLeft = window.innerWidth - pw - 4;
+        const maxTop = window.innerHeight - ph - 4;
 
-      drag.active = true;
-      drag.startX = e.clientX;
-      drag.startY = e.clientY;
-      drag.moved = false;
+        left = Math.max(4, Math.min(maxLeft, left));
+        top = Math.max(4, Math.min(maxTop, top));
 
-      const rect = panel.getBoundingClientRect();
-      drag.offsetX = e.clientX - rect.left;
-      drag.offsetY = e.clientY - rect.top;
+        panel.style.setProperty('left', left + 'px', 'important');
+        panel.style.setProperty('top', top + 'px', 'important');
+        panel.style.setProperty('right', 'auto', 'important');
+        panel.style.setProperty('bottom', 'auto', 'important');
+      },
+      onEnd: (drag) => {
+        panel.style.cursor = '';
+        panel.style.userSelect = '';
 
-      panel.style.cursor = 'grabbing';
-      panel.style.userSelect = 'none';
-
-      document.addEventListener('mousemove', onMouseMove, true);
-      document.addEventListener('mouseup', onMouseUp, true);
-
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    function onMouseMove(e) {
-      if (!drag.active) return;
-
-      const dx = e.clientX - drag.startX;
-      const dy = e.clientY - drag.startY;
-
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        drag.moved = true;
-      }
-
-      let left = e.clientX - drag.offsetX;
-      let top = e.clientY - drag.offsetY;
-
-      const pw = panel.offsetWidth || PANEL_WIDTH;
-      const ph = panel.offsetHeight || PANEL_HEIGHT;
-      const maxLeft = window.innerWidth - pw - 4;
-      const maxTop = window.innerHeight - ph - 4;
-
-      left = Math.max(4, Math.min(maxLeft, left));
-      top = Math.max(4, Math.min(maxTop, top));
-
-      panel.style.setProperty('left', left + 'px', 'important');
-      panel.style.setProperty('top', top + 'px', 'important');
-      panel.style.setProperty('right', 'auto', 'important');
-      panel.style.setProperty('bottom', 'auto', 'important');
-
-      e.preventDefault();
-    }
-
-    function onMouseUp(e) {
-      if (!drag.active) return;
-
-      document.removeEventListener('mousemove', onMouseMove, true);
-      document.removeEventListener('mouseup', onMouseUp, true);
-
-      panel.style.cursor = '';
-      panel.style.userSelect = '';
-      drag.active = false;
-
-      if (drag.moved) {
+        if (!drag.moved) return;
         // Save collapse button center position
         try {
           const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
@@ -321,12 +284,7 @@
           }
         } catch (_) {}
       }
-
-      e.preventDefault();
-      e.stopPropagation();
-    }
-
-    panel.addEventListener('mousedown', onMouseDown, true);
+    }) : null;
 
     const origRemove = panel.remove.bind(panel);
     const onPickerStart = () => {
@@ -347,11 +305,7 @@
       cleanupLock();
       window.removeEventListener(pickerStartEvent, onPickerStart);
       window.removeEventListener(pickerEndEvent, onPickerEnd);
-      panel.removeEventListener('mousedown', onMouseDown, true);
-      if (drag.active) {
-        document.removeEventListener('mousemove', onMouseMove, true);
-        document.removeEventListener('mouseup', onMouseUp, true);
-      }
+      dragController && dragController.destroy && dragController.destroy();
       origRemove();
     };
 

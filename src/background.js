@@ -2,9 +2,7 @@
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
-  SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-  PANEL_STATE_MAP: 'tocPanelExpandedMap',
-  BADGE_POS_MAP: 'tocBadgePosMap'
+  SITE_ENABLE_MAP: 'tocSiteEnabledMap'
 };
 
 // Helper: get origin from URL
@@ -18,6 +16,7 @@ function originFromUrl(url) {
 
 const CONTENT_SCRIPTS = [
   'src/utils.js',
+  'src/utils/drag-helper.js',
   'src/utils/css-selector.js',
   'src/utils/toc-builder.js',
   'src/ui/collapsed-badge.js',
@@ -247,19 +246,31 @@ async function injectIntoTab(tabId) {
     return { ok: false, step: 'css', error: e };
   }
 
-  for (const file of CONTENT_SCRIPTS) {
+  const removeCssOnFailure = async () => {
+    if (!cssInserted) return;
     try {
-      await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
-    } catch (e) {
-      console.warn('[toc] injectIntoTab failed (js):', e, { tabId, file });
-      if (cssInserted) {
-        try {
-          await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
-        } catch (removeErr) {
-          console.warn('[toc] removeCSS failed after js error:', removeErr, { tabId });
-        }
+      await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
+    } catch (removeErr) {
+      console.warn('[toc] removeCSS failed after js error:', removeErr, { tabId });
+    }
+  };
+
+  // Fast path: inject all JS files in one call (keeps current file-based structure).
+  try {
+    if (CONTENT_SCRIPTS.length) {
+      await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS });
+    }
+  } catch (e) {
+    console.warn('[toc] injectIntoTab failed (js bundle):', e, { tabId });
+    // Fallback: inject sequentially so we can surface the exact failing file.
+    for (const file of CONTENT_SCRIPTS) {
+      try {
+        await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
+      } catch (seqErr) {
+        console.warn('[toc] injectIntoTab failed (js):', seqErr, { tabId, file });
+        await removeCssOnFailure();
+        return { ok: false, step: 'js', file, error: seqErr };
       }
-      return { ok: false, step: 'js', file, error: e };
     }
   }
 

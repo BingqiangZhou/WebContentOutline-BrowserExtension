@@ -87,7 +87,7 @@ if (!getConfigs || !initForConfig) {
 **utils.js** - 提供扩展的基础能力
 - 存储操作：`getConfigs()`, `saveConfigs()`
 - TOC按钮位置管理：`getBadgePosByHost()`, `setBadgePosByHost()`
-- 面板位置管理：`getPanelPosByHost()`, `setPanelPosByHost()`
+- 位置管理（徽标中心点）：`getBadgePosByHost()`, `setBadgePosByHost()`
 - 选择器执行：`collectBySelector()`
 - DOM操作：`uniqueInDocumentOrder()`, `scrollToElement()`
 - URL匹配：`findMatchingConfig()`

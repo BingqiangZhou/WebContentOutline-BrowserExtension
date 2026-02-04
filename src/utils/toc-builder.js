@@ -112,10 +112,14 @@
       }
     }
 
-    items.__tocTruncated = truncated;
-    items.__tocMaxItems = MAX_ITEMS;
-    items.__tocTotalCandidates = totalCandidates;
-    return items;
+    return {
+      items,
+      meta: {
+        truncated,
+        maxItems: MAX_ITEMS,
+        totalCandidates
+      }
+    };
   }
 
   function buildTocItems(cfg, extraSelectors = []) {
