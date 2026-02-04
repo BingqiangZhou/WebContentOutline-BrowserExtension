@@ -13,7 +13,9 @@
     setPanelExpandedByOrigin,
     msg = (key) => key,
     getBadgePosByHost,
-    setBadgePosByHost
+    setBadgePosByHost,
+    showToast,
+    UI_CONSTANTS
   } = window.TOC_UTILS || {};
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
@@ -22,9 +24,11 @@
   let isRebuilding = false;
 
   // Constants
-  const PANEL_WIDTH = 280;
-  const PANEL_HEIGHT = 400;
-  const BUTTON_OFFSET = 20;
+  const CONSTS = UI_CONSTANTS || {};
+  const PANEL_WIDTH = Number.isFinite(CONSTS.PANEL_WIDTH) ? CONSTS.PANEL_WIDTH : 280;
+  const PANEL_HEIGHT = Number.isFinite(CONSTS.PANEL_HEIGHT) ? CONSTS.PANEL_HEIGHT : 400;
+  const BUTTON_OFFSET = Number.isFinite(CONSTS.BUTTON_OFFSET) ? CONSTS.BUTTON_OFFSET : 20;
+  const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
 
   const isContextInvalidatedError = (e) => {
     return !!(e && (
@@ -77,12 +81,16 @@
 
     // Helper to constrain position to screen bounds
     const constrainPosition = (left, top, width = PANEL_WIDTH, height = PANEL_HEIGHT) => {
-      const maxLeft = window.innerWidth - width - 4;
-      const maxTop = window.innerHeight - height - 4;
+      const maxLeft = window.innerWidth - width - DRAG_MARGIN_PX;
+      const maxTop = window.innerHeight - height - DRAG_MARGIN_PX;
       return {
-        left: Math.max(4, Math.min(maxLeft, left)),
-        top: Math.max(4, Math.min(maxTop, top))
+        left: Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, left)),
+        top: Math.max(DRAG_MARGIN_PX, Math.min(maxTop, top))
       };
+    };
+
+    const clearRebuildFlag = () => {
+      requestAnimationFrame(() => { isRebuilding = false; });
     };
 
     const isContentIdentical = (prevItems, nextItems) => {
@@ -113,11 +121,7 @@
     const restoreActiveSnapshot = (snapshot) => {
       if (!snapshot || !snapshot.currentActiveItem || items.length === 0) {
         // Clear rebuild flag even if no restore happens
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            isRebuilding = false;
-          });
-        });
+        clearRebuildFlag();
         return;
       }
 
@@ -159,11 +163,7 @@
         activeRestoreTimeout = requestAnimationFrame(restoreActive);
       } else {
         // No matching item found, clear flag
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            isRebuilding = false;
-          });
-        });
+        clearRebuildFlag();
       }
     };
 
@@ -291,7 +291,7 @@
                 onDone && onDone();
                 await rebuild();
               } else {
-                alert(msg('errorOperationFailed'));
+                showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
               }
             } catch (e) {
               if (!isContextInvalidatedError(e)) {
@@ -390,28 +390,31 @@
 
         // Fine-tune after render for perfect alignment
         if (savedPos && panelPos && (Number.isFinite(savedPos.x) || Number.isFinite(savedPos.y))) {
+          try {
+            if (panelInstance && panelInstance.whenShown) {
+              await panelInstance.whenShown;
+            }
+          } catch (_) {}
           requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
-              const panelEl = document.querySelector('.toc-floating');
-              if (collapseBtn && panelEl && collapseBtn.getBoundingClientRect().width > 0) {
-                const btnRect = collapseBtn.getBoundingClientRect();
-                const offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - (btnRect.left + btnRect.width / 2)) : 0;
-                const offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - (btnRect.top + btnRect.height / 2)) : 0;
+            const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
+            const panelEl = document.querySelector('.toc-floating');
+            if (collapseBtn && panelEl && collapseBtn.getBoundingClientRect().width > 0) {
+              const btnRect = collapseBtn.getBoundingClientRect();
+              const offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - (btnRect.left + btnRect.width / 2)) : 0;
+              const offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - (btnRect.top + btnRect.height / 2)) : 0;
 
-                if (Math.abs(offsetX) > 1 || Math.abs(offsetY) > 1) {
-                  const rect = panelEl.getBoundingClientRect();
-                  const pw = panelEl.offsetWidth || PANEL_WIDTH;
-                  const ph = panelEl.offsetHeight || PANEL_HEIGHT;
-                  const constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
+              if (Math.abs(offsetX) > 1 || Math.abs(offsetY) > 1) {
+                const rect = panelEl.getBoundingClientRect();
+                const pw = panelEl.offsetWidth || PANEL_WIDTH;
+                const ph = panelEl.offsetHeight || PANEL_HEIGHT;
+                const constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
 
-                  panelEl.style.setProperty('left', constrained.left + 'px', 'important');
-                  panelEl.style.setProperty('top', constrained.top + 'px', 'important');
-                  panelEl.style.setProperty('right', 'auto', 'important');
-                  panelEl.style.setProperty('bottom', 'auto', 'important');
-                }
+                panelEl.style.setProperty('left', constrained.left + 'px', 'important');
+                panelEl.style.setProperty('top', constrained.top + 'px', 'important');
+                panelEl.style.setProperty('right', 'auto', 'important');
+                panelEl.style.setProperty('bottom', 'auto', 'important');
               }
-            });
+            }
           });
         }
 

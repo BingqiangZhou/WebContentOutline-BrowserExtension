@@ -158,5 +158,13 @@
   "truncatedNotice": {
     "message": "For performance, TOC shows at most 400 items. Refine selectors to narrow results.",
     "description": "Notice when TOC items are truncated"
+  },
+  "symbolClose": {
+    "message": "×",
+    "description": "Close symbol used in small UI buttons"
+  },
+  "toastRegionLabel": {
+    "message": "Notifications",
+    "description": "ARIA label for the toast/notification region"
   }
 }

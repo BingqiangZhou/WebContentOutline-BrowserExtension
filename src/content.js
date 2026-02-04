@@ -29,10 +29,15 @@
       const legacyKey = `tocBadgePos::${location.host}`;
       const raw = localStorage.getItem(legacyKey);
       if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed.left === 'number' && typeof parsed.top === 'number') {
+      const { safeJsonParse, isPlainObject, getFiniteNumber } = window.TOC_UTILS || {};
+      const parsed = safeJsonParse ? safeJsonParse(raw) : null;
+      const hasOwn = (obj, key) => !!(obj && Object.prototype.hasOwnProperty.call(obj, key));
+      if (isPlainObject && isPlainObject(parsed) && hasOwn(parsed, 'left') && hasOwn(parsed, 'top')) {
+        const left = getFiniteNumber ? getFiniteNumber(parsed.left) : (typeof parsed.left === 'number' ? parsed.left : null);
+        const top = getFiniteNumber ? getFiniteNumber(parsed.top) : (typeof parsed.top === 'number' ? parsed.top : null);
+        if (left === null || top === null) return;
         if (!getBadgePosByHost || !(await getBadgePosByHost(location.host))) {
-          await setBadgePosByHost(location.host, parsed);
+          await setBadgePosByHost(location.host, { left, top });
         }
         localStorage.removeItem(legacyKey);
       }

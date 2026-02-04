@@ -1,11 +1,13 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost } = window.TOC_UTILS || {};
+  const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost, UI_CONSTANTS } = window.TOC_UTILS || {};
 
   // Constants
-  const BADGE_WIDTH = 80;
-  const BADGE_HEIGHT = 32;
+  const CONSTS = UI_CONSTANTS || {};
+  const BADGE_WIDTH = Number.isFinite(CONSTS.BADGE_WIDTH) ? CONSTS.BADGE_WIDTH : 80;
+  const BADGE_HEIGHT = Number.isFinite(CONSTS.BADGE_HEIGHT) ? CONSTS.BADGE_HEIGHT : 32;
+  const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
   const DEFAULT_RIGHT = 16;
   const DEFAULT_TOP_MIN = 120;
 
@@ -15,10 +17,12 @@
       document.querySelectorAll('.toc-collapsed-badge').forEach(el => el.remove());
     } catch (_) {}
 
-    const badge = document.createElement('div');
+    const badge = document.createElement('button');
+    badge.type = 'button';
     badge.className = `toc-collapsed-badge ${side === 'left' ? 'left' : 'right'}`;
     badge.textContent = msg('tocTitle');
     badge.title = msg('badgeTitle');
+    badge.setAttribute('aria-label', msg('badgeTitle') || msg('tocTitle'));
 
     badge.style.visibility = 'hidden';
     // Set initial default position BEFORE adding to DOM to prevent (0,0) flash
@@ -43,10 +47,10 @@
         // Use saved position
         const left = pos.x - bw / 2;
         const top = (Number.isFinite(pos.y) ? pos.y : DEFAULT_TOP_MIN) - bh / 2;
-        const maxLeft = window.innerWidth - bw - 4;
-        const maxTop = window.innerHeight - bh - 4;
-        badge.style.setProperty('left', Math.max(4, Math.min(maxLeft, left)) + 'px', 'important');
-        badge.style.setProperty('top', Math.max(4, Math.min(maxTop, top)) + 'px', 'important');
+        const maxLeft = window.innerWidth - bw - DRAG_MARGIN_PX;
+        const maxTop = window.innerHeight - bh - DRAG_MARGIN_PX;
+        badge.style.setProperty('left', Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, left)) + 'px', 'important');
+        badge.style.setProperty('top', Math.max(DRAG_MARGIN_PX, Math.min(maxTop, top)) + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
         badge.style.setProperty('bottom', 'auto', 'important');
       }
@@ -56,6 +60,39 @@
     };
 
     restorePosition();
+
+    badge.addEventListener('keydown', (e) => {
+      if (!e) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        try { e.preventDefault(); } catch (_) {}
+        onExpand && onExpand();
+      }
+    });
+
+    let resizeRaf = null;
+    const constrainCurrentPosition = () => {
+      try {
+        const rect = badge.getBoundingClientRect();
+        const bw = badge.offsetWidth || BADGE_WIDTH;
+        const bh = badge.offsetHeight || BADGE_HEIGHT;
+        const maxLeft = window.innerWidth - bw - DRAG_MARGIN_PX;
+        const maxTop = window.innerHeight - bh - DRAG_MARGIN_PX;
+        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, rect.left));
+        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, rect.top));
+        badge.style.setProperty('left', left + 'px', 'important');
+        badge.style.setProperty('top', top + 'px', 'important');
+        badge.style.setProperty('right', 'auto', 'important');
+        badge.style.setProperty('bottom', 'auto', 'important');
+      } catch (_) {}
+    };
+    const onResize = () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        constrainCurrentPosition();
+      });
+    };
+    window.addEventListener('resize', onResize, { passive: true });
 
     // Drag handling
     const { createDragController } = window.TOC_DRAG || {};
@@ -71,8 +108,8 @@
         const bh = badge.offsetHeight || BADGE_HEIGHT;
         let left = e.clientX - drag.offsetX;
         let top = e.clientY - drag.offsetY;
-        left = Math.max(4, Math.min(window.innerWidth - bw - 4, left));
-        top = Math.max(4, Math.min(window.innerHeight - bh - 4, top));
+        left = Math.max(DRAG_MARGIN_PX, Math.min(window.innerWidth - bw - DRAG_MARGIN_PX, left));
+        top = Math.max(DRAG_MARGIN_PX, Math.min(window.innerHeight - bh - DRAG_MARGIN_PX, top));
         badge.style.setProperty('left', left + 'px', 'important');
         badge.style.setProperty('top', top + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
@@ -98,6 +135,11 @@
     return {
       remove() {
         dragController && dragController.destroy && dragController.destroy();
+        try { window.removeEventListener('resize', onResize); } catch (_) {}
+        try {
+          if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
+        } catch (_) {}
+        resizeRaf = null;
         badge.remove();
       }
     };

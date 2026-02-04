@@ -158,5 +158,13 @@
   "truncatedNotice": {
     "message": "为保证性能，目录最多显示 400 项。请优化选择器以缩小范围。",
     "description": "目录项过多时的截断提示"
+  },
+  "symbolClose": {
+    "message": "×",
+    "description": "关闭符号，用于小按钮"
+  },
+  "toastRegionLabel": {
+    "message": "通知",
+    "description": "Toast/通知区域的 ARIA 标签"
   }
 }

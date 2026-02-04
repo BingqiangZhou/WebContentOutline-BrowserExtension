@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, getConfigs, saveConfigs } = window.TOC_UTILS || {};
+  const { msg = (key) => key, getConfigs, saveConfigs, showToast } = window.TOC_UTILS || {};
 
   async function siteConfig(cfg) {
     try {
@@ -17,10 +17,15 @@
 
       const box = document.createElement('div');
       box.className = 'toc-overlay';
+      box.setAttribute('role', 'dialog');
+      box.setAttribute('aria-modal', 'true');
+      box.tabIndex = -1;
 
       const header = document.createElement('div');
       header.className = 'toc-overlay-header';
       header.textContent = msg('configDialogTitle') + ' - ' + urlPattern;
+      header.id = `toc-overlay-title-${Math.random().toString(36).slice(2)}`;
+      box.setAttribute('aria-labelledby', header.id);
       box.appendChild(header);
 
       const body = document.createElement('div');
@@ -35,7 +40,12 @@
       listDiv.className = 'toc-overlay-list';
 
       const refreshList = async (selectors) => {
-        listDiv.innerHTML = '';
+        try {
+          if (listDiv.replaceChildren) listDiv.replaceChildren();
+          else listDiv.textContent = '';
+        } catch (_) {
+          listDiv.textContent = '';
+        }
         if (selectors && selectors.length) {
           selectors.forEach((s, sIndex) => {
             const item = document.createElement('div');
@@ -46,10 +56,12 @@
             textSpan.textContent = s.type + ':' + s.expr;
             item.appendChild(textSpan);
 
-            const deleteBtn = document.createElement('span');
+            const deleteBtn = document.createElement('button');
+            deleteBtn.type = 'button';
             deleteBtn.className = 'toc-selector-delete';
-            deleteBtn.textContent = 'x';
+            deleteBtn.textContent = msg('symbolClose');
             deleteBtn.title = msg('buttonDeleteSelector') || 'Delete selector';
+            deleteBtn.setAttribute('aria-label', msg('buttonDeleteSelector') || 'Delete selector');
             deleteBtn.dataset.index = String(sIndex);
 
             deleteBtn.addEventListener('click', async (e) => {
@@ -103,6 +115,14 @@
 
       const close = () => box.remove();
 
+      box.addEventListener('keydown', (e) => {
+        if (!e) return;
+        if (e.key === 'Escape') {
+          try { e.preventDefault(); } catch (_) {}
+          close();
+        }
+      });
+
       box.addEventListener('click', async (e) => {
         if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
         const btn = e.target.closest('[data-act]');
@@ -123,9 +143,10 @@
       });
 
       document.documentElement.appendChild(box);
+      try { requestAnimationFrame(() => btnClose.focus({ preventScroll: true })); } catch (_) {}
     } catch (e) {
       console.error(msg('logClearConfigFailed'), e);
-      alert(msg('errorOperationFailed'));
+      if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
     }
   }
 

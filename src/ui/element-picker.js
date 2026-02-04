@@ -11,10 +11,15 @@
 
     const wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-modal', 'true');
+    wrap.tabIndex = -1;
 
     const header = document.createElement('div');
     header.className = 'toc-overlay-header';
     header.textContent = msg('pickerResultTitle');
+    header.id = `toc-overlay-title-${Math.random().toString(36).slice(2)}`;
+    wrap.setAttribute('aria-labelledby', header.id);
 
     const body = document.createElement('div');
     body.className = 'toc-overlay-body';
@@ -45,6 +50,14 @@
     wrap.appendChild(actions);
 
     const close = () => wrap.remove();
+    const onKeydown = (e) => {
+      if (!e) return;
+      if (e.key === 'Escape') {
+        try { e.preventDefault(); } catch (_) {}
+        close();
+      }
+    };
+    wrap.addEventListener('keydown', onKeydown);
     wrap.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act]');
       if (!btn) return;
@@ -53,6 +66,7 @@
       if (act === 'save') saveCb && saveCb(selector, close);
     });
     document.documentElement.appendChild(wrap);
+    try { requestAnimationFrame(() => wrap.focus({ preventScroll: true })); } catch (_) {}
     return { close };
   }
 

@@ -1,14 +1,29 @@
 (() => {
   if (globalThis.TOC_UTILS) return;
 
-/**
- * Storage keys
- */
- const STORAGE_KEYS = {
-   TOC_CONFIGS: 'tocConfigs',
-   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-   PANEL_STATE_MAP: 'tocPanelExpandedMap',
-   BADGE_POS_MAP: 'tocBadgePosMap'
+ /**
+  * Storage keys
+  */
+  const STORAGE_KEYS = {
+    TOC_CONFIGS: 'tocConfigs',
+    SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+    PANEL_STATE_MAP: 'tocPanelExpandedMap',
+    BADGE_POS_MAP: 'tocBadgePosMap'
+  };
+
+ /**
+  * UI constants shared across modules.
+  */
+ const UI_CONSTANTS = {
+   PANEL_WIDTH: 280,
+   PANEL_HEIGHT: 400,
+   BADGE_WIDTH: 80,
+   BADGE_HEIGHT: 32,
+   BUTTON_OFFSET: 20,
+   UNLOCK_AFTER_MS: 1000,
+   SCROLL_STOP_MS: 500,
+   TOAST_DURATION_MS: 3000,
+   DRAG_MARGIN_PX: 4
  };
 
 /**
@@ -21,6 +36,92 @@ function msg(key) {
     return chrome.i18n.getMessage(key) || key;
   } catch (_) {
     return key;
+  }
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object') return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+function safeJsonParse(raw) {
+  if (typeof raw !== 'string') return null;
+  if (raw.length > 20000) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function getFiniteNumber(value) {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function ensureToastContainer() {
+  const existing = document.querySelector('.toc-toast-container');
+  if (existing) return existing;
+  const container = document.createElement('div');
+  container.className = 'toc-toast-container';
+  container.setAttribute('role', 'region');
+  container.setAttribute('aria-label', msg('toastRegionLabel'));
+  document.documentElement.appendChild(container);
+  return container;
+}
+
+/**
+ * Show a small non-blocking toast message.
+ * @param {string} text
+ * @param {{type?: 'info'|'success'|'warning'|'error', durationMs?: number}} [opts]
+ */
+function showToast(text, opts = {}) {
+  try {
+    const type = opts.type || 'info';
+    const durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : UI_CONSTANTS.TOAST_DURATION_MS;
+    const container = ensureToastContainer();
+
+    const toast = document.createElement('div');
+    toast.className = `toc-toast toc-toast-${type}`;
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+
+    const message = document.createElement('div');
+    message.className = 'toc-toast-message';
+    message.textContent = String(text || '');
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'toc-toast-close';
+    closeBtn.textContent = msg('symbolClose');
+    closeBtn.setAttribute('aria-label', msg('buttonClose'));
+
+    const removeToast = () => {
+      try { toast.remove(); } catch (_) {}
+      try {
+        if (container.childElementCount === 0) container.remove();
+      } catch (_) {}
+    };
+
+    closeBtn.addEventListener('click', removeToast, { once: true });
+    toast.addEventListener('click', (e) => {
+      // Allow clicking toast body to dismiss, but ignore text selection drags.
+      if (e && e.target && e.target.closest && e.target.closest('button')) return;
+      removeToast();
+    });
+
+    toast.appendChild(message);
+    toast.appendChild(closeBtn);
+    container.appendChild(toast);
+
+    if (durationMs > 0) {
+      setTimeout(removeToast, durationMs);
+    }
+
+    return { close: removeToast };
+  } catch (_) {
+    return { close: () => {} };
   }
 }
 
@@ -300,7 +401,12 @@ const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !==
 
  ROOT.TOC_UTILS = {
    STORAGE_KEYS,
+   UI_CONSTANTS,
    msg,
+   isPlainObject,
+   safeJsonParse,
+   getFiniteNumber,
+   showToast,
    getStorage,
    setStorage,
    getConfigs,

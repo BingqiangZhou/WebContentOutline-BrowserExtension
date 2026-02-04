@@ -1,12 +1,14 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, setBadgePosByHost } = window.TOC_UTILS || {};
+  const { msg = (key) => key, setBadgePosByHost, UI_CONSTANTS } = window.TOC_UTILS || {};
 
-  const UNLOCK_AFTER_MS = 1000;
-  const SCROLL_STOP_MS = 500;
-  const PANEL_WIDTH = 280;
-  const PANEL_HEIGHT = 400;
+  const CONSTS = UI_CONSTANTS || {};
+  const UNLOCK_AFTER_MS = Number.isFinite(CONSTS.UNLOCK_AFTER_MS) ? CONSTS.UNLOCK_AFTER_MS : 1000;
+  const SCROLL_STOP_MS = Number.isFinite(CONSTS.SCROLL_STOP_MS) ? CONSTS.SCROLL_STOP_MS : 500;
+  const PANEL_WIDTH = Number.isFinite(CONSTS.PANEL_WIDTH) ? CONSTS.PANEL_WIDTH : 280;
+  const PANEL_HEIGHT = Number.isFinite(CONSTS.PANEL_HEIGHT) ? CONSTS.PANEL_HEIGHT : 400;
+  const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
 
   function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta) {
     // Remove any existing panel to prevent duplicates
@@ -15,6 +17,20 @@
     } catch (_) {}
 
     const panel = document.createElement('div');
+    const listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    const listenerSignal = listenersController ? listenersController.signal : null;
+    const addWindowListener = (type, handler, options) => {
+      try {
+        if (listenerSignal) {
+          window.addEventListener(type, handler, { ...(options || {}), signal: listenerSignal });
+          return;
+        }
+      } catch (_) {}
+      window.addEventListener(type, handler, options);
+    };
+
+    let resolveShown = null;
+    const whenShown = new Promise((resolve) => { resolveShown = resolve; });
     let unlockTimer = null;
     let scrollStopTimer = null;
     let intersectionObserver = null;
@@ -30,6 +46,31 @@
       panel.style.setProperty('right', 'auto', 'important');
       panel.style.setProperty('bottom', 'auto', 'important');
     }
+
+    let resizeRaf = null;
+    const constrainCurrentPosition = () => {
+      try {
+        const rect = panel.getBoundingClientRect();
+        const pw = panel.offsetWidth || PANEL_WIDTH;
+        const ph = panel.offsetHeight || PANEL_HEIGHT;
+        const maxLeft = window.innerWidth - pw - DRAG_MARGIN_PX;
+        const maxTop = window.innerHeight - ph - DRAG_MARGIN_PX;
+        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, rect.left));
+        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, rect.top));
+        panel.style.setProperty('left', left + 'px', 'important');
+        panel.style.setProperty('top', top + 'px', 'important');
+        panel.style.setProperty('right', 'auto', 'important');
+        panel.style.setProperty('bottom', 'auto', 'important');
+      } catch (_) {}
+    };
+    const onResize = () => {
+      if (resizeRaf) return;
+      resizeRaf = requestAnimationFrame(() => {
+        resizeRaf = null;
+        constrainCurrentPosition();
+      });
+    };
+    addWindowListener('resize', onResize, { passive: true });
 
     const unlockLater = () => {
       if (unlockTimer) clearTimeout(unlockTimer);
@@ -66,9 +107,9 @@
       }, SCROLL_STOP_MS);
     };
 
-    window.addEventListener('scroll', onScroll, { passive: true });
+    addWindowListener('scroll', onScroll, { passive: true });
     const cleanupLock = () => {
-      window.removeEventListener('scroll', onScroll);
+      try { window.removeEventListener('scroll', onScroll); } catch (_) {}
       if (unlockTimer) clearTimeout(unlockTimer);
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
       if (intersectionObserver) {
@@ -78,6 +119,15 @@
     };
 
     panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'} toc-floating-expand`;
+    panel.setAttribute('role', 'dialog');
+    panel.setAttribute('aria-modal', 'false');
+    panel.addEventListener('keydown', (e) => {
+      if (!e) return;
+      if (e.key === 'Escape') {
+        try { e.preventDefault(); } catch (_) {}
+        onCollapse && onCollapse();
+      }
+    }, true);
 
     const header = document.createElement('div');
     header.className = 'toc-header';
@@ -88,11 +138,14 @@
     const titleSpan = document.createElement('span');
     titleSpan.className = 'toc-title';
     titleSpan.textContent = msg('tocTitle');
+    titleSpan.id = `toc-panel-title-${Math.random().toString(36).slice(2)}`;
+    panel.setAttribute('aria-labelledby', titleSpan.id);
 
     const btnCollapse = document.createElement('button');
     btnCollapse.className = 'toc-btn';
     btnCollapse.textContent = msg('buttonCollapse');
     btnCollapse.title = msg('buttonCollapseTitle');
+    btnCollapse.setAttribute('aria-label', msg('buttonCollapseTitle') || msg('buttonCollapse'));
     btnCollapse.addEventListener('click', () => onCollapse());
 
     headerRow.appendChild(titleSpan);
@@ -108,6 +161,7 @@
     btnPick.className = 'toc-btn';
     btnPick.textContent = msg('buttonPickElement');
     btnPick.title = msg('buttonPickElementTitle');
+    btnPick.setAttribute('aria-label', msg('buttonPickElementTitle') || msg('buttonPickElement'));
     btnPick.setAttribute('aria-pressed', 'false');
     btnPick.addEventListener('click', () => onPick && onPick());
 
@@ -115,6 +169,7 @@
     btnManage.className = 'toc-btn';
     btnManage.textContent = msg('buttonSiteConfig');
     btnManage.title = msg('buttonSiteConfigTitle');
+    btnManage.setAttribute('aria-label', msg('buttonSiteConfigTitle') || msg('buttonSiteConfig'));
     btnManage.addEventListener('click', () => onSiteConfig && onSiteConfig());
 
     const actionsRight = document.createElement('div');
@@ -124,6 +179,7 @@
     btnRefresh.className = 'toc-btn';
     btnRefresh.textContent = msg('buttonRefresh');
     btnRefresh.title = msg('buttonRefreshTitle');
+    btnRefresh.setAttribute('aria-label', msg('buttonRefreshTitle') || msg('buttonRefresh'));
     let refreshing = false;
     btnRefresh.addEventListener('click', async () => {
       if (refreshing) return;
@@ -147,6 +203,8 @@
 
     const list = document.createElement('div');
     list.className = 'toc-list';
+    list.setAttribute('role', 'navigation');
+    list.setAttribute('aria-label', msg('tocTitle'));
 
     if (tocMeta && tocMeta.truncated) {
       const note = document.createElement('div');
@@ -178,11 +236,13 @@
           it._userSelected = false;
           if (it._node) {
             it._node.classList.remove('active');
+            try { it._node.removeAttribute('aria-current'); } catch (_) {}
           }
         });
 
         item._userSelected = true;
         node.classList.add('active');
+        try { node.setAttribute('aria-current', 'location'); } catch (_) {}
 
         try {
           item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -214,9 +274,25 @@
       });
 
       list.addEventListener('keydown', (e) => {
+        if (!e) return;
         const key = e.key;
+        const node = e.target && e.target.closest ? e.target.closest('.toc-item') : null;
+        const nodes = Array.from(list.querySelectorAll('.toc-item'));
+        const currentIndex = node ? nodes.indexOf(node) : -1;
+
+        if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
+          if (!nodes.length) return;
+          e.preventDefault();
+          let nextIndex = currentIndex >= 0 ? currentIndex : 0;
+          if (key === 'ArrowDown') nextIndex = Math.min(nodes.length - 1, nextIndex + 1);
+          if (key === 'ArrowUp') nextIndex = Math.max(0, nextIndex - 1);
+          if (key === 'Home') nextIndex = 0;
+          if (key === 'End') nextIndex = nodes.length - 1;
+          try { nodes[nextIndex].focus({ preventScroll: false }); } catch (_) { nodes[nextIndex].focus(); }
+          return;
+        }
+
         if (key !== 'Enter' && key !== ' ') return;
-        const node = e.target.closest('.toc-item');
         if (!node || !list.contains(node)) return;
         const idx = parseInt(node.dataset.index, 10);
         const item = items[idx];
@@ -234,6 +310,7 @@
     requestAnimationFrame(() => {
       panel.style.visibility = '';
       panel.classList.add('toc-expanded');
+      try { resolveShown && resolveShown(); } catch (_) {}
       setTimeout(() => {
         panel.classList.remove('toc-floating-expand', 'toc-expanded');
       }, 300);
@@ -255,11 +332,11 @@
 
         const pw = panel.offsetWidth || PANEL_WIDTH;
         const ph = panel.offsetHeight || PANEL_HEIGHT;
-        const maxLeft = window.innerWidth - pw - 4;
-        const maxTop = window.innerHeight - ph - 4;
+        const maxLeft = window.innerWidth - pw - DRAG_MARGIN_PX;
+        const maxTop = window.innerHeight - ph - DRAG_MARGIN_PX;
 
-        left = Math.max(4, Math.min(maxLeft, left));
-        top = Math.max(4, Math.min(maxTop, top));
+        left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, left));
+        top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, top));
 
         panel.style.setProperty('left', left + 'px', 'important');
         panel.style.setProperty('top', top + 'px', 'important');
@@ -302,7 +379,14 @@
     window.addEventListener(pickerEndEvent, onPickerEnd);
 
     panel.remove = () => {
+      try { resolveShown && resolveShown(); } catch (_) {}
+      try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
+      try { window.removeEventListener('resize', onResize); } catch (_) {}
+      try {
+        if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
+      } catch (_) {}
+      resizeRaf = null;
       window.removeEventListener(pickerStartEvent, onPickerStart);
       window.removeEventListener(pickerEndEvent, onPickerEnd);
       dragController && dragController.destroy && dragController.destroy();
@@ -324,6 +408,7 @@
         items.forEach(item => {
           if (item._node) {
             item._node.classList.remove('active');
+            try { item._node.removeAttribute('aria-current'); } catch (_) {}
           }
         });
         active = null;
@@ -340,6 +425,7 @@
           clearAllActive();
           if (userSelected._node && !userSelected._node.classList.contains('active')) {
             userSelected._node.classList.add('active');
+            try { userSelected._node.setAttribute('aria-current', 'location'); } catch (_) {}
             active = userSelected;
           }
           return;
@@ -366,26 +452,25 @@
           if (active !== newActive) {
             clearAllActive();
             newActive._node.classList.add('active');
+            try { newActive._node.setAttribute('aria-current', 'location'); } catch (_) {}
             active = newActive;
           }
         }
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          if (intersectionObserver) {
-            items.forEach(it => {
-              if (it.el && document.contains(it.el)) {
-                intersectionObserver.observe(it.el);
-              }
-            });
+        if (!intersectionObserver) return;
+        items.forEach(it => {
+          if (it.el && document.contains(it.el)) {
+            intersectionObserver.observe(it.el);
           }
         });
       });
     }
 
     return {
-      remove() { panel.remove(); }
+      remove() { panel.remove(); },
+      whenShown
     };
   }
 
