@@ -38,6 +38,7 @@ A web table of contents generator that automatically creates interactive floatin
 ### 🔄 Navigation Experience
 - **Current Position Highlighting**: Automatically highlights the TOC item corresponding to current reading position (IntersectionObserver)
 - **Navigation Locking**: Locks highlighting during user clicks to prevent jumping
+- **Navigation Lock Failsafe**: Auto-unlocks after timeout if stuck
 - **State Recovery**: Automatically restores highlight state after page changes
 - **Anti-Jump Mechanism**: Prevents page jumping during auto-refresh and rebuilds
 
@@ -258,6 +259,10 @@ For complex page structures, you can use XPath:
 - **Debounced Rebuild**: MutationObserver + 500ms debounce to avoid frequent updates
 - **Selector Generation**: Prioritizes class selector, falls back to path selector
 - **Navigation Lock**: Locks IntersectionObserver during user clicks to prevent jumping
+- **Navigation Lock Failsafe**: Auto-unlocks after timeout (8s default) if stuck
+- **Animation Frame Management**: Schedules and cleans up requestAnimationFrame callbacks
+- **Storage Quota Handling**: Auto-prunes old data when quota exceeded
+- **Config Mutation Retry**: Retries failed config mutations with verification
 
 ## 📖 Configuration Format
 

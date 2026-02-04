@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#052---2026-02-03)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#054---2026-02-05)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.6.0](#060---2026-02-05) - 2026-02-05
 - [0.5.2](#052---2026-02-03) - 2026-02-03
 - [0.5.1](#051---2026-02-03) - 2026-02-03
 - [0.5.0](#050---2026-02-03) - 2026-02-03
@@ -19,6 +20,54 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.6.0] - 2026-02-05
+
+### 🚀 新增 / Added
+- **导航锁定故障保护 / Navigation lock failsafe mechanism**
+  - 添加8秒超时自动解锁机制，防止导航锁定卡死 / Added 8-second timeout auto-unlock to prevent navigation lock from getting stuck
+  - 改进活动状态恢复逻辑 / Improved active state restoration logic
+- **动画帧管理 / Animation frame management**
+  - 添加 requestAnimationFrame 调度和清理机制 / Added requestAnimationFrame scheduling and cleanup mechanism
+  - 改进组件销毁时的资源清理 / Enhanced resource cleanup on component destruction
+- **存储配额管理 / Storage quota management**
+  - 添加自动存储配额管理（最大400个键） / Added automatic storage quota management (max 400 keys)
+  - 达到存储配额时提示用户确认数据修剪 / Prompts user for confirmation when storage quota is reached
+  - 添加配额超出警告消息 / Added quota exceeded warning messages
+- **图标更新队列 / Icon update queuing**
+  - 添加队列机制防止图标快速更新闪烁 / Added queuing mechanism to prevent icon flicker on rapid updates
+  - 改进跨标签图标状态同步 / Enhanced cross-tab icon state synchronization
+
+### 🔧 更改 / Changed
+- **错误处理和重试逻辑 / Error handling and retry logic**
+  - 重构配置管理器，增强错误处理和重试机制 / Refactored config manager with enhanced error handling and retry logic
+  - 添加 `mutateConfigsWithRetry` 用于配置变更验证 / Added `mutateConfigsWithRetry` for configuration mutation verification
+  - 添加 `isQuotaExceededError` 和 `pruneObjectToLimit` 工具函数 / Added utility functions for quota detection and pruning
+- **拖拽功能增强 / Enhanced drag-and-drop**
+  - 改进拖拽状态管理和清理 / Improved drag state management and cleanup
+  - 添加元素断开连接时的自动结束拖拽 / Added automatic drag end when element disconnected
+- **键盘交互 / Keyboard interaction**
+  - 改进徽标组件的键盘交互处理 / Enhanced keyboard interaction handling for badge component
+- **元素拾取器 / Element picker**
+  - 改进焦点管理和清理逻辑 / Improved focus management and cleanup logic
+- **通配符匹配 / Wildcard matching**
+  - 优化通配符匹配性能和可靠性 / Optimized wildcard matching performance and reliability
+
+### 🐛 修复 / Fixed
+- 修复配置删除时的潜在竞态条件 / Fixed potential race conditions in configuration deletion
+- 修复 MutationObserver 的清理逻辑 / Fixed MutationObserver cleanup logic
+- 修复浮动面板和元素拾取器的事件监听器泄漏 / Fixed event listener leaks in floating panel and element picker
+
+### ⚡ 技术改进 / Technical Improvements
+- 添加导航锁定超时配置常量 `NAV_LOCK_FAILSAFE_MS` (默认8000ms) / Added navigation lock timeout constant
+- 添加图标更新状态跟踪（防止并发更新） / Added icon update state tracking to prevent concurrent updates
+- 改进事件监听器和动画帧的清理 / Enhanced cleanup of event listeners and animation frames
+- 改进 Toast 通知的移除逻辑 / Enhanced toast notification removal logic
+- 添加更安全的 JSON 解析和选择器验证 / Added safer JSON parsing and selector validation
+- 改进徽标和面板渲染，防止重复 / Enhanced badge and panel rendering to prevent duplicates
+- 改进拖拽助手的错误处理 / Improved error handling in drag helper
 
 ---
 

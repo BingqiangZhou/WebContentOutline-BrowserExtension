@@ -81,7 +81,17 @@ Automatically adapts to your browser's theme:
 
 - **Current Position Highlighting** - Automatically highlights your current reading location
 - **Navigation Locking** - Prevents jumping when you manually click TOC items
+- **Navigation Lock Failsafe** - Auto-unlocks after timeout if stuck (prevents lock from getting stuck)
 - **Active Item Recovery** - Restores highlight state after page changes
+- **Anti-Jump Mechanism** - Prevents page jumping during auto-refresh and rebuilds
+
+### Advanced Features
+
+- **Animation Frame Management** - Properly schedules and cleans up animation frame callbacks
+- **Storage Quota Handling** - Auto-manages storage quota with user confirmation prompts
+- **Config Mutation Retry** - Retries failed configuration changes with verification
+- **Enhanced Error Handling** - Improved error handling and recovery mechanisms throughout
+- **Optimized Icon Updates** - Queued icon updates prevent flickering on rapid state changes
 
 ## How It Works
 
@@ -229,7 +239,17 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 
 - **当前位置高亮** - 自动高亮当前阅读位置
 - **导航锁定** - 手动点击目录项时防止跳动
+- **导航锁故障保护** - 锁定卡死时超时自动解锁（防止卡死）
 - **活动项恢复** - 页面变化后恢复高亮状态
+- **防跳动机制** - 防止定时刷新和重建时页面跳动
+
+### 高级功能
+
+- **动画帧管理** - 正确调度和清理动画帧回调
+- **存储配额处理** - 自动管理存储配额，超限时提示用户确认
+- **配置变更重试** - 失败时重试配置变更并验证结果
+- **增强错误处理** - 改进全范围的错误处理和恢复机制
+- **优化图标更新** - 队列化图标更新，防止快速状态变化时闪烁
 
 ## 使用方法
 
