@@ -40,6 +40,45 @@ function isHttpUrl(url) {
   return !!(url && /^https?:\/\//i.test(url));
 }
 
+const BG_MAX_MAP_KEYS = 400;
+
+function isQuotaExceededError(err) {
+  try {
+    if (!err) return false;
+    if (err.name === 'QuotaExceededError') return true;
+    const text = String(err && (err.message || err.toString && err.toString() || err) || '');
+    return /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
+  } catch (_) {
+    return false;
+  }
+}
+
+function touchObjectKey(map, key, value) {
+  try {
+    if (!map || !key) return;
+    if (Object.prototype.hasOwnProperty.call(map, key)) {
+      try { delete map[key]; } catch (_) {}
+    }
+    map[key] = value;
+  } catch (_) {}
+}
+
+function pruneObjectToLimit(map, maxKeys) {
+  try {
+    if (!map || typeof map !== 'object') return map;
+    const limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : BG_MAX_MAP_KEYS;
+    const keys = Object.keys(map);
+    if (keys.length <= limit) return map;
+    const removeCount = keys.length - limit;
+    for (let i = 0; i < removeCount; i++) {
+      try { delete map[keys[i]]; } catch (_) {}
+    }
+    return map;
+  } catch (_) {
+    return map;
+  }
+}
+
 async function getEnabledMap() {
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
   try {
@@ -55,14 +94,29 @@ async function getEnabledMap() {
 
 async function saveEnabledMap(map) {
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
+  const attempt = async (candidate) => {
+    await chrome.storage.local.set({ [KEY]: candidate });
+    return { ok: true, pruned: false };
+  };
   try {
-    if (chrome?.storage?.local) {
-      await chrome.storage.local.set({ [KEY]: map });
+    if (!chrome?.storage?.local) {
+      return { ok: false, quota: false, error: new Error('chrome.storage.local unavailable') };
     }
+    return await attempt(map);
   } catch (e) {
-    const text = String(e && (e.message || e.toString && e.toString() || e) || '');
-    const quota = (e && e.name === 'QuotaExceededError') || /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
+    const quota = isQuotaExceededError(e);
+    if (quota) {
+      try {
+        pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
+        await chrome.storage.local.set({ [KEY]: map });
+        return { ok: true, pruned: true };
+      } catch (e2) {
+        console.warn('[toc] saveEnabledMap failed after prune:', e2, { quota: isQuotaExceededError(e2) });
+        return { ok: false, quota: isQuotaExceededError(e2), error: e2 };
+      }
+    }
     console.warn('[toc] saveEnabledMap failed:', e, { quota });
+    return { ok: false, quota, error: e };
   }
 }
 
@@ -73,10 +127,15 @@ async function getEnabledByOrigin(origin) {
 
 async function setEnabledByOrigin(origin, enabled) {
   const map = await getEnabledMap();
-  if (!origin) return false;
-  map[origin] = !!enabled;
-  await saveEnabledMap(map);
-  return map[origin];
+  if (!origin) return { ok: false, enabled: false, quota: false, error: null };
+  const prev = !!map[origin];
+  touchObjectKey(map, origin, !!enabled);
+  pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
+  const res = await saveEnabledMap(map);
+  if (!res || !res.ok) {
+    return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
+  }
+  return { ok: true, enabled: !!map[origin], quota: false, error: null };
 }
 
 function getIconPathMap(enabled) {
@@ -147,12 +206,40 @@ async function updateIconForTab(tabId, url) {
   } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
 }
 
+// Avoid concurrent icon updates per-tab (prevents flicker on rapid events).
+const __iconUpdateState = new Map();
+function queueIconUpdate(tabId, url) {
+  if (!tabId) return Promise.resolve();
+  const state = __iconUpdateState.get(tabId) || { inFlight: null, queued: false, lastUrl: null };
+  state.lastUrl = url || state.lastUrl;
+  if (state.inFlight) {
+    state.queued = true;
+    __iconUpdateState.set(tabId, state);
+    return state.inFlight;
+  }
+  const run = async () => {
+    do {
+      state.queued = false;
+      const u = state.lastUrl;
+      await updateIconForTab(tabId, u);
+    } while (state.queued);
+  };
+  state.inFlight = run().catch((e) => {
+    console.warn('[toc] queueIconUpdate failed:', e, { tabId });
+  }).finally(() => {
+    state.inFlight = null;
+    if (!state.queued) __iconUpdateState.delete(tabId);
+  });
+  __iconUpdateState.set(tabId, state);
+  return state.inFlight;
+}
+
 async function updateIconsForOrigin(origin) {
   try {
     const tabs = await getTabsByOrigin(origin);
     for (const t of tabs) {
       if (t.id) {
-        await updateIconForTab(t.id, t.url);
+        await queueIconUpdate(t.id, t.url);
       }
     }
   } catch (e) {
@@ -229,7 +316,7 @@ async function setInjectionBadge(tabId, failed) {
       await setActionTitleAsync({ tabId, title });
     } else {
       await chrome.action.setBadgeText({ tabId, text: '' });
-      await updateIconForTab(tabId);
+      await queueIconUpdate(tabId);
     }
   } catch (e) {
     console.warn('[toc] setInjectionBadge failed:', e);
@@ -374,9 +461,30 @@ async function handleActionClick(tab) {
   const origin = originFromUrl(url);
   const currentlyEnabled = await getEnabledByOrigin(origin);
   const nextEnabled = !currentlyEnabled;
-  await setEnabledByOrigin(origin, nextEnabled);
+  const saved = await setEnabledByOrigin(origin, nextEnabled);
+  if (!saved || !saved.ok) {
+    // Keep UI consistent with persisted state.
+    await updateIconsForOrigin(origin);
+    try {
+      await chrome.action.setBadgeText({ tabId: tab.id, text: '!' });
+      await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#d93025' });
+      const titleKey = saved && saved.quota ? 'titleStorageQuotaExceeded' : 'titleStorageWriteFailed';
+      const fallback = saved && saved.quota
+        ? 'Web TOC: Storage quota exceeded (changes not saved)'
+        : 'Web TOC: Storage error (changes not saved)';
+      const title = chrome.i18n.getMessage(titleKey) || fallback;
+      await setActionTitleAsync({ tabId: tab.id, title });
+    } catch (e) {
+      console.warn('[toc] failed to set storage failure badge/title:', e);
+    }
+    // Best-effort: if content script is running, keep it consistent too.
+    sendEnabledToTab(tab.id, currentlyEnabled);
+    return;
+  }
 
-  if (nextEnabled) {
+  try { await chrome.action.setBadgeText({ tabId: tab.id, text: '' }); } catch (_) {}
+
+  if (saved.enabled) {
     await ensureContentScript(tab.id, tab.url);
     await updateIconsForOrigin(origin);
     await broadcastEnabledToOrigin(origin, true, tab.id);
@@ -393,7 +501,7 @@ async function handleActionClick(tab) {
 chrome.action.onClicked.addListener(handleActionClick);
 
 chrome.tabs.onActivated.addListener((activeInfo) => {
-  updateIconForTab(activeInfo.tabId).catch(e => {
+  queueIconUpdate(activeInfo.tabId).catch(e => {
     console.warn('[toc] onActivated: updateIconForTab failed:', e);
   });
   chrome.tabs.get(activeInfo.tabId).then(async (tab) => {
@@ -416,7 +524,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     setInjectedState(tabId, null).catch(() => {});
   }
   if (changeInfo.status === 'complete') {
-    updateIconForTab(tabId).catch((e) => {
+    queueIconUpdate(tabId, tab?.url || changeInfo.url).catch((e) => {
       console.warn('[toc] onUpdated: updateIconForTab failed:', e);
     });
     if (tab?.url) {
@@ -429,7 +537,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
 chrome.tabs.onCreated.addListener(async (tab) => {
   try {
-    if (tab && tab.id) await updateIconForTab(tab.id, tab.url);
+    if (tab && tab.id) await queueIconUpdate(tab.id, tab.url);
   } catch (e) {
     console.warn('[toc] onCreated: updateIconForTab failed:', e, { tabId: tab?.id });
   }
@@ -437,6 +545,7 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   setInjectedState(tabId, null).catch(() => {});
+  try { injectionInFlight.delete(tabId); } catch (_) {}
 });
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -445,7 +554,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     const updatePromises = tabs.map(async (t) => {
-      if (t.id) await updateIconForTab(t.id, t.url).catch(() => {});
+      if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
       if (t.id && t.url && isHttpUrl(t.url)) {
         const origin = originFromUrl(t.url);
         if (map[origin]) {
@@ -465,7 +574,7 @@ chrome.runtime.onStartup.addListener(async () => {
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     const updatePromises = tabs.map(async (t) => {
-      if (t.id) await updateIconForTab(t.id, t.url).catch(() => {});
+      if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
       if (t.id && t.url && isHttpUrl(t.url)) {
         const origin = originFromUrl(t.url);
         if (map[origin]) {
@@ -486,10 +595,16 @@ chrome.runtime.onStartup.addListener(async () => {
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   try {
     if (!msg || !msg.type) return;
+    // Only accept messages from this extension instance.
+    if (sender && sender.id && sender.id !== chrome.runtime.id) {
+      sendResponse && sendResponse({ ok: false, reason: 'bad-sender' });
+      return;
+    }
     if (msg.type === 'toc:ensureIcon') {
       const tabId = sender?.tab?.id;
-      if (!tabId) { sendResponse && sendResponse({ ok: false, reason: 'no-tab' }); return; }
-      updateIconForTab(tabId).then(() => {
+      const url = sender?.tab?.url || sender?.url || '';
+      if (!tabId || !isHttpUrl(url)) { sendResponse && sendResponse({ ok: false, reason: 'no-tab' }); return; }
+      queueIconUpdate(tabId, url).then(() => {
         sendResponse && sendResponse({ ok: true });
       }).catch((e) => {
         console.warn('[toc] onMessage: updateIconForTab failed:', e, { tabId });

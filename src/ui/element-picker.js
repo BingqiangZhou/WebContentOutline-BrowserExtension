@@ -81,6 +81,7 @@
         const focusables = getFocusable();
         if (!focusables.length) {
           try { e.preventDefault(); } catch (_) {}
+          try { wrap.focus({ preventScroll: true }); } catch (_) {}
           return;
         }
         const first = focusables[0];
@@ -161,6 +162,7 @@
     let finished = false;
 
     function processMove(e) {
+      if (finished) return;
       let el = getElementNode(e.target);
       if (isUiElement(el)) {
         el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
@@ -170,6 +172,7 @@
     }
 
     function move(e) {
+      if (finished) return;
       pendingMove = e;
       if (moveRaf) return;
       moveRaf = requestAnimationFrame(() => {
@@ -196,7 +199,7 @@
     }
 
     function key(e) {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || e.key === 'Tab') {
         if (finished) return;
         finished = true;
         cleanup();
@@ -233,22 +236,24 @@
     }, PICKER_TIMEOUT_MS);
 
     function cleanup() {
-      document.removeEventListener('mousemove', move, true);
-      document.removeEventListener('click', click, true);
-      document.removeEventListener('keydown', key, true);
-      document.removeEventListener('contextmenu', onCtx, true);
+      finished = true;
+      try { document.removeEventListener('mousemove', move, true); } catch (_) {}
+      try { document.removeEventListener('click', click, true); } catch (_) {}
+      try { document.removeEventListener('keydown', key, true); } catch (_) {}
+      try { document.removeEventListener('contextmenu', onCtx, true); } catch (_) {}
       if (moveRaf) {
-        cancelAnimationFrame(moveRaf);
+        try { cancelAnimationFrame(moveRaf); } catch (_) {}
         moveRaf = null;
       }
       pendingMove = null;
-      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+      if (timeoutId) { try { clearTimeout(timeoutId); } catch (_) {} timeoutId = null; }
       if (highlight) {
         try {
           if (highlight.parentNode && document.contains(highlight)) {
             highlight.parentNode.removeChild(highlight);
           }
         } catch (_) {}
+        highlight = null;
       }
       try {
         if (document.body) {

@@ -13,7 +13,13 @@
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates
     try {
-      document.querySelectorAll('.toc-collapsed-badge').forEach(el => el.remove());
+      document.querySelectorAll('.toc-collapsed-badge').forEach(el => {
+        try {
+          const cleanup = el && el.__TOC_CLEANUP__;
+          if (typeof cleanup === 'function') cleanup();
+        } catch (_) {}
+        try { el.remove(); } catch (_) {}
+      });
     } catch (_) {}
 
     const badge = document.createElement('button');
@@ -32,11 +38,19 @@
 
     document.documentElement.appendChild(badge);
 
+    let userMoved = false;
+    let destroyed = false;
+
     // Restore position: centerPos first, then from storage
     const restorePosition = async () => {
       let pos = centerPos;
       if (!pos && getBadgePosByHost) {
         pos = await getBadgePosByHost(location.host);
+      }
+      if (destroyed) return;
+      if (userMoved) {
+        badge.style.visibility = '';
+        return;
       }
 
       const bw = badge.offsetWidth || BADGE_WIDTH;
@@ -100,6 +114,7 @@
       element: badge,
       shouldStart: (e) => e.target === badge,
       onStart: () => {
+        userMoved = true;
         badge.style.cursor = 'grabbing';
         badge.style.userSelect = 'none';
       },
@@ -132,15 +147,26 @@
       }
     }) : null;
 
+    const cleanup = ({ removedExternally } = {}) => {
+      destroyed = true;
+      try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
+      try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
+      try {
+        if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
+      } catch (_) {}
+      resizeRaf = null;
+      if (!removedExternally) {
+        try { badge.remove(); } catch (_) {}
+      }
+    };
+
+    try {
+      badge.__TOC_CLEANUP__ = () => cleanup({ removedExternally: true });
+    } catch (_) {}
+
     return {
       remove() {
-        dragController && dragController.destroy && dragController.destroy();
-        try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
-        try {
-          if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
-        } catch (_) {}
-        resizeRaf = null;
-        badge.remove();
+        cleanup({ removedExternally: false });
       }
     };
   }

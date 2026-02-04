@@ -5,8 +5,9 @@
 
   let configsSaveLock = Promise.resolve();
   function queueConfigsWrite(task) {
-    const run = async () => await task();
-    const next = configsSaveLock.then(run, run);
+    const next = configsSaveLock
+      .catch(() => {})
+      .then(() => Promise.resolve().then(task));
     configsSaveLock = next.catch(() => {});
     return next;
   }
@@ -48,6 +49,20 @@
       const listDiv = document.createElement('div');
       listDiv.className = 'toc-overlay-list';
 
+      const mutateConfigsWithRetry = async ({ mutate, verify, maxAttempts = 3 }) => {
+        const attempts = Number.isFinite(maxAttempts) ? Math.max(1, Math.floor(maxAttempts)) : 3;
+        for (let i = 0; i < attempts; i++) {
+          const configsNow = await getConfigs();
+          const nextConfigs = mutate(configsNow);
+          const ok = await saveConfigs(nextConfigs);
+          if (!ok) return false;
+          if (typeof verify !== 'function') return true;
+          const after = await getConfigs();
+          if (verify(after)) return true;
+        }
+        return false;
+      };
+
       const refreshList = async (selectors) => {
         try {
           if (listDiv.replaceChildren) listDiv.replaceChildren();
@@ -71,33 +86,56 @@
             deleteBtn.textContent = msg('symbolClose');
             deleteBtn.title = msg('buttonDeleteSelector') || 'Delete selector';
             deleteBtn.setAttribute('aria-label', msg('buttonDeleteSelector') || 'Delete selector');
-            deleteBtn.dataset.index = String(sIndex);
+            deleteBtn.dataset.selType = String(s.type || '');
+            deleteBtn.dataset.selExpr = String(s.expr || '');
 
             deleteBtn.addEventListener('click', async (e) => {
-              e.stopPropagation();
-              const indexToDelete = parseInt(deleteBtn.dataset.index, 10);
-              if (isNaN(indexToDelete)) return;
+              try {
+                e.stopPropagation();
+                const selType = String(deleteBtn.dataset.selType || '').trim();
+                const selExpr = String(deleteBtn.dataset.selExpr || '').trim();
+                if (!selType || !selExpr) return;
 
-              const updatedSelectors = await queueConfigsWrite(async () => {
-                const configsNow = await getConfigs();
-                const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
-                if (idxNow < 0) return null;
-                const existingNow = configsNow[idxNow] || {};
-                const arr = Array.isArray(existingNow.selectors) ? existingNow.selectors.slice() : [];
-                if (indexToDelete < 0 || indexToDelete >= arr.length) return null;
-                arr.splice(indexToDelete, 1);
-                configsNow[idxNow] = { ...existingNow, selectors: arr, updatedAt: Date.now() };
-                const ok = await saveConfigs(configsNow);
-                return ok ? arr : null;
-              });
+                const ok = await queueConfigsWrite(async () => {
+                  return await mutateConfigsWithRetry({
+                    mutate: (configsNow) => {
+                      const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
+                      if (idxNow < 0) return configsNow;
+                      const existingNow = configsNow[idxNow] || {};
+                      const arr = Array.isArray(existingNow.selectors) ? existingNow.selectors.slice() : [];
+                      const nextArr = arr.filter(s2 => !(s2 && s2.type === selType && s2.expr === selExpr));
+                      if (nextArr.length === arr.length) return configsNow;
+                      const next = configsNow.slice();
+                      next[idxNow] = { ...existingNow, selectors: nextArr, updatedAt: Date.now() };
+                      return next;
+                    },
+                    verify: (after) => {
+                      const idx = after.findIndex(c => c && c.urlPattern === urlPattern);
+                      if (idx < 0) return true;
+                      const arr = Array.isArray(after[idx].selectors) ? after[idx].selectors : [];
+                      return !arr.some(s2 => s2 && s2.type === selType && s2.expr === selExpr);
+                    }
+                  });
+                });
 
-              if (!updatedSelectors) return;
-              cfg.selectors = updatedSelectors;
-              await refreshList(updatedSelectors);
-              countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
+                if (!ok) {
+                  showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+                  return;
+                }
 
-              if (window.TOC_APP && window.TOC_APP.rebuild) {
-                await window.TOC_APP.rebuild();
+                const configsLatest = await getConfigs();
+                const latest = configsLatest.find(c => c && c.urlPattern === urlPattern) || null;
+                const updatedSelectors = latest && Array.isArray(latest.selectors) ? latest.selectors : [];
+                cfg.selectors = updatedSelectors;
+                await refreshList(updatedSelectors);
+                countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
+
+                if (window.TOC_APP && window.TOC_APP.rebuild) {
+                  await window.TOC_APP.rebuild();
+                }
+              } catch (e2) {
+                console.warn(msg('logClearConfigFailed'), e2);
+                showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
               }
             });
 
@@ -158,6 +196,7 @@
           const focusables = getFocusable();
           if (!focusables.length) {
             try { e.preventDefault(); } catch (_) {}
+            try { box.focus({ preventScroll: true }); } catch (_) {}
             return;
           }
           const first = focusables[0];
@@ -181,27 +220,43 @@
       });
 
       box.addEventListener('click', async (e) => {
-        if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
-        const btn = e.target.closest('[data-act]');
-        if (!btn || btn.nodeType !== Node.ELEMENT_NODE) return;
-        const act = btn.dataset.act;
-        if (act === 'close') close();
-        if (act === 'clear') {
-          const ok = await queueConfigsWrite(async () => {
-            const configsNow = await getConfigs();
-            const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
-            if (idxNow < 0) return true;
-            configsNow.splice(idxNow, 1);
-            return await saveConfigs(configsNow);
-          });
-          if (!ok) return;
-          cfg.selectors = [];
-          await refreshList([]);
-          countLabel.textContent = msg('configSavedSelectors') + ' (0)';
-          if (window.TOC_APP && window.TOC_APP.rebuild) {
-            await window.TOC_APP.rebuild();
+        try {
+          if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
+          const btn = e.target.closest('[data-act]');
+          if (!btn || btn.nodeType !== Node.ELEMENT_NODE) return;
+          const act = btn.dataset.act;
+          if (act === 'close') { close(); return; }
+          if (act === 'clear') {
+            const ok = await queueConfigsWrite(async () => {
+              return await mutateConfigsWithRetry({
+                mutate: (configsNow) => {
+                  const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
+                  if (idxNow < 0) return configsNow;
+                  const next = configsNow.slice();
+                  next.splice(idxNow, 1);
+                  return next;
+                },
+                verify: (after) => {
+                  const idx = after.findIndex(c => c && c.urlPattern === urlPattern);
+                  return idx < 0;
+                }
+              });
+            });
+            if (!ok) {
+              showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+              return;
+            }
+            cfg.selectors = [];
+            await refreshList([]);
+            countLabel.textContent = msg('configSavedSelectors') + ' (0)';
+            if (window.TOC_APP && window.TOC_APP.rebuild) {
+              await window.TOC_APP.rebuild();
+            }
+            close();
           }
-          close();
+        } catch (e2) {
+          console.error(msg('logClearConfigFailed'), e2);
+          if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
         }
       });
 

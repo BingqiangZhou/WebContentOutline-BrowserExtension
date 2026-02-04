@@ -15,28 +15,46 @@
   function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta) {
     // Remove any existing panel to prevent duplicates
     try {
-      document.querySelectorAll('.toc-floating').forEach(el => el.remove());
+      document.querySelectorAll('.toc-floating').forEach(el => {
+        try {
+          const cleanup = el && el.__TOC_CLEANUP__;
+          if (typeof cleanup === 'function') cleanup();
+        } catch (_) {}
+        try { el.remove(); } catch (_) {}
+      });
     } catch (_) {}
 
     const panel = document.createElement('div');
     const listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     const listenerSignal = listenersController ? listenersController.signal : null;
     const addWindowListener = (type, handler, options) => {
+      const capture = (typeof options === 'boolean') ? options : !!(options && options.capture);
       try {
         if (listenerSignal) {
           window.addEventListener(type, handler, { ...(options || {}), signal: listenerSignal });
-          return;
+          return () => {
+            try { window.removeEventListener(type, handler, capture); } catch (_) {}
+          };
         }
       } catch (_) {}
       window.addEventListener(type, handler, options);
+      return () => {
+        try { window.removeEventListener(type, handler, capture); } catch (_) {}
+      };
     };
 
     let resolveShown = null;
     const whenShown = new Promise((resolve) => { resolveShown = resolve; });
     let unlockTimer = null;
     let scrollStopTimer = null;
+    let pendingRebuildRecheckTimer = null;
+    let clearUserSelectedTimer = null;
+    let expandAnimTimer = null;
     let intersectionObserver = null;
     let observeRaf = null;
+    let removalObserver = null;
+    let removalRaf = null;
+    let cleanedUp = false;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
 
@@ -67,15 +85,18 @@
       } catch (_) {}
     };
     const onResize = () => {
+      if (cleanedUp) return;
       if (resizeRaf) return;
       resizeRaf = requestAnimationFrame(() => {
         resizeRaf = null;
+        if (cleanedUp) return;
+        if (!panel || !panel.isConnected) return;
         constrainCurrentPosition();
       });
     };
     const RESIZE_LISTENER_OPTS = { passive: true };
     const SCROLL_LISTENER_OPTS = { passive: true };
-    addWindowListener('resize', onResize, RESIZE_LISTENER_OPTS);
+    const removeResizeListener = addWindowListener('resize', onResize, RESIZE_LISTENER_OPTS);
 
     const unlockLater = () => {
       if (unlockTimer) clearTimeout(unlockTimer);
@@ -83,7 +104,8 @@
         setNavLock(false);
 
         if (getPendingRebuild && getPendingRebuild()) {
-          setTimeout(async () => {
+          if (pendingRebuildRecheckTimer) clearTimeout(pendingRebuildRecheckTimer);
+          pendingRebuildRecheckTimer = setTimeout(async () => {
             if (getPendingRebuild && getPendingRebuild()) {
               setPendingRebuild && setPendingRebuild(false);
               try {
@@ -95,7 +117,8 @@
           }, PENDING_REBUILD_RECHECK_MS);
         }
 
-        setTimeout(() => {
+        if (clearUserSelectedTimer) clearTimeout(clearUserSelectedTimer);
+        clearUserSelectedTimer = setTimeout(() => {
           items.forEach(it => {
             it._userSelected = false;
           });
@@ -112,16 +135,18 @@
       }, SCROLL_STOP_MS);
     };
 
-    addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
+    const removeScrollListener = addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
     const cleanupLock = () => {
-      try { window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS); } catch (_) {}
+      try { setNavLock && setNavLock(false); } catch (_) {}
       if (unlockTimer) clearTimeout(unlockTimer);
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
+      if (pendingRebuildRecheckTimer) clearTimeout(pendingRebuildRecheckTimer);
+      if (clearUserSelectedTimer) clearTimeout(clearUserSelectedTimer);
       if (intersectionObserver) {
         intersectionObserver.disconnect();
         intersectionObserver = null;
       }
-      if (typeof observeRaf === 'number') {
+      if (observeRaf != null) {
         try { cancelAnimationFrame(observeRaf); } catch (_) {}
       }
       observeRaf = null;
@@ -195,6 +220,8 @@
       refreshing = true;
       try {
         if (onRefresh) await onRefresh();
+      } catch (e) {
+        console.warn('[toc] refresh failed:', e);
       } finally {
         refreshing = false;
       }
@@ -339,14 +366,15 @@
       panel.style.visibility = '';
       panel.classList.add('toc-expanded');
       try { resolveShown && resolveShown(); } catch (_) {}
-      setTimeout(() => {
+      if (expandAnimTimer) clearTimeout(expandAnimTimer);
+      expandAnimTimer = setTimeout(() => {
         panel.classList.remove('toc-floating-expand', 'toc-expanded');
       }, EXPAND_ANIM_MS);
     });
 
     // Make header draggable
     const { createDragController } = window.TOC_DRAG || {};
-    const dragController = createDragController ? createDragController({
+    let dragController = createDragController ? createDragController({
       element: panel,
       shouldStart: (e) => !!(e && e.target && e.target.closest && e.target.closest('.toc-header')),
       getRect: () => panel.getBoundingClientRect(),
@@ -403,23 +431,83 @@
         btnPick.blur();
       }
     };
-    window.addEventListener(pickerStartEvent, onPickerStart);
-    window.addEventListener(pickerEndEvent, onPickerEnd);
 
-    panel.remove = () => {
+    const removePickerStartListener = addWindowListener(pickerStartEvent, onPickerStart);
+    const removePickerEndListener = addWindowListener(pickerEndEvent, onPickerEnd);
+
+    const stopRemovalWatch = () => {
+      if (removalObserver) {
+        try { removalObserver.disconnect(); } catch (_) {}
+        removalObserver = null;
+      }
+      if (removalRaf != null) {
+        try { cancelAnimationFrame(removalRaf); } catch (_) {}
+        removalRaf = null;
+      }
+    };
+
+    const cleanup = ({ removedExternally } = {}) => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      stopRemovalWatch();
       try { resolveShown && resolveShown(); } catch (_) {}
+      try { removeResizeListener && removeResizeListener(); } catch (_) {}
+      try { removeScrollListener && removeScrollListener(); } catch (_) {}
+      try { removePickerStartListener && removePickerStartListener(); } catch (_) {}
+      try { removePickerEndListener && removePickerEndListener(); } catch (_) {}
       try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
-      try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
+      if (expandAnimTimer) clearTimeout(expandAnimTimer);
+      expandAnimTimer = null;
       try {
-        if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
+        if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
       } catch (_) {}
       resizeRaf = null;
-      window.removeEventListener(pickerStartEvent, onPickerStart);
-      window.removeEventListener(pickerEndEvent, onPickerEnd);
       dragController && dragController.destroy && dragController.destroy();
-      origRemove();
+      dragController = null;
+
+      if (!removedExternally) {
+        try {
+          if (panel && panel.isConnected) origRemove();
+        } catch (_) {}
+      }
     };
+
+    try {
+      panel.__TOC_CLEANUP__ = () => cleanup({ removedExternally: true });
+    } catch (_) {}
+
+    const startRemovalWatch = () => {
+      stopRemovalWatch();
+      if (typeof MutationObserver !== 'undefined' && document && document.documentElement) {
+        try {
+          removalObserver = new MutationObserver(() => {
+            if (cleanedUp) return;
+            if (panel && panel.isConnected) return;
+            cleanup({ removedExternally: true });
+          });
+          removalObserver.observe(document.documentElement, { childList: true, subtree: true });
+          return;
+        } catch (_) {
+          removalObserver = null;
+        }
+      }
+
+      const tick = () => {
+        removalRaf = null;
+        if (cleanedUp) return;
+        if (panel && panel.isConnected) {
+          try { removalRaf = requestAnimationFrame(tick); } catch (_) {}
+          return;
+        }
+        cleanup({ removedExternally: true });
+      };
+      try { removalRaf = requestAnimationFrame(tick); } catch (_) {}
+    };
+
+    startRemovalWatch();
+
+    panel.remove = () => cleanup({ removedExternally: false });
 
     // Active highlight via IntersectionObserver
     if (items.length && 'IntersectionObserver' in window) {

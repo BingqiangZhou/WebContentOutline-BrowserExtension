@@ -45,10 +45,11 @@
     DRAG_MARGIN_PX: 4,
 
     // Storage limits (best-effort quota management)
-    STORAGE_MAX_SITES: 200,
-    STORAGE_MAX_SELECTORS_PER_SITE: 50,
-    STORAGE_MAX_MAP_KEYS: 400
-  };
+     STORAGE_MAX_SITES: 200,
+     STORAGE_MAX_SELECTORS_PER_SITE: 50,
+     STORAGE_MAX_MAP_KEYS: 400,
+     STORAGE_ERROR_ONCE_MAX_KEYS: 200
+   };
 
  function uiConst(name, fallback) {
    try {
@@ -116,15 +117,18 @@ function msg(key, substitutions) {
    }
  }
 
-  function safeJsonParse(raw) {
-    if (typeof raw !== 'string') return null;
-    if (raw.length > 20000) return null;
-    try {
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
+   function safeJsonParse(raw) {
+     if (typeof raw !== 'string') return null;
+     if (raw.length > 20000) {
+       try { console.warn('[toc] safeJsonParse: input too large, skip parse:', raw.length); } catch (_) {}
+       return null;
+     }
+     try {
+       return JSON.parse(raw);
+     } catch {
+       return null;
+     }
+   }
 
   function touchObjectKey(map, key, value) {
     try {
@@ -160,6 +164,11 @@ function msg(key, substitutions) {
     if (!expr) return null;
     if (type === 'css' && expr.length > uiConst('CSS_SELECTOR_MAX_LENGTH', 2000)) return null;
     if (type === 'xpath' && expr.length > uiConst('XPATH_MAX_LENGTH', 2000)) return null;
+    try {
+      if (typeof validateSelectorExpression === 'function' && !validateSelectorExpression(type, expr)) return null;
+    } catch (_) {
+      return null;
+    }
     return { ...entry, type, expr };
   }
 
@@ -248,6 +257,19 @@ function msg(key, substitutions) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value, opts);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       const map = isPlainObject(value) ? { ...value } : {};
+      if (key === STORAGE_KEYS.BADGE_POS_MAP) {
+        // Back-compat: older versions stored {left, top}. Current code uses badge center {x, y}.
+        const bw = uiConst('BADGE_WIDTH', 80);
+        const bh = uiConst('BADGE_HEIGHT', 32);
+        for (const host of Object.keys(map)) {
+          const pos = map[host];
+          if (!isPlainObject(pos)) continue;
+          if (Number.isFinite(pos.x) && Number.isFinite(pos.y)) continue;
+          if (Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
+            map[host] = { ...pos, x: pos.left + bw / 2, y: pos.top + bh / 2 };
+          }
+        }
+      }
       return pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
     }
     return value;
@@ -310,28 +332,35 @@ function msg(key, substitutions) {
    }
  }
 
- const __storageErrorOnce = new Set();
- function notifyStorageWriteError(key, err) {
-   try {
-     const kind = isQuotaExceededError(err) ? 'quota' : 'unknown';
-     const onceKey = `${kind}:${String(key || '')}`;
-     if (__storageErrorOnce.has(onceKey)) return;
-     __storageErrorOnce.add(onceKey);
-     console.warn('[toc] storage write failed:', { key, err });
-     if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
-       const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
-       const text = msg(messageKey);
-       if (text && text !== messageKey) {
+  const __storageErrorOnce = new Set();
+  function notifyStorageWriteError(key, err) {
+    try {
+      const kind = isQuotaExceededError(err) ? 'quota' : 'unknown';
+      const onceKey = `${kind}:${String(key || '')}`;
+      if (__storageErrorOnce.has(onceKey)) return;
+      __storageErrorOnce.add(onceKey);
+      // Prevent unbounded growth in long-lived pages.
+      const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
+      if (Number.isFinite(maxKeys) && maxKeys > 0 && __storageErrorOnce.size > maxKeys) {
+        try { __storageErrorOnce.clear(); } catch (_) {}
+        try { __storageErrorOnce.add(onceKey); } catch (_) {}
+      }
+      console.warn('[toc] storage write failed:', { key, err });
+      if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
+        const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
+        const text = msg(messageKey);
+        if (text && text !== messageKey) {
          showToast(text, { type: 'error' });
        }
      }
    } catch (_) {}
  }
 
-  function isValidCssSelector(expr) {
-    if (typeof expr !== 'string') return false;
-    const trimmed = expr.trim();
-    if (!trimmed) return false;
+   function isValidCssSelector(expr) {
+     if (typeof expr !== 'string') return false;
+     if (typeof document === 'undefined' || !document) return false;
+     const trimmed = expr.trim();
+     if (!trimmed) return false;
    // Disallow control chars
    for (let i = 0; i < trimmed.length; i++) {
      const code = trimmed.charCodeAt(i);
@@ -359,9 +388,13 @@ function msg(key, substitutions) {
   }
 
  function validateSelectorExpression(type, expr) {
-   if (type === 'xpath') return isSafeXPathExpression(expr);
-   if (type === 'css') return isValidCssSelector(expr);
-   return false;
+   try {
+     if (type === 'xpath') return isSafeXPathExpression(expr);
+     if (type === 'css') return isValidCssSelector(expr);
+     return false;
+   } catch (_) {
+     return false;
+   }
  }
 
 function getFiniteNumber(value) {
@@ -385,16 +418,16 @@ function ensureToastContainer() {
  * @param {string} text
  * @param {{type?: 'info'|'success'|'warning'|'error', durationMs?: number}} [opts]
  */
-  function showToast(text, opts = {}) {
-  try {
-    const type = opts.type || 'info';
-    const durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : UI_CONSTANTS.TOAST_DURATION_MS;
-    const container = ensureToastContainer();
+   function showToast(text, opts = {}) {
+   try {
+     const type = opts.type || 'info';
+     const durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : UI_CONSTANTS.TOAST_DURATION_MS;
+     const container = ensureToastContainer();
 
-    const toast = document.createElement('div');
-    toast.className = `toc-toast toc-toast-${type}`;
-    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+     const toast = document.createElement('div');
+     toast.className = `toc-toast toc-toast-${type}`;
+     toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+     toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
 
     const message = document.createElement('div');
     message.className = 'toc-toast-message';
@@ -402,16 +435,24 @@ function ensureToastContainer() {
 
     const closeBtn = document.createElement('button');
     closeBtn.type = 'button';
-    closeBtn.className = 'toc-toast-close';
-    closeBtn.textContent = msg('symbolClose');
-    closeBtn.setAttribute('aria-label', msg('buttonClose'));
+     closeBtn.className = 'toc-toast-close';
+     closeBtn.textContent = msg('symbolClose');
+     closeBtn.setAttribute('aria-label', msg('buttonClose'));
 
-    const removeToast = () => {
-      try { toast.remove(); } catch (_) {}
-      try {
-        if (container.childElementCount === 0) container.remove();
-      } catch (_) {}
-    };
+     let timerId = null;
+     let removed = false;
+     const removeToast = () => {
+       if (removed) return;
+       removed = true;
+       if (timerId) {
+         try { clearTimeout(timerId); } catch (_) {}
+         timerId = null;
+       }
+       try { toast.remove(); } catch (_) {}
+       try {
+         if (container.childElementCount === 0) container.remove();
+       } catch (_) {}
+     };
 
     closeBtn.addEventListener('click', removeToast, { once: true });
     toast.addEventListener('click', (e) => {
@@ -430,15 +471,15 @@ function ensureToastContainer() {
 
     toast.appendChild(message);
     toast.appendChild(closeBtn);
-    container.appendChild(toast);
+     container.appendChild(toast);
 
-    if (durationMs > 0) {
-      setTimeout(removeToast, durationMs);
-    }
+     if (durationMs > 0) {
+       timerId = setTimeout(removeToast, durationMs);
+     }
 
-    return { close: removeToast };
-  } catch (_) {
-    return { close: () => {} };
+     return { close: removeToast };
+   } catch (_) {
+     return { close: () => {} };
   }
 }
 
@@ -504,6 +545,11 @@ function ensureToastContainer() {
                 const onceKey = `pruned:${String(key || '')}`;
                 if (!__storageErrorOnce.has(onceKey)) {
                   __storageErrorOnce.add(onceKey);
+                  const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
+                  if (Number.isFinite(maxKeys) && maxKeys > 0 && __storageErrorOnce.size > maxKeys) {
+                    try { __storageErrorOnce.clear(); } catch (_) {}
+                    try { __storageErrorOnce.add(onceKey); } catch (_) {}
+                  }
                   console.warn('[toc] storage quota reached, saved with pruning:', { key, before, after });
                   const warnKey = 'warningStorageQuotaPruned';
                   const warnText = msg(warnKey);
@@ -706,11 +752,13 @@ function collectBySelector(selector) {
   if (selector.type === 'xpath') {
     if (!isSafeXPathExpression(selector.expr)) return [];
     try {
-      const snapshot = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+      const limit = uiConst('TOC_MAX_CANDIDATES', 1200);
+      const iterator = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
       const nodes = [];
-      for (let i = 0; i < snapshot.snapshotLength; i++) {
-        const node = snapshot.snapshotItem(i);
-        if (node && node.nodeType === 1) nodes.push(node);
+      for (let i = 0; i < limit; i++) {
+        const node = iterator.iterateNext();
+        if (!node) break;
+        if (node.nodeType === 1) nodes.push(node);
       }
       return nodes;
     } catch {

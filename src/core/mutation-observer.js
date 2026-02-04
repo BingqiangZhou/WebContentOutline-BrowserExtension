@@ -22,6 +22,14 @@
     let unlockTimer = null;
     let observerRef = null;
 
+    const disconnectObserver = () => {
+      const obs = observerRef;
+      observerRef = null;
+      if (obs && typeof obs.disconnect === 'function') {
+        try { obs.disconnect(); } catch (_) {}
+      }
+    };
+
     const stopTimers = () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer);
@@ -44,6 +52,7 @@
           : !!(e && e.message && e.message.includes('Extension context invalidated'));
         if (invalidated) {
           isExtensionContextValid = false;
+          pendingRebuild = false;
           stopTimers();
           try { observerRef && observerRef.disconnect && observerRef.disconnect(); } catch (_) {}
           observerRef = null;
@@ -148,7 +157,7 @@
     function start(cfg) {
       stopTimers();
       pendingRebuild = false;
-      observerRef = null;
+      disconnectObserver();
 
       if (typeof MutationObserver !== 'undefined' && hasValidSelectors(cfg)) {
         const resolveObserveRoot = () => {
@@ -168,19 +177,53 @@
         });
         observerRef = observer;
 
-        observer.observe(resolveObserveRoot(), {
-          childList: true,
-          subtree: true,
-          characterData: false,
-          attributes: true,
-          attributeFilter: OBSERVED_ATTRIBUTES
-        });
+        const root = (() => {
+          const r = resolveObserveRoot();
+          if (r && r.nodeType === Node.ELEMENT_NODE) return r;
+          return document.body || document.documentElement || null;
+        })();
+
+        if (!root) {
+          // Extremely rare edge case (e.g. detached document). Avoid observing null.
+          observerRef = null;
+          try { observer.disconnect(); } catch (_) {}
+          stopTimers();
+          return {
+            disconnect() { stopTimers(); },
+            getPendingRebuild: () => false,
+            setPendingRebuild: () => {}
+          };
+        }
+
+        try {
+          observer.observe(root, {
+            childList: true,
+            subtree: true,
+            characterData: false,
+            attributes: true,
+            attributeFilter: OBSERVED_ATTRIBUTES
+          });
+        } catch (_) {
+          observerRef = null;
+          try { observer.disconnect(); } catch (_) {}
+          stopTimers();
+          return {
+            disconnect() { stopTimers(); },
+            getPendingRebuild: () => false,
+            setPendingRebuild: () => {}
+          };
+        }
 
         return {
           disconnect() {
             observerRef = null;
-            observer.disconnect();
-            stopTimers();
+            try {
+              observer.disconnect();
+            } catch (_) {
+              // ignore
+            } finally {
+              stopTimers();
+            }
           },
           getPendingRebuild: () => pendingRebuild,
           setPendingRebuild: (val) => {
