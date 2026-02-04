@@ -22,8 +22,10 @@
 
   let appInstance = null;
   let currentEnabled = false;
+  let desiredEnabled = false;
   let transitionId = 0;
   let transitionChain = Promise.resolve();
+  let transitionQueueId = 0;
   let startInFlight = null;
 
   async function migrateLegacyBadgePos() {
@@ -39,10 +41,15 @@
         const left = getFiniteNumber ? getFiniteNumber(parsed.left) : (typeof parsed.left === 'number' ? parsed.left : null);
         const top = getFiniteNumber ? getFiniteNumber(parsed.top) : (typeof parsed.top === 'number' ? parsed.top : null);
         if (left === null || top === null) return;
-        if (!getBadgePosByHost || !(await getBadgePosByHost(location.host))) {
-          await setBadgePosByHost(location.host, { left, top });
+        const existing = getBadgePosByHost ? await getBadgePosByHost(location.host) : null;
+        if (existing) {
+          localStorage.removeItem(legacyKey);
+          return;
         }
-        localStorage.removeItem(legacyKey);
+        const saved = await setBadgePosByHost(location.host, { left, top });
+        if (saved) {
+          localStorage.removeItem(legacyKey);
+        }
       }
     } catch (_) {}
   }
@@ -101,7 +108,8 @@
   function enqueueEnabledTransition(nextEnabled, opts = {}) {
     const want = !!nextEnabled;
     const myId = ++transitionId;
-    transitionChain = transitionChain.then(async () => {
+    const myQueueId = ++transitionQueueId;
+    const next = transitionChain.then(async () => {
       if (myId !== transitionId) return;
       if (want === currentEnabled) return;
 
@@ -126,10 +134,22 @@
           }
         } catch (_) {}
       }
-    }).catch((e) => {
+    });
+    const safe = next.catch((e) => {
       console.warn(msg('logPrefix') + ' enabled transition failed:', e);
     });
-    return transitionChain;
+    transitionChain = safe;
+    safe.finally(() => {
+      if (transitionQueueId === myQueueId) {
+        transitionChain = Promise.resolve();
+      }
+    });
+    return safe;
+  }
+
+  function requestEnabled(enabled, opts) {
+    desiredEnabled = !!enabled;
+    return enqueueEnabledTransition(desiredEnabled, opts);
   }
 
   async function main() {
@@ -144,7 +164,7 @@
 
       const enabled = await getSiteEnabledByOrigin();
       if (!!enabled) {
-        await enqueueEnabledTransition(true);
+        await requestEnabled(true);
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
@@ -165,7 +185,7 @@
       if (msg.type === 'toc:openPanel') {
         (async () => {
           try {
-            await enqueueEnabledTransition(true, { expandPanel: true });
+            await requestEnabled(true, { expandPanel: true });
             sendResponse && sendResponse({ ok: true });
           } catch (err) {
             sendResponse && sendResponse({ ok: false, error: String(err) });
@@ -176,11 +196,11 @@
 
       if (msg.type !== 'toc:updateEnabled') return;
       const enabled = !!msg.enabled;
-      if (enabled === currentEnabled) {
+      if (enabled === desiredEnabled) {
         sendResponse && sendResponse({ ok: true, unchanged: true });
         return;
       }
-      enqueueEnabledTransition(enabled).then(() => {
+      requestEnabled(enabled).then(() => {
         sendResponse && sendResponse({ ok: true });
       }).catch(() => {
         sendResponse && sendResponse({ ok: false });
@@ -200,8 +220,8 @@
       try {
         const map = ch.newValue || {};
         const next = !!map[location.origin];
-        if (next === currentEnabled) return;
-        enqueueEnabledTransition(next);
+        if (next === desiredEnabled) return;
+        requestEnabled(next);
       } catch (e) {
         console.warn(msg('logPrefix') + ' storage change failed:', e);
       }

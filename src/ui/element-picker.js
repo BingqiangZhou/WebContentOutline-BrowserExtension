@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, uiConst } = window.TOC_UTILS || {};
+  const { msg = (key) => key, uiConst, getFocusableWithin } = window.TOC_UTILS || {};
   const PICKER_TIMEOUT_MS = typeof uiConst === 'function' ? uiConst('PICKER_TIMEOUT_MS', 20000) : 20000;
   const MAX_Z_INDEX = typeof uiConst === 'function' ? uiConst('MAX_Z_INDEX', 2147483647) : 2147483647;
 
@@ -29,6 +29,8 @@
     const textarea = document.createElement('textarea');
     textarea.className = 'toc-overlay-textarea';
     textarea.readOnly = true;
+    textarea.setAttribute('aria-readonly', 'true');
+    textarea.setAttribute('aria-label', msg('pickerResultTitle') || 'CSS selector');
     textarea.textContent = selector;
     body.appendChild(textarea);
 
@@ -39,11 +41,13 @@
     btnSave.className = 'toc-btn toc-btn-primary';
     btnSave.dataset.act = 'save';
     btnSave.textContent = msg('buttonSaveAsConfig');
+    btnSave.setAttribute('aria-label', msg('buttonSaveAsConfig'));
 
     const btnClose = document.createElement('button');
     btnClose.className = 'toc-btn';
     btnClose.dataset.act = 'close';
     btnClose.textContent = msg('buttonClose');
+    btnClose.setAttribute('aria-label', msg('buttonClose'));
 
     actions.appendChild(btnSave);
     actions.appendChild(btnClose);
@@ -65,22 +69,11 @@
     };
 
     const getFocusable = () => {
-      const selector = [
-        'button:not([disabled])',
-        'textarea:not([disabled])',
-        'input:not([disabled])',
-        'select:not([disabled])',
-        '[tabindex]:not([tabindex="-1"])'
-      ].join(',');
       try {
-        return Array.from(wrap.querySelectorAll(selector)).filter(el => {
-          if (!el || !el.focus) return false;
-          const style = window.getComputedStyle(el);
-          return style && style.visibility !== 'hidden' && style.display !== 'none';
-        });
+        if (typeof getFocusableWithin === 'function') return getFocusableWithin(wrap);
       } catch (_) {
-        return [];
       }
+      return [];
     };
     const onKeydown = (e) => {
       if (!e) return;
@@ -165,6 +158,7 @@
 
     let moveRaf = null;
     let pendingMove = null;
+    let finished = false;
 
     function processMove(e) {
       let el = getElementNode(e.target);
@@ -188,6 +182,7 @@
 
     function click(e) {
       e.preventDefault();
+      if (finished) return;
       let el = getElementNode(e.target);
       if (isUiElement(el)) {
         el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
@@ -195,12 +190,15 @@
           return;
         }
       }
+      finished = true;
       cleanup();
       if (el && onPicked) onPicked(el);
     }
 
     function key(e) {
       if (e.key === 'Escape') {
+        if (finished) return;
+        finished = true;
         cleanup();
         onCancel && onCancel();
       }
@@ -208,12 +206,20 @@
 
     document.addEventListener('mousemove', move, true);
     document.addEventListener('click', click, true);
-    const onCtx = (e) => { e.preventDefault(); cleanup(); onCancel && onCancel(); };
+    const onCtx = (e) => {
+      e.preventDefault();
+      if (finished) return;
+      finished = true;
+      cleanup();
+      onCancel && onCancel();
+    };
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', key, true);
 
     let timeoutId = setTimeout(() => {
       try {
+        if (finished) return;
+        finished = true;
         cleanup();
       } catch (e) {
         console.warn('[toc] cleanup failed:', e);

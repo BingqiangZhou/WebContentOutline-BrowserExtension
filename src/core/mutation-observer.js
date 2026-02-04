@@ -20,6 +20,7 @@
     let debounceTimer = null;
     let pendingRebuild = false;
     let unlockTimer = null;
+    let observerRef = null;
 
     const stopTimers = () => {
       if (debounceTimer) {
@@ -37,9 +38,15 @@
       try {
         await onRebuild();
       } catch (e) {
-        if (e && e.message && e.message.includes('Extension context invalidated')) {
+        const { isContextInvalidatedError } = window.TOC_UTILS || {};
+        const invalidated = (typeof isContextInvalidatedError === 'function')
+          ? isContextInvalidatedError(e)
+          : !!(e && e.message && e.message.includes('Extension context invalidated'));
+        if (invalidated) {
           isExtensionContextValid = false;
           stopTimers();
+          try { observerRef && observerRef.disconnect && observerRef.disconnect(); } catch (_) {}
+          observerRef = null;
           return;
         }
         console.warn('[toc] rebuild failed from MutationObserver:', e);
@@ -103,8 +110,22 @@
     }
 
     function hasValidSelectors(cfg) {
-      if (cfg.selectors && cfg.selectors.length > 0) {
-        return true;
+      const selectors = cfg && Array.isArray(cfg.selectors) ? cfg.selectors : [];
+      if (selectors.length > 0) {
+        const { validateSelectorExpression } = window.TOC_UTILS || {};
+        for (const s of selectors) {
+          if (!s || typeof s !== 'object') continue;
+          const type = s.type === 'css' || s.type === 'xpath' ? s.type : null;
+          const expr = typeof s.expr === 'string' ? s.expr : '';
+          if (!type || !expr.trim()) continue;
+          if (typeof validateSelectorExpression === 'function') {
+            try {
+              if (validateSelectorExpression(type, expr)) return true;
+            } catch (_) {}
+          } else {
+            return true;
+          }
+        }
       }
 
       const commonSelectors = [
@@ -127,6 +148,7 @@
     function start(cfg) {
       stopTimers();
       pendingRebuild = false;
+      observerRef = null;
 
       if (typeof MutationObserver !== 'undefined' && hasValidSelectors(cfg)) {
         const resolveObserveRoot = () => {
@@ -144,6 +166,7 @@
           if (!hasMeaningfulChange(mutations)) return;
           scheduleRebuild();
         });
+        observerRef = observer;
 
         observer.observe(resolveObserveRoot(), {
           childList: true,
@@ -155,6 +178,7 @@
 
         return {
           disconnect() {
+            observerRef = null;
             observer.disconnect();
             stopTimers();
           },

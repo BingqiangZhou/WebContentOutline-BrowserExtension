@@ -24,6 +24,7 @@
 
     const state = {
       active: false,
+      destroyed: false,
       moved: false,
       startX: 0,
       startY: 0,
@@ -56,7 +57,7 @@
     };
 
     function handleMouseMove(e) {
-      if (!state.active) return;
+      if (!state.active || state.destroyed) return;
       const dx = e.clientX - state.startX;
       const dy = e.clientY - state.startY;
       if (!state.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
@@ -71,7 +72,7 @@
     }
 
     function handleMouseUp(e) {
-      if (!state.active) return;
+      if (!state.active || state.destroyed) return;
       state.active = false;
       document.removeEventListener('mousemove', handleMouseMove, true);
       document.removeEventListener('mouseup', handleMouseUp, true);
@@ -85,6 +86,7 @@
     }
 
     function handleMouseDown(e) {
+      if (state.destroyed) return;
       if (!canStart(e)) return;
       const rect = resolveRect();
       if (!rect) return;
@@ -113,12 +115,17 @@
 
     return {
       destroy() {
+        if (state.destroyed) return;
+        state.destroyed = true;
         element.removeEventListener('mousedown', handleMouseDown, true);
-        if (state.active) {
-          state.active = false;
-          document.removeEventListener('mousemove', handleMouseMove, true);
-          document.removeEventListener('mouseup', handleMouseUp, true);
-        }
+        state.active = false;
+        try { document.removeEventListener('mousemove', handleMouseMove, true); } catch (_) {}
+        try { document.removeEventListener('mouseup', handleMouseUp, true); } catch (_) {}
+        state.moved = false;
+        state.startX = 0;
+        state.startY = 0;
+        state.offsetX = 0;
+        state.offsetY = 0;
       },
       isActive: () => state.active
     };

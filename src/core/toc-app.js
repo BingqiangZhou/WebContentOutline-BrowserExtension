@@ -15,7 +15,8 @@
     getBadgePosByHost,
     setBadgePosByHost,
     showToast,
-    uiConst
+    uiConst,
+    isContextInvalidatedError: isContextInvalidatedErrorUtil
   } = window.TOC_UTILS || {};
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
@@ -29,16 +30,18 @@
   const BUTTON_OFFSET = typeof uiConst === 'function' ? uiConst('BUTTON_OFFSET', 20) : 20;
   const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
 
-  const isContextInvalidatedError = (e) => {
-    return !!(e && (
-      (e.message && (
-        e.message.includes('Extension context invalidated') ||
-        e.message.includes('context invalidated') ||
-        e.message.includes('Extension context')
-      )) ||
-      (e.toString && e.toString().includes('Extension context invalidated'))
-    ));
-  };
+  const isContextInvalidatedError = (typeof isContextInvalidatedErrorUtil === 'function')
+    ? isContextInvalidatedErrorUtil
+    : (e) => {
+      return !!(e && (
+        (e.message && (
+          e.message.includes('Extension context invalidated') ||
+          e.message.includes('context invalidated') ||
+          e.message.includes('Extension context')
+        )) ||
+        (e.toString && e.toString().includes('Extension context invalidated'))
+      ));
+    };
 
   function initForConfig(cfg) {
     const side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
@@ -70,14 +73,9 @@
     const getNavLock = () => navLock;
     const setNavLock = (v) => { navLock = !!v; };
     const cancelActiveRestore = () => {
-      if (activeRestoreTimeout) {
-        try {
-          if (typeof activeRestoreTimeout === 'number') {
-            cancelAnimationFrame(activeRestoreTimeout);
-          }
-        } catch (_) {}
-        activeRestoreTimeout = null;
-      }
+      if (activeRestoreTimeout == null) return;
+      try { cancelAnimationFrame(activeRestoreTimeout); } catch (_) {}
+      activeRestoreTimeout = null;
     };
 
     // Helper to constrain position to screen bounds
@@ -169,9 +167,9 @@
     };
 
     const rebuildOnce = async () => {
+      // Set rebuild flag to prevent IntersectionObserver interference
+      isRebuilding = true;
       try {
-        // Set rebuild flag to prevent IntersectionObserver interference
-        isRebuilding = true;
 
         if (updateConfigFromStorage) {
           await updateConfigFromStorage(cfg);
@@ -246,10 +244,6 @@
 
         restoreActiveSnapshot(activeSnapshot);
       } catch (e) {
-        // Reset flag on error
-        requestAnimationFrame(() => {
-          isRebuilding = false;
-        });
         if (isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
           if (mutationObserver && mutationObserver.disconnect) {
@@ -260,6 +254,17 @@
           return;
         }
         console.debug('[toc] rebuild failed:', e);
+      } finally {
+        // Failsafe: if restoration never cleared the flag, clear it soon.
+        if (activeRestoreTimeout) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (isRebuilding) isRebuilding = false;
+            });
+          });
+        } else {
+          clearRebuildFlag();
+        }
       }
     };
 
@@ -415,8 +420,8 @@
             }
           } catch (_) {}
           requestAnimationFrame(() => {
-            const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
             const panelEl = document.querySelector('.toc-floating');
+            const collapseBtn = panelEl ? panelEl.querySelector('.toc-header-row .toc-btn:last-child') : null;
             if (collapseBtn && panelEl && collapseBtn.getBoundingClientRect().width > 0) {
               const btnRect = collapseBtn.getBoundingClientRect();
               const offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - (btnRect.left + btnRect.width / 2)) : 0;

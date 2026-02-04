@@ -286,25 +286,25 @@ async function ensureContentScript(tabId, url) {
   const inFlight = injectionInFlight.get(tabId);
   if (inFlight) return await inFlight;
 
-  const pingOk = await pingContentScript(tabId);
-  if (pingOk) {
-    await setInjectedState(tabId, { url, ts: Date.now() });
-    await setInjectionBadge(tabId, false);
-    return true;
-  }
-
-  const state = await getInjectedState(tabId);
-  if (state && state.url === url && Date.now() - state.ts < INJECTION_COOLDOWN_MS) {
-    await sleep(INJECTION_PING_RETRY_MS);
-    const retryOk = await pingContentScript(tabId);
-    if (retryOk) {
+  const injectPromise = (async () => {
+    const pingOk = await pingContentScript(tabId);
+    if (pingOk) {
       await setInjectedState(tabId, { url, ts: Date.now() });
       await setInjectionBadge(tabId, false);
       return true;
     }
-  }
 
-  const injectPromise = (async () => {
+    const state = await getInjectedState(tabId);
+    if (state && state.url === url && Date.now() - state.ts < INJECTION_COOLDOWN_MS) {
+      await sleep(INJECTION_PING_RETRY_MS);
+      const retryOk = await pingContentScript(tabId);
+      if (retryOk) {
+        await setInjectedState(tabId, { url, ts: Date.now() });
+        await setInjectionBadge(tabId, false);
+        return true;
+      }
+    }
+
     const result = await injectIntoTab(tabId);
     if (result.ok) {
       await setInjectedState(tabId, { url, ts: Date.now() });

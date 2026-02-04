@@ -69,6 +69,7 @@
     });
 
     let resizeRaf = null;
+    const RESIZE_LISTENER_OPTS = { passive: true };
     const constrainCurrentPosition = () => {
       try {
         const rect = badge.getBoundingClientRect();
@@ -91,7 +92,7 @@
         constrainCurrentPosition();
       });
     };
-    window.addEventListener('resize', onResize, { passive: true });
+    window.addEventListener('resize', onResize, RESIZE_LISTENER_OPTS);
 
     // Drag handling
     const { createDragController } = window.TOC_DRAG || {};
@@ -134,7 +135,7 @@
     return {
       remove() {
         dragController && dragController.destroy && dragController.destroy();
-        try { window.removeEventListener('resize', onResize); } catch (_) {}
+        try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
         try {
           if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
         } catch (_) {}

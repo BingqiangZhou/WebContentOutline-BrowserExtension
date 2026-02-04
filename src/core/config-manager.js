@@ -3,6 +3,14 @@
 
   const { msg = (key) => key, getConfigs, saveConfigs, showToast, validateSelectorExpression } = window.TOC_UTILS || {};
 
+  let configsSaveLock = Promise.resolve();
+  function queueConfigsWrite(task) {
+    const run = async () => await task();
+    const next = configsSaveLock.then(run, run);
+    configsSaveLock = next.catch(() => {});
+    return next;
+  }
+
   async function siteConfig(cfg) {
     try {
       const prevFocus = document.activeElement;
@@ -68,20 +76,28 @@
             deleteBtn.addEventListener('click', async (e) => {
               e.stopPropagation();
               const indexToDelete = parseInt(deleteBtn.dataset.index, 10);
-              if (!isNaN(indexToDelete) && idx >= 0) {
-                const updatedSelectors = [...configs[idx].selectors];
-                updatedSelectors.splice(indexToDelete, 1);
-                configs[idx].selectors = updatedSelectors;
-                const ok = await saveConfigs(configs);
-                if (!ok) return;
-                cfg.selectors = updatedSelectors;
+              if (isNaN(indexToDelete)) return;
 
-                await refreshList(updatedSelectors);
-                countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
+              const updatedSelectors = await queueConfigsWrite(async () => {
+                const configsNow = await getConfigs();
+                const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
+                if (idxNow < 0) return null;
+                const existingNow = configsNow[idxNow] || {};
+                const arr = Array.isArray(existingNow.selectors) ? existingNow.selectors.slice() : [];
+                if (indexToDelete < 0 || indexToDelete >= arr.length) return null;
+                arr.splice(indexToDelete, 1);
+                configsNow[idxNow] = { ...existingNow, selectors: arr, updatedAt: Date.now() };
+                const ok = await saveConfigs(configsNow);
+                return ok ? arr : null;
+              });
 
-                if (window.TOC_APP && window.TOC_APP.rebuild) {
-                  await window.TOC_APP.rebuild();
-                }
+              if (!updatedSelectors) return;
+              cfg.selectors = updatedSelectors;
+              await refreshList(updatedSelectors);
+              countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
+
+              if (window.TOC_APP && window.TOC_APP.rebuild) {
+                await window.TOC_APP.rebuild();
               }
             });
 
@@ -128,22 +144,12 @@
       };
 
       const getFocusable = () => {
-        const selector = [
-          'button:not([disabled])',
-          'textarea:not([disabled])',
-          'input:not([disabled])',
-          'select:not([disabled])',
-          '[tabindex]:not([tabindex="-1"])'
-        ].join(',');
         try {
-          return Array.from(box.querySelectorAll(selector)).filter(el => {
-            if (!el || !el.focus) return false;
-            const style = window.getComputedStyle(el);
-            return style && style.visibility !== 'hidden' && style.display !== 'none';
-          });
+          const { getFocusableWithin } = window.TOC_UTILS || {};
+          if (typeof getFocusableWithin === 'function') return getFocusableWithin(box);
         } catch (_) {
-          return [];
         }
+        return [];
       };
 
       box.addEventListener('keydown', (e) => {
@@ -181,14 +187,19 @@
         const act = btn.dataset.act;
         if (act === 'close') close();
         if (act === 'clear') {
-          if (idx >= 0) {
-            configs.splice(idx, 1);
-            const ok = await saveConfigs(configs);
-            if (!ok) return;
-            cfg.selectors = [];
-            if (window.TOC_APP && window.TOC_APP.rebuild) {
-              await window.TOC_APP.rebuild();
-            }
+          const ok = await queueConfigsWrite(async () => {
+            const configsNow = await getConfigs();
+            const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
+            if (idxNow < 0) return true;
+            configsNow.splice(idxNow, 1);
+            return await saveConfigs(configsNow);
+          });
+          if (!ok) return;
+          cfg.selectors = [];
+          await refreshList([]);
+          countLabel.textContent = msg('configSavedSelectors') + ' (0)';
+          if (window.TOC_APP && window.TOC_APP.rebuild) {
+            await window.TOC_APP.rebuild();
           }
           close();
         }
@@ -209,26 +220,29 @@
         showToast && showToast(msg('errorInvalidSelector'), { type: 'error' });
         return false;
       }
-      const configs = await getConfigs();
-      const urlPattern = `${location.protocol}//${location.host}/*`;
-      const entry = { type: 'css', expr };
-      const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);
-      const sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
-      if (idx >= 0) {
-        const existing = configs[idx];
-        const arr = Array.isArray(existing.selectors) ? existing.selectors.slice() : [];
-        if (!arr.some(s => s.type === 'css' && s.expr === expr)) {
-          arr.unshift(entry);
+      return await queueConfigsWrite(async () => {
+        const configs = await getConfigs();
+        const urlPattern = `${location.protocol}//${location.host}/*`;
+        const entry = { type: 'css', expr };
+        const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);
+        const sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+        const now = Date.now();
+
+        if (idx >= 0) {
+          const existing = configs[idx] || {};
+          const arr = Array.isArray(existing.selectors) ? existing.selectors.slice() : [];
+          if (!arr.some(s => s && s.type === 'css' && s.expr === expr)) {
+            arr.unshift(entry);
+          }
+          configs[idx] = { ...existing, side: sidePersist, urlPattern, selectors: arr, updatedAt: now };
+        } else {
+          configs.push({ urlPattern, side: sidePersist, selectors: [entry], collapsedDefault: false, updatedAt: now });
         }
-        configs[idx] = { ...existing, side: sidePersist, urlPattern, selectors: arr };
-      } else {
-        configs.push({ urlPattern, side: sidePersist, selectors: [entry], collapsedDefault: false });
-      }
 
-      const ok = await saveConfigs(configs);
-      if (!ok) return false;
-      return true;
+        const ok = await saveConfigs(configs);
+        return !!ok;
+      });
     } catch (e) {
       console.error(msg('logSaveConfigFailed'), e);
       return false;

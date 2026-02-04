@@ -36,6 +36,7 @@
     let unlockTimer = null;
     let scrollStopTimer = null;
     let intersectionObserver = null;
+    let observeRaf = null;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
 
@@ -72,7 +73,9 @@
         constrainCurrentPosition();
       });
     };
-    addWindowListener('resize', onResize, { passive: true });
+    const RESIZE_LISTENER_OPTS = { passive: true };
+    const SCROLL_LISTENER_OPTS = { passive: true };
+    addWindowListener('resize', onResize, RESIZE_LISTENER_OPTS);
 
     const unlockLater = () => {
       if (unlockTimer) clearTimeout(unlockTimer);
@@ -109,15 +112,19 @@
       }, SCROLL_STOP_MS);
     };
 
-    addWindowListener('scroll', onScroll, { passive: true });
+    addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
     const cleanupLock = () => {
-      try { window.removeEventListener('scroll', onScroll); } catch (_) {}
+      try { window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS); } catch (_) {}
       if (unlockTimer) clearTimeout(unlockTimer);
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
       if (intersectionObserver) {
         intersectionObserver.disconnect();
         intersectionObserver = null;
       }
+      if (typeof observeRaf === 'number') {
+        try { cancelAnimationFrame(observeRaf); } catch (_) {}
+      }
+      observeRaf = null;
     };
 
     panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'} toc-floating-expand`;
@@ -212,6 +219,8 @@
     if (tocMeta && tocMeta.truncated) {
       const note = document.createElement('div');
       note.className = 'toc-empty';
+      note.setAttribute('role', 'note');
+      note.setAttribute('aria-live', 'polite');
       const max = tocMeta.maxItems || 400;
       const msgWithMax = msg('truncatedNoticeWithMax', String(max));
       if (msgWithMax && msgWithMax !== 'truncatedNoticeWithMax') {
@@ -226,6 +235,7 @@
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
+      empty.setAttribute('role', 'status');
       empty.textContent = msg('emptyTocMessage');
       list.appendChild(empty);
     } else {
@@ -400,7 +410,7 @@
       try { resolveShown && resolveShown(); } catch (_) {}
       try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
-      try { window.removeEventListener('resize', onResize); } catch (_) {}
+      try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
       try {
         if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
       } catch (_) {}
@@ -484,7 +494,8 @@
         }
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
-      requestAnimationFrame(() => {
+      observeRaf = requestAnimationFrame(() => {
+        observeRaf = null;
         if (!intersectionObserver) return;
         items.forEach(it => {
           if (it.el && document.contains(it.el)) {

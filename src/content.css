@@ -247,6 +247,13 @@
   pointer-events: auto !important;
 }
 
+.toc-selector-item:focus-within .toc-selector-delete,
+.toc-selector-delete:focus,
+.toc-selector-delete:focus-visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
 .toc-selector-delete:hover {
   background: rgba(180, 35, 24, 0.15) !important;
   color: #b42318 !important;
