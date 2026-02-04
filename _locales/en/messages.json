@@ -159,6 +159,16 @@
     "message": "For performance, TOC shows at most 400 items. Refine selectors to narrow results.",
     "description": "Notice when TOC items are truncated"
   },
+  "truncatedNoticeWithMax": {
+    "message": "For performance, TOC shows at most $max$ items. Refine selectors to narrow results.",
+    "description": "Notice when TOC items are truncated (with max placeholder)",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "400"
+      }
+    }
+  },
   "symbolClose": {
     "message": "×",
     "description": "Close symbol used in small UI buttons"

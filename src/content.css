@@ -13,12 +13,19 @@
   color: inherit !important;
 }
 
+.toc-floating,
+.toc-overlay,
+.toc-toast-container,
+.toc-collapsed-badge {
+  --toc-z-index: 2147483647;
+}
+
 .toc-floating {
   position: fixed !important;
   top: 100px !important;
   width: 280px !important;
   max-height: 70vh !important;
-  z-index: 2147483647 !important;
+  z-index: var(--toc-z-index) !important;
   background: #fff !important;
   color: #222 !important;
   border: 1px solid rgba(0,0,0,0.1) !important;
@@ -43,7 +50,7 @@
   position: fixed !important;
   bottom: 20px !important;
   right: 20px !important;
-  z-index: 2147483647 !important;
+  z-index: var(--toc-z-index) !important;
   background: #fff !important;
   color: #222 !important;
   border: 1px solid rgba(0,0,0,0.1) !important;
@@ -61,7 +68,7 @@
   position: fixed !important;
   right: 20px !important;
   bottom: 20px !important;
-  z-index: 2147483647 !important;
+  z-index: var(--toc-z-index) !important;
   display: flex !important;
   flex-direction: column !important;
   gap: 8px !important;
@@ -502,7 +509,7 @@
 .toc-collapsed-badge {
   position: fixed !important;
   top: 120px !important;
-  z-index: 2147483647 !important;
+  z-index: var(--toc-z-index) !important;
   padding: 8px 10px !important;
   background: #2f6feb !important;
   color: #fff !important;

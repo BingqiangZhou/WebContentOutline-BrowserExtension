@@ -159,6 +159,16 @@
     "message": "为保证性能，目录最多显示 400 项。请优化选择器以缩小范围。",
     "description": "目录项过多时的截断提示"
   },
+  "truncatedNoticeWithMax": {
+    "message": "为保证性能，目录最多显示 $max$ 项。请优化选择器以缩小范围。",
+    "description": "目录项过多时的截断提示（带最大数量）",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "400"
+      }
+    }
+  },
   "symbolClose": {
     "message": "×",
     "description": "关闭符号，用于小按钮"

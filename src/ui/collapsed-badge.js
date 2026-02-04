@@ -8,8 +8,8 @@
   const BADGE_WIDTH = Number.isFinite(CONSTS.BADGE_WIDTH) ? CONSTS.BADGE_WIDTH : 80;
   const BADGE_HEIGHT = Number.isFinite(CONSTS.BADGE_HEIGHT) ? CONSTS.BADGE_HEIGHT : 32;
   const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
-  const DEFAULT_RIGHT = 16;
-  const DEFAULT_TOP_MIN = 120;
+  const DEFAULT_RIGHT = Number.isFinite(CONSTS.BADGE_DEFAULT_RIGHT_PX) ? CONSTS.BADGE_DEFAULT_RIGHT_PX : 16;
+  const DEFAULT_TOP_MIN = Number.isFinite(CONSTS.BADGE_DEFAULT_TOP_MIN_PX) ? CONSTS.BADGE_DEFAULT_TOP_MIN_PX : 120;
 
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates

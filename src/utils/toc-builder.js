@@ -1,7 +1,11 @@
 (() => {
   'use strict';
 
-  const { collectBySelector, uniqueInDocumentOrder } = window.TOC_UTILS || {};
+  const { collectBySelector, uniqueInDocumentOrder, UI_CONSTANTS } = window.TOC_UTILS || {};
+  const CONSTS = UI_CONSTANTS || {};
+  const TOC_TEXT_MAX_LEN = Number.isFinite(CONSTS.TOC_TEXT_MAX_LEN) ? CONSTS.TOC_TEXT_MAX_LEN : 200;
+  const TOC_MAX_ITEMS = Number.isFinite(CONSTS.TOC_MAX_ITEMS) ? CONSTS.TOC_MAX_ITEMS : 400;
+  const TOC_MAX_CANDIDATES = Number.isFinite(CONSTS.TOC_MAX_CANDIDATES) ? CONSTS.TOC_MAX_CANDIDATES : 1200;
 
   function getTrimmedText(el) {
     let rawText = '';
@@ -9,8 +13,7 @@
       rawText = (el.textContent || '').trim();
     }
     rawText = rawText.replace(/\s+/g, ' ');
-    const maxLength = 200;
-    return rawText.length > maxLength ? rawText.substring(0, maxLength) + '...' : rawText;
+    return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
   }
 
   function isElementVisible(el) {
@@ -71,8 +74,6 @@
   }
 
   function buildTocItemsFromSelectors(selectors, cfg) {
-    const MAX_ITEMS = 400;
-    const MAX_CANDIDATES = 1200;
     const elements = [];
     const list = Array.isArray(selectors) ? selectors : [];
 
@@ -91,8 +92,8 @@
     let truncated = false;
 
     let candidates = allUniq;
-    if (candidates.length > MAX_CANDIDATES) {
-      candidates = candidates.slice(0, MAX_CANDIDATES);
+    if (candidates.length > TOC_MAX_CANDIDATES) {
+      candidates = candidates.slice(0, TOC_MAX_CANDIDATES);
       truncated = true;
     }
 
@@ -106,7 +107,7 @@
       if (!isElementVisible(el)) continue;
 
       items.push({ id: 'toc-item-' + items.length, el, text });
-      if (items.length >= MAX_ITEMS) {
+      if (items.length >= TOC_MAX_ITEMS) {
         truncated = true;
         break;
       }
@@ -116,7 +117,7 @@
       items,
       meta: {
         truncated,
-        maxItems: MAX_ITEMS,
+        maxItems: TOC_MAX_ITEMS,
         totalCandidates
       }
     };

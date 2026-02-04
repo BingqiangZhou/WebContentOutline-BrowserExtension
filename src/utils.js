@@ -15,13 +15,31 @@
   * UI constants shared across modules.
   */
  const UI_CONSTANTS = {
+   // Builder
+   TOC_TEXT_MAX_LEN: 200,
+   TOC_MAX_ITEMS: 400,
+   TOC_MAX_CANDIDATES: 1200,
+
+   // Badge defaults
+   BADGE_DEFAULT_RIGHT_PX: 16,
+   BADGE_DEFAULT_TOP_MIN_PX: 120,
+
    PANEL_WIDTH: 280,
    PANEL_HEIGHT: 400,
    BADGE_WIDTH: 80,
    BADGE_HEIGHT: 32,
    BUTTON_OFFSET: 20,
+   DRAG_THRESHOLD_PX: 3,
    UNLOCK_AFTER_MS: 1000,
    SCROLL_STOP_MS: 500,
+   PENDING_REBUILD_RECHECK_MS: 100,
+   CLEAR_USER_SELECTED_DELAY_MS: 200,
+   PICKER_TIMEOUT_MS: 20000,
+   EXPAND_ANIM_MS: 300,
+   MUTATION_DEBOUNCE_MS: 500,
+   MUTATION_UNLOCK_POLL_MS: 200,
+   XPATH_MAX_LENGTH: 2000,
+   MAX_Z_INDEX: 2147483647,
    TOAST_DURATION_MS: 3000,
    DRAG_MARGIN_PX: 4
  };
@@ -31,9 +49,9 @@
  * @param {string} key
  * @returns {string}
  */
-function msg(key) {
+function msg(key, substitutions) {
   try {
-    return chrome.i18n.getMessage(key) || key;
+    return chrome.i18n.getMessage(key, substitutions) || key;
   } catch (_) {
     return key;
   }
@@ -53,6 +71,26 @@ function safeJsonParse(raw) {
   } catch {
     return null;
   }
+}
+
+function isSafeXPathExpression(expr) {
+  if (typeof expr !== 'string') return false;
+  const trimmed = expr.trim();
+  if (!trimmed) return false;
+  if (trimmed.length > UI_CONSTANTS.XPATH_MAX_LENGTH) return false;
+
+  // Disallow control characters.
+  for (let i = 0; i < trimmed.length; i++) {
+    const code = trimmed.charCodeAt(i);
+    if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
+  }
+
+  // In browser XPath 1.0, most "dangerous" functions (e.g. document()) are not available,
+  // but reject common external-document/function patterns anyway.
+  const forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|collection)\s*\(/i;
+  if (forbiddenFn.test(trimmed)) return false;
+
+  return true;
 }
 
 function getFiniteNumber(value) {
@@ -326,6 +364,7 @@ function findMatchingConfig(configs, url) {
 function collectBySelector(selector) {
   if (!selector || !selector.expr) return [];
   if (selector.type === 'xpath') {
+    if (!isSafeXPathExpression(selector.expr)) return [];
     try {
       const snapshot = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
       const nodes = [];
@@ -405,6 +444,7 @@ const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !==
    msg,
    isPlainObject,
    safeJsonParse,
+   isSafeXPathExpression,
    getFiniteNumber,
    showToast,
    getStorage,

@@ -5,6 +5,7 @@
 
   async function siteConfig(cfg) {
     try {
+      const prevFocus = document.activeElement;
       const existing = document.querySelector('.toc-overlay');
       if (existing) {
         existing.remove();
@@ -113,10 +114,59 @@
       actions.appendChild(btnClose);
       box.appendChild(actions);
 
-      const close = () => box.remove();
+      const restoreFocus = () => {
+        try {
+          if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
+            prevFocus.focus({ preventScroll: true });
+          }
+        } catch (_) {}
+      };
+      const close = () => {
+        try { box.remove(); } catch (_) {}
+        restoreFocus();
+      };
+
+      const getFocusable = () => {
+        const selector = [
+          'button:not([disabled])',
+          'textarea:not([disabled])',
+          'input:not([disabled])',
+          'select:not([disabled])',
+          '[tabindex]:not([tabindex="-1"])'
+        ].join(',');
+        try {
+          return Array.from(box.querySelectorAll(selector)).filter(el => {
+            if (!el || !el.focus) return false;
+            const style = window.getComputedStyle(el);
+            return style && style.visibility !== 'hidden' && style.display !== 'none';
+          });
+        } catch (_) {
+          return [];
+        }
+      };
 
       box.addEventListener('keydown', (e) => {
         if (!e) return;
+        if (e.key === 'Tab') {
+          const focusables = getFocusable();
+          if (!focusables.length) {
+            try { e.preventDefault(); } catch (_) {}
+            return;
+          }
+          const first = focusables[0];
+          const last = focusables[focusables.length - 1];
+          const active = document.activeElement;
+          if (e.shiftKey && active === first) {
+            try { e.preventDefault(); } catch (_) {}
+            try { last.focus(); } catch (_) {}
+            return;
+          }
+          if (!e.shiftKey && active === last) {
+            try { e.preventDefault(); } catch (_) {}
+            try { first.focus(); } catch (_) {}
+            return;
+          }
+        }
         if (e.key === 'Escape') {
           try { e.preventDefault(); } catch (_) {}
           close();

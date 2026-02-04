@@ -1,9 +1,13 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key } = window.TOC_UTILS || {};
+  const { msg = (key) => key, UI_CONSTANTS } = window.TOC_UTILS || {};
+  const CONSTS = UI_CONSTANTS || {};
+  const PICKER_TIMEOUT_MS = Number.isFinite(CONSTS.PICKER_TIMEOUT_MS) ? CONSTS.PICKER_TIMEOUT_MS : 20000;
+  const MAX_Z_INDEX = Number.isFinite(CONSTS.MAX_Z_INDEX) ? CONSTS.MAX_Z_INDEX : 2147483647;
 
   function showPickerResult(selector, saveCb) {
+    const prevFocus = document.activeElement;
     const existing = document.querySelector('.toc-overlay');
     if (existing) {
       existing.remove();
@@ -49,9 +53,58 @@
     wrap.appendChild(body);
     wrap.appendChild(actions);
 
-    const close = () => wrap.remove();
+    const restoreFocus = () => {
+      try {
+        if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
+          prevFocus.focus({ preventScroll: true });
+        }
+      } catch (_) {}
+    };
+    const close = () => {
+      try { wrap.remove(); } catch (_) {}
+      restoreFocus();
+    };
+
+    const getFocusable = () => {
+      const selector = [
+        'button:not([disabled])',
+        'textarea:not([disabled])',
+        'input:not([disabled])',
+        'select:not([disabled])',
+        '[tabindex]:not([tabindex="-1"])'
+      ].join(',');
+      try {
+        return Array.from(wrap.querySelectorAll(selector)).filter(el => {
+          if (!el || !el.focus) return false;
+          const style = window.getComputedStyle(el);
+          return style && style.visibility !== 'hidden' && style.display !== 'none';
+        });
+      } catch (_) {
+        return [];
+      }
+    };
     const onKeydown = (e) => {
       if (!e) return;
+      if (e.key === 'Tab') {
+        const focusables = getFocusable();
+        if (!focusables.length) {
+          try { e.preventDefault(); } catch (_) {}
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && active === first) {
+          try { e.preventDefault(); } catch (_) {}
+          try { last.focus(); } catch (_) {}
+          return;
+        }
+        if (!e.shiftKey && active === last) {
+          try { e.preventDefault(); } catch (_) {}
+          try { first.focus(); } catch (_) {}
+          return;
+        }
+      }
       if (e.key === 'Escape') {
         try { e.preventDefault(); } catch (_) {}
         close();
@@ -66,7 +119,7 @@
       if (act === 'save') saveCb && saveCb(selector, close);
     });
     document.documentElement.appendChild(wrap);
-    try { requestAnimationFrame(() => wrap.focus({ preventScroll: true })); } catch (_) {}
+    try { requestAnimationFrame(() => btnSave.focus({ preventScroll: true })); } catch (_) {}
     return { close };
   }
 
@@ -78,7 +131,7 @@
     }
 
     const highlight = document.createElement('div');
-    highlight.style.cssText = 'position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:2147483647;left:0;top:0;width:0;height:0;';
+    highlight.style.cssText = `position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
     document.documentElement.appendChild(highlight);
 
     const prevCursor = document.body.style.cursor;
@@ -172,7 +225,7 @@
           console.warn('[toc] onCancel failed:', e);
         }
       }
-    }, 20000);
+    }, PICKER_TIMEOUT_MS);
 
     function cleanup() {
       document.removeEventListener('mousemove', move, true);

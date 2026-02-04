@@ -11,8 +11,13 @@
       onStart,
       onMove,
       onEnd,
-      thresholdPx = 3
+      thresholdPx
     } = options || {};
+
+    const { UI_CONSTANTS } = globalThis.TOC_UTILS || {};
+    const CONSTS = UI_CONSTANTS || {};
+    const DEFAULT_THRESHOLD_PX = Number.isFinite(CONSTS.DRAG_THRESHOLD_PX) ? CONSTS.DRAG_THRESHOLD_PX : 3;
+    const threshold = Number.isFinite(thresholdPx) ? thresholdPx : DEFAULT_THRESHOLD_PX;
 
     if (!element) {
       return { destroy: () => {}, isActive: () => false };
@@ -55,7 +60,7 @@
       if (!state.active) return;
       const dx = e.clientX - state.startX;
       const dy = e.clientY - state.startY;
-      if (!state.moved && (Math.abs(dx) > thresholdPx || Math.abs(dy) > thresholdPx)) {
+      if (!state.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
         state.moved = true;
       }
       try {
@@ -125,4 +130,3 @@
     createDragController
   };
 })();
-

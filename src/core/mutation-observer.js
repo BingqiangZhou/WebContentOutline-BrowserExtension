@@ -4,7 +4,10 @@
   let isExtensionContextValid = true;
 
   function createMutationObserver(onRebuild, getNavLock) {
-    const DEBOUNCE_MS = 500;
+    const { UI_CONSTANTS } = window.TOC_UTILS || {};
+    const CONSTS = UI_CONSTANTS || {};
+    const DEBOUNCE_MS = Number.isFinite(CONSTS.MUTATION_DEBOUNCE_MS) ? CONSTS.MUTATION_DEBOUNCE_MS : 500;
+    const UNLOCK_POLL_MS = Number.isFinite(CONSTS.MUTATION_UNLOCK_POLL_MS) ? CONSTS.MUTATION_UNLOCK_POLL_MS : 200;
     const OBSERVED_ATTRIBUTES = [
       'hidden',
       'style',
@@ -40,6 +43,7 @@
           stopTimers();
           return;
         }
+        console.warn('[toc] rebuild failed from MutationObserver:', e);
         throw e;
       }
     };
@@ -56,9 +60,9 @@
           }
           return;
         }
-        unlockTimer = setTimeout(check, 200);
+        unlockTimer = setTimeout(check, UNLOCK_POLL_MS);
       };
-      unlockTimer = setTimeout(check, 200);
+      unlockTimer = setTimeout(check, UNLOCK_POLL_MS);
     }
 
     function scheduleRebuild() {
@@ -77,10 +81,18 @@
 
     function hasMeaningfulChange(mutations) {
       for (const m of mutations) {
+        try {
+          const t = m.target;
+          if (t && t.nodeType === 1 && t.closest) {
+            if (t.closest('.toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
+              continue;
+            }
+          }
+        } catch (_) {}
+
         if (m.type === 'childList') {
           if ((m.addedNodes && m.addedNodes.length) || (m.removedNodes && m.removedNodes.length)) return true;
         }
-        if (m.type === 'characterData') return true;
         if (m.type === 'attributes') {
           const name = m.attributeName || '';
           if (OBSERVED_ATTR_SET.has(name)) {
@@ -118,6 +130,13 @@
       pendingRebuild = false;
 
       if (typeof MutationObserver !== 'undefined' && hasValidSelectors(cfg)) {
+        const resolveObserveRoot = () => {
+          try {
+            return document.querySelector('main') || document.querySelector('article') || document.body || document.documentElement;
+          } catch (_) {
+            return document.body || document.documentElement;
+          }
+        };
         const observer = new MutationObserver((mutations) => {
           if (!isExtensionContextValid) {
             observer.disconnect();
@@ -127,10 +146,10 @@
           scheduleRebuild();
         });
 
-        observer.observe(document.body || document.documentElement, {
+        observer.observe(resolveObserveRoot(), {
           childList: true,
           subtree: true,
-          characterData: true,
+          characterData: false,
           attributes: true,
           attributeFilter: OBSERVED_ATTRIBUTES
         });

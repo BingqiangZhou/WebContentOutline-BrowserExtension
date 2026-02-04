@@ -9,6 +9,9 @@
   const PANEL_WIDTH = Number.isFinite(CONSTS.PANEL_WIDTH) ? CONSTS.PANEL_WIDTH : 280;
   const PANEL_HEIGHT = Number.isFinite(CONSTS.PANEL_HEIGHT) ? CONSTS.PANEL_HEIGHT : 400;
   const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
+  const EXPAND_ANIM_MS = Number.isFinite(CONSTS.EXPAND_ANIM_MS) ? CONSTS.EXPAND_ANIM_MS : 300;
+  const PENDING_REBUILD_RECHECK_MS = Number.isFinite(CONSTS.PENDING_REBUILD_RECHECK_MS) ? CONSTS.PENDING_REBUILD_RECHECK_MS : 100;
+  const CLEAR_USER_SELECTED_DELAY_MS = Number.isFinite(CONSTS.CLEAR_USER_SELECTED_DELAY_MS) ? CONSTS.CLEAR_USER_SELECTED_DELAY_MS : 200;
 
   function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta) {
     // Remove any existing panel to prevent duplicates
@@ -87,14 +90,14 @@
                 console.warn('[toc] refresh after unlock failed', e);
               }
             }
-          }, 100);
+          }, PENDING_REBUILD_RECHECK_MS);
         }
 
         setTimeout(() => {
           items.forEach(it => {
             it._userSelected = false;
           });
-        }, 200);
+        }, CLEAR_USER_SELECTED_DELAY_MS);
       }, UNLOCK_AFTER_MS);
     };
 
@@ -203,17 +206,21 @@
 
     const list = document.createElement('div');
     list.className = 'toc-list';
-    list.setAttribute('role', 'navigation');
+    list.setAttribute('role', 'menu');
+    list.setAttribute('aria-orientation', 'vertical');
     list.setAttribute('aria-label', msg('tocTitle'));
 
     if (tocMeta && tocMeta.truncated) {
       const note = document.createElement('div');
       note.className = 'toc-empty';
       const max = tocMeta.maxItems || 400;
-      const msgText = msg('truncatedNotice');
-      note.textContent = msgText && msgText !== 'truncatedNotice'
-        ? msgText
-        : `For performance, TOC shows at most ${max} items. Refine selectors to narrow results.`;
+      const msgWithMax = msg('truncatedNoticeWithMax', String(max));
+      if (msgWithMax && msgWithMax !== 'truncatedNoticeWithMax') {
+        note.textContent = msgWithMax;
+      } else {
+        const msgText = msg('truncatedNotice');
+        note.textContent = (msgText && msgText !== 'truncatedNotice') ? msgText : '';
+      }
       list.appendChild(note);
     }
 
@@ -237,12 +244,14 @@
           if (it._node) {
             it._node.classList.remove('active');
             try { it._node.removeAttribute('aria-current'); } catch (_) {}
+            try { it._node.tabIndex = -1; } catch (_) {}
           }
         });
 
         item._userSelected = true;
         node.classList.add('active');
         try { node.setAttribute('aria-current', 'location'); } catch (_) {}
+        try { node.tabIndex = 0; } catch (_) {}
 
         try {
           item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -258,6 +267,8 @@
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'toc-item';
+        btn.setAttribute('role', 'menuitem');
+        btn.tabIndex = index === 0 ? 0 : -1;
         btn.textContent = item.text;
         btn.dataset.index = String(index);
         item._node = btn;
@@ -288,6 +299,9 @@
           if (key === 'ArrowUp') nextIndex = Math.max(0, nextIndex - 1);
           if (key === 'Home') nextIndex = 0;
           if (key === 'End') nextIndex = nodes.length - 1;
+          try {
+            nodes.forEach((n, idx) => { n.tabIndex = idx === nextIndex ? 0 : -1; });
+          } catch (_) {}
           try { nodes[nextIndex].focus({ preventScroll: false }); } catch (_) { nodes[nextIndex].focus(); }
           return;
         }
@@ -313,7 +327,7 @@
       try { resolveShown && resolveShown(); } catch (_) {}
       setTimeout(() => {
         panel.classList.remove('toc-floating-expand', 'toc-expanded');
-      }, 300);
+      }, EXPAND_ANIM_MS);
     });
 
     // Make header draggable
