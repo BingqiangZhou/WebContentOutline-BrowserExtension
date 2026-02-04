@@ -1,10 +1,9 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, UI_CONSTANTS } = window.TOC_UTILS || {};
-  const CONSTS = UI_CONSTANTS || {};
-  const PICKER_TIMEOUT_MS = Number.isFinite(CONSTS.PICKER_TIMEOUT_MS) ? CONSTS.PICKER_TIMEOUT_MS : 20000;
-  const MAX_Z_INDEX = Number.isFinite(CONSTS.MAX_Z_INDEX) ? CONSTS.MAX_Z_INDEX : 2147483647;
+  const { msg = (key) => key, uiConst } = window.TOC_UTILS || {};
+  const PICKER_TIMEOUT_MS = typeof uiConst === 'function' ? uiConst('PICKER_TIMEOUT_MS', 20000) : 20000;
+  const MAX_Z_INDEX = typeof uiConst === 'function' ? uiConst('MAX_Z_INDEX', 2147483647) : 2147483647;
 
   function showPickerResult(selector, saveCb) {
     const prevFocus = document.activeElement;

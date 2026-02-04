@@ -1,7 +1,7 @@
 /* TOC UI reset and isolation */
 .toc-floating,
 .toc-floating *,
-/* Reset only badge children to avoid overriding inline positioning */
+.toc-collapsed-badge,
 .toc-collapsed-badge * {
   all: unset !important;
   box-sizing: border-box !important;
@@ -118,10 +118,37 @@
   background: rgba(0,0,0,0.06) !important;
 }
 
+.toc-btn:focus-visible,
+.toc-item:focus-visible,
+.toc-selector-delete:focus-visible,
+.toc-collapsed-badge:focus-visible,
+.toc-toast-close:focus-visible {
+  outline: 2px solid rgba(47, 111, 235, 0.85) !important;
+  outline-offset: 2px !important;
+}
+
+.toc-btn:focus-visible,
+.toc-item:focus-visible,
+.toc-selector-delete:focus-visible,
+.toc-toast-close:focus-visible {
+  border-radius: 6px !important;
+}
+
 .toc-toast-info { border-left: 4px solid #2f6feb !important; }
 .toc-toast-success { border-left: 4px solid #1e8e3e !important; }
 .toc-toast-warning { border-left: 4px solid #f29900 !important; }
 .toc-toast-error { border-left: 4px solid #d93025 !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .toc-floating-expand {
+    transition: none !important;
+  }
+  .toc-collapsed-badge,
+  .toc-toast,
+  .toc-overlay {
+    transition: none !important;
+  }
+}
 
 .toc-overlay-header {
   display: block !important;
@@ -398,7 +425,6 @@
 .toc-btn:focus {
   background: rgba(0,0,0,0.06) !important;
   color: #333 !important;
-  outline: none !important;
 }
 
 .toc-btn.toc-btn-active {
@@ -496,7 +522,6 @@
 .toc-item:focus {
   background: rgba(64, 128, 255, 0.1) !important;
   color: #222 !important;
-  outline: none !important;
   text-decoration: none !important;
 }
 
@@ -562,7 +587,6 @@
 }
 
 .toc-collapsed-badge:focus {
-  outline: none !important;
   color: #fff !important;
   background: #2f6feb !important;
 }

@@ -176,5 +176,17 @@
   "toastRegionLabel": {
     "message": "通知",
     "description": "Toast/通知区域的 ARIA 标签"
+  },
+  "errorStorageQuotaExceeded": {
+    "message": "存储空间不足，无法保存此站点设置。",
+    "description": "chrome.storage.local 写入因配额限制失败时提示"
+  },
+  "errorStorageWriteFailed": {
+    "message": "保存设置失败，请重试。",
+    "description": "chrome.storage.local 写入失败时的通用提示"
+  },
+  "errorInvalidSelector": {
+    "message": "选择器无效，无法保存。",
+    "description": "选择器表达式校验失败时提示"
   }
 }

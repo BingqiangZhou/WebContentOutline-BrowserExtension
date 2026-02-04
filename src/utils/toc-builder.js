@@ -1,11 +1,10 @@
 (() => {
   'use strict';
 
-  const { collectBySelector, uniqueInDocumentOrder, UI_CONSTANTS } = window.TOC_UTILS || {};
-  const CONSTS = UI_CONSTANTS || {};
-  const TOC_TEXT_MAX_LEN = Number.isFinite(CONSTS.TOC_TEXT_MAX_LEN) ? CONSTS.TOC_TEXT_MAX_LEN : 200;
-  const TOC_MAX_ITEMS = Number.isFinite(CONSTS.TOC_MAX_ITEMS) ? CONSTS.TOC_MAX_ITEMS : 400;
-  const TOC_MAX_CANDIDATES = Number.isFinite(CONSTS.TOC_MAX_CANDIDATES) ? CONSTS.TOC_MAX_CANDIDATES : 1200;
+  const { collectBySelector, uniqueInDocumentOrder, uiConst } = window.TOC_UTILS || {};
+  const TOC_TEXT_MAX_LEN = typeof uiConst === 'function' ? uiConst('TOC_TEXT_MAX_LEN', 200) : 200;
+  const TOC_MAX_ITEMS = typeof uiConst === 'function' ? uiConst('TOC_MAX_ITEMS', 400) : 400;
+  const TOC_MAX_CANDIDATES = typeof uiConst === 'function' ? uiConst('TOC_MAX_CANDIDATES', 1200) : 1200;
 
   function getTrimmedText(el) {
     let rawText = '';

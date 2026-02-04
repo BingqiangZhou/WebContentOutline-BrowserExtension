@@ -4,10 +4,9 @@
   let isExtensionContextValid = true;
 
   function createMutationObserver(onRebuild, getNavLock) {
-    const { UI_CONSTANTS } = window.TOC_UTILS || {};
-    const CONSTS = UI_CONSTANTS || {};
-    const DEBOUNCE_MS = Number.isFinite(CONSTS.MUTATION_DEBOUNCE_MS) ? CONSTS.MUTATION_DEBOUNCE_MS : 500;
-    const UNLOCK_POLL_MS = Number.isFinite(CONSTS.MUTATION_UNLOCK_POLL_MS) ? CONSTS.MUTATION_UNLOCK_POLL_MS : 200;
+    const { uiConst } = window.TOC_UTILS || {};
+    const DEBOUNCE_MS = typeof uiConst === 'function' ? uiConst('MUTATION_DEBOUNCE_MS', 500) : 500;
+    const UNLOCK_POLL_MS = typeof uiConst === 'function' ? uiConst('MUTATION_UNLOCK_POLL_MS', 200) : 200;
     const OBSERVED_ATTRIBUTES = [
       'hidden',
       'style',

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, getConfigs, saveConfigs, showToast } = window.TOC_UTILS || {};
+  const { msg = (key) => key, getConfigs, saveConfigs, showToast, validateSelectorExpression } = window.TOC_UTILS || {};
 
   async function siteConfig(cfg) {
     try {
@@ -72,7 +72,8 @@
                 const updatedSelectors = [...configs[idx].selectors];
                 updatedSelectors.splice(indexToDelete, 1);
                 configs[idx].selectors = updatedSelectors;
-                await saveConfigs(configs);
+                const ok = await saveConfigs(configs);
+                if (!ok) return;
                 cfg.selectors = updatedSelectors;
 
                 await refreshList(updatedSelectors);
@@ -182,7 +183,8 @@
         if (act === 'clear') {
           if (idx >= 0) {
             configs.splice(idx, 1);
-            await saveConfigs(configs);
+            const ok = await saveConfigs(configs);
+            if (!ok) return;
             cfg.selectors = [];
             if (window.TOC_APP && window.TOC_APP.rebuild) {
               await window.TOC_APP.rebuild();
@@ -202,16 +204,21 @@
 
   async function saveSelector(selector, cfg) {
     try {
+      const expr = String(selector || '').trim();
+      if (!expr || (validateSelectorExpression && !validateSelectorExpression('css', expr))) {
+        showToast && showToast(msg('errorInvalidSelector'), { type: 'error' });
+        return false;
+      }
       const configs = await getConfigs();
       const urlPattern = `${location.protocol}//${location.host}/*`;
-      const entry = { type: 'css', expr: selector };
+      const entry = { type: 'css', expr };
       const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);
       const sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
       if (idx >= 0) {
         const existing = configs[idx];
         const arr = Array.isArray(existing.selectors) ? existing.selectors.slice() : [];
-        if (!arr.some(s => s.type === 'css' && s.expr === selector)) {
+        if (!arr.some(s => s.type === 'css' && s.expr === expr)) {
           arr.unshift(entry);
         }
         configs[idx] = { ...existing, side: sidePersist, urlPattern, selectors: arr };
@@ -219,7 +226,8 @@
         configs.push({ urlPattern, side: sidePersist, selectors: [entry], collapsedDefault: false });
       }
 
-      await saveConfigs(configs);
+      const ok = await saveConfigs(configs);
+      if (!ok) return false;
       return true;
     } catch (e) {
       console.error(msg('logSaveConfigFailed'), e);

@@ -15,7 +15,7 @@
     getBadgePosByHost,
     setBadgePosByHost,
     showToast,
-    UI_CONSTANTS
+    uiConst
   } = window.TOC_UTILS || {};
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
@@ -24,11 +24,10 @@
   let isRebuilding = false;
 
   // Constants
-  const CONSTS = UI_CONSTANTS || {};
-  const PANEL_WIDTH = Number.isFinite(CONSTS.PANEL_WIDTH) ? CONSTS.PANEL_WIDTH : 280;
-  const PANEL_HEIGHT = Number.isFinite(CONSTS.PANEL_HEIGHT) ? CONSTS.PANEL_HEIGHT : 400;
-  const BUTTON_OFFSET = Number.isFinite(CONSTS.BUTTON_OFFSET) ? CONSTS.BUTTON_OFFSET : 20;
-  const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
+  const PANEL_WIDTH = typeof uiConst === 'function' ? uiConst('PANEL_WIDTH', 280) : 280;
+  const PANEL_HEIGHT = typeof uiConst === 'function' ? uiConst('PANEL_HEIGHT', 400) : 400;
+  const BUTTON_OFFSET = typeof uiConst === 'function' ? uiConst('BUTTON_OFFSET', 20) : 20;
+  const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
 
   const isContextInvalidatedError = (e) => {
     return !!(e && (
@@ -64,6 +63,8 @@
     let mutationObserver = null;
     let pickerInstance = null;
     let activeRestoreTimeout = null;
+    let rebuildInFlight = null;
+    let rebuildQueued = false;
 
     let navLock = false;
     const getNavLock = () => navLock;
@@ -167,7 +168,7 @@
       }
     };
 
-    const rebuild = async () => {
+    const rebuildOnce = async () => {
       try {
         // Set rebuild flag to prevent IntersectionObserver interference
         isRebuilding = true;
@@ -259,6 +260,24 @@
           return;
         }
         console.debug('[toc] rebuild failed:', e);
+      }
+    };
+
+    const rebuild = async () => {
+      if (rebuildInFlight) {
+        rebuildQueued = true;
+        return rebuildInFlight;
+      }
+      rebuildInFlight = (async () => {
+        do {
+          rebuildQueued = false;
+          await rebuildOnce();
+        } while (rebuildQueued);
+      })();
+      try {
+        return await rebuildInFlight;
+      } finally {
+        rebuildInFlight = null;
       }
     };
 

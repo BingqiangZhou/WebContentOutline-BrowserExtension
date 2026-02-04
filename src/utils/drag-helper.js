@@ -14,9 +14,8 @@
       thresholdPx
     } = options || {};
 
-    const { UI_CONSTANTS } = globalThis.TOC_UTILS || {};
-    const CONSTS = UI_CONSTANTS || {};
-    const DEFAULT_THRESHOLD_PX = Number.isFinite(CONSTS.DRAG_THRESHOLD_PX) ? CONSTS.DRAG_THRESHOLD_PX : 3;
+    const { uiConst } = globalThis.TOC_UTILS || {};
+    const DEFAULT_THRESHOLD_PX = typeof uiConst === 'function' ? uiConst('DRAG_THRESHOLD_PX', 3) : 3;
     const threshold = Number.isFinite(thresholdPx) ? thresholdPx : DEFAULT_THRESHOLD_PX;
 
     if (!element) {

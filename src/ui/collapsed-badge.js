@@ -1,15 +1,14 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost, UI_CONSTANTS } = window.TOC_UTILS || {};
+  const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost, uiConst } = window.TOC_UTILS || {};
 
   // Constants
-  const CONSTS = UI_CONSTANTS || {};
-  const BADGE_WIDTH = Number.isFinite(CONSTS.BADGE_WIDTH) ? CONSTS.BADGE_WIDTH : 80;
-  const BADGE_HEIGHT = Number.isFinite(CONSTS.BADGE_HEIGHT) ? CONSTS.BADGE_HEIGHT : 32;
-  const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
-  const DEFAULT_RIGHT = Number.isFinite(CONSTS.BADGE_DEFAULT_RIGHT_PX) ? CONSTS.BADGE_DEFAULT_RIGHT_PX : 16;
-  const DEFAULT_TOP_MIN = Number.isFinite(CONSTS.BADGE_DEFAULT_TOP_MIN_PX) ? CONSTS.BADGE_DEFAULT_TOP_MIN_PX : 120;
+  const BADGE_WIDTH = typeof uiConst === 'function' ? uiConst('BADGE_WIDTH', 80) : 80;
+  const BADGE_HEIGHT = typeof uiConst === 'function' ? uiConst('BADGE_HEIGHT', 32) : 32;
+  const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
+  const DEFAULT_RIGHT = typeof uiConst === 'function' ? uiConst('BADGE_DEFAULT_RIGHT_PX', 16) : 16;
+  const DEFAULT_TOP_MIN = typeof uiConst === 'function' ? uiConst('BADGE_DEFAULT_TOP_MIN_PX', 120) : 120;
 
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates

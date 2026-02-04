@@ -22,6 +22,9 @@
 
   let appInstance = null;
   let currentEnabled = false;
+  let transitionId = 0;
+  let transitionChain = Promise.resolve();
+  let startInFlight = null;
 
   async function migrateLegacyBadgePos() {
     try {
@@ -65,6 +68,20 @@
     }
   }
 
+  async function ensureStarted() {
+    if (appInstance) return;
+    if (startInFlight) {
+      try { await startInFlight; } catch (_) {}
+      return;
+    }
+    startInFlight = (async () => { await startApp(); })();
+    try {
+      await startInFlight;
+    } finally {
+      startInFlight = null;
+    }
+  }
+
   function stopApp() {
     try {
       if (appInstance && appInstance.destroy) {
@@ -75,10 +92,44 @@
     }
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay').forEach(n => n.remove());
+      document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay, .toc-toast-container').forEach(n => n.remove());
     } catch (e) {
       console.warn(msg('logPrefix') + ' cleanup DOM failed:', e);
     }
+  }
+
+  function enqueueEnabledTransition(nextEnabled, opts = {}) {
+    const want = !!nextEnabled;
+    const myId = ++transitionId;
+    transitionChain = transitionChain.then(async () => {
+      if (myId !== transitionId) return;
+      if (want === currentEnabled) return;
+
+      currentEnabled = want;
+      if (!want) {
+        stopApp();
+        return;
+      }
+
+      await ensureStarted();
+      if (opts && opts.expandPanel) {
+        try {
+          if (appInstance && appInstance.expand) {
+            await appInstance.expand();
+          }
+        } catch (_) {}
+      } else {
+        try {
+          const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
+          if (expanded && appInstance && appInstance.expand) {
+            await appInstance.expand();
+          }
+        } catch (_) {}
+      }
+    }).catch((e) => {
+      console.warn(msg('logPrefix') + ' enabled transition failed:', e);
+    });
+    return transitionChain;
   }
 
   async function main() {
@@ -92,15 +143,8 @@
       });
 
       const enabled = await getSiteEnabledByOrigin();
-      currentEnabled = !!enabled;
-      if (currentEnabled) {
-        await startApp();
-        try {
-          const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
-          if (expanded && appInstance && appInstance.expand) {
-            await appInstance.expand();
-          }
-        } catch (_) {}
+      if (!!enabled) {
+        await enqueueEnabledTransition(true);
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
@@ -121,12 +165,7 @@
       if (msg.type === 'toc:openPanel') {
         (async () => {
           try {
-            if (!appInstance) {
-              await startApp();
-            }
-            if (appInstance && appInstance.expand) {
-              await appInstance.expand();
-            }
+            await enqueueEnabledTransition(true, { expandPanel: true });
             sendResponse && sendResponse({ ok: true });
           } catch (err) {
             sendResponse && sendResponse({ ok: false, error: String(err) });
@@ -141,24 +180,12 @@
         sendResponse && sendResponse({ ok: true, unchanged: true });
         return;
       }
-      currentEnabled = enabled;
-      if (enabled) {
-        startApp().then(async () => {
-          try {
-            const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
-            if (expanded && appInstance && appInstance.expand) {
-              await appInstance.expand();
-            }
-            sendResponse && sendResponse({ ok: true });
-          } catch (_) {
-            sendResponse && sendResponse({ ok: true });
-          }
-        }).catch(() => sendResponse && sendResponse({ ok: false }));
-        return true;
-      }
-
-      stopApp();
-      sendResponse && sendResponse({ ok: true });
+      enqueueEnabledTransition(enabled).then(() => {
+        sendResponse && sendResponse({ ok: true });
+      }).catch(() => {
+        sendResponse && sendResponse({ ok: false });
+      });
+      return true;
     });
   } catch (_) {}
 
@@ -174,12 +201,7 @@
         const map = ch.newValue || {};
         const next = !!map[location.origin];
         if (next === currentEnabled) return;
-        currentEnabled = next;
-        if (next) {
-          startApp().catch(err => console.warn(msg('logPrefix') + ' startApp failed:', err));
-        } else {
-          stopApp();
-        }
+        enqueueEnabledTransition(next);
       } catch (e) {
         console.warn(msg('logPrefix') + ' storage change failed:', e);
       }

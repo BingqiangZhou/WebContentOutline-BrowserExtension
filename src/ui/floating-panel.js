@@ -1,17 +1,16 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, setBadgePosByHost, UI_CONSTANTS } = window.TOC_UTILS || {};
+  const { msg = (key) => key, setBadgePosByHost, uiConst } = window.TOC_UTILS || {};
 
-  const CONSTS = UI_CONSTANTS || {};
-  const UNLOCK_AFTER_MS = Number.isFinite(CONSTS.UNLOCK_AFTER_MS) ? CONSTS.UNLOCK_AFTER_MS : 1000;
-  const SCROLL_STOP_MS = Number.isFinite(CONSTS.SCROLL_STOP_MS) ? CONSTS.SCROLL_STOP_MS : 500;
-  const PANEL_WIDTH = Number.isFinite(CONSTS.PANEL_WIDTH) ? CONSTS.PANEL_WIDTH : 280;
-  const PANEL_HEIGHT = Number.isFinite(CONSTS.PANEL_HEIGHT) ? CONSTS.PANEL_HEIGHT : 400;
-  const DRAG_MARGIN_PX = Number.isFinite(CONSTS.DRAG_MARGIN_PX) ? CONSTS.DRAG_MARGIN_PX : 4;
-  const EXPAND_ANIM_MS = Number.isFinite(CONSTS.EXPAND_ANIM_MS) ? CONSTS.EXPAND_ANIM_MS : 300;
-  const PENDING_REBUILD_RECHECK_MS = Number.isFinite(CONSTS.PENDING_REBUILD_RECHECK_MS) ? CONSTS.PENDING_REBUILD_RECHECK_MS : 100;
-  const CLEAR_USER_SELECTED_DELAY_MS = Number.isFinite(CONSTS.CLEAR_USER_SELECTED_DELAY_MS) ? CONSTS.CLEAR_USER_SELECTED_DELAY_MS : 200;
+  const UNLOCK_AFTER_MS = typeof uiConst === 'function' ? uiConst('UNLOCK_AFTER_MS', 1000) : 1000;
+  const SCROLL_STOP_MS = typeof uiConst === 'function' ? uiConst('SCROLL_STOP_MS', 500) : 500;
+  const PANEL_WIDTH = typeof uiConst === 'function' ? uiConst('PANEL_WIDTH', 280) : 280;
+  const PANEL_HEIGHT = typeof uiConst === 'function' ? uiConst('PANEL_HEIGHT', 400) : 400;
+  const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
+  const EXPAND_ANIM_MS = typeof uiConst === 'function' ? uiConst('EXPAND_ANIM_MS', 300) : 300;
+  const PENDING_REBUILD_RECHECK_MS = typeof uiConst === 'function' ? uiConst('PENDING_REBUILD_RECHECK_MS', 100) : 100;
+  const CLEAR_USER_SELECTED_DELAY_MS = typeof uiConst === 'function' ? uiConst('CLEAR_USER_SELECTED_DELAY_MS', 200) : 200;
 
   function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta) {
     // Remove any existing panel to prevent duplicates
@@ -254,7 +253,12 @@
         try { node.tabIndex = 0; } catch (_) {}
 
         try {
-          item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          const { scrollToElement } = window.TOC_UTILS || {};
+          if (scrollToElement) {
+            scrollToElement(item.el);
+          } else {
+            item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
         } catch {
           const { scrollToElement } = window.TOC_UTILS || {};
           if (scrollToElement) scrollToElement(item.el);
@@ -410,6 +414,7 @@
     // Active highlight via IntersectionObserver
     if (items.length && 'IntersectionObserver' in window) {
       const map = new Map();
+      const topByEl = new Map();
       items.forEach(it => {
         if (it.el) {
           map.set(it.el, it);
@@ -448,17 +453,24 @@
         entries.forEach(entry => {
           const it = map.get(entry.target);
           if (!it || !it._node) return;
-          if (entry.isIntersecting) intersecting.add(it);
-          else intersecting.delete(it);
+          if (entry.isIntersecting) {
+            intersecting.add(it);
+            try {
+              if (entry.boundingClientRect && Number.isFinite(entry.boundingClientRect.top)) {
+                topByEl.set(it.el, entry.boundingClientRect.top);
+              }
+            } catch (_) {}
+          } else {
+            intersecting.delete(it);
+            try { topByEl.delete(it.el); } catch (_) {}
+          }
         });
 
         const visibleItems = Array.from(intersecting).filter(it => it.el && document.contains(it.el));
         visibleItems.sort((a, b) => {
-          try {
-            return a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top;
-          } catch (_) {
-            return 0;
-          }
+          const ta = topByEl.has(a.el) ? topByEl.get(a.el) : 0;
+          const tb = topByEl.has(b.el) ? topByEl.get(b.el) : 0;
+          return ta - tb;
         });
 
         if (visibleItems.length > 0) {

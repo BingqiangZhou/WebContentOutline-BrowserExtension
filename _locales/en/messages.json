@@ -176,5 +176,17 @@
   "toastRegionLabel": {
     "message": "Notifications",
     "description": "ARIA label for the toast/notification region"
+  },
+  "errorStorageQuotaExceeded": {
+    "message": "Storage quota exceeded. Unable to save settings for this site.",
+    "description": "Shown when chrome.storage.local write fails due to quota limits"
+  },
+  "errorStorageWriteFailed": {
+    "message": "Failed to save settings. Please try again.",
+    "description": "Shown when chrome.storage.local write fails for unknown reasons"
+  },
+  "errorInvalidSelector": {
+    "message": "Invalid selector. Unable to save.",
+    "description": "Shown when a selector expression fails validation"
   }
 }

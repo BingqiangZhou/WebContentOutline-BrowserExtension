@@ -60,7 +60,9 @@ async function saveEnabledMap(map) {
       await chrome.storage.local.set({ [KEY]: map });
     }
   } catch (e) {
-    console.warn('[toc] saveEnabledMap failed:', e);
+    const text = String(e && (e.message || e.toString && e.toString() || e) || '');
+    const quota = (e && e.name === 'QuotaExceededError') || /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
+    console.warn('[toc] saveEnabledMap failed:', e, { quota });
   }
 }
 

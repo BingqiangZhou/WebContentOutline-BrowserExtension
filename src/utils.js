@@ -38,11 +38,26 @@
    EXPAND_ANIM_MS: 300,
    MUTATION_DEBOUNCE_MS: 500,
    MUTATION_UNLOCK_POLL_MS: 200,
+   CSS_SELECTOR_MAX_LENGTH: 2000,
    XPATH_MAX_LENGTH: 2000,
    MAX_Z_INDEX: 2147483647,
    TOAST_DURATION_MS: 3000,
    DRAG_MARGIN_PX: 4
  };
+
+ function uiConst(name, fallback) {
+   try {
+     if (!name) return fallback;
+     const hasOwn = Object.prototype.hasOwnProperty.call(UI_CONSTANTS, name);
+     const value = hasOwn ? UI_CONSTANTS[name] : undefined;
+     if (typeof fallback === 'number') {
+       return Number.isFinite(value) ? value : fallback;
+     }
+     return (value !== undefined && value !== null) ? value : fallback;
+   } catch (_) {
+     return fallback;
+   }
+ }
 
 /**
  * Get i18n message safely.
@@ -63,35 +78,117 @@ function isPlainObject(value) {
   return proto === Object.prototype || proto === null;
 }
 
-function safeJsonParse(raw) {
-  if (typeof raw !== 'string') return null;
-  if (raw.length > 20000) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+ function safeJsonParse(raw) {
+   if (typeof raw !== 'string') return null;
+   if (raw.length > 20000) return null;
+   try {
+     return JSON.parse(raw);
+   } catch {
+     return null;
+   }
+ }
 
-function isSafeXPathExpression(expr) {
-  if (typeof expr !== 'string') return false;
-  const trimmed = expr.trim();
-  if (!trimmed) return false;
-  if (trimmed.length > UI_CONSTANTS.XPATH_MAX_LENGTH) return false;
+ function isSafeXPathExpression(expr) {
+   if (typeof expr !== 'string') return false;
+   const trimmed = expr.trim();
+   if (!trimmed) return false;
+   if (trimmed.length > uiConst('XPATH_MAX_LENGTH', 2000)) return false;
 
-  // Disallow control characters.
-  for (let i = 0; i < trimmed.length; i++) {
-    const code = trimmed.charCodeAt(i);
-    if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
-  }
+   // Disallow control characters.
+   for (let i = 0; i < trimmed.length; i++) {
+     const code = trimmed.charCodeAt(i);
+     if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
+   }
 
-  // In browser XPath 1.0, most "dangerous" functions (e.g. document()) are not available,
-  // but reject common external-document/function patterns anyway.
-  const forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|collection)\s*\(/i;
-  if (forbiddenFn.test(trimmed)) return false;
+   // Basic structural checks: balanced quotes/brackets/parentheses, and avoid extreme nesting.
+   let inSingle = false;
+   let inDouble = false;
+   let parenDepth = 0;
+   let bracketDepth = 0;
+   const MAX_NESTING = 64;
+   for (let i = 0; i < trimmed.length; i++) {
+     const ch = trimmed[i];
+     if (!inDouble && ch === "'") {
+       inSingle = !inSingle;
+       continue;
+     }
+     if (!inSingle && ch === '"') {
+       inDouble = !inDouble;
+       continue;
+     }
+     if (inSingle || inDouble) continue;
+     if (ch === '(') parenDepth++;
+     if (ch === ')') parenDepth--;
+     if (ch === '[') bracketDepth++;
+     if (ch === ']') bracketDepth--;
+     if (parenDepth < 0 || bracketDepth < 0) return false;
+     if (parenDepth > MAX_NESTING || bracketDepth > MAX_NESTING) return false;
+   }
+   if (inSingle || inDouble) return false;
+   if (parenDepth !== 0 || bracketDepth !== 0) return false;
 
-  return true;
-}
+   // In browser XPath 1.0, most "dangerous" functions (e.g. document()) are not available,
+   // but reject common external-document/function patterns anyway.
+   const forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|collection)\s*\(/i;
+   if (forbiddenFn.test(trimmed)) return false;
+
+   return true;
+ }
+
+ function isQuotaExceededError(err) {
+   try {
+     if (!err) return false;
+     if (err.name === 'QuotaExceededError') return true;
+     const text = String(err && (err.message || err.toString && err.toString() || err) || '');
+     return /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
+   } catch (_) {
+     return false;
+   }
+ }
+
+ const __storageErrorOnce = new Set();
+ function notifyStorageWriteError(key, err) {
+   try {
+     const kind = isQuotaExceededError(err) ? 'quota' : 'unknown';
+     const onceKey = `${kind}:${String(key || '')}`;
+     if (__storageErrorOnce.has(onceKey)) return;
+     __storageErrorOnce.add(onceKey);
+     console.warn('[toc] storage write failed:', { key, err });
+     if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
+       const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
+       const text = msg(messageKey);
+       if (text && text !== messageKey) {
+         showToast(text, { type: 'error' });
+       }
+     }
+   } catch (_) {}
+ }
+
+ function isValidCssSelector(expr) {
+   if (typeof expr !== 'string') return false;
+   const trimmed = expr.trim();
+   if (!trimmed) return false;
+   // Disallow control chars
+   for (let i = 0; i < trimmed.length; i++) {
+     const code = trimmed.charCodeAt(i);
+     if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
+   }
+   const maxLen = uiConst('CSS_SELECTOR_MAX_LENGTH', 2000);
+   if (trimmed.length > maxLen) return false;
+   try {
+     // Syntax validation. This may query the DOM once, which is acceptable on user actions.
+     document.querySelector(trimmed);
+     return true;
+   } catch (_) {
+     return false;
+   }
+ }
+
+ function validateSelectorExpression(type, expr) {
+   if (type === 'xpath') return isSafeXPathExpression(expr);
+   if (type === 'css') return isValidCssSelector(expr);
+   return false;
+ }
 
 function getFiniteNumber(value) {
   const num = typeof value === 'number' ? value : Number(value);
@@ -169,29 +266,33 @@ function showToast(text, opts = {}) {
  * @param {*} fallback
  * @returns {Promise<*>}
  */
-async function getStorage(key, fallback) {
-  try {
-    if (chrome?.storage?.local) {
-      const res = await chrome.storage.local.get([key]);
-      return res[key] ?? fallback;
-    }
-  } catch (_) {}
-  return fallback;
-}
+ async function getStorage(key, fallback) {
+   try {
+     if (chrome?.storage?.local) {
+       const res = await chrome.storage.local.get([key]);
+       return res[key] ?? fallback;
+     }
+   } catch (_) {}
+   return fallback;
+ }
 
-/**
- * Write a value to chrome.storage.local.
- * @param {string} key
- * @param {*} value
- * @returns {Promise<void>}
- */
-async function setStorage(key, value) {
-  try {
-    if (chrome?.storage?.local) {
-      await chrome.storage.local.set({ [key]: value });
-    }
-  } catch (_) {}
-}
+ /**
+  * Write a value to chrome.storage.local.
+  * @param {string} key
+  * @param {*} value
+  * @returns {Promise<boolean>}
+  */
+ async function setStorage(key, value) {
+   try {
+     if (chrome?.storage?.local) {
+       await chrome.storage.local.set({ [key]: value });
+     }
+     return true;
+   } catch (e) {
+     notifyStorageWriteError(key, e);
+     return false;
+   }
+ }
 
 /**
  * Get configs from chrome.storage.local
@@ -206,9 +307,9 @@ async function getConfigs() {
  * @param {Array} configs
  * @returns {Promise<void>}
  */
-async function saveConfigs(configs) {
-  await setStorage(STORAGE_KEYS.TOC_CONFIGS, configs);
-}
+ async function saveConfigs(configs) {
+   return await setStorage(STORAGE_KEYS.TOC_CONFIGS, configs);
+ }
 
 /**
  * Get site enabled map { origin: boolean } from chrome.storage.local
@@ -222,9 +323,9 @@ async function getEnabledMap() {
  * Save site enabled map to chrome.storage.local
  * @param {Record<string, boolean>} map
  */
-async function saveEnabledMap(map) {
-  await setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
-}
+ async function saveEnabledMap(map) {
+   return await setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
+ }
 
 /**
  * Get panel expanded state map { origin: boolean } from chrome.storage.local
@@ -237,9 +338,9 @@ async function getPanelStateMap() {
  * Save panel expanded state map
  * @param {Record<string, boolean>} map
  */
-async function savePanelStateMap(map) {
-  await setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
-}
+ async function savePanelStateMap(map) {
+   return await setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
+ }
 
 /**
  * Get badge position map { host: { left, top } }
@@ -252,9 +353,9 @@ async function getBadgePosMap() {
  * Save badge position map
  * @param {Record<string, {left:number, top:number}>} map
  */
-async function saveBadgePosMap(map) {
-  await setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
-}
+ async function saveBadgePosMap(map) {
+   return await setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
+ }
 
 async function getBadgePosByHost(host) {
   const map = await getBadgePosMap();
@@ -277,8 +378,8 @@ async function getPanelExpandedByOrigin(origin) {
 async function setPanelExpandedByOrigin(origin, expanded) {
   const map = await getPanelStateMap();
   map[origin] = !!expanded;
-  await savePanelStateMap(map);
-  return !!map[origin];
+  const ok = await savePanelStateMap(map);
+  return ok ? !!map[origin] : false;
 }
 
 /**
@@ -316,8 +417,8 @@ async function getSiteEnabledByOrigin(origin) {
 async function setSiteEnabledByOrigin(origin, enabled) {
   const map = await getEnabledMap();
   map[origin] = !!enabled;
-  await saveEnabledMap(map);
-  return !!map[origin];
+  const ok = await saveEnabledMap(map);
+  return ok ? !!map[origin] : false;
 }
 
 /**
@@ -327,10 +428,11 @@ async function setSiteEnabledByOrigin(origin, enabled) {
  */
 async function toggleSiteEnabledByOrigin(origin) {
   const map = await getEnabledMap();
-  const next = !map[origin];
+  const prev = !!map[origin];
+  const next = !prev;
   map[origin] = next;
-  await saveEnabledMap(map);
-  return next;
+  const ok = await saveEnabledMap(map);
+  return ok ? next : prev;
 }
 
 /**
@@ -430,7 +532,14 @@ function uniqueInDocumentOrder(list) {
  */
 function scrollToElement(el) {
   try {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+    const reduceMotion = (() => {
+      try {
+        return !!(window && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+      } catch (_) {
+        return false;
+      }
+    })();
+    el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start', inline: 'nearest' });
   } catch {
     el.scrollIntoView(true);
   }
@@ -441,10 +550,12 @@ const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !==
  ROOT.TOC_UTILS = {
    STORAGE_KEYS,
    UI_CONSTANTS,
+   uiConst,
    msg,
    isPlainObject,
    safeJsonParse,
    isSafeXPathExpression,
+   validateSelectorExpression,
    getFiniteNumber,
    showToast,
    getStorage,
