@@ -7,9 +7,6 @@
     let rawText = '';
     if (el) {
       rawText = (el.textContent || '').trim();
-      if (!rawText && el.innerText) {
-        rawText = el.innerText.trim();
-      }
     }
     rawText = rawText.replace(/\s+/g, ' ');
     const maxLength = 200;
@@ -17,36 +14,65 @@
   }
 
   function isElementVisible(el) {
-    if (!el) return false;
-    const rects = el.getClientRects();
-    if (!rects || rects.length === 0) return false;
+    if (!el || !el.isConnected) return false;
 
-    const style = window.getComputedStyle(el);
-    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+    let rect;
+    try {
+      rect = el.getBoundingClientRect();
+    } catch (_) {
       return false;
     }
-    if (el.offsetParent === null && style.position !== 'fixed') {
+    if (!rect || rect.width === 0 || rect.height === 0) return false;
+
+    let style;
+    try {
+      style = window.getComputedStyle(el);
+    } catch (_) {
       return false;
     }
 
-    const rect = rects[0];
-    if (rect.width === 0 || rect.height === 0) return false;
+    if (!style) return false;
+    if (style.display === 'none') return false;
+    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+    const opacity = parseFloat(style.opacity);
+    if (Number.isFinite(opacity) && opacity <= 0) return false;
+    if (el.offsetParent === null && style.position !== 'fixed') return false;
 
-    if (style.overflow === 'hidden') {
-      const parent = el.parentElement;
-      if (parent) {
-        const parentRect = parent.getBoundingClientRect();
-        if (rect.right < parentRect.left || rect.left > parentRect.right ||
-            rect.bottom < parentRect.top || rect.top > parentRect.bottom) {
-          return false;
+    // Cheap clipping check: walk a few ancestors and reject if fully outside overflow-hidden/clip containers.
+    let parent = el.parentElement;
+    let depth = 0;
+    while (parent && depth < 3) {
+      let parentStyle;
+      try {
+        parentStyle = window.getComputedStyle(parent);
+      } catch (_) {
+        break;
+      }
+      if (parentStyle) {
+        const overflowHidden = parentStyle.overflow === 'hidden'
+          || parentStyle.overflowX === 'hidden'
+          || parentStyle.overflowY === 'hidden'
+          || parentStyle.overflow === 'clip'
+          || parentStyle.overflowX === 'clip'
+          || parentStyle.overflowY === 'clip';
+        if (overflowHidden) {
+          const parentRect = parent.getBoundingClientRect();
+          if (rect.right <= parentRect.left || rect.left >= parentRect.right ||
+              rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
+            return false;
+          }
         }
       }
+      parent = parent.parentElement;
+      depth++;
     }
 
     return true;
   }
 
   function buildTocItemsFromSelectors(selectors, cfg) {
+    const MAX_ITEMS = 400;
+    const MAX_CANDIDATES = 1200;
     const elements = [];
     const list = Array.isArray(selectors) ? selectors : [];
 
@@ -60,17 +86,36 @@
     }
 
     const keepEmpty = !!(cfg && cfg.keepEmptyText);
-    const uniq = uniqueInDocumentOrder(elements)
-      .map((el, i) => {
-        const text = getTrimmedText(el);
-        return { id: 'toc-item-' + i, el, text };
-      })
-      .filter(item => {
-        if (!keepEmpty && (!item.text || item.text.length === 0)) return false;
-        return isElementVisible(item.el);
-      });
+    const allUniq = uniqueInDocumentOrder(elements);
+    const totalCandidates = allUniq.length;
+    let truncated = false;
 
-    return uniq;
+    let candidates = allUniq;
+    if (candidates.length > MAX_CANDIDATES) {
+      candidates = candidates.slice(0, MAX_CANDIDATES);
+      truncated = true;
+    }
+
+    const items = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const el = candidates[i];
+      if (!el) continue;
+
+      const text = getTrimmedText(el);
+      if (!keepEmpty && (!text || text.length === 0)) continue;
+      if (!isElementVisible(el)) continue;
+
+      items.push({ id: 'toc-item-' + items.length, el, text });
+      if (items.length >= MAX_ITEMS) {
+        truncated = true;
+        break;
+      }
+    }
+
+    items.__tocTruncated = truncated;
+    items.__tocMaxItems = MAX_ITEMS;
+    items.__tocTotalCandidates = totalCandidates;
+    return items;
   }
 
   function buildTocItems(cfg, extraSelectors = []) {

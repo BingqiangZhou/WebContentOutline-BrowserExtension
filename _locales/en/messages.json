@@ -154,5 +154,9 @@
   "titleInjectionFailed": {
     "message": "Web TOC Assistant: Injection failed (click to retry)",
     "description": "Icon title when content script injection fails"
+  },
+  "truncatedNotice": {
+    "message": "For performance, TOC shows at most 400 items. Refine selectors to narrow results.",
+    "description": "Notice when TOC items are truncated"
   }
 }

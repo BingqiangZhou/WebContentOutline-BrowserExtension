@@ -165,10 +165,12 @@
           await updateConfigFromStorage(cfg);
         }
 
+        const prevItems = items;
         const newItems = buildTocItems ? buildTocItems(cfg, []) : [];
 
-        // Skip rebuild if panel doesn't exist (badge mode) - nothing to update
+        // Badge mode: update in-memory items so next expand is fresh, but skip UI rebuild.
         if (!panelInstance) {
+          items = newItems;
           requestAnimationFrame(() => {
             isRebuilding = false;
           });
@@ -188,7 +190,7 @@
         }
 
         // Skip rebuild if content is identical
-        if (isContentIdentical(items, newItems)) {
+        if (isContentIdentical(prevItems, newItems)) {
           // Reset flag when content is identical
           requestAnimationFrame(() => {
             isRebuilding = false;
@@ -197,7 +199,7 @@
         }
 
         // Skip rebuild if both old and new are empty - no change needed
-        if (items.length === 0 && newItems.length === 0) {
+        if (prevItems.length === 0 && newItems.length === 0) {
           requestAnimationFrame(() => {
             isRebuilding = false;
           });

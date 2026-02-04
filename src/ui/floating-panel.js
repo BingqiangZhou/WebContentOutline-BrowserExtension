@@ -151,6 +151,17 @@
     const list = document.createElement('div');
     list.className = 'toc-list';
 
+    if (items && items.__tocTruncated) {
+      const note = document.createElement('div');
+      note.className = 'toc-empty';
+      const max = items.__tocMaxItems || 400;
+      const msgText = safeMsg('truncatedNotice');
+      note.textContent = msgText && msgText !== 'truncatedNotice'
+        ? msgText
+        : `For performance, TOC shows at most ${max} items. Refine selectors to narrow results.`;
+      list.appendChild(note);
+    }
+
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'toc-empty';
@@ -162,7 +173,7 @@
       });
 
       const handleItemClick = (item, node, e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
 
         setNavLock(true);
 
@@ -187,13 +198,13 @@
       };
 
       items.forEach((item, index) => {
-        const a = document.createElement('a');
-        a.className = 'toc-item';
-        a.textContent = item.text;
-        a.href = 'javascript:void(0)';
-        a.dataset.index = String(index);
-        item._node = a;
-        list.appendChild(a);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'toc-item';
+        btn.textContent = item.text;
+        btn.dataset.index = String(index);
+        item._node = btn;
+        list.appendChild(btn);
       });
 
       list.addEventListener('click', (e) => {
@@ -202,6 +213,18 @@
         const idx = parseInt(node.dataset.index, 10);
         const item = items[idx];
         if (!item) return;
+        handleItemClick(item, node, e);
+      });
+
+      list.addEventListener('keydown', (e) => {
+        const key = e.key;
+        if (key !== 'Enter' && key !== ' ') return;
+        const node = e.target.closest('.toc-item');
+        if (!node || !list.contains(node)) return;
+        const idx = parseInt(node.dataset.index, 10);
+        const item = items[idx];
+        if (!item) return;
+        e.preventDefault();
         handleItemClick(item, node, e);
       });
     }
@@ -341,6 +364,7 @@
         }
       });
       let active;
+      const intersecting = new Set();
 
       const clearAllActive = () => {
         items.forEach(item => {
@@ -367,11 +391,19 @@
           return;
         }
 
-        const visibleItems = [];
         entries.forEach(entry => {
           const it = map.get(entry.target);
-          if (it && it._node && entry.isIntersecting) {
-            visibleItems.push(it);
+          if (!it || !it._node) return;
+          if (entry.isIntersecting) intersecting.add(it);
+          else intersecting.delete(it);
+        });
+
+        const visibleItems = Array.from(intersecting).filter(it => it.el && document.contains(it.el));
+        visibleItems.sort((a, b) => {
+          try {
+            return a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top;
+          } catch (_) {
+            return 0;
           }
         });
 

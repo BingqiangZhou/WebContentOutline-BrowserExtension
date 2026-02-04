@@ -362,7 +362,8 @@
 .toc-list {
   padding: 8px 8px 10px 8px !important;
   max-height: 60vh !important;
-  overflow: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   line-height: 1.4 !important;
   margin: 0 !important;
   background: transparent !important;
@@ -401,11 +402,11 @@
   text-align: left !important;
   position: relative !important;
   z-index: auto !important;
-  width: auto !important;
+  width: 100% !important;
   height: auto !important;
   min-width: auto !important;
   min-height: auto !important;
-  max-width: none !important;
+  max-width: 100% !important;
   max-height: none !important;
   opacity: 1 !important;
   visibility: visible !important;

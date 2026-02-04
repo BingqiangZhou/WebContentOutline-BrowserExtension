@@ -429,7 +429,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
-    const tabs = await chrome.tabs.query({});
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     const updatePromises = tabs.map(async (t) => {
       if (t.id) await updateIconForTab(t.id, t.url).catch(() => {});
@@ -449,7 +449,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
-    const tabs = await chrome.tabs.query({});
+    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     const updatePromises = tabs.map(async (t) => {
       if (t.id) await updateIconForTab(t.id, t.url).catch(() => {});
@@ -490,7 +490,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 
 async function getTabsByOrigin(origin) {
-  const tabs = await chrome.tabs.query({});
+  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
   return tabs.filter((t) => {
     if (!t || !t.url || !isHttpUrl(t.url)) return false;
     return originFromUrl(t.url) === origin;

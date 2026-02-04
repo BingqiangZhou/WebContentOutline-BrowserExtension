@@ -5,6 +5,16 @@
 
   function createMutationObserver(onRebuild, getNavLock) {
     const DEBOUNCE_MS = 500;
+    const OBSERVED_ATTRIBUTES = [
+      'hidden',
+      'style',
+      'class',
+      'id',
+      'aria-hidden',
+      'aria-expanded',
+      'open'
+    ];
+    const OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
     let debounceTimer = null;
     let pendingRebuild = false;
     let unlockTimer = null;
@@ -73,8 +83,7 @@
         if (m.type === 'characterData') return true;
         if (m.type === 'attributes') {
           const name = m.attributeName || '';
-          if (name === 'hidden' || name === 'style' || name === 'class' || name === 'id' ||
-              name === 'aria-hidden' || name === 'aria-expanded' || name === 'open') {
+          if (OBSERVED_ATTR_SET.has(name)) {
             return true;
           }
         }
@@ -122,7 +131,8 @@
           childList: true,
           subtree: true,
           characterData: true,
-          attributes: true
+          attributes: true,
+          attributeFilter: OBSERVED_ATTRIBUTES
         });
 
         return {
