@@ -28,6 +28,7 @@
   const PANEL_HEIGHT = typeof uiConst === 'function' ? uiConst('PANEL_HEIGHT', 400) : 400;
   const BUTTON_OFFSET = typeof uiConst === 'function' ? uiConst('BUTTON_OFFSET', 20) : 20;
   const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
+  const NAV_LOCK_FAILSAFE_MS = typeof uiConst === 'function' ? uiConst('NAV_LOCK_FAILSAFE_MS', 8000) : 8000;
 
   const isContextInvalidatedError = (typeof isContextInvalidatedErrorUtil === 'function')
     ? isContextInvalidatedErrorUtil
@@ -59,6 +60,33 @@
     // Per-instance rebuild flag to prevent IntersectionObserver interference
     let isRebuilding = false;
     let rebuildClearTimer = null;
+    let destroyed = false;
+    const pendingRafs = new Set();
+    const scheduleRaf = (cb) => {
+      try {
+        const id = requestAnimationFrame(() => {
+          try { pendingRafs.delete(id); } catch (_) {}
+          if (destroyed) return;
+          try { cb && cb(); } catch (_) {}
+        });
+        pendingRafs.add(id);
+        return id;
+      } catch (_) {
+        try { cb && cb(); } catch (_) {}
+        return null;
+      }
+    };
+    const cancelPendingRafs = () => {
+      try {
+        pendingRafs.forEach((id) => {
+          try { cancelAnimationFrame(id); } catch (_) {}
+        });
+      } catch (_) {
+        // ignore
+      } finally {
+        try { pendingRafs.clear(); } catch (_) {}
+      }
+    };
 
     const clearRebuildTimers = () => {
       if (rebuildClearTimer != null) {
@@ -86,13 +114,50 @@
     let rebuildQueued = false;
 
     let navLock = false;
-      const getNavLock = () => navLock;
-      const setNavLock = (v) => { navLock = !!v; };
-      const cancelActiveRestore = () => {
-        if (typeof activeRestoreTimeout !== 'number') return;
-        try { cancelAnimationFrame(activeRestoreTimeout); } catch (_) {}
-        activeRestoreTimeout = null;
-      };
+    let navLockSetAt = 0;
+    let navLockFailsafeTimer = null;
+    const clearNavLockFailsafe = () => {
+      if (navLockFailsafeTimer == null) return;
+      try { clearTimeout(navLockFailsafeTimer); } catch (_) {}
+      navLockFailsafeTimer = null;
+    };
+    const armNavLockFailsafe = () => {
+      clearNavLockFailsafe();
+      const ms = (Number.isFinite(NAV_LOCK_FAILSAFE_MS) && NAV_LOCK_FAILSAFE_MS > 0) ? NAV_LOCK_FAILSAFE_MS : 0;
+      if (!ms) return;
+      try {
+        navLockFailsafeTimer = setTimeout(() => {
+          navLockFailsafeTimer = null;
+          if (destroyed) return;
+          if (!navLock) return;
+          const waitedMs = navLockSetAt ? (Date.now() - navLockSetAt) : ms;
+          console.warn('[toc] nav lock stuck; forcing unlock after', waitedMs, 'ms');
+          try {
+            navLock = false;
+            navLockSetAt = 0;
+          } catch (_) {}
+          try { items.forEach(it => { it._userSelected = false; }); } catch (_) {}
+        }, ms);
+      } catch (_) {
+        navLockFailsafeTimer = null;
+      }
+    };
+    const getNavLock = () => navLock;
+    const setNavLock = (v) => {
+      navLock = !!v;
+      if (navLock) {
+        navLockSetAt = Date.now();
+        armNavLockFailsafe();
+      } else {
+        navLockSetAt = 0;
+        clearNavLockFailsafe();
+      }
+    };
+    const cancelActiveRestore = () => {
+      if (typeof activeRestoreTimeout !== 'number') return;
+      try { cancelAnimationFrame(activeRestoreTimeout); } catch (_) {}
+      activeRestoreTimeout = null;
+    };
 
     // Helper to constrain position to screen bounds
     const constrainPosition = (left, top, width = PANEL_WIDTH, height = PANEL_HEIGHT) => {
@@ -113,7 +178,7 @@
         rebuildClearTimer = null;
       }
       try {
-        requestAnimationFrame(() => {
+        scheduleRaf(() => {
           isRebuilding = false;
           clearRebuildTimers();
         });
@@ -149,6 +214,8 @@
     };
 
     const restoreActiveSnapshot = (snapshot) => {
+      // Always cancel any pending restoration rAF from a previous rebuild.
+      cancelActiveRestore();
       if (!snapshot || !snapshot.currentActiveItem || items.length === 0) {
         // Clear rebuild flag even if no restore happens
         clearRebuildFlag();
@@ -186,9 +253,7 @@
           } catch (_) {}
           activeRestoreTimeout = null;
           // Clear rebuild flag after restoration is complete
-          requestAnimationFrame(() => {
-            isRebuilding = false;
-          });
+          clearRebuildFlag();
         };
         activeRestoreTimeout = requestAnimationFrame(restoreActive);
       } else {
@@ -213,9 +278,7 @@
         if (!panelInstance) {
           items = newItems;
           tocMeta = newMeta;
-          requestAnimationFrame(() => {
-            isRebuilding = false;
-          });
+          clearRebuildFlag();
           return;
         }
 
@@ -233,17 +296,13 @@
         // Skip rebuild if content is identical
         if (isContentIdentical(prevItems, newItems)) {
           // Reset flag when content is identical
-          requestAnimationFrame(() => {
-            isRebuilding = false;
-          });
+          clearRebuildFlag();
           return;
         }
 
         // Skip rebuild if both old and new are empty - no change needed
         if (prevItems.length === 0 && newItems.length === 0) {
-          requestAnimationFrame(() => {
-            isRebuilding = false;
-          });
+          clearRebuildFlag();
           return;
         }
 
@@ -290,8 +349,8 @@
       } finally {
         // Failsafe: if restoration never cleared the flag, clear it soon.
         if (typeof activeRestoreTimeout === 'number') {
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
+          scheduleRaf(() => {
+            scheduleRaf(() => {
               if (isRebuilding) isRebuilding = false;
             });
           });
@@ -307,7 +366,9 @@
         return rebuildInFlight;
       }
       rebuildInFlight = (async () => {
-        while (true) {
+        const maxLoops = (typeof uiConst === 'function') ? uiConst('REBUILD_MAX_LOOPS', 10) : 10;
+        const loops = Number.isFinite(maxLoops) ? Math.max(1, Math.floor(maxLoops)) : 10;
+        for (let i = 0; i < loops; i++) {
           rebuildQueued = false;
           try {
             await rebuildOnce();
@@ -315,6 +376,12 @@
             console.debug('[toc] rebuildOnce threw:', e);
           }
           if (!rebuildQueued) break;
+          // Yield to avoid starving the main thread on rapid-fire mutations.
+          try { await new Promise((r) => setTimeout(r, 0)); } catch (_) {}
+          if (i === loops - 1 && rebuildQueued) {
+            console.warn('[toc] rebuild loop capped; deferring remaining rebuild requests');
+            rebuildQueued = false;
+          }
         }
       })();
       try {
@@ -341,6 +408,7 @@
         dispatchPickerEvent('toc-picker-start');
         pickerInstance = createElementPicker((el) => {
           dispatchPickerEvent('toc-picker-end');
+          pickerInstance = null;
           let sel = '';
           const cls = buildClassSelector ? buildClassSelector(el) : '';
           if (cls && el && el.tagName) sel = `${String(el.tagName).toLowerCase()}${cls}`;
@@ -457,7 +525,7 @@
               await panelInstance.whenShown;
             }
           } catch (_) {}
-          requestAnimationFrame(() => {
+          scheduleRaf(() => {
             const panelEl = document.querySelector('.toc-floating');
             const collapseBtn = panelEl ? panelEl.querySelector('.toc-header-row .toc-btn:last-child') : null;
             if (collapseBtn && panelEl && collapseBtn.getBoundingClientRect().width > 0) {
@@ -488,40 +556,59 @@
       }
     }
 
-    if (createMutationObserver) {
-      const observerFactory = createMutationObserver(rebuild, getNavLock);
-      mutationObserver = observerFactory.start(cfg);
-    }
+    const isRebuildingFn = () => isRebuilding;
 
-    TOC_APP.rebuild = rebuild;
-    TOC_APP.isRebuilding = () => isRebuilding;
+    const destroy = () => {
+      destroyed = true;
+      cancelPendingRafs();
+      clearRebuildTimers();
+      clearNavLockFailsafe();
+      isRebuilding = false;
+      try {
+        if (typeof activeRestoreTimeout === 'number') {
+          cancelAnimationFrame(activeRestoreTimeout);
+        }
+      } catch (_) {}
+      activeRestoreTimeout = null;
+      try { if (badgeInstance) badgeInstance.remove(); } catch (_) {}
+      badgeInstance = null;
+      try { if (panelInstance) panelInstance.remove(); } catch (_) {}
+      panelInstance = null;
+      try { if (mutationObserver && mutationObserver.disconnect) mutationObserver.disconnect(); } catch (_) {}
+      mutationObserver = null;
+      try {
+        if (pickerInstance && pickerInstance.cleanup) {
+          pickerInstance.cleanup();
+        }
+      } catch (_) {}
+      pickerInstance = null;
+      try {
+        if (TOC_APP.rebuild === rebuild) TOC_APP.rebuild = null;
+        if (TOC_APP.isRebuilding === isRebuildingFn) TOC_APP.isRebuilding = null;
+      } catch (_) {}
+    };
 
-    collapse();
+    try {
+      if (createMutationObserver) {
+        const observerFactory = createMutationObserver(rebuild, getNavLock);
+        mutationObserver = observerFactory.start(cfg);
+      }
+
+      TOC_APP.rebuild = rebuild;
+      TOC_APP.isRebuilding = isRebuildingFn;
+
+      collapse();
 
       return {
         rebuild,
         collapse,
         expand,
-        destroy() {
-          clearRebuildTimers();
-          isRebuilding = false;
-          try {
-            if (typeof activeRestoreTimeout === 'number') {
-              cancelAnimationFrame(activeRestoreTimeout);
-            }
-          } catch (_) {}
-        activeRestoreTimeout = null;
-        if (badgeInstance) badgeInstance.remove();
-        if (panelInstance) panelInstance.remove();
-        if (mutationObserver && mutationObserver.disconnect) mutationObserver.disconnect();
-        try {
-          if (pickerInstance && pickerInstance.cleanup) {
-            pickerInstance.cleanup();
-            pickerInstance = null;
-          }
-        } catch (_) {}
-      }
-    };
+        destroy
+      };
+    } catch (e) {
+      try { destroy(); } catch (_) {}
+      throw e;
+    }
   }
 
   TOC_APP.initForConfig = initForConfig;

@@ -148,26 +148,33 @@
 
         // Prefer BroadcastChannel election when available (reduces last-writer-wins races across tabs).
         if (typeof BroadcastChannel === 'function') {
+          let bc = null;
+          let isLeader = false;
+          const channelName = `tocBadgePosMigrate::${location.host}`;
+          const seen = new Set([token]);
+          const onMsg = (ev) => {
+            try {
+              const data = ev && ev.data;
+              if (!data || data.type !== 'claim' || !data.token) return;
+              seen.add(String(data.token));
+            } catch (_) {}
+          };
           try {
-            const channelName = `tocBadgePosMigrate::${location.host}`;
-            const bc = new BroadcastChannel(channelName);
-            const seen = new Set([token]);
-            const onMsg = (ev) => {
-              try {
-                const data = ev && ev.data;
-                if (!data || data.type !== 'claim' || !data.token) return;
-                seen.add(String(data.token));
-              } catch (_) {}
-            };
+            bc = new BroadcastChannel(channelName);
             bc.addEventListener('message', onMsg);
             try { bc.postMessage({ type: 'claim', token }); } catch (_) {}
             await new Promise((r) => setTimeout(r, 120));
-            try { bc.removeEventListener('message', onMsg); } catch (_) {}
-            try { bc.close(); } catch (_) {}
             const leader = Array.from(seen).sort()[0];
-            if (leader !== token) return;
-            electedLeader = true;
+            isLeader = (leader === token);
           } catch (_) {}
+          finally {
+            if (bc) {
+              try { bc.removeEventListener('message', onMsg); } catch (_) {}
+              try { bc.close(); } catch (_) {}
+            }
+          }
+          if (!isLeader) return;
+          electedLeader = true;
         }
 
         // Fallback: localStorage lock with TTL.
@@ -186,6 +193,11 @@
         }
 
         try {
+          // Another tab may have migrated while we were electing/locking.
+          try {
+            const stillThere = localStorage.getItem(legacyKey);
+            if (!stillThere) return;
+          } catch (_) {}
           const existing = getBadgePosByHost ? await getBadgePosByHost(location.host) : null;
           if (existing && Number.isFinite(existing.x) && Number.isFinite(existing.y)) {
             localStorage.removeItem(legacyKey);
@@ -377,46 +389,52 @@
 
     try {
       messageListener = (msgObj, sender, sendResponse) => {
+        let responded = false;
+        const respondOnce = (payload) => {
+          if (responded) return;
+          responded = true;
+          try { sendResponse && sendResponse(payload); } catch (_) {}
+        };
         try {
           if (!msgObj || !msgObj.type) return;
 
           // Only accept messages from this extension instance.
           if (sender && sender.id && chrome?.runtime?.id && sender.id !== chrome.runtime.id) {
-            sendResponse && sendResponse({ ok: false, reason: 'bad-sender' });
+            respondOnce({ ok: false, reason: 'bad-sender' });
             return;
           }
 
           if (msgObj.type === 'toc:ping') {
-            sendResponse && sendResponse({ ok: !disposed });
+            respondOnce({ ok: !disposed });
             return;
           }
 
           if (disposed) {
-            sendResponse && sendResponse({ ok: false, disposed: true });
+            respondOnce({ ok: false, disposed: true });
             return;
           }
 
           if (msgObj.type === 'toc:openPanel') {
             Promise.resolve()
               .then(() => requestEnabled(true, { expandPanel: true }))
-              .then(() => { try { sendResponse && sendResponse({ ok: true }); } catch (_) {} })
-              .catch((err) => { try { sendResponse && sendResponse({ ok: false, error: String(err) }); } catch (_) {} });
+              .then(() => respondOnce({ ok: true }))
+              .catch((err) => respondOnce({ ok: false, error: String(err) }));
             return true;
           }
 
           if (msgObj.type !== 'toc:updateEnabled') return;
           const enabled = !!msgObj.enabled;
           if (enabled === desiredEnabled) {
-            sendResponse && sendResponse({ ok: true, unchanged: true });
+            respondOnce({ ok: true, unchanged: true });
             return;
           }
           Promise.resolve()
             .then(() => requestEnabled(enabled))
-            .then(() => { try { sendResponse && sendResponse({ ok: true }); } catch (_) {} })
-            .catch((err) => { try { sendResponse && sendResponse({ ok: false, error: String(err) }); } catch (_) {} });
+            .then(() => respondOnce({ ok: true }))
+            .catch((err) => respondOnce({ ok: false, error: String(err) }));
           return true;
         } catch (err) {
-          try { sendResponse && sendResponse({ ok: false, error: String(err) }); } catch (_) {}
+          respondOnce({ ok: false, error: String(err) });
           if (isContextInvalidatedError(err)) dispose({ reason: 'context-invalidated' });
         }
       };
@@ -436,7 +454,11 @@
         if (!ch) return;
         try {
           const map = ch.newValue || {};
-          const next = !!map[location.origin];
+          const originKey = (typeof location !== 'undefined' && typeof location.origin === 'string' && location.origin && location.origin !== 'null')
+            ? location.origin
+            : null;
+          if (!originKey) return;
+          const next = !!map[originKey];
           if (next === desiredEnabled) return;
           requestEnabled(next);
         } catch (e) {

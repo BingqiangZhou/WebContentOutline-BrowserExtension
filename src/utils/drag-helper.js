@@ -56,8 +56,37 @@
       return true;
     };
 
+    const removeDocumentListeners = () => {
+      try { document.removeEventListener('mousemove', handleMouseMove, true); } catch (_) {}
+      try { document.removeEventListener('mouseup', handleMouseUp, true); } catch (_) {}
+    };
+
+    const endDrag = (e, opts = {}) => {
+      const prevent = !!(opts && opts.preventDefault);
+      const stop = !!(opts && opts.stopPropagation);
+      if (!state.active || state.destroyed) return;
+      try {
+        removeDocumentListeners();
+      } finally {
+        state.active = false;
+      }
+      try {
+        onEnd && onEnd(state, e);
+      } catch (_) {}
+      if (prevent) {
+        try { e && e.preventDefault && e.preventDefault(); } catch (_) {}
+      }
+      if (stop) {
+        try { e && e.stopPropagation && e.stopPropagation(); } catch (_) {}
+      }
+    };
+
     function handleMouseMove(e) {
       if (!state.active || state.destroyed) return;
+      if (!element || !element.isConnected) {
+        endDrag(e, { preventDefault: false, stopPropagation: false });
+        return;
+      }
       const dx = e.clientX - state.startX;
       const dy = e.clientY - state.startY;
       if (!state.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
@@ -72,17 +101,7 @@
     }
 
     function handleMouseUp(e) {
-      if (!state.active || state.destroyed) return;
-      state.active = false;
-      document.removeEventListener('mousemove', handleMouseMove, true);
-      document.removeEventListener('mouseup', handleMouseUp, true);
-      try {
-        onEnd && onEnd(state, e);
-      } catch (_) {}
-      try {
-        e.preventDefault();
-        e.stopPropagation();
-      } catch (_) {}
+      endDrag(e, { preventDefault: true, stopPropagation: true });
     }
 
     function handleMouseDown(e) {
@@ -119,8 +138,7 @@
         state.destroyed = true;
         element.removeEventListener('mousedown', handleMouseDown, true);
         state.active = false;
-        try { document.removeEventListener('mousemove', handleMouseMove, true); } catch (_) {}
-        try { document.removeEventListener('mouseup', handleMouseUp, true); } catch (_) {}
+        removeDocumentListeners();
         state.moved = false;
         state.startX = 0;
         state.startY = 0;

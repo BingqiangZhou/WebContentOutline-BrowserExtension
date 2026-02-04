@@ -281,6 +281,9 @@ function msg(key, substitutions) {
    if (!trimmed) return false;
    if (trimmed.length > uiConst('XPATH_MAX_LENGTH', 2000)) return false;
 
+   // Avoid extremely broad document scans that are likely to be slow.
+   if (trimmed.startsWith('//*') || /^\/\/(node|text|comment)\s*\(/i.test(trimmed)) return false;
+
    // Disallow control characters.
    for (let i = 0; i < trimmed.length; i++) {
      const code = trimmed.charCodeAt(i);
@@ -314,6 +317,22 @@ function msg(key, substitutions) {
    if (inSingle || inDouble) return false;
    if (parenDepth !== 0 || bracketDepth !== 0) return false;
 
+   // Reject namespace prefixes (e.g. ns:div) because we evaluate without a namespace resolver.
+   // Allow axis specifiers like following-sibling::.
+   let nsInSingle = false;
+   let nsInDouble = false;
+   for (let i = 0; i < trimmed.length; i++) {
+     const ch = trimmed[i];
+     if (!nsInDouble && ch === "'") { nsInSingle = !nsInSingle; continue; }
+     if (!nsInSingle && ch === '"') { nsInDouble = !nsInDouble; continue; }
+     if (nsInSingle || nsInDouble) continue;
+     if (ch === ':') {
+       const prev = trimmed[i - 1] || '';
+       const next = trimmed[i + 1] || '';
+       if (prev !== ':' && next !== ':') return false;
+     }
+   }
+
    // Browser XPath support is limited, but reject common external-document/function patterns anyway.
    const forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i;
    if (forbiddenFn.test(trimmed)) return false;
@@ -332,23 +351,33 @@ function msg(key, substitutions) {
    }
  }
 
-  const __storageErrorOnce = new Set();
-  function notifyStorageWriteError(key, err) {
-    try {
-      const kind = isQuotaExceededError(err) ? 'quota' : 'unknown';
-      const onceKey = `${kind}:${String(key || '')}`;
-      if (__storageErrorOnce.has(onceKey)) return;
-      __storageErrorOnce.add(onceKey);
-      // Prevent unbounded growth in long-lived pages.
-      const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
-      if (Number.isFinite(maxKeys) && maxKeys > 0 && __storageErrorOnce.size > maxKeys) {
-        try { __storageErrorOnce.clear(); } catch (_) {}
-        try { __storageErrorOnce.add(onceKey); } catch (_) {}
-      }
-      console.warn('[toc] storage write failed:', { key, err });
-      if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
-        const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
-        const text = msg(messageKey);
+   const __storageErrorOnce = new Map();
+   function trackOnce(onceKey, maxKeys) {
+     try {
+       if (__storageErrorOnce.has(onceKey)) return false;
+       __storageErrorOnce.set(onceKey, Date.now());
+       const limit = Number.isFinite(maxKeys) && maxKeys > 0 ? Math.max(1, Math.floor(maxKeys)) : 200;
+       while (__storageErrorOnce.size > limit) {
+         const first = __storageErrorOnce.keys().next().value;
+         if (first === undefined) break;
+         __storageErrorOnce.delete(first);
+       }
+       return true;
+     } catch (_) {
+       return true;
+     }
+   }
+   function notifyStorageWriteError(key, err) {
+     try {
+       const kind = isQuotaExceededError(err) ? 'quota' : 'unknown';
+       const onceKey = `${kind}:${String(key || '')}`;
+       // Prevent unbounded growth in long-lived pages.
+       const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
+       if (!trackOnce(onceKey, maxKeys)) return;
+       console.warn('[toc] storage write failed:', { key, err });
+       if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
+         const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
+         const text = msg(messageKey);
         if (text && text !== messageKey) {
          showToast(text, { type: 'error' });
        }
@@ -389,13 +418,17 @@ function msg(key, substitutions) {
 
  function validateSelectorExpression(type, expr) {
    try {
-     if (type === 'xpath') return isSafeXPathExpression(expr);
-     if (type === 'css') return isValidCssSelector(expr);
-     return false;
-   } catch (_) {
-     return false;
-   }
- }
+      if (type === 'xpath') return isSafeXPathExpression(expr);
+      if (type === 'css') return isValidCssSelector(expr);
+      const onceKey = `selectorType:${String(type)}`;
+      if (trackOnce(onceKey, uiConst('WARN_ONCE_MAX_KEYS', 200))) {
+        console.warn('[toc] validateSelectorExpression: unsupported selector type:', type);
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
 function getFiniteNumber(value) {
   const num = typeof value === 'number' ? value : Number(value);
@@ -489,17 +522,24 @@ function ensureToastContainer() {
  * @param {*} fallback
  * @returns {Promise<*>}
  */
-  async function getStorage(key, fallback) {
-    try {
-      if (chrome?.storage?.local) {
-        const res = await chrome.storage.local.get([key]);
-        const value = res[key];
-        if (value !== undefined && validateStorageValue(key, value)) {
-          return normalizeStorageValue(key, value);
+   async function getStorage(key, fallback) {
+     try {
+       if (chrome?.storage?.local) {
+         const res = await chrome.storage.local.get([key]);
+         const value = res[key];
+         if (value !== undefined && validateStorageValue(key, value)) {
+           return normalizeStorageValue(key, value);
+         }
+         return fallback;
+       }
+    } catch (e) {
+      if (isQuotaExceededError(e)) {
+        const onceKey = `read-quota:${String(key || '')}`;
+        if (trackOnce(onceKey, uiConst('WARN_ONCE_MAX_KEYS', 200))) {
+          console.warn('[toc] storage read failed (quota):', { key, err: e });
         }
-        return fallback;
       }
-    } catch (_) {}
+    }
     return fallback;
   }
 
@@ -509,65 +549,84 @@ function ensureToastContainer() {
   * @param {*} value
   * @returns {Promise<boolean>}
   */
-  async function setStorage(key, value) {
-    const normalized = normalizeStorageValue(key, value);
-    try {
-      if (chrome?.storage?.local) {
-        await chrome.storage.local.set({ [key]: normalized });
-      }
-      return true;
-    } catch (e) {
-      if (isQuotaExceededError(e)) {
-        try {
-          const shrunk = normalizeStorageValue(key, value, { aggressive: true });
-          if (chrome?.storage?.local) {
-            await chrome.storage.local.set({ [key]: shrunk });
-            try {
-              const summarize = (k, v) => {
-                try {
-                  if (k === STORAGE_KEYS.TOC_CONFIGS && Array.isArray(v)) {
-                    let selectors = 0;
-                    for (const c of v) selectors += (c && Array.isArray(c.selectors)) ? c.selectors.length : 0;
-                    return { kind: 'configs', sites: v.length, selectors };
-                  }
-                  if ((k === STORAGE_KEYS.SITE_ENABLE_MAP || k === STORAGE_KEYS.PANEL_STATE_MAP || k === STORAGE_KEYS.BADGE_POS_MAP) && isPlainObject(v)) {
-                    return { kind: 'map', keys: Object.keys(v).length };
-                  }
-                } catch (_) {}
-                return null;
-              };
-              const before = summarize(key, value);
-              const after = summarize(key, shrunk);
-              const shrunkConfigs = before && after && before.kind === 'configs' && after.kind === 'configs'
-                && (after.sites < before.sites || after.selectors < before.selectors);
-              const shrunkMap = before && after && before.kind === 'map' && after.kind === 'map' && (after.keys < before.keys);
-              if (shrunkConfigs || shrunkMap) {
-                const onceKey = `pruned:${String(key || '')}`;
-                if (!__storageErrorOnce.has(onceKey)) {
-                  __storageErrorOnce.add(onceKey);
-                  const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
-                  if (Number.isFinite(maxKeys) && maxKeys > 0 && __storageErrorOnce.size > maxKeys) {
-                    try { __storageErrorOnce.clear(); } catch (_) {}
-                    try { __storageErrorOnce.add(onceKey); } catch (_) {}
-                  }
-                  console.warn('[toc] storage quota reached, saved with pruning:', { key, before, after });
-                  const warnKey = 'warningStorageQuotaPruned';
-                  const warnText = msg(warnKey);
-                  const fallbackText = 'Storage quota reached. Some older data was removed to save your changes.';
-                  if (typeof showToast === 'function') {
-                    showToast((warnText && warnText !== warnKey) ? warnText : fallbackText, { type: 'warning', durationMs: 5000 });
-                  }
-                }
-              }
-            } catch (_) {}
-            return true;
-          }
-        } catch (_) {}
-      }
-      notifyStorageWriteError(key, e);
-      return false;
-    }
-  }
+   async function setStorage(key, value) {
+     const normalized = normalizeStorageValue(key, value);
+     try {
+       if (chrome?.storage?.local) {
+         await chrome.storage.local.set({ [key]: normalized });
+       }
+       return true;
+     } catch (e) {
+       if (isQuotaExceededError(e)) {
+         try {
+           const shrunk = normalizeStorageValue(key, value, { aggressive: true });
+           const summarize = (k, v) => {
+             try {
+               if (k === STORAGE_KEYS.TOC_CONFIGS && Array.isArray(v)) {
+                 let selectors = 0;
+                 for (const c of v) selectors += (c && Array.isArray(c.selectors)) ? c.selectors.length : 0;
+                 return { kind: 'configs', sites: v.length, selectors };
+               }
+               if ((k === STORAGE_KEYS.SITE_ENABLE_MAP || k === STORAGE_KEYS.PANEL_STATE_MAP || k === STORAGE_KEYS.BADGE_POS_MAP) && isPlainObject(v)) {
+                 return { kind: 'map', keys: Object.keys(v).length };
+               }
+             } catch (_) {}
+             return null;
+           };
+           const before = summarize(key, value);
+           const after = summarize(key, shrunk);
+           const shrunkConfigs = before && after && before.kind === 'configs' && after.kind === 'configs'
+             && (after.sites < before.sites || after.selectors < before.selectors);
+           const shrunkMap = before && after && before.kind === 'map' && after.kind === 'map' && (after.keys < before.keys);
+           const wouldPrune = !!(shrunkConfigs || shrunkMap);
+
+           if (wouldPrune) {
+             const confirmTextKey = 'confirmStorageQuotaPrune';
+             const confirmText = msg(confirmTextKey);
+             const fallbackText = 'Storage quota reached. To save this change, older data must be removed. Continue?';
+             const text = (confirmText && confirmText !== confirmTextKey) ? confirmText : fallbackText;
+             const canConfirm = (typeof window !== 'undefined' && window && typeof window.confirm === 'function');
+             if (!canConfirm) {
+               notifyStorageWriteError(key, e);
+               return false;
+             }
+             let ok = false;
+             try { ok = window.confirm(text); } catch (_) { ok = false; }
+             if (!ok) {
+               const warnKey = 'warningStorageQuotaNotSaved';
+               const warnText = msg(warnKey);
+               const fallbackWarn = 'Storage quota reached. Changes were not saved.';
+               if (typeof showToast === 'function') {
+                 showToast((warnText && warnText !== warnKey) ? warnText : fallbackWarn, { type: 'warning', durationMs: 5000 });
+               }
+               return false;
+             }
+           }
+           if (chrome?.storage?.local) {
+             await chrome.storage.local.set({ [key]: shrunk });
+             try {
+               if (wouldPrune && before && after) {
+                 const onceKey = `pruned:${String(key || '')}`;
+                 const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
+                 if (trackOnce(onceKey, maxKeys)) {
+                   console.warn('[toc] storage quota reached, saved with pruning:', { key, before, after });
+                   const warnKey = 'warningStorageQuotaPruned';
+                   const warnText = msg(warnKey);
+                   const fallbackText = 'Storage quota reached. Some older data was removed to save your changes.';
+                   if (typeof showToast === 'function') {
+                     showToast((warnText && warnText !== warnKey) ? warnText : fallbackText, { type: 'warning', durationMs: 5000 });
+                   }
+                 }
+               }
+             } catch (_) {}
+             return true;
+           }
+         } catch (_) {}
+       }
+       notifyStorageWriteError(key, e);
+       return false;
+     }
+   }
 
 /**
  * Get configs from chrome.storage.local
@@ -725,9 +784,34 @@ async function toggleSiteEnabledByOrigin(origin) {
  * @param {string} text URL to test
  */
 function matchWildcard(pattern, text) {
-  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-  const re = new RegExp('^' + escaped + '$');
-  return re.test(text);
+  if (typeof pattern !== 'string' || typeof text !== 'string') return false;
+  if (pattern === '*') return true;
+  const parts = pattern.split('*');
+  if (parts.length === 1) return pattern === text;
+
+  let startIndex = 0;
+  let endLimit = text.length;
+
+  if (!pattern.startsWith('*')) {
+    const first = parts.shift() || '';
+    if (!text.startsWith(first)) return false;
+    startIndex = first.length;
+  }
+
+  if (!pattern.endsWith('*')) {
+    const last = parts.pop() || '';
+    if (!text.endsWith(last)) return false;
+    endLimit = text.length - last.length;
+  }
+
+  const hay = text.slice(0, endLimit);
+  for (const part of parts) {
+    if (!part) continue;
+    const idx = hay.indexOf(part, startIndex);
+    if (idx < 0) return false;
+    startIndex = idx + part.length;
+  }
+  return true;
 }
 
 /**

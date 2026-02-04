@@ -51,12 +51,20 @@
     let clearUserSelectedTimer = null;
     let expandAnimTimer = null;
     let intersectionObserver = null;
+    let showRaf = null;
     let observeRaf = null;
     let removalObserver = null;
-    let removalRaf = null;
+    let removalTimer = null;
     let cleanedUp = false;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
+    let onPanelKeydown = null;
+    let onListClick = null;
+    let onListKeydown = null;
+    let onBtnCollapseClick = null;
+    let onBtnPickClick = null;
+    let onBtnManageClick = null;
+    let onBtnRefreshClick = null;
 
     panel.style.visibility = 'hidden';
 
@@ -155,13 +163,14 @@
     panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'} toc-floating-expand`;
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
-    panel.addEventListener('keydown', (e) => {
+    onPanelKeydown = (e) => {
       if (!e) return;
       if (e.key === 'Escape') {
         try { e.preventDefault(); } catch (_) {}
         onCollapse && onCollapse();
       }
-    }, true);
+    };
+    panel.addEventListener('keydown', onPanelKeydown, true);
 
     const header = document.createElement('div');
     header.className = 'toc-header';
@@ -180,7 +189,8 @@
     btnCollapse.textContent = msg('buttonCollapse');
     btnCollapse.title = msg('buttonCollapseTitle');
     btnCollapse.setAttribute('aria-label', msg('buttonCollapseTitle') || msg('buttonCollapse'));
-    btnCollapse.addEventListener('click', () => onCollapse());
+    onBtnCollapseClick = () => { try { onCollapse && onCollapse(); } catch (_) {} };
+    btnCollapse.addEventListener('click', onBtnCollapseClick);
 
     headerRow.appendChild(titleSpan);
     headerRow.appendChild(btnCollapse);
@@ -197,14 +207,16 @@
     btnPick.title = msg('buttonPickElementTitle');
     btnPick.setAttribute('aria-label', msg('buttonPickElementTitle') || msg('buttonPickElement'));
     btnPick.setAttribute('aria-pressed', 'false');
-    btnPick.addEventListener('click', () => onPick && onPick());
+    onBtnPickClick = () => { try { onPick && onPick(); } catch (_) {} };
+    btnPick.addEventListener('click', onBtnPickClick);
 
     const btnManage = document.createElement('button');
     btnManage.className = 'toc-btn';
     btnManage.textContent = msg('buttonSiteConfig');
     btnManage.title = msg('buttonSiteConfigTitle');
     btnManage.setAttribute('aria-label', msg('buttonSiteConfigTitle') || msg('buttonSiteConfig'));
-    btnManage.addEventListener('click', () => onSiteConfig && onSiteConfig());
+    onBtnManageClick = () => { try { onSiteConfig && onSiteConfig(); } catch (_) {} };
+    btnManage.addEventListener('click', onBtnManageClick);
 
     const actionsRight = document.createElement('div');
     actionsRight.className = 'toc-actions-right';
@@ -215,7 +227,7 @@
     btnRefresh.title = msg('buttonRefreshTitle');
     btnRefresh.setAttribute('aria-label', msg('buttonRefreshTitle') || msg('buttonRefresh'));
     let refreshing = false;
-    btnRefresh.addEventListener('click', async () => {
+    onBtnRefreshClick = async () => {
       if (refreshing) return;
       refreshing = true;
       try {
@@ -225,7 +237,8 @@
       } finally {
         refreshing = false;
       }
-    });
+    };
+    btnRefresh.addEventListener('click', onBtnRefreshClick);
 
     actionsLeft.appendChild(btnPick);
     actionsLeft.appendChild(btnManage);
@@ -316,16 +329,17 @@
         list.appendChild(btn);
       });
 
-      list.addEventListener('click', (e) => {
+      onListClick = (e) => {
         const node = e.target.closest('.toc-item');
         if (!node || !list.contains(node)) return;
         const idx = parseInt(node.dataset.index, 10);
         const item = items[idx];
         if (!item) return;
         handleItemClick(item, node, e);
-      });
+      };
+      list.addEventListener('click', onListClick);
 
-      list.addEventListener('keydown', (e) => {
+      onListKeydown = (e) => {
         if (!e) return;
         const key = e.key;
         const node = e.target && e.target.closest ? e.target.closest('.toc-item') : null;
@@ -354,7 +368,8 @@
         if (!item) return;
         e.preventDefault();
         handleItemClick(item, node, e);
-      });
+      };
+      list.addEventListener('keydown', onListKeydown);
     }
 
     panel.appendChild(header);
@@ -362,12 +377,17 @@
     document.documentElement.appendChild(panel);
 
     // Show panel and trigger expand animation
-    requestAnimationFrame(() => {
+    showRaf = requestAnimationFrame(() => {
+      showRaf = null;
+      if (cleanedUp) return;
+      if (!panel || !panel.isConnected) return;
       panel.style.visibility = '';
       panel.classList.add('toc-expanded');
       try { resolveShown && resolveShown(); } catch (_) {}
       if (expandAnimTimer) clearTimeout(expandAnimTimer);
       expandAnimTimer = setTimeout(() => {
+        if (cleanedUp) return;
+        if (!panel || !panel.isConnected) return;
         panel.classList.remove('toc-floating-expand', 'toc-expanded');
       }, EXPAND_ANIM_MS);
     });
@@ -440,9 +460,9 @@
         try { removalObserver.disconnect(); } catch (_) {}
         removalObserver = null;
       }
-      if (removalRaf != null) {
-        try { cancelAnimationFrame(removalRaf); } catch (_) {}
-        removalRaf = null;
+      if (removalTimer != null) {
+        try { clearTimeout(removalTimer); } catch (_) {}
+        removalTimer = null;
       }
     };
 
@@ -450,6 +470,20 @@
       if (cleanedUp) return;
       cleanedUp = true;
       stopRemovalWatch();
+      try { if (onListClick) list.removeEventListener('click', onListClick); } catch (_) {}
+      try { if (onListKeydown) list.removeEventListener('keydown', onListKeydown); } catch (_) {}
+      onListClick = null;
+      onListKeydown = null;
+      try { if (onBtnCollapseClick) btnCollapse.removeEventListener('click', onBtnCollapseClick); } catch (_) {}
+      try { if (onBtnPickClick) btnPick.removeEventListener('click', onBtnPickClick); } catch (_) {}
+      try { if (onBtnManageClick) btnManage.removeEventListener('click', onBtnManageClick); } catch (_) {}
+      try { if (onBtnRefreshClick) btnRefresh.removeEventListener('click', onBtnRefreshClick); } catch (_) {}
+      onBtnCollapseClick = null;
+      onBtnPickClick = null;
+      onBtnManageClick = null;
+      onBtnRefreshClick = null;
+      try { if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true); } catch (_) {}
+      onPanelKeydown = null;
       try { resolveShown && resolveShown(); } catch (_) {}
       try { removeResizeListener && removeResizeListener(); } catch (_) {}
       try { removeScrollListener && removeScrollListener(); } catch (_) {}
@@ -463,6 +497,10 @@
         if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
       } catch (_) {}
       resizeRaf = null;
+      try {
+        if (showRaf != null) cancelAnimationFrame(showRaf);
+      } catch (_) {}
+      showRaf = null;
       dragController && dragController.destroy && dragController.destroy();
       dragController = null;
 
@@ -494,15 +532,16 @@
       }
 
       const tick = () => {
-        removalRaf = null;
+        removalTimer = null;
         if (cleanedUp) return;
         if (panel && panel.isConnected) {
-          try { removalRaf = requestAnimationFrame(tick); } catch (_) {}
+          // MutationObserver isn't available; poll at a low frequency to avoid per-frame CPU use.
+          try { removalTimer = setTimeout(tick, 1000); } catch (_) {}
           return;
         }
         cleanup({ removedExternally: true });
       };
-      try { removalRaf = requestAnimationFrame(tick); } catch (_) {}
+      try { removalTimer = setTimeout(tick, 1000); } catch (_) {}
     };
 
     startRemovalWatch();
@@ -532,6 +571,12 @@
       };
 
       intersectionObserver = new IntersectionObserver((entries) => {
+        if (cleanedUp) return;
+        if (!panel || !panel.isConnected) {
+          try { intersectionObserver && intersectionObserver.disconnect(); } catch (_) {}
+          intersectionObserver = null;
+          return;
+        }
         // Skip updates during rebuild to prevent page jumps
         if (getNavLock()) return;
         const { isRebuilding } = window.TOC_APP || {};
@@ -549,6 +594,17 @@
         }
 
         entries.forEach(entry => {
+          try {
+            if (entry && entry.target && !document.contains(entry.target)) {
+              intersectionObserver && intersectionObserver.unobserve && intersectionObserver.unobserve(entry.target);
+              const it = map.get(entry.target);
+              if (it) {
+                intersecting.delete(it);
+                try { topByEl.delete(it.el); } catch (_) {}
+              }
+              return;
+            }
+          } catch (_) {}
           const it = map.get(entry.target);
           if (!it || !it._node) return;
           if (entry.isIntersecting) {
@@ -584,6 +640,8 @@
 
       observeRaf = requestAnimationFrame(() => {
         observeRaf = null;
+        if (cleanedUp) return;
+        if (!panel || !panel.isConnected) return;
         if (!intersectionObserver) return;
         items.forEach(it => {
           if (it.el && document.contains(it.el)) {

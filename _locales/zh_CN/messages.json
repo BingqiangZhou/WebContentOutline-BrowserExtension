@@ -185,6 +185,14 @@
     "message": "保存设置失败，请重试。",
     "description": "chrome.storage.local 写入失败时的通用提示"
   },
+  "confirmStorageQuotaPrune": {
+    "message": "存储空间不足。为保存此更改，需要移除部分较旧的数据。是否继续？",
+    "description": "存储配额不足时，执行数据修剪前的确认提示"
+  },
+  "warningStorageQuotaNotSaved": {
+    "message": "存储空间不足，未保存更改。",
+    "description": "用户拒绝数据修剪后显示的提示"
+  },
   "errorInvalidSelector": {
     "message": "选择器无效，无法保存。",
     "description": "选择器表达式校验失败时提示"

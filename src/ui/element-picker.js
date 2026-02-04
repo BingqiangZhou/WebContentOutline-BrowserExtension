@@ -63,7 +63,12 @@
         }
       } catch (_) {}
     };
+    let focusRaf = null;
     const close = () => {
+      if (focusRaf) {
+        try { cancelAnimationFrame(focusRaf); } catch (_) {}
+        focusRaf = null;
+      }
       try { wrap.remove(); } catch (_) {}
       restoreFocus();
     };
@@ -112,7 +117,13 @@
       if (act === 'save') saveCb && saveCb(selector, close);
     });
     document.documentElement.appendChild(wrap);
-    try { requestAnimationFrame(() => btnSave.focus({ preventScroll: true })); } catch (_) {}
+    try {
+      focusRaf = requestAnimationFrame(() => {
+        focusRaf = null;
+        if (!wrap || !wrap.isConnected) return;
+        try { btnSave.focus({ preventScroll: true }); } catch (_) {}
+      });
+    } catch (_) {}
     return { close };
   }
 
@@ -123,7 +134,7 @@
       return { cleanup: () => {} };
     }
 
-    const highlight = document.createElement('div');
+    let highlight = document.createElement('div');
     highlight.style.cssText = `position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
     document.documentElement.appendChild(highlight);
 
@@ -147,25 +158,47 @@
     }
 
     function box(el) {
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const left = r.left + window.scrollX;
-      const top = r.top + window.scrollY;
-      highlight.style.left = `${left}px`;
-      highlight.style.top = `${top}px`;
-      highlight.style.width = `${Math.max(0, r.width)}px`;
-      highlight.style.height = `${Math.max(0, r.height)}px`;
+      if (finished) return;
+      if (!highlight) return;
+      if (!el || typeof el.getBoundingClientRect !== 'function') return;
+      try {
+        const r = el.getBoundingClientRect();
+        const left = r.left + window.scrollX;
+        const top = r.top + window.scrollY;
+        highlight.style.left = `${left}px`;
+        highlight.style.top = `${top}px`;
+        highlight.style.width = `${Math.max(0, r.width)}px`;
+        highlight.style.height = `${Math.max(0, r.height)}px`;
+      } catch (_) {}
     }
 
     let moveRaf = null;
     let pendingMove = null;
     let finished = false;
+    const cancelPick = () => {
+      if (finished) return;
+      finished = true;
+      try {
+        cleanup();
+      } catch (e) {
+        console.warn('[toc] cleanup failed:', e);
+      }
+      try {
+        onCancel && onCancel();
+      } catch (e) {
+        console.warn('[toc] onCancel failed:', e);
+      }
+    };
 
     function processMove(e) {
       if (finished) return;
       let el = getElementNode(e.target);
       if (isUiElement(el)) {
-        el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
+        try {
+          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
+        } catch (_) {
+          el = null;
+        }
         if (isUiElement(el)) return;
       }
       if (el && el !== highlight) box(el);
@@ -179,7 +212,7 @@
         const evt = pendingMove;
         pendingMove = null;
         moveRaf = null;
-        if (evt) processMove(evt);
+        if (!finished && evt) processMove(evt);
       });
     }
 
@@ -200,10 +233,8 @@
 
     function key(e) {
       if (e.key === 'Escape' || e.key === 'Tab') {
-        if (finished) return;
-        finished = true;
-        cleanup();
-        onCancel && onCancel();
+        try { e.preventDefault(); } catch (_) {}
+        cancelPick();
       }
     }
 
@@ -211,29 +242,15 @@
     document.addEventListener('click', click, true);
     const onCtx = (e) => {
       e.preventDefault();
-      if (finished) return;
-      finished = true;
-      cleanup();
-      onCancel && onCancel();
+      cancelPick();
     };
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', key, true);
 
-    let timeoutId = setTimeout(() => {
-      try {
-        if (finished) return;
-        finished = true;
-        cleanup();
-      } catch (e) {
-        console.warn('[toc] cleanup failed:', e);
-      } finally {
-        try {
-          onCancel && onCancel();
-        } catch (e) {
-          console.warn('[toc] onCancel failed:', e);
-        }
-      }
-    }, PICKER_TIMEOUT_MS);
+    const onPageHide = () => cancelPick();
+    try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
+
+    let timeoutId = setTimeout(() => cancelPick(), PICKER_TIMEOUT_MS);
 
     function cleanup() {
       finished = true;
@@ -241,24 +258,24 @@
       try { document.removeEventListener('click', click, true); } catch (_) {}
       try { document.removeEventListener('keydown', key, true); } catch (_) {}
       try { document.removeEventListener('contextmenu', onCtx, true); } catch (_) {}
+      try { window.removeEventListener('pagehide', onPageHide, true); } catch (_) {}
       if (moveRaf) {
         try { cancelAnimationFrame(moveRaf); } catch (_) {}
         moveRaf = null;
       }
       pendingMove = null;
       if (timeoutId) { try { clearTimeout(timeoutId); } catch (_) {} timeoutId = null; }
-      if (highlight) {
-        try {
-          if (highlight.parentNode && document.contains(highlight)) {
-            highlight.parentNode.removeChild(highlight);
-          }
-        } catch (_) {}
-        highlight = null;
-      }
+      const h = highlight;
+      highlight = null;
       try {
-        if (document.body) {
-          document.body.style.cursor = prevCursor || '';
+        if (h) {
+          if (h.parentNode && document.contains(h)) {
+            h.parentNode.removeChild(h);
+          }
         }
+      } catch (_) {}
+      try {
+        if (document.body) document.body.style.cursor = prevCursor || '';
       } catch (_) {}
     }
 

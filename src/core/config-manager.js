@@ -5,9 +5,8 @@
 
   let configsSaveLock = Promise.resolve();
   function queueConfigsWrite(task) {
-    const next = configsSaveLock
-      .catch(() => {})
-      .then(() => Promise.resolve().then(task));
+    const run = () => Promise.resolve().then(task);
+    const next = configsSaveLock.then(run, run);
     configsSaveLock = next.catch(() => {});
     return next;
   }
@@ -51,14 +50,39 @@
 
       const mutateConfigsWithRetry = async ({ mutate, verify, maxAttempts = 3 }) => {
         const attempts = Number.isFinite(maxAttempts) ? Math.max(1, Math.floor(maxAttempts)) : 3;
+        const verifyFn = (typeof verify === 'function') ? verify : null;
+
         for (let i = 0; i < attempts; i++) {
           const configsNow = await getConfigs();
+
+          // Avoid a write when the desired state is already present (also reduces multi-tab overwrite risk).
+          if (verifyFn) {
+            try {
+              if (verifyFn(configsNow)) return true;
+            } catch (_) {}
+          }
+
           const nextConfigs = mutate(configsNow);
           const ok = await saveConfigs(nextConfigs);
           if (!ok) return false;
-          if (typeof verify !== 'function') return true;
-          const after = await getConfigs();
-          if (verify(after)) return true;
+
+          // In multi-tab scenarios another writer may update storage between our write and a read-back verify.
+          // Treat the write as successful once the post-condition holds for what we wrote.
+          if (!verifyFn) return true;
+          try {
+            if (verifyFn(nextConfigs)) return true;
+          } catch (_) {}
+
+          // Yield a tick before retrying to reduce tight-loop contention across tabs.
+          try { await new Promise((r) => setTimeout(r, 0)); } catch (_) {}
+        }
+
+        // Best-effort final check against current storage.
+        if (verifyFn) {
+          try {
+            const finalNow = await getConfigs();
+            if (verifyFn(finalNow)) return true;
+          } catch (_) {}
         }
         return false;
       };
@@ -176,7 +200,12 @@
           }
         } catch (_) {}
       };
+      let focusRaf = null;
       const close = () => {
+        if (focusRaf) {
+          try { cancelAnimationFrame(focusRaf); } catch (_) {}
+          focusRaf = null;
+        }
         try { box.remove(); } catch (_) {}
         restoreFocus();
       };
@@ -261,7 +290,13 @@
       });
 
       document.documentElement.appendChild(box);
-      try { requestAnimationFrame(() => btnClose.focus({ preventScroll: true })); } catch (_) {}
+      try {
+        focusRaf = requestAnimationFrame(() => {
+          focusRaf = null;
+          if (!box || !box.isConnected) return;
+          try { btnClose.focus({ preventScroll: true }); } catch (_) {}
+        });
+      } catch (_) {}
     } catch (e) {
       console.error(msg('logClearConfigFailed'), e);
       if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
@@ -277,7 +312,8 @@
       }
 
       return await queueConfigsWrite(async () => {
-        const configs = await getConfigs();
+        const configsNow = await getConfigs();
+        const configs = Array.isArray(configsNow) ? configsNow.slice() : [];
         const urlPattern = `${location.protocol}//${location.host}/*`;
         const entry = { type: 'css', expr };
         const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);

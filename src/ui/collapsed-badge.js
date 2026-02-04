@@ -40,14 +40,25 @@
 
     let userMoved = false;
     let destroyed = false;
+    const onKeydown = (e) => {
+      if (destroyed || !e) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        try { e.preventDefault(); } catch (_) {}
+        onExpand && onExpand();
+      }
+    };
 
     // Restore position: centerPos first, then from storage
     const restorePosition = async () => {
       let pos = centerPos;
       if (!pos && getBadgePosByHost) {
-        pos = await getBadgePosByHost(location.host);
+        try {
+          pos = await getBadgePosByHost(location.host);
+        } catch (_) {
+          pos = null;
+        }
       }
-      if (destroyed) return;
+      if (destroyed || !badge || !badge.isConnected) return;
       if (userMoved) {
         badge.style.visibility = '';
         return;
@@ -74,17 +85,12 @@
 
     restorePosition();
 
-    badge.addEventListener('keydown', (e) => {
-      if (!e) return;
-      if (e.key === 'Enter' || e.key === ' ') {
-        try { e.preventDefault(); } catch (_) {}
-        onExpand && onExpand();
-      }
-    });
+    badge.addEventListener('keydown', onKeydown);
 
     let resizeRaf = null;
     const RESIZE_LISTENER_OPTS = { passive: true };
     const constrainCurrentPosition = () => {
+      if (destroyed || !badge || !badge.isConnected) return;
       try {
         const rect = badge.getBoundingClientRect();
         const bw = badge.offsetWidth || BADGE_WIDTH;
@@ -151,6 +157,7 @@
       destroyed = true;
       try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
       try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
+      try { badge.removeEventListener('keydown', onKeydown); } catch (_) {}
       try {
         if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
       } catch (_) {}

@@ -185,6 +185,14 @@
     "message": "Failed to save settings. Please try again.",
     "description": "Shown when chrome.storage.local write fails for unknown reasons"
   },
+  "confirmStorageQuotaPrune": {
+    "message": "Storage quota reached. To save this change, older data must be removed. Continue?",
+    "description": "Confirmation shown before pruning data due to storage quota"
+  },
+  "warningStorageQuotaNotSaved": {
+    "message": "Storage quota reached. Changes were not saved.",
+    "description": "Shown when user declines pruning after hitting storage quota"
+  },
   "errorInvalidSelector": {
     "message": "Invalid selector. Unable to save.",
     "description": "Shown when a selector expression fails validation"
