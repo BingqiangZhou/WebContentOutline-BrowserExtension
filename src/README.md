@@ -87,7 +87,7 @@ if (!getConfigs || !initForConfig) {
 **utils.js** - 提供扩展的基础能力
 - 存储操作：`getConfigs()`, `saveConfigs()`
 - TOC按钮位置管理：`getBadgePosByHost()`, `setBadgePosByHost()`
-- 位置管理（徽标中心点）：`getBadgePosByHost()`, `setBadgePosByHost()`
+- 位置管理（徽标中心点）：`getBadgePosByHost()`, `setBadgePosByHost()`（窗口尺寸变化时：水平位置贴到原侧边，竖直位置按窗口高度比例缩放）
 - 选择器执行：`collectBySelector()`
 - DOM操作：`uniqueInDocumentOrder()`, `scrollToElement()`
 - URL匹配：`findMatchingConfig()`
@@ -116,6 +116,7 @@ if (!getConfigs || !initForConfig) {
 - 跨域名位置持久化
 - 支持左右侧位置（left/right）
 - 与面板位置同步（折叠时继承面板位置）
+- 窗口尺寸变化时：水平位置贴到原侧边（左/右），竖直位置按窗口高度比例缩放
 - 防止意外触发的拖拽检测
 - 增强的键盘交互支持
 
@@ -132,6 +133,7 @@ if (!getConfigs || !initForConfig) {
 - 操作按钮集成
 - 可拖拽标题栏（拖拽时保存位置，与TOC按钮位置同步）
 - 支持左右侧位置（left/right）
+- 窗口尺寸变化时：水平位置贴到原侧边（左/右），竖直位置按窗口高度比例缩放
 - 增强的错误处理
 
 ### 核心逻辑层 (约850行)
@@ -156,7 +158,7 @@ if (!getConfigs || !initForConfig) {
 - 状态同步和事件协调
 - 重建逻辑和优化（防止页面跳动）
 - 重建中状态标志管理
-- 面板/TOC按钮位置同步（折叠/展开时保持位置一致）
+- 面板/TOC按钮位置同步（折叠/展开时保持位置一致；窗口尺寸变化时水平贴边、竖直按高度比例缩放）
 - 导航锁故障保护
   - 8秒超时自动解锁机制
   - 防止导航锁定卡死

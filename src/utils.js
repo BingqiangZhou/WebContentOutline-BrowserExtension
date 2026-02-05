@@ -677,7 +677,7 @@ async function getPanelStateMap() {
  }
 
 /**
- * Get badge position map { host: { left, top } }
+ * Get badge position map { host: { x, y, vw?, vh?, anchorX?, marginX? } }
  */
 async function getBadgePosMap() {
   return await getStorage(STORAGE_KEYS.BADGE_POS_MAP, {});
@@ -685,25 +685,113 @@ async function getBadgePosMap() {
 
 /**
  * Save badge position map
- * @param {Record<string, {left:number, top:number}>} map
+ * @param {Record<string, any>} map
  */
- async function saveBadgePosMap(map) {
-   return await setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
- }
+  async function saveBadgePosMap(map) {
+    return await setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
+  }
+
+function resolveBadgePosForViewport(pos) {
+  try {
+    if (!pos) return null;
+
+    // Legacy compat: {left, top} -> {x, y} using default badge size.
+    if (!Number.isFinite(pos.x) && Number.isFinite(pos.left)) {
+      const bw = (typeof uiConst === 'function') ? uiConst('BADGE_WIDTH', 80) : 80;
+      pos = { ...pos, x: pos.left + bw / 2 };
+    }
+    if (!Number.isFinite(pos.y) && Number.isFinite(pos.top)) {
+      const bh = (typeof uiConst === 'function') ? uiConst('BADGE_HEIGHT', 32) : 32;
+      pos = { ...pos, y: pos.top + bh / 2 };
+    }
+
+    const x = getFiniteNumber(pos.x);
+    const y = getFiniteNumber(pos.y);
+    if (x == null && y == null) return pos;
+
+    const vwNow = (typeof window !== 'undefined') ? getFiniteNumber(window.innerWidth) : null;
+    const vhNow = (typeof window !== 'undefined') ? getFiniteNumber(window.innerHeight) : null;
+    if (!vwNow || !vhNow) return pos;
+
+    const anchorX = (pos.anchorX === 'left' || pos.anchorX === 'right') ? pos.anchorX : null;
+    const marginX = getFiniteNumber(pos.marginX);
+    const vhSaved = getFiniteNumber(pos.vh);
+
+    let resolvedX = x;
+    if (anchorX && marginX != null) {
+      // Keep anchored edge preference even if the viewport is too small.
+      const bw = (typeof uiConst === 'function') ? uiConst('BADGE_WIDTH', 80) : 80;
+      const dragMargin = (typeof uiConst === 'function') ? uiConst('DRAG_MARGIN_PX', 4) : 4;
+      const minX = dragMargin + bw / 2;
+      const maxX = vwNow - dragMargin - bw / 2;
+      const hasRoom = (Number.isFinite(minX) && Number.isFinite(maxX) && maxX >= minX);
+      const rawX = (anchorX === 'right') ? (vwNow - marginX) : marginX;
+      if (!hasRoom) {
+        resolvedX = Math.max(0, Math.min(vwNow, rawX));
+      } else if (anchorX === 'right') {
+        // If raw would push off the left side, stick to the rightmost visible position instead of flipping left.
+        if (rawX < minX) resolvedX = maxX;
+        else resolvedX = Math.min(maxX, Math.max(minX, rawX));
+      } else {
+        // anchorX === 'left'
+        // If raw would push off the right side, stick to the leftmost visible position instead of flipping right.
+        if (rawX > maxX) resolvedX = minX;
+        else resolvedX = Math.min(maxX, Math.max(minX, rawX));
+      }
+    }
+
+    let resolvedY = y;
+    if (vhSaved && y != null) {
+      resolvedY = y * (vhNow / vhSaved);
+    }
+
+    return { ...pos, x: resolvedX, y: resolvedY };
+  } catch (_) {
+    return pos || null;
+  }
+}
 
 async function getBadgePosByHost(host) {
   const map = await getBadgePosMap();
-  return map[host] || null;
+  const pos = map[host] || null;
+  return resolveBadgePosForViewport(pos);
 }
 
- async function setBadgePosByHost(host, pos) {
-  const map = await getBadgePosMap();
-  if (!host) return null;
-  touchObjectKey(map, host, pos);
-  pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
-  const ok = await saveBadgePosMap(map);
-  return ok ? (map[host] || null) : null;
- }
+  async function setBadgePosByHost(host, pos) {
+   const map = await getBadgePosMap();
+   if (!host) return null;
+
+   let enriched = pos;
+   try {
+     const x = pos && getFiniteNumber(pos.x);
+     const y = pos && getFiniteNumber(pos.y);
+     const vw = (typeof window !== 'undefined') ? getFiniteNumber(window.innerWidth) : null;
+     const vh = (typeof window !== 'undefined') ? getFiniteNumber(window.innerHeight) : null;
+     if (x != null && y != null && vw && vh) {
+       const anchorX = (pos.anchorX === 'left' || pos.anchorX === 'right')
+         ? pos.anchorX
+         : (x > (vw / 2) ? 'right' : 'left');
+       const marginX = (anchorX === 'right') ? (vw - x) : x;
+       enriched = {
+         ...pos,
+         x,
+         y,
+         vw,
+         vh,
+         anchorX,
+         marginX,
+         updatedAt: (typeof pos.updatedAt === 'number') ? pos.updatedAt : Date.now()
+       };
+     }
+   } catch (_) {
+     enriched = pos;
+   }
+
+   touchObjectKey(map, host, enriched);
+   pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
+   const ok = await saveBadgePosMap(map);
+   return ok ? (map[host] || null) : null;
+  }
 
 async function getPanelExpandedByOrigin(origin) {
   const map = await getPanelStateMap();

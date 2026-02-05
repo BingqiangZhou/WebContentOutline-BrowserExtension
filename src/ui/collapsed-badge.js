@@ -40,6 +40,7 @@
 
     let userMoved = false;
     let destroyed = false;
+    let anchorX = (side === 'left') ? 'left' : 'right';
     const onKeydown = (e) => {
       if (destroyed || !e) return;
       if (e.key === 'Enter' || e.key === ' ') {
@@ -68,6 +69,9 @@
       const bh = badge.offsetHeight || BADGE_HEIGHT;
 
       if (pos && Number.isFinite(pos.x)) {
+        if (pos.anchorX === 'left' || pos.anchorX === 'right') {
+          anchorX = pos.anchorX;
+        }
         // Use saved position
         const left = pos.x - bw / 2;
         const top = (Number.isFinite(pos.y) ? pos.y : DEFAULT_TOP_MIN) - bh / 2;
@@ -88,28 +92,74 @@
     badge.addEventListener('keydown', onKeydown);
 
     let resizeRaf = null;
+    let lastViewportW = window.innerWidth;
+    let lastViewportH = window.innerHeight;
+    let persistTimer = null;
+    let pendingPersistCenter = null;
     const RESIZE_LISTENER_OPTS = { passive: true };
-    const constrainCurrentPosition = () => {
+    const computeAnchoredScaledPosition = () => {
       if (destroyed || !badge || !badge.isConnected) return;
       try {
         const rect = badge.getBoundingClientRect();
         const bw = badge.offsetWidth || BADGE_WIDTH;
         const bh = badge.offsetHeight || BADGE_HEIGHT;
-        const maxLeft = window.innerWidth - bw - DRAG_MARGIN_PX;
-        const maxTop = window.innerHeight - bh - DRAG_MARGIN_PX;
-        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, rect.left));
-        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, rect.top));
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const prevW = Number.isFinite(lastViewportW) && lastViewportW > 0 ? lastViewportW : vw;
+        const prevH = Number.isFinite(lastViewportH) && lastViewportH > 0 ? lastViewportH : vh;
+
+        const centerX = rect.left + bw / 2;
+        const centerY = rect.top + bh / 2;
+
+        // Horizontal: snap to edge on resize (keep side, ignore interior offset).
+        if (anchorX !== 'left' && anchorX !== 'right') {
+          anchorX = centerX > (prevW / 2) ? 'right' : 'left';
+        }
+        const edgePad = Math.max(DRAG_MARGIN_PX, DEFAULT_RIGHT);
+        const nextLeftEdge = (anchorX === 'right') ? (vw - bw - edgePad) : edgePad;
+
+        // Vertical: scale reference point (badge center) by height ratio.
+        const ratioH = prevH ? (vh / prevH) : 1;
+        const nextCenterY = centerY * ratioH;
+
+        let nextLeft = nextLeftEdge;
+        let nextTop = nextCenterY - bh / 2;
+
+        const maxLeft = vw - bw - DRAG_MARGIN_PX;
+        const maxTop = vh - bh - DRAG_MARGIN_PX;
+        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
+        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
         badge.style.setProperty('left', left + 'px', 'important');
         badge.style.setProperty('top', top + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
         badge.style.setProperty('bottom', 'auto', 'important');
+
+        lastViewportW = vw;
+        lastViewportH = vh;
+
+        // Persist the badge center so next expand aligns to the current viewport.
+        pendingPersistCenter = { x: left + bw / 2, y: top + bh / 2, anchorX };
       } catch (_) {}
     };
     const onResize = () => {
       if (resizeRaf) return;
       resizeRaf = requestAnimationFrame(() => {
         resizeRaf = null;
-        constrainCurrentPosition();
+        computeAnchoredScaledPosition();
+        if (pendingPersistCenter && setBadgePosByHost) {
+          if (persistTimer) clearTimeout(persistTimer);
+          persistTimer = setTimeout(() => {
+            persistTimer = null;
+            const p = pendingPersistCenter;
+            pendingPersistCenter = null;
+            try {
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                setBadgePosByHost(location.host, p);
+              }
+            } catch (_) {}
+          }, 160);
+        }
       });
     };
     window.addEventListener('resize', onResize, RESIZE_LISTENER_OPTS);
@@ -148,7 +198,8 @@
         const x = rect.left + rect.width / 2;
         const y = rect.top + rect.height / 2;
         if (Number.isFinite(x) && Number.isFinite(y) && setBadgePosByHost) {
-          setBadgePosByHost(location.host, { x, y });
+          anchorX = x > (window.innerWidth / 2) ? 'right' : 'left';
+          setBadgePosByHost(location.host, { x, y, anchorX });
         }
       }
     }) : null;
@@ -158,6 +209,10 @@
       try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
       try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
       try { badge.removeEventListener('keydown', onKeydown); } catch (_) {}
+      if (persistTimer) {
+        try { clearTimeout(persistTimer); } catch (_) {}
+        persistTimer = null;
+      }
       try {
         if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
       } catch (_) {}

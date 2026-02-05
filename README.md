@@ -32,7 +32,7 @@ A web table of contents generator that automatically creates interactive floatin
 - **Floating Panel**: Expandable TOC panel with left/right side display support
 - **Draggable Panel**: Drag the panel header to reposition; position is automatically saved
 - **Draggable Button**: Collapsed "TOC" button supports drag positioning
-- **Position Memory**: Remembers panel and button position per domain, synchronizes positions when collapsing/expanding
+- **Position Memory**: Remembers panel and button position per domain, synchronizes positions when collapsing/expanding, and stays stable on window resize (horizontal snaps to the anchored edge; vertical scales with viewport height)
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
 ### 🔄 Navigation Experience
@@ -138,6 +138,7 @@ A web table of contents generator that automatically creates interactive floatin
 - Button and panel remember current position (saved per domain)
 - Automatically restores on page refresh or next visit
 - Positions synchronize when collapsing/expanding
+- On window resize, horizontal position snaps to the anchored edge (left/right) and vertical position scales with viewport height
 - Uses default position if saved position is out of viewport
 
 #### 7. Refresh TOC

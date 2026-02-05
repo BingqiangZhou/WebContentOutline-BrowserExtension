@@ -77,19 +77,73 @@
     }
 
     let resizeRaf = null;
+    let lastViewportW = window.innerWidth;
+    let lastViewportH = window.innerHeight;
+    let anchorX = (side === 'left') ? 'left' : 'right';
+    let persistTimer = null;
+    let pendingPersistCenter = null;
     const constrainCurrentPosition = () => {
       try {
         const rect = panel.getBoundingClientRect();
         const pw = panel.offsetWidth || PANEL_WIDTH;
         const ph = panel.offsetHeight || PANEL_HEIGHT;
-        const maxLeft = window.innerWidth - pw - DRAG_MARGIN_PX;
-        const maxTop = window.innerHeight - ph - DRAG_MARGIN_PX;
-        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, rect.left));
-        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, rect.top));
+
+        const vw = window.innerWidth;
+        const vh = window.innerHeight;
+        const prevW = Number.isFinite(lastViewportW) && lastViewportW > 0 ? lastViewportW : vw;
+        const prevH = Number.isFinite(lastViewportH) && lastViewportH > 0 ? lastViewportH : vh;
+
+        // Use collapse button center as the shared reference point across expanded/collapsed states.
+        let refX = rect.left + pw / 2;
+        let refY = rect.top + ph / 2;
+        try {
+          const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+          if (collapseBtn) {
+            const btnRect = collapseBtn.getBoundingClientRect();
+            if (btnRect.width > 0 && btnRect.height > 0) {
+              refX = btnRect.left + btnRect.width / 2;
+              refY = btnRect.top + btnRect.height / 2;
+            }
+          }
+        } catch (_) {}
+
+        // Horizontal: snap panel to edge on resize (keep side, ignore interior offset).
+        if (anchorX !== 'left' && anchorX !== 'right') {
+          anchorX = refX > (prevW / 2) ? 'right' : 'left';
+        }
+        const nextLeftEdge = (anchorX === 'right') ? (vw - pw - DRAG_MARGIN_PX) : DRAG_MARGIN_PX;
+
+        // Vertical: scale reference point by height ratio.
+        const ratioH = prevH ? (vh / prevH) : 1;
+        const nextRefY = refY * ratioH;
+
+        const nextLeft = nextLeftEdge;
+        const nextTop = rect.top + (nextRefY - refY);
+
+        const maxLeft = vw - pw - DRAG_MARGIN_PX;
+        const maxTop = vh - ph - DRAG_MARGIN_PX;
+        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
+        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
         panel.style.setProperty('left', left + 'px', 'important');
         panel.style.setProperty('top', top + 'px', 'important');
         panel.style.setProperty('right', 'auto', 'important');
         panel.style.setProperty('bottom', 'auto', 'important');
+
+        lastViewportW = vw;
+        lastViewportH = vh;
+
+        // Persist collapse button center so next launch aligns to the current viewport.
+        try {
+          const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+          if (collapseBtn) {
+            const btnRect = collapseBtn.getBoundingClientRect();
+            const x = btnRect.left + btnRect.width / 2;
+            const y = btnRect.top + btnRect.height / 2;
+            if (Number.isFinite(x) && Number.isFinite(y)) {
+              pendingPersistCenter = { x, y, anchorX };
+            }
+          }
+        } catch (_) {}
       } catch (_) {}
     };
     const onResize = () => {
@@ -100,6 +154,19 @@
         if (cleanedUp) return;
         if (!panel || !panel.isConnected) return;
         constrainCurrentPosition();
+        if (pendingPersistCenter && setBadgePosByHost) {
+          if (persistTimer) clearTimeout(persistTimer);
+          persistTimer = setTimeout(() => {
+            persistTimer = null;
+            const p = pendingPersistCenter;
+            pendingPersistCenter = null;
+            try {
+              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
+                setBadgePosByHost(location.host, p);
+              }
+            } catch (_) {}
+          }, 160);
+        }
       });
     };
     const RESIZE_LISTENER_OPTS = { passive: true };
@@ -432,7 +499,8 @@
             const x = btnRect.left + btnRect.width / 2;
             const y = btnRect.top + btnRect.height / 2;
             if (Number.isFinite(x) && Number.isFinite(y)) {
-              setBadgePosByHost(location.host, { x, y });
+              anchorX = x > (window.innerWidth / 2) ? 'right' : 'left';
+              setBadgePosByHost(location.host, { x, y, anchorX });
             }
           }
         } catch (_) {}
@@ -493,6 +561,10 @@
       cleanupLock();
       if (expandAnimTimer) clearTimeout(expandAnimTimer);
       expandAnimTimer = null;
+      if (persistTimer) {
+        try { clearTimeout(persistTimer); } catch (_) {}
+        persistTimer = null;
+      }
       try {
         if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
       } catch (_) {}

@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#054---2026-02-05)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#061---2026-02-05)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.6.1](#061---2026-02-05) - 2026-02-05
 - [0.6.0](#060---2026-02-05) - 2026-02-05
 - [0.5.2](#052---2026-02-03) - 2026-02-03
 - [0.5.1](#051---2026-02-03) - 2026-02-03
@@ -20,6 +21,20 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.6.1] - 2026-02-05
+
+### 🔄 改变 / Changed
+- **窗口缩放定位策略 / Resize positioning strategy**
+  - 窗口尺寸变化时，按钮/面板水平位置自动贴到原侧边（左/右） / On window resize, badge/panel snaps horizontally to anchored edge (left/right)
+  - 竖直位置按窗口高度比例缩放 / Vertical position scales with viewport height ratio
+
+### 🛠 修复 / Fixed
+- 修复折叠/展开在窗口缩放后的对齐不一致问题 / Fixed collapse/expand alignment mismatch after resize
+- 修复部分页面可能报错 `Cannot access 'anchorX' before initialization` / Fixed runtime `anchorX` initialization ReferenceError on some pages
+- 修复窗口缩小后右侧按钮可能被挤到最左侧的问题 / Prevented right-anchored badge from jumping to the left edge when shrinking the window
 
 ---
 

@@ -475,9 +475,28 @@
         let savedPos = null;
         let panelPos = null;
 
+        // Prefer the live badge position if present (avoids stale storage during/after resize).
+        try {
+          const badgeEl = document.querySelector('.toc-collapsed-badge');
+          if (badgeEl) {
+            const r = badgeEl.getBoundingClientRect();
+            if (r && r.width > 0 && r.height > 0) {
+              const x = r.left + r.width / 2;
+              const y = r.top + r.height / 2;
+              if (Number.isFinite(x) && Number.isFinite(y)) {
+                savedPos = { x, y };
+                expandSide = x > (window.innerWidth / 2) ? 'right' : 'left';
+                try { setBadgePosByHost && setBadgePosByHost(location.host, { x, y }); } catch (_) {}
+              }
+            }
+          }
+        } catch (_) {}
+
         // Get saved badge center position
         if (getBadgePosByHost) {
-          savedPos = await getBadgePosByHost(location.host);
+          if (!savedPos || !Number.isFinite(savedPos.x) || !Number.isFinite(savedPos.y)) {
+            savedPos = await getBadgePosByHost(location.host);
+          }
           if (savedPos && Number.isFinite(savedPos.x)) {
             expandSide = savedPos.x > (window.innerWidth / 2) ? 'right' : 'left';
 
