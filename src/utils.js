@@ -66,6 +66,20 @@
  }
 
 /**
+ * Check if the extension context is invalidated (e.g., after extension reload).
+ * @returns {boolean}
+ */
+function isExtensionContextInvalidated() {
+  try {
+    // Try to access a chrome API - this will throw if context is invalidated
+    chrome.i18n.getMessage('test');
+    return false;
+  } catch (_) {
+    return true;
+  }
+}
+
+/**
  * Get i18n message safely.
  * @param {string} key
  * @param {string|string[]} [substitutions]
@@ -375,7 +389,8 @@ function msg(key, substitutions) {
        // Prevent unbounded growth in long-lived pages.
        const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
        if (!trackOnce(onceKey, maxKeys)) return;
-       console.warn('[toc] storage write failed:', { key, err: String(err && (err.message || err)) });
+       const errStr = String(err && (err.message || err.toString && err.toString() || err) || '');
+       console.warn(`[toc] storage write failed: key="${key}", error="${errStr}"`);
        if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
          const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
          const text = msg(messageKey);
@@ -524,6 +539,10 @@ function ensureToastContainer() {
  * @returns {Promise<*>}
  */
    async function getStorage(key, fallback) {
+     // Check if extension context is invalidated before calling Chrome API
+     if (isExtensionContextInvalidated()) {
+       return fallback;
+     }
      try {
        if (chrome?.storage?.local) {
          const res = await chrome.storage.local.get([key]);
@@ -534,6 +553,10 @@ function ensureToastContainer() {
          return fallback;
        }
     } catch (e) {
+      // Silently handle context invalidated errors
+      if (isContextInvalidatedError(e)) {
+        return fallback;
+      }
       if (isQuotaExceededError(e)) {
         const onceKey = `read-quota:${String(key || '')}`;
         if (trackOnce(onceKey, uiConst('WARN_ONCE_MAX_KEYS', 200))) {
@@ -551,6 +574,10 @@ function ensureToastContainer() {
   * @returns {Promise<boolean>}
   */
    async function setStorage(key, value) {
+     // Check if extension context is invalidated before calling Chrome API
+     if (isExtensionContextInvalidated()) {
+       return false;
+     }
      const normalized = normalizeStorageValue(key, value);
      try {
        if (chrome?.storage?.local) {
@@ -558,6 +585,10 @@ function ensureToastContainer() {
        }
        return true;
      } catch (e) {
+       // Silently handle context invalidated errors
+       if (isContextInvalidatedError(e)) {
+         return false;
+       }
        if (isQuotaExceededError(e)) {
          try {
            const shrunk = normalizeStorageValue(key, value, { aggressive: true });
@@ -624,7 +655,8 @@ function ensureToastContainer() {
            }
          } catch (_) {}
        }
-       notifyStorageWriteError(key, e);
+      // Other errors (including context invalidated) are silently ignored.
+      // Context invalidated is expected when extension is reloaded without page refresh.
        return false;
      }
    }
@@ -1012,6 +1044,7 @@ const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !==
     uiConst,
     msg,
     isContextInvalidatedError,
+    isExtensionContextInvalidated,
     isPlainObject,
     getFocusableWithin,
     safeJsonParse,
