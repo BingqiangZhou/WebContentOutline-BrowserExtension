@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#061---2026-02-05)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#062---2026-03-14)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.6.2](#062---2026-03-14) - 2026-03-14
 - [0.6.1](#061---2026-02-05) - 2026-02-05
 - [0.6.0](#060---2026-02-05) - 2026-02-05
 - [0.5.2](#052---2026-02-03) - 2026-02-03
@@ -21,6 +22,30 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.6.2] - 2026-03-14
+
+### 🐛 修复 / Fixed
+- **语法错误修复 / Syntax error fixes**
+  - 修复 `background.js` 中 `onRemoved` 监听器缺少闭合括号 / Fixed missing closing parenthesis in `background.js` onRemoved listener
+  - 修复 `toc-app.js` 中 `Promise.race` 缺少闭合括号 / Fixed missing closing parenthesis in `toc-app.js` Promise.race
+- **CSS 注入时序问题 / CSS injection timing issue**
+  - 恢复动态 CSS 注入，避免静态注入导致的页面布局问题 / Reverted to dynamic CSS injection to prevent page layout issues caused by static injection
+  - CSS 现在仅在扩展启用时注入，而非所有页面 / CSS is now only injected when extension is enabled, not on all pages
+- **内容脚本初始化时机 / Content script initialization timing**
+  - 添加 DOM 稳定性等待，确保页面渲染完成后再初始化 TOC / Added DOM stability wait to ensure TOC initializes after page rendering is complete
+
+### 🔧 更改 / Changed
+- **MutationObserver 优化 / MutationObserver improvements**
+  - 添加动态防抖机制，频繁变更时自动增加防抖时间 / Added dynamic debounce mechanism that increases debounce time for frequent changes
+  - 重建循环延迟从 0ms 增加到 16ms，减少主线程争用 / Increased rebuild loop delay from 0ms to 16ms to reduce main thread contention
+- **计时器管理 / Timer management**
+  - 统一计时器管理为 `timers` 对象 / Unified timer management into `timers` object
+  - 持久化延迟从 160ms 增加到 500ms，减少存储 I/O 频率 / Increased persist delay from 160ms to 500ms to reduce storage I/O frequency
+- **Rebuild 超时保护 / Rebuild timeout protection**
+  - 添加 5 秒超时保护，防止 rebuild 无限等待 / Added 5-second timeout protection to prevent rebuild from hanging indefinitely
 
 ---
 
