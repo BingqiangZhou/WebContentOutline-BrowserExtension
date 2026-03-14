@@ -68,91 +68,16 @@
 /**
  * Get i18n message safely.
  * @param {string} key
+ * @param {string|string[]} [substitutions]
  * @returns {string}
  */
-  // i18n message cache - initialized on extension load
- const i18nCache = new Map();
-
-  // Default locale for fallback
-  const DEFAULT_LOCALE = 'en';
-
-  // Fallback translations map - maps message key to fallback text
-  // These will be used when chrome.i18n.getMessage fails
-  const FALLBACK_TRANSLATIONS = {
-    'tocTitle': '目录',
-    'buttonCollapse': '收起',
-    'buttonRefresh': '刷新',
-    'buttonPickElement': '拾取元素',
-    'buttonSiteConfig': '站点配置',
-    'buttonSaveAsConfig': '保存',
-    'buttonClose': '关闭',
-    'buttonDeleteSelector': '删除选择器',
-    'buttonClearConfig': '清空配置',
-    'emptyTocMessage': '未找到目录项，请检查选择器或添加新选择器。',
-    'badgeTitle': '展开目录',
-    'pickerResultTitle': '已生成选择器',
-    'truncatedNotice': '为了性能，TOC 最多显示 $max 项，请优化选择器',
-    'truncatedNoticeWithMax': '为了性能，TOC 最多显示 $max 项，请优化选择器',
-    'toastRegionLabel': '通知',
-    'errorStorageQuotaExceeded': '存储配额超限',
-    'errorStorageWriteFailed': '保存设置失败',
-    'confirmStorageQuotaPrune': '存储配额已达，是否清理旧数据？',
-    'warningStorageQuotaNotSaved': '存储配额已达，但未保存更改',
-    'errorInvalidSelector': '无效选择器',
-    'symbolClose': '×',
-    'titleDisabled': '已禁用 (点击启用)',
-    'titleEnabled': '已启用 (点击禁用)',
-    'titleDisabledFallback': '禁用 (非 http 页面)',
-    'titleInjectionFailed': '注入失败 (点击重试)',
-    'logPrefix': '[TOC Assistant]',
-    'logMissingDependencies': '缺少依赖模块',
-    'logNoConfigFound': '未找到配置',
-    'logConfigMatched': '配置已匹配',
-    'logInitFailed': '初始化失败',
-    'logContentScriptStarted': '内容脚本已启动',
-    'logSiteDisabled': '站点已禁用',
-    'logReadEnabledFailed': '读取启用状态失败',
-    'logReadConfigFailed': '读取配置失败',
-    'logSavePositionFailed': '保存位置失败',
-    'logSaveConfigFailed': '保存配置失败',
-    'logClearConfigFailed': '清空配置失败'
-  };
-
-  /**
-   * Get i18n message safely with fallback.
-   * @param {string} key
-   * @param {string|string[]} [substitutions]
-   * @returns {string}
-   */
-  function msg(key, substitutions) {
-    try {
-      // Try chrome.i18n first
-      if (typeof chrome !== 'undefined' && chrome.i18n && chrome.i18n.getMessage) {
-        const result = chrome.i18n.getMessage(key, substitutions);
-        if (result) return result;
-      }
-    } catch (_) {}
-
-    // Fallback to FALLBACK_TRANSLATIONS
-    if (FALLBACK_TRANSLATIONS.hasOwnProperty(key)) {
-      let text = FALLBACK_TRANSLATIONS[key];
-      // Handle substitutions
-      if (substitutions) {
-        const subs = Array.isArray(substitutions) ? substitutions : [substitutions];
-        for (let i = 0; i < subs.length; i++) {
-          text = text.replace(/\$(\d+)/g, (match, num) => {
-            const idx = parseInt(num, 10) - 1;
-            return idx >= 0 && idx < subs.length ? String(subs[idx]) : match;
-          });
-          // Also handle $max, $min etc. for named placeholders
-          text = text.replace(/\$max/g, String(subs[i] || ''));
-        }
-      }
-      return text;
-    }
-
+function msg(key, substitutions) {
+  try {
+    return chrome.i18n.getMessage(key, substitutions) || key;
+  } catch (_) {
     return key;
   }
+}
 
  function isPlainObject(value) {
    if (!value || typeof value !== 'object') return false;
