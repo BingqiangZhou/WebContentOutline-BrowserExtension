@@ -370,6 +370,7 @@
           rebuildInFlight,
           new Promise((_, reject) =>
             setTimeout(() => reject(new Error('rebuild timeout')), REBUILD_TIMEOUT_MS)
+          )
         ]).catch(() => null); // Ignore timeout errors
       }
       rebuildInFlight = (async () => {

@@ -324,25 +324,8 @@ async function setInjectionBadge(tabId, failed) {
 }
 
 async function injectIntoTab(tabId) {
-  let cssInserted = false;
-  try {
-    if (CONTENT_CSS.length) {
-      await chrome.scripting.insertCSS({ target: { tabId }, files: CONTENT_CSS });
-      cssInserted = true;
-    }
-  } catch (e) {
-    console.warn('[toc] injectIntoTab failed (css):', e, { tabId });
-    return { ok: false, step: 'css', error: e };
-  }
-
-  const removeCssOnFailure = async () => {
-    if (!cssInserted) return;
-    try {
-      await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
-    } catch (removeErr) {
-      console.warn('[toc] removeCSS failed after js error:', removeErr, { tabId });
-    }
-  };
+  // CSS is now statically injected via manifest.json at document_start
+  // Only inject JS files dynamically here
 
   // Fast path: inject all JS files in one call (keeps current file-based structure).
   try {
@@ -357,7 +340,6 @@ async function injectIntoTab(tabId) {
         await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
       } catch (seqErr) {
         console.warn('[toc] injectIntoTab failed (js):', seqErr, { tabId, file });
-        await removeCssOnFailure();
         return { ok: false, step: 'js', file, error: seqErr };
       }
     }
@@ -544,7 +526,7 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  setInjectedState(tabId, null).catch(() => {}
+  setInjectedState(tabId, null).catch(() => {});
   try { __iconUpdateState.delete(tabId); } catch (_) {}
 });
 

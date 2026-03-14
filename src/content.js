@@ -483,11 +483,22 @@
 
   attachListeners();
 
-  if (document.readyState === 'loading') {
-    domReadyHandler = () => { main(); };
-    document.addEventListener('DOMContentLoaded', domReadyHandler, { once: true });
-  } else {
+  // Wait for DOM to be stable before initializing TOC
+  // This helps prevent layout issues on first load
+  async function initWhenStable() {
+    // If DOM is not fully loaded, wait for DOMContentLoaded
+    if (document.readyState === 'loading') {
+      await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
+    }
+
+    // Short delay to let page rendering stabilize
+    // This ensures CSS is applied and layout is computed
+    await new Promise(r => setTimeout(r, 50));
+
+    // Now initialize TOC
     main();
   }
+
+  initWhenStable();
 })();
 
