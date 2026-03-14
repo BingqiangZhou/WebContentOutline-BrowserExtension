@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const { msg = (key) => key, setBadgePosByHost, uiConst } = window.TOC_UTILS || {};
+  const { msg = (key) => key, setBadgePosByHost, uiConst, isExtensionContextInvalidated } = window.TOC_UTILS || {};
 
   const UNLOCK_AFTER_MS = typeof uiConst === 'function' ? uiConst('UNLOCK_AFTER_MS', 1000) : 1000;
   const SCROLL_STOP_MS = typeof uiConst === 'function' ? uiConst('SCROLL_STOP_MS', 500) : 500;
@@ -468,6 +468,17 @@
     }
 
     panel.appendChild(header);
+
+    // Check for invalidated extension context and show notice
+    if (typeof isExtensionContextInvalidated === 'function' && isExtensionContextInvalidated()) {
+      const notice = document.createElement('div');
+      notice.className = 'toc-ctx-invalidated-notice';
+      notice.setAttribute('role', 'alert');
+      notice.setAttribute('aria-live', 'assertive');
+      notice.textContent = '扩展已更新，请刷新网页以正常使用 / Extension updated, please reload this browser tab';
+      panel.appendChild(notice);
+    }
+
     panel.appendChild(list);
     document.documentElement.appendChild(panel);
 
