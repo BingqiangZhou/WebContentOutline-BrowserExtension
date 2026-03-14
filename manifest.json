@@ -37,13 +37,5 @@
 
   "background": {
     "service_worker": "src/background.js"
-  },
-
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "css": ["src/content.css"],
-      "run_at": "document_start"
-    }
-  ]
+  }
 }
