@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#062---2026-03-14)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#063---2026-03-15)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.6.3](#063---2026-03-15) - 2026-03-15
 - [0.6.2](#062---2026-03-14) - 2026-03-14
 - [0.6.1](#061---2026-02-05) - 2026-02-05
 - [0.6.0](#060---2026-02-05) - 2026-02-05
@@ -22,6 +23,16 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.6.3] - 2026-03-15
+
+### 🐛 修复 / Fixed
+- **扩展上下文失效后的静默处理 / Silent handling for invalidated extension context**
+  - 扩展重新加载后，旧 content script 的 storage 写入失败不再打印错误日志 / Storage write failures from old content script no longer log errors after extension reload
+  - 上下文失效是预期行为，用户刷新页面后即可恢复 / Context invalidation is expected behavior; refreshing the page restores functionality
+  - 仅 quota 相关错误仍会输出日志 / Only quota-related errors are still logged
 
 ---
 
