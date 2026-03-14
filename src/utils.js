@@ -374,7 +374,7 @@ function msg(key, substitutions) {
        // Prevent unbounded growth in long-lived pages.
        const maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
        if (!trackOnce(onceKey, maxKeys)) return;
-       console.warn('[toc] storage write failed:', { key, err });
+       console.warn('[toc] storage write failed:', { key, err: String(err && (err.message || err)) });
        if (typeof document !== 'undefined' && document.documentElement && typeof showToast === 'function') {
          const messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
          const text = msg(messageKey);
