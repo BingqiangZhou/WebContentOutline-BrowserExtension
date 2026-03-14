@@ -544,9 +544,21 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  setInjectedState(tabId, null).catch(() => {});
-  try { injectionInFlight.delete(tabId); } catch (_) {}
+  setInjectedState(tabId, null).catch(() => {}
+  try { __iconUpdateState.delete(tabId); } catch (_) {}
 });
+
+// Add periodic cleanup for orphaned entries (every 5 minutes)
+setInterval(() => {
+  chrome.tabs.query({}).then(tabs => {
+    const validTabIds = new Set(tabs.map(t => t.id));
+    for (const [tabId, state] of __iconUpdateState) {
+      if (!validTabIds.has(tabId)) {
+        __iconUpdateState.delete(tabId);
+      }
+    }
+  }).catch(() => {});
+}, 5 * 60 * 1000);
 
 chrome.runtime.onInstalled.addListener(async () => {
   try {

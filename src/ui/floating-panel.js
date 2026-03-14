@@ -45,16 +45,32 @@
 
     let resolveShown = null;
     const whenShown = new Promise((resolve) => { resolveShown = resolve; });
-    let unlockTimer = null;
-    let scrollStopTimer = null;
-    let pendingRebuildRecheckTimer = null;
-    let clearUserSelectedTimer = null;
-    let expandAnimTimer = null;
+
+    // Unified timer management for better cleanup and resource management
+    const timers = {
+      unlock: null,
+      scrollStop: null,
+      pendingRebuildRecheck: null,
+      clearUserSelected: null,
+      expandAnim: null,
+      persist: null,
+      removal: null
+    };
+
+    const clearAllTimers = () => {
+      Object.keys(timers).forEach((key) => {
+        if (timers[key]) {
+          try { clearTimeout(timers[key]); } catch (_) {}
+          timers[key] = null;
+        }
+      });
+    };
+
     let intersectionObserver = null;
     let showRaf = null;
     let observeRaf = null;
+    let ioRaf = null; // RAF for IntersectionObserver throttling
     let removalObserver = null;
-    let removalTimer = null;
     let cleanedUp = false;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
@@ -80,8 +96,8 @@
     let lastViewportW = window.innerWidth;
     let lastViewportH = window.innerHeight;
     let anchorX = (side === 'left') ? 'left' : 'right';
-    let persistTimer = null;
     let pendingPersistCenter = null;
+
     const constrainCurrentPosition = () => {
       try {
         const rect = panel.getBoundingClientRect();
@@ -146,6 +162,7 @@
         } catch (_) {}
       } catch (_) {}
     };
+
     const onResize = () => {
       if (cleanedUp) return;
       if (resizeRaf) return;
@@ -155,9 +172,10 @@
         if (!panel || !panel.isConnected) return;
         constrainCurrentPosition();
         if (pendingPersistCenter && setBadgePosByHost) {
-          if (persistTimer) clearTimeout(persistTimer);
-          persistTimer = setTimeout(() => {
-            persistTimer = null;
+          if (timers.persist) clearTimeout(timers.persist);
+          // Increased from 160ms to 500ms to reduce storage I/O frequency
+          timers.persist = setTimeout(() => {
+            timers.persist = null;
             const p = pendingPersistCenter;
             pendingPersistCenter = null;
             try {
@@ -165,22 +183,25 @@
                 setBadgePosByHost(location.host, p);
               }
             } catch (_) {}
-          }, 160);
+          }, 500);
         }
       });
     };
+
     const RESIZE_LISTENER_OPTS = { passive: true };
     const SCROLL_LISTENER_OPTS = { passive: true };
     const removeResizeListener = addWindowListener('resize', onResize, RESIZE_LISTENER_OPTS);
 
     const unlockLater = () => {
-      if (unlockTimer) clearTimeout(unlockTimer);
-      unlockTimer = setTimeout(() => {
+      if (timers.unlock) clearTimeout(timers.unlock);
+      timers.unlock = setTimeout(() => {
+        timers.unlock = null;
         setNavLock(false);
 
         if (getPendingRebuild && getPendingRebuild()) {
-          if (pendingRebuildRecheckTimer) clearTimeout(pendingRebuildRecheckTimer);
-          pendingRebuildRecheckTimer = setTimeout(async () => {
+          if (timers.pendingRebuildRecheck) clearTimeout(timers.pendingRebuildRecheck);
+          timers.pendingRebuildRecheck = setTimeout(async () => {
+            timers.pendingRebuildRecheck = null;
             if (getPendingRebuild && getPendingRebuild()) {
               setPendingRebuild && setPendingRebuild(false);
               try {
@@ -192,8 +213,9 @@
           }, PENDING_REBUILD_RECHECK_MS);
         }
 
-        if (clearUserSelectedTimer) clearTimeout(clearUserSelectedTimer);
-        clearUserSelectedTimer = setTimeout(() => {
+        if (timers.clearUserSelected) clearTimeout(timers.clearUserSelected);
+        timers.clearUserSelected = setTimeout(() => {
+          timers.clearUserSelected = null;
           items.forEach(it => {
             it._userSelected = false;
           });
@@ -203,28 +225,34 @@
 
     const onScroll = () => {
       if (!getNavLock()) return;
-      if (scrollStopTimer) clearTimeout(scrollStopTimer);
-      scrollStopTimer = setTimeout(() => {
+      if (timers.scrollStop) clearTimeout(timers.scrollStop);
+      timers.scrollStop = setTimeout(() => {
+        timers.scrollStop = null;
         setNavLock(false);
         items.forEach(it => it._userSelected = false);
       }, SCROLL_STOP_MS);
     };
 
     const removeScrollListener = addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
+
     const cleanupLock = () => {
       try { setNavLock && setNavLock(false); } catch (_) {}
-      if (unlockTimer) clearTimeout(unlockTimer);
-      if (scrollStopTimer) clearTimeout(scrollStopTimer);
-      if (pendingRebuildRecheckTimer) clearTimeout(pendingRebuildRecheckTimer);
-      if (clearUserSelectedTimer) clearTimeout(clearUserSelectedTimer);
+      if (timers.unlock) { clearTimeout(timers.unlock); timers.unlock = null; }
+      if (timers.scrollStop) { clearTimeout(timers.scrollStop); timers.scrollStop = null; }
+      if (timers.pendingRebuildRecheck) { clearTimeout(timers.pendingRebuildRecheck); timers.pendingRebuildRecheck = null; }
+      if (timers.clearUserSelected) { clearTimeout(timers.clearUserSelected); timers.clearUserSelected = null; }
       if (intersectionObserver) {
         intersectionObserver.disconnect();
         intersectionObserver = null;
       }
       if (observeRaf != null) {
         try { cancelAnimationFrame(observeRaf); } catch (_) {}
+        observeRaf = null;
       }
-      observeRaf = null;
+      if (ioRaf != null) {
+        try { cancelAnimationFrame(ioRaf); } catch (_) {}
+        ioRaf = null;
+      }
     };
 
     panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'} toc-floating-expand`;
@@ -451,8 +479,9 @@
       panel.style.visibility = '';
       panel.classList.add('toc-expanded');
       try { resolveShown && resolveShown(); } catch (_) {}
-      if (expandAnimTimer) clearTimeout(expandAnimTimer);
-      expandAnimTimer = setTimeout(() => {
+      if (timers.expandAnim) clearTimeout(timers.expandAnim);
+      timers.expandAnim = setTimeout(() => {
+        timers.expandAnim = null;
         if (cleanedUp) return;
         if (!panel || !panel.isConnected) return;
         panel.classList.remove('toc-floating-expand', 'toc-expanded');
@@ -528,9 +557,9 @@
         try { removalObserver.disconnect(); } catch (_) {}
         removalObserver = null;
       }
-      if (removalTimer != null) {
-        try { clearTimeout(removalTimer); } catch (_) {}
-        removalTimer = null;
+      if (timers.removal != null) {
+        try { clearTimeout(timers.removal); } catch (_) {}
+        timers.removal = null;
       }
     };
 
@@ -559,12 +588,7 @@
       try { removePickerEndListener && removePickerEndListener(); } catch (_) {}
       try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
-      if (expandAnimTimer) clearTimeout(expandAnimTimer);
-      expandAnimTimer = null;
-      if (persistTimer) {
-        try { clearTimeout(persistTimer); } catch (_) {}
-        persistTimer = null;
-      }
+      clearAllTimers();
       try {
         if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
       } catch (_) {}
@@ -604,23 +628,23 @@
       }
 
       const tick = () => {
-        removalTimer = null;
+        timers.removal = null;
         if (cleanedUp) return;
         if (panel && panel.isConnected) {
           // MutationObserver isn't available; poll at a low frequency to avoid per-frame CPU use.
-          try { removalTimer = setTimeout(tick, 1000); } catch (_) {}
+          try { timers.removal = setTimeout(tick, 1000); } catch (_) {}
           return;
         }
         cleanup({ removedExternally: true });
       };
-      try { removalTimer = setTimeout(tick, 1000); } catch (_) {}
+      try { timers.removal = setTimeout(tick, 1000); } catch (_) {}
     };
 
     startRemovalWatch();
 
     panel.remove = () => cleanup({ removedExternally: false });
 
-    // Active highlight via IntersectionObserver
+    // Active highlight via IntersectionObserver with RAF throttling for performance
     if (items.length && 'IntersectionObserver' in window) {
       const map = new Map();
       const topByEl = new Map();
@@ -642,7 +666,8 @@
         active = null;
       };
 
-      intersectionObserver = new IntersectionObserver((entries) => {
+      // Process intersection entries - extracted for RAF throttling
+      const processIntersections = (entries) => {
         if (cleanedUp) return;
         if (!panel || !panel.isConnected) {
           try { intersectionObserver && intersectionObserver.disconnect(); } catch (_) {}
@@ -708,6 +733,17 @@
             active = newActive;
           }
         }
+      };
+
+      intersectionObserver = new IntersectionObserver((entries) => {
+        if (cleanedUp) return;
+        // RAF throttling: skip if we already have a pending update
+        if (ioRaf) return;
+        ioRaf = requestAnimationFrame(() => {
+          ioRaf = null;
+          if (cleanedUp) return;
+          processIntersections(entries);
+        });
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
       observeRaf = requestAnimationFrame(() => {

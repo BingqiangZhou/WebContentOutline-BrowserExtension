@@ -361,9 +361,16 @@
     };
 
     const rebuild = async () => {
+      // Add timeout protection to prevent stuck rebuilds
+      const REBUILD_TIMEOUT_MS = 5000;
       if (rebuildInFlight) {
         rebuildQueued = true;
-        return rebuildInFlight;
+        // Return a Promise that races with the timeout to avoid hanging indefinitely
+        return Promise.race([
+          rebuildInFlight,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('rebuild timeout')), REBUILD_TIMEOUT_MS)
+        ]).catch(() => null); // Ignore timeout errors
       }
       rebuildInFlight = (async () => {
         const maxLoops = (typeof uiConst === 'function') ? uiConst('REBUILD_MAX_LOOPS', 10) : 10;
@@ -377,7 +384,8 @@
           }
           if (!rebuildQueued) break;
           // Yield to avoid starving the main thread on rapid-fire mutations.
-          try { await new Promise((r) => setTimeout(r, 0)); } catch (_) {}
+          // Increased from 0ms to 16ms to reduce tight-loop contention
+          try { await new Promise((r) => setTimeout(r, 16)); } catch (_) {}
           if (i === loops - 1 && rebuildQueued) {
             console.warn('[toc] rebuild loop capped; deferring remaining rebuild requests');
             rebuildQueued = false;

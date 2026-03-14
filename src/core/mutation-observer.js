@@ -8,6 +8,7 @@
     const DEBOUNCE_MS = typeof uiConst === 'function' ? uiConst('MUTATION_DEBOUNCE_MS', 500) : 500;
     const UNLOCK_POLL_MS = typeof uiConst === 'function' ? uiConst('MUTATION_UNLOCK_POLL_MS', 200) : 200;
     const REBUILD_RETRY_MS = typeof uiConst === 'function' ? uiConst('MUTATION_REBUILD_RETRY_MS', 1000) : 1000;
+    const MAX_DYNAMIC_DEBOUNCE_MS = 2000; // Maximum debounce time
     const OBSERVED_ATTRIBUTES = [
       'hidden',
       'style',
@@ -27,6 +28,10 @@
     let postFlightTimer = null;
     let observerRef = null;
     let rebuildInFlight = null;
+
+    // Dynamic debounce tracking
+    let consecutiveMutations = 0;
+    let lastMutationTime = 0;
 
     const disconnectObserver = () => {
       const obs = observerRef;
@@ -162,12 +167,29 @@
     }
 
     function scheduleRebuild() {
+      if (!isExtensionContextValid) return;
+      const now = Date.now();
+      const timeSinceLast = now - lastMutationTime;
+
+      // Dynamic debounce: increase debounce time for frequent changes
+      if (timeSinceLast < 1000) {
+        consecutiveMutations++;
+      } else {
+        consecutiveMutations = 0;
+      }
+      lastMutationTime = now;
+
+      const dynamicDebounce = Math.min(
+        DEBOUNCE_MS * Math.pow(1.5, Math.min(consecutiveMutations, 5)),
+        MAX_DYNAMIC_DEBOUNCE_MS
+      );
+
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
         pendingRebuild = true;
         attemptRebuild();
-      }, DEBOUNCE_MS);
+      }, dynamicDebounce);
     }
 
     function hasMeaningfulChange(mutations) {
