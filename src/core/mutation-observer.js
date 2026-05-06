@@ -31,7 +31,7 @@
     ];
     const OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
     let debounceTimer = null;
-    let pendingRebuild = false;
+    let pendingRebuild = 0;
     let unlockTimer = null;
     let unlockPollStartTs = 0;
     let unlockWarned = false;
@@ -85,7 +85,7 @@
           : !!(e && e.message && e.message.includes('Extension context invalidated'));
         if (invalidated) {
           isExtensionContextValid = false;
-          pendingRebuild = false;
+          pendingRebuild = 0;
           stopTimers();
           try { observerRef && observerRef.disconnect && observerRef.disconnect(); } catch (_) {}
           observerRef = null;
@@ -98,13 +98,13 @@
 
     const scheduleRetry = () => {
       if (!isExtensionContextValid) return;
-      if (!pendingRebuild) return;
+      if (pendingRebuild <= 0) return;
       if (retryTimer) return;
       const ms = (Number.isFinite(CFG.REBUILD_RETRY_MS) && CFG.REBUILD_RETRY_MS > 0) ? CFG.REBUILD_RETRY_MS : 1000;
       retryTimer = setTimeout(() => {
         retryTimer = null;
         if (!isExtensionContextValid) return;
-        if (!pendingRebuild) return;
+        if (pendingRebuild <= 0) return;
         attemptRebuild();
       }, ms);
     };
@@ -112,34 +112,34 @@
     const attemptRebuild = () => {
       if (!isExtensionContextValid) return Promise.resolve(false);
       if (rebuildInFlight) {
-        pendingRebuild = true;
+        pendingRebuild++;
         return rebuildInFlight;
       }
       if (getNavLock()) {
-        pendingRebuild = true;
+        pendingRebuild++;
         waitForUnlock();
         return Promise.resolve(false);
       }
-      if (!pendingRebuild) return Promise.resolve(true);
+      if (pendingRebuild <= 0) return Promise.resolve(true);
 
       rebuildInFlight = (async () => {
-        pendingRebuild = false;
+        pendingRebuild = Math.max(0, pendingRebuild - 1);
         const ok = await safeRebuild();
         if (!ok && isExtensionContextValid) {
-          pendingRebuild = true;
+          pendingRebuild++;
           scheduleRetry();
         }
         return !!ok;
       })().finally(() => {
         rebuildInFlight = null;
         if (!isExtensionContextValid) return;
-        if (!pendingRebuild) return;
+        if (pendingRebuild <= 0) return;
         if (postFlightTimer) return;
         try {
           postFlightTimer = setTimeout(() => {
             postFlightTimer = null;
             if (!isExtensionContextValid) return;
-            if (!pendingRebuild) return;
+            if (pendingRebuild <= 0) return;
             attemptRebuild();
           }, 0);
         } catch (_) {
@@ -198,7 +198,7 @@
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
-        pendingRebuild = true;
+        pendingRebuild++;
         attemptRebuild();
       }, dynamicDebounce);
     }
@@ -229,7 +229,7 @@
 
     function start(cfg) {
       stopTimers();
-      pendingRebuild = false;
+      pendingRebuild = 0;
       disconnectObserver();
 
       if (typeof MutationObserver !== 'undefined') {
@@ -298,10 +298,14 @@
               stopTimers();
             }
           },
-          getPendingRebuild: () => pendingRebuild,
+          getPendingRebuild: () => pendingRebuild > 0,
           setPendingRebuild: (val) => {
-            pendingRebuild = !!val;
-            if (!pendingRebuild) {
+            if (val) {
+              pendingRebuild++;
+            } else {
+              pendingRebuild = 0;
+            }
+            if (pendingRebuild <= 0) {
               if (retryTimer) {
                 try { clearTimeout(retryTimer); } catch (_) {}
                 retryTimer = null;
