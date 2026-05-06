@@ -144,6 +144,15 @@ function msg(key, substitutions) {
      }
    }
 
+  const __writeQueues = {};
+  function serializedWrite(key, asyncFn) {
+    const prev = __writeQueues[key] || Promise.resolve();
+    const run = () => asyncFn();
+    const next = prev.then(run, run);
+    __writeQueues[key] = next.catch(() => {});
+    return next;
+  }
+
   function touchObjectKey(map, key, value) {
     try {
       if (!map || !key) return;
@@ -790,6 +799,7 @@ async function getBadgePosByHost(host) {
 }
 
   async function setBadgePosByHost(host, pos) {
+    return serializedWrite('tocBadgePosMap', async () => {
    const map = await getBadgePosMap();
    if (!host) return null;
 
@@ -823,6 +833,7 @@ async function getBadgePosByHost(host) {
    pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
    const ok = await saveBadgePosMap(map);
    return ok ? (map[host] || null) : null;
+    });
   }
 
 async function getPanelExpandedByOrigin(origin) {
@@ -832,6 +843,7 @@ async function getPanelExpandedByOrigin(origin) {
 }
 
 async function setPanelExpandedByOrigin(origin, expanded) {
+  return serializedWrite('tocPanelExpandedMap', async () => {
   const map = await getPanelStateMap();
   const key = origin || (typeof location !== 'undefined' ? location.origin : '');
   if (!key) return false;
@@ -839,6 +851,7 @@ async function setPanelExpandedByOrigin(origin, expanded) {
   pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
   const ok = await savePanelStateMap(map);
   return ok ? !!map[key] : false;
+  });
 }
 
 /**
@@ -874,12 +887,14 @@ async function getSiteEnabledByOrigin(origin) {
  * @param {boolean} enabled
  */
 async function setSiteEnabledByOrigin(origin, enabled) {
+  return serializedWrite('tocSiteEnabledMap', async () => {
   const map = await getEnabledMap();
   if (!origin) return false;
   touchObjectKey(map, origin, !!enabled);
   pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
   const ok = await saveEnabledMap(map);
   return ok ? !!map[origin] : false;
+  });
 }
 
 /**
@@ -888,6 +903,7 @@ async function setSiteEnabledByOrigin(origin, enabled) {
  * @returns {Promise<boolean>}
  */
 async function toggleSiteEnabledByOrigin(origin) {
+  return serializedWrite('tocSiteEnabledMap', async () => {
   const map = await getEnabledMap();
   const prev = !!map[origin];
   const next = !prev;
@@ -896,6 +912,7 @@ async function toggleSiteEnabledByOrigin(origin) {
   pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
   const ok = await saveEnabledMap(map);
   return ok ? next : prev;
+  });
 }
 
 /**
