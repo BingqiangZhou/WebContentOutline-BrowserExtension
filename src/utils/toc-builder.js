@@ -23,6 +23,26 @@
   function isElementVisible(el) {
     if (!el || !el.isConnected) return false;
 
+    let style;
+    try {
+      style = window.getComputedStyle(el);
+    } catch (_) {
+      return false;
+    }
+    if (!style) return false;
+    if (style.display === 'none') return false;
+
+    // offsetParent check after display:none is filtered
+    if (el.offsetParent === null && style.position !== 'fixed') return false;
+
+    // Zero-dimension check (cheaper than full rect)
+    if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+
+    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+    const opacity = parseFloat(style.opacity);
+    if (Number.isFinite(opacity) && opacity <= 0) return false;
+
+    // Clipping check — only needs getBoundingClientRect if we reach here
     let rect;
     try {
       rect = el.getBoundingClientRect();
@@ -31,21 +51,6 @@
     }
     if (!rect || rect.width === 0 || rect.height === 0) return false;
 
-    let style;
-    try {
-      style = window.getComputedStyle(el);
-    } catch (_) {
-      return false;
-    }
-
-    if (!style) return false;
-    if (style.display === 'none') return false;
-    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
-    const opacity = parseFloat(style.opacity);
-    if (Number.isFinite(opacity) && opacity <= 0) return false;
-    if (el.offsetParent === null && style.position !== 'fixed') return false;
-
-    // Cheap clipping check: walk a few ancestors and reject if fully outside overflow-hidden/clip containers.
     let parent = el.parentElement;
     let depth = 0;
     while (parent && depth < 3) {
@@ -80,12 +85,14 @@
   function buildTocItemsFromSelectors(selectors, cfg) {
     const elements = [];
     const list = Array.isArray(selectors) ? selectors : [];
+    const perSelectorLimit = Math.max(100, Math.floor(CFG.TOC_MAX_CANDIDATES / Math.max(1, list.length)));
 
     for (const sel of list) {
       try {
         const nodes = collectBySelector(sel);
-        for (const node of nodes) {
-          elements.push(node);
+        const limit = Math.min(nodes.length, perSelectorLimit);
+        for (let i = 0; i < limit; i++) {
+          elements.push(nodes[i]);
         }
       } catch (_) {}
     }
