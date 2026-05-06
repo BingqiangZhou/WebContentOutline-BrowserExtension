@@ -438,8 +438,7 @@
           item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       } catch {
-        const { scrollToElement } = window.TOC_UTILS || {};
-        if (scrollToElement) scrollToElement(item.el);
+        try { item.el.scrollIntoView(true); } catch (_) {}
       }
       unlockLater();
     };
