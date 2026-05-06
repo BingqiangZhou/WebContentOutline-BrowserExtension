@@ -237,11 +237,7 @@ function queueIconUpdate(tabId, url) {
 async function updateIconsForOrigin(origin) {
   try {
     const tabs = await getTabsByOrigin(origin);
-    for (const t of tabs) {
-      if (t.id) {
-        await queueIconUpdate(t.id, t.url);
-      }
-    }
+    await Promise.allSettled(tabs.filter(t => t.id).map(t => queueIconUpdate(t.id, t.url)));
   } catch (e) {
     console.warn('[toc] updateIconsForOrigin failed:', e, { origin });
   }
@@ -422,9 +418,7 @@ async function maybeAutoInject(tabId, url) {
 async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
   try {
     const tabs = await getTabsByOrigin(origin);
-    for (const t of tabs) {
-      if (!t.id) continue;
-      if (exceptTabId && t.id === exceptTabId) continue;
+    await Promise.allSettled(tabs.filter(t => t.id && (!exceptTabId || t.id !== exceptTabId)).map(async (t) => {
       if (enabled) {
         await ensureContentScript(t.id, t.url);
       }
@@ -433,7 +427,7 @@ async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
       } catch (e) {
         console.warn('[toc] sendMessage to tab failed:', e, { tabId: t.id, url: t.url });
       }
-    }
+    }));
   } catch (e) {
     console.warn('[toc] broadcastEnabledToOrigin failed:', e, { origin, enabled });
   }
