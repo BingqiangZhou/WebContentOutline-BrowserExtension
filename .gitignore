@@ -4,3 +4,5 @@ test*
 
 # Superpowers plugin working docs (specs, plans) — local only
 docs/superpowers/
+
+.DS_Store

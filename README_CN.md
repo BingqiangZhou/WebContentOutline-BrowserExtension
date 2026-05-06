@@ -10,7 +10,7 @@
 一个网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
 
 <p align="left">
-  <img src="dist/descriptions/Gemini_Generated_screenshots1280x800.png" alt="Web TOC Assistant Screenshot" width="800"/>
+  <img src="dist/descriptions/ChatGPT_Desc_screenshots1280x800_CN.png" alt="网页目录助手截图" width="800"/>
 </p>
 
 ## ✨ 核心功能
