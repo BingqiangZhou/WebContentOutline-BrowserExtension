@@ -191,7 +191,7 @@
       lastMutationTime = now;
 
       const dynamicDebounce = Math.min(
-        CFG.DEBOUNCE_MS * Math.pow(1.5, Math.min(consecutiveMutations, 5)),
+        CFG.DEBOUNCE_MS * Math.pow(1.3, Math.min(consecutiveMutations, 6)),
         CFG.MAX_DYNAMIC_DEBOUNCE_MS
       );
 
