@@ -66,7 +66,7 @@
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
     try {
-      document.querySelectorAll('.toc-collapsed-badge, .toc-floating').forEach(el => {
+      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner]').forEach(el => {
         try {
           const cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
@@ -332,7 +332,7 @@
         tocMeta = newMeta;
         let panelPos = null;
         let rebuildSide = 'right';
-        const currentPanelEl = document.querySelector('.toc-floating');
+        const currentPanelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
         if (currentPanelEl) {
           const rect = currentPanelEl.getBoundingClientRect();
           rebuildSide = rect.right > (window.innerWidth / 2) ? 'right' : 'left';
@@ -510,7 +510,7 @@
 
         // Prefer the live badge position if present (avoids stale storage during/after resize).
         try {
-          const badgeEl = document.querySelector('.toc-collapsed-badge');
+          const badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
           if (badgeEl) {
             const r = badgeEl.getBoundingClientRect();
             if (r && r.width > 0 && r.height > 0) {
@@ -581,7 +581,7 @@
               const offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - btnCenterY) : 0;
 
               if (Math.abs(offsetX) > 0.5 || Math.abs(offsetY) > 0.5) {
-                const panelEl = document.querySelector('.toc-floating');
+                const panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
                 if (panelEl) {
                   const rect = panelEl.getBoundingClientRect();
                   const pw = panelEl.offsetWidth || CFG.PANEL_WIDTH;

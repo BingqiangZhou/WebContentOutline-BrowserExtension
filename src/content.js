@@ -102,7 +102,7 @@
     } catch (_) {}
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay, .toc-toast-container').forEach(n => {
+      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]').forEach(n => {
         try {
           const cleanup = n && n.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
@@ -277,7 +277,7 @@
     }
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay, .toc-toast-container').forEach(n => n.remove());
+      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]').forEach(n => n.remove());
     } catch (e) {
       console.warn(msg('logPrefix') + ' cleanup DOM failed:', e);
     }

@@ -27,7 +27,7 @@
     const { side, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false } = opts;
     // Remove any existing panel to prevent duplicates
     try {
-      document.querySelectorAll('.toc-floating').forEach(el => {
+      document.querySelectorAll('.toc-floating[data-toc-owner]').forEach(el => {
         try {
           const cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
@@ -268,6 +268,7 @@
     };
 
     panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'}${skipAnimation ? '' : ' toc-floating-expand'}`;
+    panel.setAttribute('data-toc-owner', 'web-toc-assistant');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
     onPanelKeydown = (e) => {

@@ -23,7 +23,7 @@
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates
     try {
-      document.querySelectorAll('.toc-collapsed-badge').forEach(el => {
+      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner]').forEach(el => {
         try {
           const cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
@@ -35,6 +35,7 @@
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = `toc-collapsed-badge ${side === 'left' ? 'left' : 'right'}`;
+    badge.setAttribute('data-toc-owner', 'web-toc-assistant');
     badge.textContent = msg('tocTitle');
     badge.title = msg('badgeTitle');
     badge.setAttribute('aria-label', msg('badgeTitle') || msg('tocTitle'));

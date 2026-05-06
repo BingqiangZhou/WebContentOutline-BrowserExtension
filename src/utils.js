@@ -455,6 +455,7 @@ function ensureToastContainer() {
   if (existing) return existing;
   const container = document.createElement('div');
   container.className = 'toc-toast-container';
+  container.setAttribute('data-toc-owner', 'web-toc-assistant');
   container.setAttribute('role', 'region');
   container.setAttribute('aria-label', msg('toastRegionLabel'));
   document.documentElement.appendChild(container);

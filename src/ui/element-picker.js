@@ -25,6 +25,7 @@
 
     const wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
+    wrap.setAttribute('data-toc-owner', 'web-toc-assistant');
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
     wrap.tabIndex = -1;
