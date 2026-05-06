@@ -243,7 +243,6 @@
       timers.scrollStop = setTimeout(() => {
         timers.scrollStop = null;
         setNavLock(false);
-        items.forEach(it => it._userSelected = false);
       }, CFG.SCROLL_STOP_MS);
     };
 
