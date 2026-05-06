@@ -109,6 +109,7 @@
 
     function handleMouseDown(e) {
       if (state.destroyed) return;
+      if (e.button !== 0) return;
       if (!canStart(e)) return;
       const rect = resolveRect();
       if (!rect) return;

@@ -70,7 +70,10 @@
           pos = null;
         }
       }
-      if (destroyed || !badge || !badge.isConnected) return;
+      if (destroyed || !badge || !badge.isConnected) {
+        try { if (badge) badge.style.visibility = ''; } catch (_) {}
+        return;
+      }
       if (userMoved) {
         badge.style.visibility = '';
         return;
