@@ -116,46 +116,53 @@
     const constrainCurrentPosition = () => {
       try {
         if (panel.style.visibility === 'hidden') return;
+
+        // === READ PHASE: all layout reads together ===
         const rect = panel.getBoundingClientRect();
         const pw = panel.offsetWidth || CFG.PANEL_WIDTH;
         const ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
-
         const vw = window.innerWidth;
         const vh = window.innerHeight;
         const prevW = Number.isFinite(lastViewportW) && lastViewportW > 0 ? lastViewportW : vw;
         const prevH = Number.isFinite(lastViewportH) && lastViewportH > 0 ? lastViewportH : vh;
 
-        // Use collapse button center as the shared reference point across expanded/collapsed states.
         let refX = rect.left + pw / 2;
         let refY = rect.top + ph / 2;
+        let collapseBtnRect = null;
         try {
           const collapseBtn = panel.querySelector('[data-role="collapse"]');
           if (collapseBtn) {
             const btnRect = collapseBtn.getBoundingClientRect();
             if (btnRect.width > 0 && btnRect.height > 0) {
+              collapseBtnRect = btnRect;
               refX = btnRect.left + btnRect.width / 2;
               refY = btnRect.top + btnRect.height / 2;
             }
           }
         } catch (_) {}
 
-        // Horizontal: snap panel to edge on resize (keep side, ignore interior offset).
+        // === COMPUTE PHASE: pure calculation, no DOM ===
         if (anchorX !== 'left' && anchorX !== 'right') {
           anchorX = refX > (prevW / 2) ? 'right' : 'left';
         }
         const nextLeftEdge = (anchorX === 'right') ? (vw - pw - CFG.DRAG_MARGIN_PX) : CFG.DRAG_MARGIN_PX;
-
-        // Vertical: scale reference point by height ratio.
         const ratioH = prevH ? (vh / prevH) : 1;
         const nextRefY = refY * ratioH;
-
         const nextLeft = nextLeftEdge;
         const nextTop = rect.top + (nextRefY - refY);
-
         const maxLeft = vw - pw - CFG.DRAG_MARGIN_PX;
         const maxTop = vh - ph - CFG.DRAG_MARGIN_PX;
         const left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
         const top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
+
+        let persistBtnX = null;
+        let persistBtnY = null;
+        if (collapseBtnRect) {
+          persistBtnX = collapseBtnRect.left + collapseBtnRect.width / 2;
+          persistBtnY = collapseBtnRect.top + collapseBtnRect.height / 2;
+        }
+
+        // === WRITE PHASE: all style writes together ===
         panel.style.setProperty('left', left + 'px', 'important');
         panel.style.setProperty('top', top + 'px', 'important');
         panel.style.setProperty('right', 'auto', 'important');
@@ -164,18 +171,9 @@
         lastViewportW = vw;
         lastViewportH = vh;
 
-        // Persist collapse button center so next launch aligns to the current viewport.
-        try {
-          const collapseBtn = panel.querySelector('[data-role="collapse"]');
-          if (collapseBtn) {
-            const btnRect = collapseBtn.getBoundingClientRect();
-            const x = btnRect.left + btnRect.width / 2;
-            const y = btnRect.top + btnRect.height / 2;
-            if (Number.isFinite(x) && Number.isFinite(y)) {
-              pendingPersistCenter = { x, y, anchorX };
-            }
-          }
-        } catch (_) {}
+        if (persistBtnX !== null && Number.isFinite(persistBtnX) && Number.isFinite(persistBtnY)) {
+          pendingPersistCenter = { x: persistBtnX, y: persistBtnY, anchorX };
+        }
       } catch (_) {}
     };
 

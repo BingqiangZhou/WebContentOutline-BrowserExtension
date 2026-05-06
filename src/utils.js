@@ -683,7 +683,7 @@ async function getConfigs() {
  * @returns {Promise<void>}
  */
  async function saveConfigs(configs) {
-   return await setStorage(STORAGE_KEYS.TOC_CONFIGS, configs);
+   return await serializedWrite(STORAGE_KEYS.TOC_CONFIGS, () => setStorage(STORAGE_KEYS.TOC_CONFIGS, configs));
  }
 
 /**
