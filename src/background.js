@@ -432,6 +432,11 @@ async function injectIntoTab(tabId) {
   let cssInserted = false;
   try {
     if (CONTENT_CSS.length) {
+      // Dynamic CSS is not automatically tied to the content-script lifecycle.
+      // Remove a prior identical insertion first so repeated enable/reinject cycles stay idempotent.
+      try {
+        await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
+      } catch (_) {}
       await chrome.scripting.insertCSS({ target: { tabId }, files: CONTENT_CSS });
       cssInserted = true;
     }

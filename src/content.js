@@ -230,6 +230,7 @@
     try {
       if (disposed) return;
       const configs = await getConfigs();
+      if (disposed) return;
       let cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
         cfg = {
@@ -492,4 +493,3 @@
 
   initWhenStable();
 })();
-
