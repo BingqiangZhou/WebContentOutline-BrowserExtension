@@ -253,6 +253,7 @@
     function key(e) {
       if (e.key === 'Escape' || e.key === 'Tab') {
         try { e.preventDefault(); } catch (_) {}
+        try { e.stopPropagation(); } catch (_) {}
         cancelPick();
       }
     }
