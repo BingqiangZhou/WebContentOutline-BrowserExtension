@@ -12,7 +12,8 @@
   const PENDING_REBUILD_RECHECK_MS = typeof uiConst === 'function' ? uiConst('PENDING_REBUILD_RECHECK_MS', 100) : 100;
   const CLEAR_USER_SELECTED_DELAY_MS = typeof uiConst === 'function' ? uiConst('CLEAR_USER_SELECTED_DELAY_MS', 200) : 200;
 
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false) {
+  function renderFloatingPanel(opts) {
+    const { side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false } = opts;
     // Remove any existing panel to prevent duplicates
     try {
       document.querySelectorAll('.toc-floating').forEach(el => {

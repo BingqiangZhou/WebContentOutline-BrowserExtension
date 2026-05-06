@@ -321,14 +321,14 @@
         }
 
         panelInstance.remove();
-        panelInstance = renderFloatingPanel ? renderFloatingPanel(
-          rebuildSide, items, collapse, rebuild, startPick,
-          () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
-          mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-          mutationObserver ? mutationObserver.setPendingRebuild : () => {},
+        panelInstance = renderFloatingPanel ? renderFloatingPanel({
+          side: rebuildSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
+          onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
+          getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : () => false,
+          setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : () => {},
           panelPos,
           tocMeta
-        ) : null;
+        }) : null;
 
         restoreActiveSnapshot(activeSnapshot);
       } catch (e) {
@@ -524,15 +524,15 @@
             panelInstance.remove();
             panelInstance = null;
           }
-          panelInstance = renderFloatingPanel(
-            expandSide, items, collapse, rebuild, startPick,
-            () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
-            mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-            mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-            panelPos,  // Initial rough position — refined below
+          panelInstance = renderFloatingPanel({
+            side: expandSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
+            onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
+            getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : () => false,
+            setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : () => {},
+            panelPos,
             tocMeta,
-            !!savedPos  // skipAnimation when expanding from badge
-          );
+            skipAnimation: !!savedPos
+          });
         }
 
         // Measure collapse button in the hidden panel and align it to saved badge center
