@@ -51,6 +51,12 @@ function serializedWrite(key, asyncFn) {
   return next;
 }
 
+async function processInBatches(items, fn, batchSize = 5) {
+  for (let i = 0; i < items.length; i += batchSize) {
+    await Promise.allSettled(items.slice(i, i + batchSize).map(fn));
+  }
+}
+
 function isQuotaExceededError(err) {
   try {
     if (!err) return false;
@@ -557,8 +563,12 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   try { __iconUpdateState.delete(tabId); } catch (_) {}
 });
 
-// Add periodic cleanup for orphaned entries (every 5 minutes)
-setInterval(() => {
+// Periodic cleanup for orphaned entries using chrome.alarms (survives service worker suspension)
+try {
+  chrome.alarms.create('tocCleanup', { periodInMinutes: 5 });
+} catch (_) {}
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== 'tocCleanup') return;
   chrome.tabs.query({}).then(tabs => {
     const validTabIds = new Set(tabs.map(t => t.id));
     for (const [tabId, state] of __iconUpdateState) {
@@ -567,14 +577,14 @@ setInterval(() => {
       }
     }
   }).catch(() => {});
-}, 5 * 60 * 1000);
+});
 
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
-    const updatePromises = tabs.map(async (t) => {
+    await processInBatches(tabs, async (t) => {
       if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
       if (t.id && t.url && isHttpUrl(t.url)) {
         const origin = originFromUrl(t.url);
@@ -582,8 +592,7 @@ chrome.runtime.onInstalled.addListener(async () => {
           await ensureContentScript(t.id, t.url);
         }
       }
-    });
-    await Promise.all(updatePromises);
+    }, 5);
   } catch (e) {
     console.warn('[toc] onInstalled failed:', e);
   }
@@ -594,7 +603,7 @@ chrome.runtime.onStartup.addListener(async () => {
     await setGlobalDefaultIconDisabled();
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
-    const updatePromises = tabs.map(async (t) => {
+    await processInBatches(tabs, async (t) => {
       if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
       if (t.id && t.url && isHttpUrl(t.url)) {
         const origin = originFromUrl(t.url);
@@ -602,8 +611,7 @@ chrome.runtime.onStartup.addListener(async () => {
           await ensureContentScript(t.id, t.url);
         }
       }
-    });
-    await Promise.all(updatePromises);
+    }, 5);
   } catch (e) {
     console.warn('[toc] onStartup failed:', e);
   }

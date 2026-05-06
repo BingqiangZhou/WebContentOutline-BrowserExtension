@@ -104,6 +104,8 @@
     let activeRestoreTimeout = null;
     let rebuildInFlight = null;
     let rebuildQueued = false;
+    let consecutiveRebuildFailures = 0;
+    let failureCooldownTimer = null;
 
     let navLock = false;
     let navLockSetAt = 0;
@@ -255,6 +257,22 @@
         isRebuilding = false;
         return false;
       }
+      // Circuit breaker: skip rebuild if too many consecutive failures
+      if (consecutiveRebuildFailures >= 5) {
+        if (!failureCooldownTimer) {
+          console.warn('[toc] rebuild circuit breaker active, pausing for 30s after 5 consecutive failures');
+          try {
+            failureCooldownTimer = setTimeout(() => {
+              failureCooldownTimer = null;
+              consecutiveRebuildFailures = 0;
+            }, 30000);
+          } catch (_) {
+            consecutiveRebuildFailures = 0;
+          }
+        }
+        clearRebuildFlag();
+        return false;
+      }
       // Set rebuild flag to prevent IntersectionObserver interference
       isRebuilding = true;
       try {
@@ -335,6 +353,7 @@
         }
 
         restoreActiveSnapshot(activeSnapshot);
+        consecutiveRebuildFailures = 0;
       } catch (e) {
         if (isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
@@ -350,6 +369,7 @@
           return;
         }
         console.warn('[toc] rebuild failed:', e);
+        consecutiveRebuildFailures++;
       } finally {
         // If a restore is pending, arm a failsafe timer. Otherwise clear immediately.
         if (typeof activeRestoreTimeout === 'number') {
@@ -582,6 +602,11 @@
       rebuildQueued = false;
       clearRebuildTimers();
       clearNavLockFailsafe();
+      if (failureCooldownTimer) {
+        try { clearTimeout(failureCooldownTimer); } catch (_) {}
+        failureCooldownTimer = null;
+      }
+      consecutiveRebuildFailures = 0;
       isRebuilding = false;
       try {
         if (typeof activeRestoreTimeout === 'number') {
