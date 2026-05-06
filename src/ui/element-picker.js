@@ -126,7 +126,7 @@
       if (!btn) return;
       const act = btn.dataset.act;
       if (act === 'close') close();
-      if (act === 'save') saveCb && saveCb(selector, close);
+      if (act === 'save') { try { saveCb && saveCb(selector, close); } catch (e) { console.warn('[toc] saveCb error:', e); } }
     });
     document.documentElement.appendChild(wrap);
     try {
@@ -147,7 +147,7 @@
     }
 
     let highlight = document.createElement('div');
-    highlight.style.cssText = `position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${CFG.MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
+    highlight.style.cssText = `position:fixed;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${CFG.MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
     document.documentElement.appendChild(highlight);
 
     const prevCursor = document.body.style.cursor;
@@ -175,8 +175,8 @@
       if (!el || typeof el.getBoundingClientRect !== 'function') return;
       try {
         const r = el.getBoundingClientRect();
-        const left = r.left + window.scrollX;
-        const top = r.top + window.scrollY;
+        const left = r.left;
+        const top = r.top;
         highlight.style.left = `${left}px`;
         highlight.style.top = `${top}px`;
         highlight.style.width = `${Math.max(0, r.width)}px`;
