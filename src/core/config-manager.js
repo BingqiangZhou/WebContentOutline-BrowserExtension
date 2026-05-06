@@ -162,6 +162,7 @@
                 const latest = configsLatest.find(c => c && c.urlPattern === urlPattern) || null;
                 const updatedSelectors = latest && Array.isArray(latest.selectors) ? latest.selectors : [];
                 cfg.selectors = updatedSelectors;
+                if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
                 await refreshList(updatedSelectors);
                 countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
 
@@ -287,6 +288,7 @@
               return;
             }
             cfg.selectors = [];
+            if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
             await refreshList([]);
             countLabel.textContent = msg('configSavedSelectors') + ' (0)';
             if (window.TOC_APP && window.TOC_APP.rebuild) {
@@ -347,6 +349,7 @@
         }
 
         const ok = await saveConfigs(configs);
+        if (ok && cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
         return !!ok;
       });
     } catch (e) {

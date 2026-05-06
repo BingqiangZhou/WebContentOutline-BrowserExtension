@@ -109,6 +109,8 @@
     let consecutiveRebuildFailures = 0;
     let generation = 0;
     let failureCooldownTimer = null;
+    let configDirty = true; // true on init so first rebuild reads from storage
+    cfg.__markConfigDirty = () => { configDirty = true; };
 
     let navLock = false;
     let navLockSetAt = 0;
@@ -284,8 +286,9 @@
       const myGen = generation;
       try {
 
-        if (updateConfigFromStorage) {
+        if (configDirty && updateConfigFromStorage) {
           await updateConfigFromStorage(cfg);
+          configDirty = false;
         }
         if (destroyed || generation !== myGen) { clearRebuildFlag(); return; }
 
