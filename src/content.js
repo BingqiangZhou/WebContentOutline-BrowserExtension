@@ -308,6 +308,8 @@
               const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
               if (expanded && appInstance && appInstance.expand) {
                 await appInstance.expand();
+              } else if (appInstance && appInstance.collapse) {
+                appInstance.collapse();
               }
             } catch (_) {}
           }

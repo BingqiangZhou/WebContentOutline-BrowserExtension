@@ -648,8 +648,6 @@
       TOC_APP.rebuild = rebuild;
       TOC_APP.isRebuilding = isRebuildingFn;
 
-      collapse();
-
       return {
         rebuild,
         collapse,
