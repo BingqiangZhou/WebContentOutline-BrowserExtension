@@ -12,7 +12,7 @@
   function queueConfigsWrite(task) {
     const run = () => Promise.resolve().then(task);
     const next = configsSaveLock.then(run, run);
-    configsSaveLock = next.catch(() => {});
+    configsSaveLock = next.catch(e => { console.warn('[toc] config write chain error:', e); });
     return next;
   }
 
