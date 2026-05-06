@@ -76,6 +76,7 @@
   
   function cssPathFor(el, maxDepth = 4) {
     if (!el || el.nodeType !== 1) return '';
+    if (el === document.documentElement) return 'html';
     const parts = [];
     let cur = el, depth = 0;
     
