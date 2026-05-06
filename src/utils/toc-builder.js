@@ -23,32 +23,25 @@
   function isElementVisible(el) {
     if (!el || !el.isConnected) return false;
 
-    let style;
+    // Batch all layout-triggering reads together to minimize forced reflows.
+    let style, offsetParentVal, offsetWidthVal, offsetHeightVal, rect;
     try {
       style = window.getComputedStyle(el);
-    } catch (_) {
-      return false;
-    }
-    if (!style) return false;
-    if (style.display === 'none') return false;
-
-    // offsetParent check after display:none is filtered
-    if (el.offsetParent === null && style.position !== 'fixed') return false;
-
-    // Zero-dimension check (cheaper than full rect)
-    if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
-
-    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
-    const opacity = parseFloat(style.opacity);
-    if (Number.isFinite(opacity) && opacity <= 0) return false;
-
-    // Clipping check — only needs getBoundingClientRect if we reach here
-    let rect;
-    try {
+      offsetParentVal = el.offsetParent;
+      offsetWidthVal = el.offsetWidth;
+      offsetHeightVal = el.offsetHeight;
       rect = el.getBoundingClientRect();
     } catch (_) {
       return false;
     }
+
+    if (!style) return false;
+    if (style.display === 'none') return false;
+    if (offsetParentVal === null && style.position !== 'fixed') return false;
+    if (offsetWidthVal === 0 || offsetHeightVal === 0) return false;
+    if (style.visibility === 'hidden' || style.visibility === 'collapse') return false;
+    const opacity = parseFloat(style.opacity);
+    if (Number.isFinite(opacity) && opacity <= 0) return false;
     if (!rect || rect.width === 0 || rect.height === 0) return false;
 
     let parent = el.parentElement;
@@ -61,14 +54,19 @@
         break;
       }
       if (parentStyle) {
-        const overflowHidden = parentStyle.overflow === 'hidden'
-          || parentStyle.overflowX === 'hidden'
-          || parentStyle.overflowY === 'hidden'
-          || parentStyle.overflow === 'clip'
-          || parentStyle.overflowX === 'clip'
-          || parentStyle.overflowY === 'clip';
-        if (overflowHidden) {
-          const parentRect = parent.getBoundingClientRect();
+        const overflowVal = parentStyle.overflow;
+        const overflowX = parentStyle.overflowX;
+        const overflowY = parentStyle.overflowY;
+        const clips = overflowVal === 'hidden' || overflowVal === 'clip'
+          || overflowX === 'hidden' || overflowX === 'clip'
+          || overflowY === 'hidden' || overflowY === 'clip';
+        if (clips) {
+          let parentRect;
+          try {
+            parentRect = parent.getBoundingClientRect();
+          } catch (_) {
+            break;
+          }
           if (rect.right <= parentRect.left || rect.left >= parentRect.right ||
               rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
             return false;
