@@ -119,6 +119,7 @@
     let { items, meta: tocMeta } = buildNow();
     let badgeInstance = null;
     let panelInstance = null;
+    let panelSide = null;
     let mutationObserver = null;
     let pickerInstance = null;
     let activeRestoreTimeout = null;
@@ -332,15 +333,26 @@
           panelPos = { left: rect.left, top: rect.top };
         }
 
-        panelInstance.remove();
-        panelInstance = renderFloatingPanel ? renderFloatingPanel({
-          side: rebuildSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
-          onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
-          getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : () => false,
-          setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-          panelPos,
-          tocMeta
-        }) : null;
+        // Use incremental update when panel exists and side hasn't changed.
+        const sideUnchanged = panelSide === rebuildSide;
+        let incrementalDone = false;
+
+        if (panelInstance && panelInstance.updateItems && sideUnchanged) {
+          incrementalDone = panelInstance.updateItems(items, tocMeta);
+        }
+
+        if (!incrementalDone) {
+          panelInstance.remove();
+          panelInstance = renderFloatingPanel ? renderFloatingPanel({
+            side: rebuildSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
+            onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
+            getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : () => false,
+            setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : () => {},
+            panelPos,
+            tocMeta
+          }) : null;
+          panelSide = rebuildSide;
+        }
 
         restoreActiveSnapshot(activeSnapshot);
       } catch (e) {
@@ -469,6 +481,7 @@
         if (panelInstance) {
           panelInstance.remove();
           panelInstance = null;
+          panelSide = null;
         }
 
         if (!badgeInstance && renderCollapsedBadge) {
@@ -545,6 +558,7 @@
             tocMeta,
             skipAnimation: !!savedPos
           });
+          panelSide = expandSide;
         }
 
         // Measure collapse button in the hidden panel and align it to saved badge center
@@ -601,6 +615,7 @@
       badgeInstance = null;
       try { if (panelInstance) panelInstance.remove(); } catch (_) {}
       panelInstance = null;
+      panelSide = null;
       try { if (mutationObserver && mutationObserver.disconnect) mutationObserver.disconnect(); } catch (_) {}
       mutationObserver = null;
       try {
