@@ -379,7 +379,7 @@
           }
           return;
         }
-        console.debug('[toc] rebuild failed:', e);
+        console.warn('[toc] rebuild failed:', e);
       } finally {
         // Failsafe: if restoration never cleared the flag, clear it soon.
         if (typeof activeRestoreTimeout === 'number') {
@@ -406,7 +406,7 @@
           try {
             await rebuildOnce();
           } catch (e) {
-            console.debug('[toc] rebuildOnce threw:', e);
+            console.warn('[toc] rebuildOnce threw:', e);
           }
           if (!rebuildQueued) break;
           try { await new Promise((r) => setTimeout(r, 16)); } catch (_) {}
