@@ -55,8 +55,8 @@ Automatically adapts to your browser's theme:
 - **Automatic Header Detection** - Recognizes standard HTML headings (h1-h6) by default
 - **Enhanced Visibility Detection** - Advanced filtering using computed styles, bounding rects, and parent clipping checks
 - **Content Filtering** - Skips hidden elements, zero-size elements, and overflow-clipped content
-- **Real-time Updates** - Automatically rebuilds TOC when page content changes
-- **Debounced Scanning** - 500ms debounce prevents excessive updates
+- **Real-time Updates** - Automatically rebuilds TOC when page content changes (incremental updates for efficiency)
+- **Debounced Scanning** - Dynamic debounce (500ms–1000ms) adapts to page activity level
 
 ### Visual Element Picker
 
@@ -69,7 +69,7 @@ Automatically adapts to your browser's theme:
 
 - **Floating Panel** - Expandable TOC panel with left/right side positioning
 - **Draggable Panel Header** - Drag the panel header to reposition; position automatically saved
-- **Draggable TOC Button** - Collapsed "TOC" button that you can position anywhere
+- **Draggable TOC Button** - Collapsed "TOC" button that you can position anywhere (supports mouse, touch, and stylus)
 - **Position Memory & Sync** - Remembers button and panel position per domain; positions synchronize when collapsing/expanding
 - **Smooth Animations** - Fluid panel expand/collapse transitions for better user experience
 - **Smooth Scrolling** - Click any TOC item to smoothly scroll to that section
@@ -90,6 +90,9 @@ Automatically adapts to your browser's theme:
 - **Animation Frame Management** - Properly schedules and cleans up animation frame callbacks
 - **Storage Quota Handling** - Auto-manages storage quota with user confirmation prompts
 - **Config Mutation Retry** - Retries failed configuration changes with verification
+- **Serialized Storage Writes** - Prevents data corruption from concurrent writes
+- **Write-Ahead Intent Log** - Protects against data loss during MV3 service worker hibernation
+- **Rebuild Circuit Breaker** - Prevents infinite rebuild loops on problematic pages
 - **Enhanced Error Handling** - Improved error handling and recovery mechanisms throughout
 - **Optimized Icon Updates** - Queued icon updates prevent flickering on rapid state changes
 
@@ -137,9 +140,16 @@ No manual configuration required - it just works!
 
 ## What's New
 
-### Latest Version
+### v0.7.0 (May 2026)
 
-For detailed version history and updates, please visit: https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension/blob/main/CHANGELOG.md
+- **Touch & Stylus Drag Support** - Drag the TOC button and panel with touch or stylus on tablets and touchscreen devices
+- **Incremental TOC Updates** - Rebuilds now update only changed items instead of re-rendering the entire panel
+- **Better SPA Support** - MutationObserver now starts unconditionally for seamless single-page application navigation
+- **Context Invalidation Recovery** - Shows a clickable "Refresh Page" link when the extension updates in the background
+- **Data Safety** - Serialized storage writes and write-ahead intent logging protect against data loss
+- **Performance** - Batch layout reads, in-memory caches, and per-selector match limits reduce page freeze risk
+
+For full version history, visit: https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension/blob/main/CHANGELOG.md
 
 ---
 
@@ -147,6 +157,8 @@ For detailed version history and updates, please visit: https://github.com/Bingq
 
 - **storage** - Saves your site configurations and preferences locally
 - **tabs** - Enables per-site enable/disable functionality
+- **scripting** - Dynamically injects content scripts into enabled pages
+- **alarms** - Reliable background scheduled tasks that survive service worker hibernation
 
 **No data is sent to any server.** All configurations are stored locally in your browser.
 
@@ -213,8 +225,8 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 - **自动标题识别** - 默认识别标准 HTML 标题（h1-h6）
 - **增强可见性检测** - 使用计算样式、边界矩形和父元素裁剪检查进行高级过滤
 - **内容过滤** - 跳过隐藏元素、零尺寸元素和溢出裁剪内容
-- **实时更新** - 页面内容变化时自动重建目录
-- **防抖扫描** - 500ms 防抖避免频繁更新
+- **实时更新** - 页面内容变化时自动重建目录（增量更新，高效刷新）
+- **防抖扫描** - 动态防抖（500ms–1000ms），自动适应页面活跃程度
 
 ### 可视化元素拾取
 
@@ -227,7 +239,7 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 
 - **浮动面板** - 可展开的目录面板，支持左右侧定位
 - **可拖拽面板** - 拖拽面板标题栏可重新定位，位置自动保存
-- **可拖拽TOC按钮** - 可拖动的"目录"按钮，可放置在任何位置
+- **可拖拽TOC按钮** - 可拖动的"目录"按钮，可放置在任何位置（支持鼠标、触摸屏和触控笔）
 - **位置记忆与同步** - 按域名记住按钮和面板位置，折叠/展开时自动同步
 - **流畅动画** - 平滑的面板展开/折叠过渡效果，提升用户体验
 - **平滑滚动** - 点击任何目录项平滑滚动到该部分
@@ -248,6 +260,9 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 - **动画帧管理** - 正确调度和清理动画帧回调
 - **存储配额处理** - 自动管理存储配额，超限时提示用户确认
 - **配置变更重试** - 失败时重试配置变更并验证结果
+- **存储写入序列化** - 防止并发写入导致数据损坏
+- **写入前意图日志** - 防止 MV3 Service Worker 休眠导致数据丢失
+- **重建熔断器** - 防止问题页面上无限重建循环
 - **增强错误处理** - 改进全范围的错误处理和恢复机制
 - **优化图标更新** - 队列化图标更新，防止快速状态变化时闪烁
 
@@ -295,9 +310,16 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 
 ## 更新内容
 
-### 最新版本
+### v0.7.0（2026年5月）
 
-完整的版本历史和更新内容，请访问：https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension/blob/main/CHANGELOG.md 
+- **触摸和触控笔拖拽支持** - 在平板和触屏设备上可用触摸或触控笔拖拽目录按钮和面板
+- **增量 TOC 更新** - 重建时仅更新变化的目录项，而非重新渲染整个面板
+- **更好的 SPA 支持** - MutationObserver 现在无条件启动，单页应用导航更流畅
+- **上下文失效恢复** - 扩展后台更新时显示可点击的"刷新页面"链接
+- **数据安全** - 存储写入序列化和写入前意图日志，防止数据丢失
+- **性能优化** - 批量布局读取、内存缓存、每选择器匹配上限，降低页面卡顿风险
+
+完整版本历史，请访问：https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension/blob/main/CHANGELOG.md
 
 ---
 
@@ -305,6 +327,8 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 
 - **storage** - 在本地保存您的站点配置和偏好设置
 - **tabs** - 实现按站点启用/禁用功能
+- **scripting** - 动态注入内容脚本到已启用的页面
+- **alarms** - 可靠的后台定时任务，不受 Service Worker 休眠影响
 
 **不向任何服务器发送数据。** 所有配置都存储在您的浏览器本地。
 
