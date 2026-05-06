@@ -597,7 +597,7 @@ chrome.runtime.onStartup.addListener(async () => {
 
 (async () => {
   await setGlobalDefaultIconDisabled();
-})();
+})().catch(e => console.warn('[toc] initial icon setup failed:', e));
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   try {
