@@ -160,7 +160,7 @@
         if (!getNavLock()) {
           unlockPollStartTs = 0;
           unlockWarned = false;
-          if (pendingRebuild) {
+          if (pendingRebuild > 0) {
             attemptRebuild();
           }
           return;
