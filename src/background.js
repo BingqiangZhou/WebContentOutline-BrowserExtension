@@ -142,18 +142,25 @@ async function getEnabledByOrigin(origin) {
 }
 
 async function setEnabledByOrigin(origin, enabled) {
-  return serializedWrite('tocSiteEnabledMap', async () => {
-    const map = await getEnabledMap();
-    if (!origin) return { ok: false, enabled: false, quota: false, error: null };
-    const prev = !!map[origin];
-    touchObjectKey(map, origin, !!enabled);
-    pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
-    const res = await saveEnabledMap(map);
-    if (!res || !res.ok) {
-      return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
-    }
-    return { ok: true, enabled: !!map[origin], quota: false, error: null };
-  });
+  // Write-ahead intent: survives service worker restart
+  const intent = { origin, enabled, ts: Date.now() };
+  await savePendingIntent(intent);
+  try {
+    return await serializedWrite('tocSiteEnabledMap', async () => {
+      const map = await getEnabledMap();
+      if (!origin) return { ok: false, enabled: false, quota: false, error: null };
+      const prev = !!map[origin];
+      touchObjectKey(map, origin, !!enabled);
+      pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
+      const res = await saveEnabledMap(map);
+      if (!res || !res.ok) {
+        return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
+      }
+      return { ok: true, enabled: !!map[origin], quota: false, error: null };
+    });
+  } finally {
+    await clearPendingIntent();
+  }
 }
 
 function getIconPathMap(enabled) {
@@ -297,6 +304,27 @@ async function setSessionMap(key, map) {
     }
   } catch (e) {
     console.warn('[toc] setSessionMap failed:', e);
+  }
+}
+
+async function savePendingIntent(intent) {
+  try {
+    await chrome.storage.session.set({ '__tocPendingIntent': intent });
+  } catch (_) {}
+}
+
+async function clearPendingIntent() {
+  try {
+    await chrome.storage.session.remove('__tocPendingIntent');
+  } catch (_) {}
+}
+
+async function getPendingIntent() {
+  try {
+    const result = await chrome.storage.session.get('__tocPendingIntent');
+    return result && result['__tocPendingIntent'] || null;
+  } catch (_) {
+    return null;
   }
 }
 
@@ -582,6 +610,17 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
+    // Recover any pending write that was interrupted by service worker restart
+    try {
+      const pending = await getPendingIntent();
+      if (pending && pending.origin && Number.isFinite(pending.ts) && (Date.now() - pending.ts) < 60000) {
+        console.debug('[toc] recovering pending toggle intent:', pending);
+        await setEnabledByOrigin(pending.origin, pending.enabled);
+        await clearPendingIntent();
+      } else if (pending) {
+        await clearPendingIntent();
+      }
+    } catch (_) {}
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     await processInBatches(tabs, async (t) => {
@@ -600,6 +639,17 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(async () => {
   try {
+    // Recover any pending write that was interrupted by service worker restart
+    try {
+      const pending = await getPendingIntent();
+      if (pending && pending.origin && Number.isFinite(pending.ts) && (Date.now() - pending.ts) < 60000) {
+        console.debug('[toc] recovering pending toggle intent:', pending);
+        await setEnabledByOrigin(pending.origin, pending.enabled);
+        await clearPendingIntent();
+      } else if (pending) {
+        await clearPendingIntent();
+      }
+    } catch (_) {}
     await setGlobalDefaultIconDisabled();
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
