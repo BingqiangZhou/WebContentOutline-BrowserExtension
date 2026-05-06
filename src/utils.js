@@ -717,6 +717,9 @@ async function getPanelStateMap() {
    return await setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
  }
 
+  let __panelStateCache = null;
+  let __panelStateCacheReady = false;
+
 /**
  * Get badge position map { host: { x, y, vw?, vh?, anchorX?, marginX? } }
  */
@@ -851,20 +854,29 @@ async function getBadgePosByHost(host) {
   }
 
 async function getPanelExpandedByOrigin(origin) {
-  const map = await getPanelStateMap();
+  if (!__panelStateCacheReady) {
+    __panelStateCache = await getPanelStateMap();
+    __panelStateCacheReady = true;
+  }
   const key = origin || (typeof location !== 'undefined' ? location.origin : '');
-  return !!(key && map[key]);
+  return !!(key && __panelStateCache && __panelStateCache[key]);
 }
 
 async function setPanelExpandedByOrigin(origin, expanded) {
-  return serializedWrite('tocPanelExpandedMap', async () => {
-  const map = await getPanelStateMap();
+  if (!__panelStateCacheReady) {
+    try { __panelStateCache = await getPanelStateMap(); } catch (_) { __panelStateCache = {}; }
+    __panelStateCacheReady = true;
+  }
   const key = origin || (typeof location !== 'undefined' ? location.origin : '');
   if (!key) return false;
-  touchObjectKey(map, key, !!expanded);
-  pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
-  const ok = await savePanelStateMap(map);
-  return ok ? !!map[key] : false;
+  __panelStateCache[key] = !!expanded;
+
+  // Fire-and-forget the storage write
+  return serializedWrite('tocPanelExpandedMap', async () => {
+    const map = await getPanelStateMap();
+    map[key] = !!expanded;
+    pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
+    return await savePanelStateMap(map);
   });
 }
 
