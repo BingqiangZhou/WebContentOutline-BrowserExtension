@@ -30,7 +30,8 @@ const CONTENT_SCRIPTS = [
 
 const CONTENT_CSS = ['src/content.css'];
 const SESSION_KEYS = {
-  INJECTED_TABS: 'tocInjectedTabs'
+  INJECTED_TABS: 'tocInjectedTabs',
+  PENDING_INTENTS: 'tocPendingIntents'
 };
 const INJECTION_COOLDOWN_MS = 1200;
 const INJECTION_PING_RETRY_MS = 200;
@@ -143,13 +144,13 @@ async function getEnabledByOrigin(origin) {
 }
 
 async function setEnabledByOrigin(origin, enabled) {
+  if (!origin) return { ok: false, enabled: false, quota: false, error: null };
   // Write-ahead intent: survives service worker restart
   const intent = { origin, enabled, ts: Date.now() };
   await savePendingIntent(intent);
   try {
     return await serializedWrite('tocSiteEnabledMap', async () => {
       const map = await getEnabledMap();
-      if (!origin) return { ok: false, enabled: false, quota: false, error: null };
       const prev = !!map[origin];
       touchObjectKey(map, origin, !!enabled);
       pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
@@ -160,7 +161,7 @@ async function setEnabledByOrigin(origin, enabled) {
       return { ok: true, enabled: !!map[origin], quota: false, error: null };
     });
   } finally {
-    await clearPendingIntent();
+    await clearPendingIntent(origin);
   }
 }
 
@@ -289,7 +290,8 @@ async function getSessionMap(key) {
   try {
     if (chrome?.storage?.session) {
       const res = await chrome.storage.session.get([key]);
-      return res[key] || {};
+      const value = res[key];
+      return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
     }
   } catch (e) {
     console.warn('[toc] getSessionMap failed:', e);
@@ -310,23 +312,80 @@ async function setSessionMap(key, map) {
 
 async function savePendingIntent(intent) {
   try {
-    await chrome.storage.session.set({ '__tocPendingIntent': intent });
+    if (!intent || !intent.origin) return;
+    await serializedWrite('tocPendingIntents', async () => {
+      const map = await getSessionMap(SESSION_KEYS.PENDING_INTENTS);
+      map[intent.origin] = intent;
+      await setSessionMap(SESSION_KEYS.PENDING_INTENTS, map);
+    });
   } catch (_) {}
 }
 
-async function clearPendingIntent() {
+async function clearPendingIntent(origin) {
   try {
-    await chrome.storage.session.remove('__tocPendingIntent');
+    if (!origin) {
+      await chrome.storage.session.remove(['__tocPendingIntent', SESSION_KEYS.PENDING_INTENTS]);
+      return;
+    }
+    await serializedWrite('tocPendingIntents', async () => {
+      const map = await getSessionMap(SESSION_KEYS.PENDING_INTENTS);
+      if (Object.prototype.hasOwnProperty.call(map, origin)) {
+        delete map[origin];
+        await setSessionMap(SESSION_KEYS.PENDING_INTENTS, map);
+      }
+      try {
+        const legacy = await getLegacyPendingIntent();
+        if (legacy && legacy.origin === origin) {
+          await chrome.storage.session.remove('__tocPendingIntent');
+        }
+      } catch (_) {}
+    });
   } catch (_) {}
 }
 
-async function getPendingIntent() {
+async function getLegacyPendingIntent() {
   try {
     const result = await chrome.storage.session.get('__tocPendingIntent');
     return result && result['__tocPendingIntent'] || null;
   } catch (_) {
     return null;
   }
+}
+
+async function getPendingIntents() {
+  const intents = [];
+  try {
+    await serializedWrite('tocPendingIntents', async () => {
+      const map = await getSessionMap(SESSION_KEYS.PENDING_INTENTS);
+      const now = Date.now();
+      let changed = false;
+      for (const origin of Object.keys(map)) {
+        const intent = map[origin];
+        if (intent && intent.origin && Number.isFinite(intent.ts) && (now - intent.ts) < 60000) {
+          intents.push(intent);
+        } else {
+          delete map[origin];
+          changed = true;
+        }
+      }
+      if (changed) {
+        await setSessionMap(SESSION_KEYS.PENDING_INTENTS, map);
+      }
+    });
+  } catch (_) {}
+
+  try {
+    const legacy = await getLegacyPendingIntent();
+    if (legacy && legacy.origin && Number.isFinite(legacy.ts) && (Date.now() - legacy.ts) < 60000) {
+      if (!intents.some(intent => intent.origin === legacy.origin)) {
+        intents.push(legacy);
+      }
+    } else if (legacy) {
+      await chrome.storage.session.remove('__tocPendingIntent');
+    }
+  } catch (_) {}
+
+  return intents;
 }
 
 async function getInjectedState(tabId) {
@@ -621,15 +680,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
 async function recoverPendingIntent() {
   try {
-    const pending = await getPendingIntent();
-    if (pending && pending.origin && Number.isFinite(pending.ts) && (Date.now() - pending.ts) < 60000) {
+    const pendingIntents = await getPendingIntents();
+    for (const pending of pendingIntents) {
       console.debug('[toc] recovering pending toggle intent:', pending);
       // Clear intent BEFORE calling setEnabledByOrigin to prevent double-save
       // on service worker kill during recovery
-      await clearPendingIntent();
-      await setEnabledByOrigin(pending.origin, pending.enabled);
-    } else if (pending) {
-      await clearPendingIntent();
+      await clearPendingIntent(pending.origin);
+      const saved = await setEnabledByOrigin(pending.origin, pending.enabled);
+      const enabled = saved && saved.ok ? saved.enabled : !!pending.enabled;
+      await updateIconsForOrigin(pending.origin);
+      await broadcastEnabledToOrigin(pending.origin, enabled);
     }
   } catch (_) {}
 }
@@ -669,6 +729,7 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 (async () => {
+  await recoverPendingIntent();
   await setGlobalDefaultIconDisabled();
 })().catch(e => console.warn('[toc] initial icon setup failed:', e));
 
