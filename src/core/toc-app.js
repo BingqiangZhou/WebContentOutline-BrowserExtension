@@ -508,6 +508,8 @@
         let panelPos = null;
 
         // Prefer the live badge position if present (avoids stale storage during/after resize).
+        // Read-only: do NOT save to storage here to prevent cumulative drift from
+        // viewport changes between save and restore (e.g. scrollbar toggling).
         try {
           const badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
           if (badgeEl) {
@@ -518,7 +520,6 @@
               if (Number.isFinite(x) && Number.isFinite(y)) {
                 savedPos = { x, y };
                 expandSide = x > (window.innerWidth / 2) ? 'right' : 'left';
-                try { setBadgePosByHost && setBadgePosByHost(location.host, { x, y }); } catch (_) {}
               }
             }
           }
