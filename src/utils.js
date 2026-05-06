@@ -424,8 +424,7 @@ function msg(key, substitutions) {
       if (typeof CSS !== 'undefined' && CSS && typeof CSS.supports === 'function') {
         if (CSS.supports(`selector(${trimmed})`)) return true;
       }
-      // Last resort: DOM query (should be rare).
-      document.querySelector(trimmed);
+      // No validation method available — trust the selector syntax.
       return true;
     } catch (_) {
       return false;
