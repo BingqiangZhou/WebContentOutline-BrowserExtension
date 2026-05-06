@@ -38,30 +38,49 @@ If a version argument was provided:
    - **🐛 修复 / Fixed**: Bug fixes
    - **⚡ 技术改进 / Technical Improvements**: Refactoring, performance, internal changes
 
-## Step 3: Update CHANGELOG.md
+## Step 3: Update CHANGELOG.md and CHANGELOG_CN.md
 
-1. Read the current `CHANGELOG.md`
-2. Add a new version entry at the top (after the Table of Contents section), following the existing format:
+The changelog is split into two separate files by language. Update both:
+
+1. **CHANGELOG.md** (English): Read the current file, add a new version entry at the top (after the Table of Contents section), following the existing English-only format:
    ```markdown
    ## [X.Y.Z] - YYYY-MM-DD
 
-   ### 🚀 新增 / Added
-   - **Feature name / Feature name**
-     - Description in Chinese / Description in English
+   ### 🚀 Added
+   - **Feature name**
+     - Description in English
 
-   ### 🔧 更改 / Changed
+   ### 🔧 Changed
    - ...
 
-   ### 🐛 修复 / Fixed
+   ### 🐛 Fixed
    - ...
 
    ---
    ```
-3. Update the Table of Contents section:
+
+2. **CHANGELOG_CN.md** (Chinese): Same structure, but all content in Chinese:
+   ```markdown
+   ## [X.Y.Z] - YYYY-MM-DD
+
+   ### 🚀 新增
+   - **功能名称**
+     - 中文描述
+
+   ### 🔧 更改
+   - ...
+
+   ### 🐛 修复
+   - ...
+
+   ---
+   ```
+
+3. For both files, update the Table of Contents section:
    - Add the new version link to the list (maintain reverse chronological order)
-   - Update the `[最新版本 / Latest]` link in the header line
+   - Update the `[Latest]` / `[最新版本]` link in the header line
 4. Only include sections that have entries. If there are no bug fixes, omit the "Fixed" section entirely.
-5. Each change entry should be bilingual: Chinese first, then English, separated by ` / `
+5. Each file contains content in its own language only — no bilingual mixing.
 
 ## Step 4: Update README.md and README_CN.md
 
@@ -87,7 +106,7 @@ Review the changes and determine if README updates are needed:
 
 Commit all documentation updates and the version bump together:
 ```bash
-git add manifest.json CHANGELOG.md README.md README_CN.md CLAUDE.md
+git add manifest.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE.md
 git commit -m "chore: bump version to X.Y.Z"
 ```
 
