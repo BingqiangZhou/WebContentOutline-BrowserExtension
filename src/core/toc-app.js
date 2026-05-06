@@ -91,7 +91,9 @@
         const res = buildTocItems ? buildTocItems(cfg, []) : null;
         if (res && Array.isArray(res.items)) return res;
         if (Array.isArray(res)) return { items: res, meta: null };
-      } catch (_) {}
+      } catch (e) {
+        console.warn('[toc] buildTocItems error:', e);
+      }
       return { items: [], meta: null };
     };
 
@@ -105,6 +107,7 @@
     let rebuildInFlight = null;
     let rebuildQueued = false;
     let consecutiveRebuildFailures = 0;
+    let generation = 0;
     let failureCooldownTimer = null;
 
     let navLock = false;
@@ -228,6 +231,9 @@
       if (!matchingItem) {
         matchingItem = items.find(item => item.text === snapshot.currentActiveItem.text);
       }
+      if (!matchingItem && snapshot.activeItemIndex >= 0 && snapshot.activeItemIndex < items.length) {
+        matchingItem = items[snapshot.activeItemIndex];
+      }
 
       if (matchingItem && matchingItem._node) {
         const restoreActive = () => {
@@ -275,11 +281,13 @@
       }
       // Set rebuild flag to prevent IntersectionObserver interference
       isRebuilding = true;
+      const myGen = generation;
       try {
 
         if (updateConfigFromStorage) {
           await updateConfigFromStorage(cfg);
         }
+        if (destroyed || generation !== myGen) { clearRebuildFlag(); return; }
 
         const prevItems = items;
         const { items: newItems, meta: newMeta } = buildNow();
@@ -541,11 +549,7 @@
 
         await rebuild();
 
-        if (renderFloatingPanel) {
-          if (panelInstance) {
-            panelInstance.remove();
-            panelInstance = null;
-          }
+        if (renderFloatingPanel && !panelInstance) {
           panelInstance = renderFloatingPanel({
             side: expandSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
             onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
@@ -598,6 +602,7 @@
 
     const destroy = () => {
       destroyed = true;
+      generation++;
       items = [];
       rebuildInFlight = null;
       rebuildQueued = false;
@@ -609,12 +614,7 @@
       }
       consecutiveRebuildFailures = 0;
       isRebuilding = false;
-      try {
-        if (typeof activeRestoreTimeout === 'number') {
-          cancelAnimationFrame(activeRestoreTimeout);
-        }
-      } catch (_) {}
-      activeRestoreTimeout = null;
+      cancelActiveRestore();
       try { if (badgeInstance) badgeInstance.remove(); } catch (_) {}
       badgeInstance = null;
       try { if (panelInstance) panelInstance.remove(); } catch (_) {}
