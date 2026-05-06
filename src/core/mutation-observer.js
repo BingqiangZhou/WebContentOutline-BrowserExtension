@@ -216,48 +216,12 @@
       return false;
     }
 
-    function hasValidSelectors(cfg) {
-      const selectors = cfg && Array.isArray(cfg.selectors) ? cfg.selectors : [];
-      if (selectors.length > 0) {
-        const { validateSelectorExpression } = window.TOC_UTILS || {};
-        for (const s of selectors) {
-          if (!s || typeof s !== 'object') continue;
-          const type = s.type === 'css' || s.type === 'xpath' ? s.type : null;
-          const expr = typeof s.expr === 'string' ? s.expr : '';
-          if (!type || !expr.trim()) continue;
-          if (typeof validateSelectorExpression === 'function') {
-            try {
-              if (validateSelectorExpression(type, expr)) return true;
-            } catch (_) {}
-          } else {
-            return true;
-          }
-        }
-      }
-
-      const commonSelectors = [
-        'h1, h2, h3, h4, h5, h6',
-        '[id*="title"], [class*="title"]',
-        '[id*="heading"], [class*="heading"]'
-      ];
-
-      for (let selector of commonSelectors) {
-        try {
-          if (document.querySelector(selector)) {
-            return true;
-          }
-        } catch (_) {}
-      }
-
-      return false;
-    }
-
     function start(cfg) {
       stopTimers();
       pendingRebuild = false;
       disconnectObserver();
 
-      if (typeof MutationObserver !== 'undefined' && hasValidSelectors(cfg)) {
+      if (typeof MutationObserver !== 'undefined') {
         const resolveObserveRoot = () => {
           try {
             return document.querySelector('main') || document.querySelector('article') || document.body || document.documentElement;
