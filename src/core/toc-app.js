@@ -79,33 +79,6 @@
     let isRebuilding = false;
     let rebuildClearTimer = null;
     let destroyed = false;
-    const pendingRafs = new Set();
-    const scheduleRaf = (cb) => {
-      try {
-        const id = requestAnimationFrame(() => {
-          try { pendingRafs.delete(id); } catch (_) {}
-          if (destroyed) return;
-          try { cb && cb(); } catch (_) {}
-        });
-        pendingRafs.add(id);
-        return id;
-      } catch (_) {
-        try { cb && cb(); } catch (_) {}
-        return null;
-      }
-    };
-    const cancelPendingRafs = () => {
-      try {
-        pendingRafs.forEach((id) => {
-          try { cancelAnimationFrame(id); } catch (_) {}
-        });
-      } catch (_) {
-        // ignore
-      } finally {
-        try { pendingRafs.clear(); } catch (_) {}
-      }
-    };
-
     const clearRebuildTimers = () => {
       if (rebuildClearTimer != null) {
         try { clearTimeout(rebuildClearTimer); } catch (_) {}
@@ -598,7 +571,6 @@
 
     const destroy = () => {
       destroyed = true;
-      cancelPendingRafs();
       clearRebuildTimers();
       clearNavLockFailsafe();
       isRebuilding = false;
