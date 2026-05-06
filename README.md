@@ -390,7 +390,7 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 
 ## 📝 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and updates.
+See [CHANGELOG.md](CHANGELOG.md) for version history and updates. [中文更新日志](CHANGELOG_CN.md)
 
 ---
 
