@@ -82,6 +82,7 @@
     let showRaf = null;
     let observeRaf = null;
     let ioRaf = null; // RAF for IntersectionObserver throttling
+    let pendingIoEntries = [];
     let removalObserver = null;
     let cleanedUp = false;
     const pickerStartEvent = 'toc-picker-start';
@@ -265,6 +266,7 @@
         try { cancelAnimationFrame(ioRaf); } catch (_) {}
         ioRaf = null;
       }
+      pendingIoEntries = [];
     };
 
     panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'}${skipAnimation ? '' : ' toc-floating-expand'}`;
@@ -543,11 +545,16 @@
 
       intersectionObserver = new IntersectionObserver((entries) => {
         if (cleanedUp) return;
+        if (pendingIoEntries) {
+          for (let i = 0; i < entries.length; i++) pendingIoEntries.push(entries[i]);
+        }
         if (ioRaf) return;
         ioRaf = requestAnimationFrame(() => {
           ioRaf = null;
           if (cleanedUp) return;
-          processIntersections(entries);
+          const batch = pendingIoEntries;
+          pendingIoEntries = [];
+          processIntersections(batch);
         });
       }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
 
