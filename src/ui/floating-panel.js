@@ -631,7 +631,19 @@
       notice.className = 'toc-ctx-invalidated-notice';
       notice.setAttribute('role', 'alert');
       notice.setAttribute('aria-live', 'assertive');
-      notice.textContent = msg('ctxInvalidatedNotice');
+      const noticeText = document.createElement('span');
+      noticeText.textContent = msg('ctxInvalidatedNotice');
+      notice.appendChild(noticeText);
+      const refreshLink = document.createElement('a');
+      refreshLink.className = 'toc-ctx-refresh-link';
+      refreshLink.href = '#';
+      refreshLink.textContent = msg('ctxInvalidatedRefresh');
+      refreshLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        try { location.reload(); } catch (_) {}
+      });
+      notice.appendChild(refreshLink);
       panel.appendChild(notice);
     }
 

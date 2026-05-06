@@ -658,6 +658,30 @@
   box-sizing: border-box !important;
 }
 
+.toc-ctx-refresh-link {
+  all: unset !important;
+  display: inline !important;
+  color: #2f6feb !important;
+  cursor: pointer !important;
+  text-decoration: underline !important;
+  margin-left: 6px !important;
+  font-size: 13px !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
+  line-height: 1.4 !important;
+  box-sizing: border-box !important;
+}
+
+.toc-ctx-refresh-link:hover {
+  color: #1a5cc7 !important;
+  text-decoration: underline !important;
+}
+
+.toc-ctx-refresh-link:focus-visible {
+  outline: 2px solid rgba(47, 111, 235, 0.85) !important;
+  outline-offset: 2px !important;
+  border-radius: 2px !important;
+}
+
 /* ============================================
    Dark Theme Support (prefers-color-scheme: dark)
    ============================================ */
@@ -826,5 +850,13 @@
     background: #3d3a1d !important;
     border-color: #856c00 !important;
     color: #f0d060 !important;
+  }
+
+  .toc-ctx-refresh-link {
+    color: #64b5f6 !important;
+  }
+
+  .toc-ctx-refresh-link:hover {
+    color: #90caf9 !important;
   }
 }

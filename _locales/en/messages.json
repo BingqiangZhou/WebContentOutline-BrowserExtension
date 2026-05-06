@@ -197,6 +197,10 @@
     "message": "Extension updated, please reload this browser tab",
     "description": "Notice shown when extension context is invalidated after an update"
   },
+  "ctxInvalidatedRefresh": {
+    "message": "Refresh Page",
+    "description": "Clickable refresh button text shown in the extension context invalidated notice"
+  },
   "titleStorageQuotaExceeded": {
     "message": "Web TOC: Storage quota exceeded (changes not saved)",
     "description": "Icon title when storage write fails due to quota limits"
