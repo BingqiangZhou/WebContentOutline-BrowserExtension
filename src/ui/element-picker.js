@@ -122,7 +122,8 @@
     };
     wrap.addEventListener('keydown', onKeydown);
     wrap.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-act]');
+      const target = e && e.target;
+      const btn = target && target.closest ? target.closest('[data-act]') : null;
       if (!btn) return;
       const act = btn.dataset.act;
       if (act === 'close') close();
@@ -229,7 +230,9 @@
     }
 
     function click(e) {
-      e.preventDefault();
+      try { e.preventDefault(); } catch (_) {}
+      try { e.stopPropagation(); } catch (_) {}
+      try { e.stopImmediatePropagation(); } catch (_) {}
       if (finished) return;
       let el = getElementNode(e.target);
       if (isUiElement(el)) {
@@ -261,7 +264,9 @@
     document.addEventListener('mousemove', move, true);
     document.addEventListener('click', click, true);
     const onCtx = (e) => {
-      e.preventDefault();
+      try { e.preventDefault(); } catch (_) {}
+      try { e.stopPropagation(); } catch (_) {}
+      try { e.stopImmediatePropagation(); } catch (_) {}
       cancelPick();
     };
     document.addEventListener('contextmenu', onCtx, true);
@@ -306,4 +311,3 @@
   window.TOC_UI.showPickerResult = showPickerResult;
   window.TOC_UI.createElementPicker = createElementPicker;
 })();
-

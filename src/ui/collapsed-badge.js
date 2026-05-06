@@ -40,7 +40,7 @@
     badge.title = msg('badgeTitle');
     badge.setAttribute('aria-label', msg('badgeTitle') || msg('tocTitle'));
 
-    badge.style.visibility = 'hidden';
+    badge.style.setProperty('visibility', 'hidden', 'important');
     // Set initial default position BEFORE adding to DOM to prevent (0,0) flash
     badge.style.setProperty('top', Math.max(CFG.DEFAULT_TOP_MIN, window.innerHeight / 4) + 'px', 'important');
     badge.style.setProperty('right', CFG.DEFAULT_RIGHT + 'px', 'important');
@@ -71,11 +71,11 @@
         }
       }
       if (destroyed || !badge || !badge.isConnected) {
-        try { if (badge) badge.style.visibility = ''; } catch (_) {}
+        try { if (badge) badge.style.removeProperty('visibility'); } catch (_) {}
         return;
       }
       if (userMoved) {
-        badge.style.visibility = '';
+        badge.style.removeProperty('visibility');
         return;
       }
 
@@ -98,7 +98,7 @@
       }
 
       // Show badge after position is set
-      badge.style.visibility = '';
+      badge.style.removeProperty('visibility');
     };
 
     restorePosition();

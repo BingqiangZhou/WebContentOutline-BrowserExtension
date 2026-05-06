@@ -97,7 +97,7 @@
     let onBtnManageClick = null;
     let onBtnRefreshClick = null;
 
-    panel.style.visibility = 'hidden';
+    panel.style.setProperty('visibility', 'hidden', 'important');
 
     // Apply saved position
     if (panelPos && Number.isFinite(panelPos.top) && Number.isFinite(panelPos.left)) {
@@ -115,7 +115,7 @@
 
     const constrainCurrentPosition = () => {
       try {
-        if (panel.style.visibility === 'hidden') return;
+        if (panel.style.getPropertyValue('visibility') === 'hidden') return;
 
         // === READ PHASE: all layout reads together ===
         const rect = panel.getBoundingClientRect();
@@ -582,7 +582,8 @@
     }
 
     onListClick = (e) => {
-      const node = e.target.closest('.toc-item');
+      const target = e && e.target;
+      const node = target && target.closest ? target.closest('.toc-item') : null;
       if (!node || !list.contains(node)) return;
       const idx = parseInt(node.dataset.index, 10);
       const item = items[idx];
@@ -655,7 +656,7 @@
       showRaf = null;
       if (cleanedUp) return;
       if (!panel || !panel.isConnected) return;
-      panel.style.visibility = '';
+      panel.style.removeProperty('visibility');
       if (skipAnimation) {
         try { resolveShown && resolveShown(); } catch (_) {}
       } else {

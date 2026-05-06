@@ -35,7 +35,7 @@ const SESSION_KEYS = {
 const INJECTION_COOLDOWN_MS = 1200;
 const INJECTION_PING_RETRY_MS = 200;
 const injectionInFlight = new Map();
-let actionClickInFlight = false;
+const actionClickInFlightByOrigin = new Set();
 
 function isHttpUrl(url) {
   return !!(url && /^https?:\/\//i.test(url));
@@ -502,10 +502,11 @@ async function handleActionClick(tab) {
   if (!tab || !tab.id || !tab.url) return;
   const url = tab.url;
   if (!isHttpUrl(url)) return;
-  if (actionClickInFlight) return;
-  actionClickInFlight = true;
+  const origin = originFromUrl(url);
+  if (!origin) return;
+  if (actionClickInFlightByOrigin.has(origin)) return;
+  actionClickInFlightByOrigin.add(origin);
   try {
-    const origin = originFromUrl(url);
     const currentlyEnabled = await getEnabledByOrigin(origin);
     const nextEnabled = !currentlyEnabled;
     const saved = await setEnabledByOrigin(origin, nextEnabled);
@@ -544,7 +545,7 @@ async function handleActionClick(tab) {
     await broadcastEnabledToOrigin(origin, false, tab.id);
     sendEnabledToTab(tab.id, false);
   } finally {
-    actionClickInFlight = false;
+    actionClickInFlightByOrigin.delete(origin);
   }
 }
 
