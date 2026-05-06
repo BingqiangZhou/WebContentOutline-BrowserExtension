@@ -157,7 +157,7 @@ function msg(key, substitutions) {
   function pruneObjectToLimit(map, maxKeys) {
     try {
       if (!isPlainObject(map)) return map;
-      const limit = Number.isFinite(maxKeys) ? maxKeys : uiConst('STORAGE_MAX_MAP_KEYS', 400);
+      const limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : uiConst('STORAGE_MAX_MAP_KEYS', 400);
       const keys = Object.keys(map);
       if (keys.length <= limit) return map;
       const removeCount = keys.length - limit;
