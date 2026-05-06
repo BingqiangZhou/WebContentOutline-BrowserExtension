@@ -625,6 +625,7 @@
         if (TOC_APP.rebuild === rebuild) TOC_APP.rebuild = null;
         if (TOC_APP.isRebuilding === isRebuildingFn) TOC_APP.isRebuilding = null;
       } catch (_) {}
+      try { window.__TOC_APP_LOADED__ = false; } catch (_) {}
     };
 
     try {
