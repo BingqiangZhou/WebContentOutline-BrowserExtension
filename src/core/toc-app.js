@@ -338,7 +338,11 @@
         let incrementalDone = false;
 
         if (panelInstance && panelInstance.updateItems && sideUnchanged) {
-          incrementalDone = panelInstance.updateItems(items, tocMeta);
+          try {
+            incrementalDone = panelInstance.updateItems(items, tocMeta);
+          } catch (_) {
+            incrementalDone = false;
+          }
         }
 
         if (!incrementalDone) {
