@@ -163,9 +163,11 @@
 
     const clearRebuildFlag = () => {
       clearRebuildTimers();
-      // Failsafe: if nothing clears the flag within 1500ms, force-clear it.
-      // The restoreActiveSnapshot RAF is responsible for clearing isRebuilding
-      // after the active item restoration completes.
+      isRebuilding = false;
+    };
+
+    const armRebuildFailsafe = () => {
+      clearRebuildTimers();
       try {
         rebuildClearTimer = setTimeout(() => { isRebuilding = false; rebuildClearTimer = null; }, 1500);
       } catch (_) {
@@ -237,8 +239,9 @@
             }
           } catch (_) {}
           activeRestoreTimeout = null;
-          // Clear rebuild flag after restoration is complete
-          clearRebuildFlag();
+          // Clear rebuild flag directly — do not use clearRebuildFlag here
+          // because it would cancel the failsafe timer that the finally block armed.
+          isRebuilding = false;
         };
         activeRestoreTimeout = requestAnimationFrame(restoreActive);
       } else {
@@ -347,9 +350,10 @@
         }
         console.warn('[toc] rebuild failed:', e);
       } finally {
-        // If no restore is pending, clear immediately. Otherwise the
-        // restore callback or the failsafe timer will handle it.
-        if (typeof activeRestoreTimeout !== 'number') {
+        // If a restore is pending, arm a failsafe timer. Otherwise clear immediately.
+        if (typeof activeRestoreTimeout === 'number') {
+          armRebuildFailsafe();
+        } else {
           clearRebuildFlag();
         }
       }
@@ -571,6 +575,9 @@
 
     const destroy = () => {
       destroyed = true;
+      items = [];
+      rebuildInFlight = null;
+      rebuildQueued = false;
       clearRebuildTimers();
       clearNavLockFailsafe();
       isRebuilding = false;
