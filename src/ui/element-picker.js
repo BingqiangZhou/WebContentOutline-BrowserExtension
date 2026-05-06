@@ -233,14 +233,21 @@
       if (finished) return;
       let el = getElementNode(e.target);
       if (isUiElement(el)) {
-        el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
-        if (isUiElement(el)) {
-          return;
+        try {
+          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
+        } catch (_) {
+          el = null;
         }
+        if (isUiElement(el)) return;
+      }
+      if (!el || el === highlight) {
+        finished = true;
+        cleanup();
+        return;
       }
       finished = true;
       cleanup();
-      if (el && onPicked) onPicked(el);
+      if (onPicked) onPicked(el);
     }
 
     function key(e) {
