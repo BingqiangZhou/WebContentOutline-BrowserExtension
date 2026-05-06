@@ -10,10 +10,16 @@
 
   function createMutationObserver(onRebuild, getNavLock) {
     const { uiConst } = window.TOC_UTILS || {};
-    const DEBOUNCE_MS = typeof uiConst === 'function' ? uiConst('MUTATION_DEBOUNCE_MS', 500) : 500;
-    const UNLOCK_POLL_MS = typeof uiConst === 'function' ? uiConst('MUTATION_UNLOCK_POLL_MS', 200) : 200;
-    const REBUILD_RETRY_MS = typeof uiConst === 'function' ? uiConst('MUTATION_REBUILD_RETRY_MS', 1000) : 1000;
-    const MAX_DYNAMIC_DEBOUNCE_MS = 2000; // Maximum debounce time
+    const CFG = (() => {
+      const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+      return {
+        DEBOUNCE_MS: get('MUTATION_DEBOUNCE_MS', 500),
+        UNLOCK_POLL_MS: get('MUTATION_UNLOCK_POLL_MS', 200),
+        REBUILD_RETRY_MS: get('MUTATION_REBUILD_RETRY_MS', 1000),
+        MUTATION_UNLOCK_POLL_MAX_MS: get('MUTATION_UNLOCK_POLL_MAX_MS', 30000),
+        MAX_DYNAMIC_DEBOUNCE_MS: 1000,
+      };
+    })();
     const OBSERVED_ATTRIBUTES = [
       'hidden',
       'style',
@@ -94,7 +100,7 @@
       if (!isExtensionContextValid) return;
       if (!pendingRebuild) return;
       if (retryTimer) return;
-      const ms = (Number.isFinite(REBUILD_RETRY_MS) && REBUILD_RETRY_MS > 0) ? REBUILD_RETRY_MS : 1000;
+      const ms = (Number.isFinite(CFG.REBUILD_RETRY_MS) && CFG.REBUILD_RETRY_MS > 0) ? CFG.REBUILD_RETRY_MS : 1000;
       retryTimer = setTimeout(() => {
         retryTimer = null;
         if (!isExtensionContextValid) return;
@@ -147,7 +153,7 @@
     function waitForUnlock() {
       if (unlockTimer) return;
       if (!unlockPollStartTs) unlockPollStartTs = Date.now();
-      const MAX_POLL_MS = typeof uiConst === 'function' ? uiConst('MUTATION_UNLOCK_POLL_MAX_MS', 30000) : 30000;
+      const MAX_POLL_MS = CFG.MUTATION_UNLOCK_POLL_MAX_MS;
       const check = () => {
         unlockTimer = null;
         if (!isExtensionContextValid) return;
@@ -165,10 +171,10 @@
             console.warn('[toc] nav lock stuck; will keep polling at a lower frequency');
           }
         }
-        const nextPollMs = unlockWarned ? Math.max(UNLOCK_POLL_MS, 1000) : UNLOCK_POLL_MS;
+        const nextPollMs = unlockWarned ? Math.max(CFG.UNLOCK_POLL_MS, 1000) : CFG.UNLOCK_POLL_MS;
         unlockTimer = setTimeout(check, nextPollMs);
       };
-      unlockTimer = setTimeout(check, UNLOCK_POLL_MS);
+      unlockTimer = setTimeout(check, CFG.UNLOCK_POLL_MS);
     }
 
     function scheduleRebuild() {
@@ -185,8 +191,8 @@
       lastMutationTime = now;
 
       const dynamicDebounce = Math.min(
-        DEBOUNCE_MS * Math.pow(1.5, Math.min(consecutiveMutations, 5)),
-        MAX_DYNAMIC_DEBOUNCE_MS
+        CFG.DEBOUNCE_MS * Math.pow(1.5, Math.min(consecutiveMutations, 5)),
+        CFG.MAX_DYNAMIC_DEBOUNCE_MS
       );
 
       if (debounceTimer) clearTimeout(debounceTimer);

@@ -8,14 +8,19 @@
     return;
   }
 
-  const UNLOCK_AFTER_MS = typeof uiConst === 'function' ? uiConst('UNLOCK_AFTER_MS', 1000) : 1000;
-  const SCROLL_STOP_MS = typeof uiConst === 'function' ? uiConst('SCROLL_STOP_MS', 500) : 500;
-  const PANEL_WIDTH = typeof uiConst === 'function' ? uiConst('PANEL_WIDTH', 280) : 280;
-  const PANEL_HEIGHT = typeof uiConst === 'function' ? uiConst('PANEL_HEIGHT', 400) : 400;
-  const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
-  const EXPAND_ANIM_MS = typeof uiConst === 'function' ? uiConst('EXPAND_ANIM_MS', 300) : 300;
-  const PENDING_REBUILD_RECHECK_MS = typeof uiConst === 'function' ? uiConst('PENDING_REBUILD_RECHECK_MS', 100) : 100;
-  const CLEAR_USER_SELECTED_DELAY_MS = typeof uiConst === 'function' ? uiConst('CLEAR_USER_SELECTED_DELAY_MS', 200) : 200;
+  const CFG = (() => {
+    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+    return {
+      UNLOCK_AFTER_MS: get('UNLOCK_AFTER_MS', 1000),
+      SCROLL_STOP_MS: get('SCROLL_STOP_MS', 500),
+      PANEL_WIDTH: get('PANEL_WIDTH', 280),
+      PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
+      DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
+      EXPAND_ANIM_MS: get('EXPAND_ANIM_MS', 300),
+      PENDING_REBUILD_RECHECK_MS: get('PENDING_REBUILD_RECHECK_MS', 100),
+      CLEAR_USER_SELECTED_DELAY_MS: get('CLEAR_USER_SELECTED_DELAY_MS', 200),
+    };
+  })();
 
   function renderFloatingPanel(opts) {
     let { items } = opts;
@@ -108,8 +113,8 @@
     const constrainCurrentPosition = () => {
       try {
         const rect = panel.getBoundingClientRect();
-        const pw = panel.offsetWidth || PANEL_WIDTH;
-        const ph = panel.offsetHeight || PANEL_HEIGHT;
+        const pw = panel.offsetWidth || CFG.PANEL_WIDTH;
+        const ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
 
         const vw = window.innerWidth;
         const vh = window.innerHeight;
@@ -134,7 +139,7 @@
         if (anchorX !== 'left' && anchorX !== 'right') {
           anchorX = refX > (prevW / 2) ? 'right' : 'left';
         }
-        const nextLeftEdge = (anchorX === 'right') ? (vw - pw - DRAG_MARGIN_PX) : DRAG_MARGIN_PX;
+        const nextLeftEdge = (anchorX === 'right') ? (vw - pw - CFG.DRAG_MARGIN_PX) : CFG.DRAG_MARGIN_PX;
 
         // Vertical: scale reference point by height ratio.
         const ratioH = prevH ? (vh / prevH) : 1;
@@ -143,10 +148,10 @@
         const nextLeft = nextLeftEdge;
         const nextTop = rect.top + (nextRefY - refY);
 
-        const maxLeft = vw - pw - DRAG_MARGIN_PX;
-        const maxTop = vh - ph - DRAG_MARGIN_PX;
-        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
-        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
+        const maxLeft = vw - pw - CFG.DRAG_MARGIN_PX;
+        const maxTop = vh - ph - CFG.DRAG_MARGIN_PX;
+        const left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
+        const top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
         panel.style.setProperty('left', left + 'px', 'important');
         panel.style.setProperty('top', top + 'px', 'important');
         panel.style.setProperty('right', 'auto', 'important');
@@ -217,7 +222,7 @@
                 console.warn('[toc] refresh after unlock failed', e);
               }
             }
-          }, PENDING_REBUILD_RECHECK_MS);
+          }, CFG.PENDING_REBUILD_RECHECK_MS);
         }
 
         if (timers.clearUserSelected) clearTimeout(timers.clearUserSelected);
@@ -226,8 +231,8 @@
           items.forEach(it => {
             it._userSelected = false;
           });
-        }, CLEAR_USER_SELECTED_DELAY_MS);
-      }, UNLOCK_AFTER_MS);
+        }, CFG.CLEAR_USER_SELECTED_DELAY_MS);
+      }, CFG.UNLOCK_AFTER_MS);
     };
 
     const onScroll = () => {
@@ -237,7 +242,7 @@
         timers.scrollStop = null;
         setNavLock(false);
         items.forEach(it => it._userSelected = false);
-      }, SCROLL_STOP_MS);
+      }, CFG.SCROLL_STOP_MS);
     };
 
     const removeScrollListener = addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
@@ -637,7 +642,7 @@
           if (cleanedUp) return;
           if (!panel || !panel.isConnected) return;
           panel.classList.remove('toc-floating-expand', 'toc-expanded');
-        }, EXPAND_ANIM_MS);
+        }, CFG.EXPAND_ANIM_MS);
       }
     });
 
@@ -655,13 +660,13 @@
         let left = e.clientX - drag.offsetX;
         let top = e.clientY - drag.offsetY;
 
-        const pw = panel.offsetWidth || PANEL_WIDTH;
-        const ph = panel.offsetHeight || PANEL_HEIGHT;
-        const maxLeft = window.innerWidth - pw - DRAG_MARGIN_PX;
-        const maxTop = window.innerHeight - ph - DRAG_MARGIN_PX;
+        const pw = panel.offsetWidth || CFG.PANEL_WIDTH;
+        const ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
+        const maxLeft = window.innerWidth - pw - CFG.DRAG_MARGIN_PX;
+        const maxTop = window.innerHeight - ph - CFG.DRAG_MARGIN_PX;
 
-        left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, left));
-        top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, top));
+        left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, left));
+        top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, top));
 
         panel.style.setProperty('left', left + 'px', 'important');
         panel.style.setProperty('top', top + 'px', 'important');

@@ -15,8 +15,11 @@
     } = options || {};
 
     const { uiConst } = globalThis.TOC_UTILS || {};
-    const DEFAULT_THRESHOLD_PX = typeof uiConst === 'function' ? uiConst('DRAG_THRESHOLD_PX', 3) : 3;
-    const threshold = Number.isFinite(thresholdPx) ? thresholdPx : DEFAULT_THRESHOLD_PX;
+    const CFG = (() => {
+      const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+      return { DRAG_THRESHOLD_PX: get('DRAG_THRESHOLD_PX', 3) };
+    })();
+    const threshold = Number.isFinite(thresholdPx) ? thresholdPx : CFG.DRAG_THRESHOLD_PX;
 
     if (!element) {
       return { destroy: () => {}, isActive: () => false };

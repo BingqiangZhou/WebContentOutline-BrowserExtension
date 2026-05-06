@@ -8,8 +8,13 @@
     return;
   }
 
-  const PICKER_TIMEOUT_MS = typeof uiConst === 'function' ? uiConst('PICKER_TIMEOUT_MS', 20000) : 20000;
-  const MAX_Z_INDEX = typeof uiConst === 'function' ? uiConst('MAX_Z_INDEX', 2147483647) : 2147483647;
+  const CFG = (() => {
+    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+    return {
+      PICKER_TIMEOUT_MS: get('PICKER_TIMEOUT_MS', 20000),
+      MAX_Z_INDEX: get('MAX_Z_INDEX', 2147483647),
+    };
+  })();
 
   function showPickerResult(selector, saveCb) {
     const prevFocus = document.activeElement;
@@ -141,7 +146,7 @@
     }
 
     let highlight = document.createElement('div');
-    highlight.style.cssText = `position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
+    highlight.style.cssText = `position:absolute;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${CFG.MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
     document.documentElement.appendChild(highlight);
 
     const prevCursor = document.body.style.cursor;
@@ -256,7 +261,7 @@
     const onPageHide = () => cancelPick();
     try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
 
-    let timeoutId = setTimeout(() => cancelPick(), PICKER_TIMEOUT_MS);
+    let timeoutId = setTimeout(() => cancelPick(), CFG.PICKER_TIMEOUT_MS);
 
     function cleanup() {
       finished = true;

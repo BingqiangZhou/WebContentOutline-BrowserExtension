@@ -2,9 +2,14 @@
   'use strict';
 
   const { collectBySelector, uniqueInDocumentOrder, uiConst } = window.TOC_UTILS || {};
-  const TOC_TEXT_MAX_LEN = typeof uiConst === 'function' ? uiConst('TOC_TEXT_MAX_LEN', 200) : 200;
-  const TOC_MAX_ITEMS = typeof uiConst === 'function' ? uiConst('TOC_MAX_ITEMS', 400) : 400;
-  const TOC_MAX_CANDIDATES = typeof uiConst === 'function' ? uiConst('TOC_MAX_CANDIDATES', 1200) : 1200;
+  const CFG = (() => {
+    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+    return {
+      TOC_TEXT_MAX_LEN: get('TOC_TEXT_MAX_LEN', 200),
+      TOC_MAX_ITEMS: get('TOC_MAX_ITEMS', 400),
+      TOC_MAX_CANDIDATES: get('TOC_MAX_CANDIDATES', 1200),
+    };
+  })();
 
   function getTrimmedText(el) {
     let rawText = '';
@@ -12,7 +17,7 @@
       rawText = (el.textContent || '').trim();
     }
     rawText = rawText.replace(/\s+/g, ' ');
-    return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
+    return rawText.length > CFG.TOC_TEXT_MAX_LEN ? rawText.substring(0, CFG.TOC_TEXT_MAX_LEN) + '...' : rawText;
   }
 
   function isElementVisible(el) {
@@ -91,8 +96,8 @@
     let truncated = false;
 
     let candidates = allUniq;
-    if (candidates.length > TOC_MAX_CANDIDATES) {
-      candidates = candidates.slice(0, TOC_MAX_CANDIDATES);
+    if (candidates.length > CFG.TOC_MAX_CANDIDATES) {
+      candidates = candidates.slice(0, CFG.TOC_MAX_CANDIDATES);
       truncated = true;
     }
 
@@ -106,7 +111,7 @@
       if (!isElementVisible(el)) continue;
 
       items.push({ id: 'toc-item-' + items.length, el, text });
-      if (items.length >= TOC_MAX_ITEMS) {
+      if (items.length >= CFG.TOC_MAX_ITEMS) {
         truncated = true;
         break;
       }
@@ -116,7 +121,7 @@
       items,
       meta: {
         truncated,
-        maxItems: TOC_MAX_ITEMS,
+        maxItems: CFG.TOC_MAX_ITEMS,
         totalCandidates
       }
     };

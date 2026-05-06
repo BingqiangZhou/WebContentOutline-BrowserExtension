@@ -9,11 +9,16 @@
   }
 
   // Constants
-  const BADGE_WIDTH = typeof uiConst === 'function' ? uiConst('BADGE_WIDTH', 80) : 80;
-  const BADGE_HEIGHT = typeof uiConst === 'function' ? uiConst('BADGE_HEIGHT', 32) : 32;
-  const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
-  const DEFAULT_RIGHT = typeof uiConst === 'function' ? uiConst('BADGE_DEFAULT_RIGHT_PX', 16) : 16;
-  const DEFAULT_TOP_MIN = typeof uiConst === 'function' ? uiConst('BADGE_DEFAULT_TOP_MIN_PX', 120) : 120;
+  const CFG = (() => {
+    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+    return {
+      BADGE_WIDTH: get('BADGE_WIDTH', 80),
+      BADGE_HEIGHT: get('BADGE_HEIGHT', 32),
+      DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
+      DEFAULT_RIGHT: get('BADGE_DEFAULT_RIGHT_PX', 16),
+      DEFAULT_TOP_MIN: get('BADGE_DEFAULT_TOP_MIN_PX', 120),
+    };
+  })();
 
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates
@@ -36,8 +41,8 @@
 
     badge.style.visibility = 'hidden';
     // Set initial default position BEFORE adding to DOM to prevent (0,0) flash
-    badge.style.setProperty('top', Math.max(DEFAULT_TOP_MIN, window.innerHeight / 4) + 'px', 'important');
-    badge.style.setProperty('right', DEFAULT_RIGHT + 'px', 'important');
+    badge.style.setProperty('top', Math.max(CFG.DEFAULT_TOP_MIN, window.innerHeight / 4) + 'px', 'important');
+    badge.style.setProperty('right', CFG.DEFAULT_RIGHT + 'px', 'important');
     badge.style.setProperty('left', 'auto', 'important');
     badge.style.setProperty('bottom', 'auto', 'important');
 
@@ -70,8 +75,8 @@
         return;
       }
 
-      const bw = badge.offsetWidth || BADGE_WIDTH;
-      const bh = badge.offsetHeight || BADGE_HEIGHT;
+      const bw = badge.offsetWidth || CFG.BADGE_WIDTH;
+      const bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
 
       if (pos && Number.isFinite(pos.x)) {
         if (pos.anchorX === 'left' || pos.anchorX === 'right') {
@@ -79,11 +84,11 @@
         }
         // Use saved position
         const left = pos.x - bw / 2;
-        const top = (Number.isFinite(pos.y) ? pos.y : DEFAULT_TOP_MIN) - bh / 2;
-        const maxLeft = window.innerWidth - bw - DRAG_MARGIN_PX;
-        const maxTop = window.innerHeight - bh - DRAG_MARGIN_PX;
-        badge.style.setProperty('left', Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, left)) + 'px', 'important');
-        badge.style.setProperty('top', Math.max(DRAG_MARGIN_PX, Math.min(maxTop, top)) + 'px', 'important');
+        const top = (Number.isFinite(pos.y) ? pos.y : CFG.DEFAULT_TOP_MIN) - bh / 2;
+        const maxLeft = window.innerWidth - bw - CFG.DRAG_MARGIN_PX;
+        const maxTop = window.innerHeight - bh - CFG.DRAG_MARGIN_PX;
+        badge.style.setProperty('left', Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, left)) + 'px', 'important');
+        badge.style.setProperty('top', Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, top)) + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
         badge.style.setProperty('bottom', 'auto', 'important');
       }
@@ -106,8 +111,8 @@
       if (destroyed || !badge || !badge.isConnected) return;
       try {
         const rect = badge.getBoundingClientRect();
-        const bw = badge.offsetWidth || BADGE_WIDTH;
-        const bh = badge.offsetHeight || BADGE_HEIGHT;
+        const bw = badge.offsetWidth || CFG.BADGE_WIDTH;
+        const bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
 
         const vw = window.innerWidth;
         const vh = window.innerHeight;
@@ -121,7 +126,7 @@
         if (anchorX !== 'left' && anchorX !== 'right') {
           anchorX = centerX > (prevW / 2) ? 'right' : 'left';
         }
-        const edgePad = Math.max(DRAG_MARGIN_PX, DEFAULT_RIGHT);
+        const edgePad = Math.max(CFG.DRAG_MARGIN_PX, CFG.DEFAULT_RIGHT);
         const nextLeftEdge = (anchorX === 'right') ? (vw - bw - edgePad) : edgePad;
 
         // Vertical: scale reference point (badge center) by height ratio.
@@ -131,10 +136,10 @@
         let nextLeft = nextLeftEdge;
         let nextTop = nextCenterY - bh / 2;
 
-        const maxLeft = vw - bw - DRAG_MARGIN_PX;
-        const maxTop = vh - bh - DRAG_MARGIN_PX;
-        const left = Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
-        const top = Math.max(DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
+        const maxLeft = vw - bw - CFG.DRAG_MARGIN_PX;
+        const maxTop = vh - bh - CFG.DRAG_MARGIN_PX;
+        const left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
+        const top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
         badge.style.setProperty('left', left + 'px', 'important');
         badge.style.setProperty('top', top + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
@@ -180,12 +185,12 @@
         badge.style.userSelect = 'none';
       },
       onMove: (drag, e) => {
-        const bw = badge.offsetWidth || BADGE_WIDTH;
-        const bh = badge.offsetHeight || BADGE_HEIGHT;
+        const bw = badge.offsetWidth || CFG.BADGE_WIDTH;
+        const bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
         let left = e.clientX - drag.offsetX;
         let top = e.clientY - drag.offsetY;
-        left = Math.max(DRAG_MARGIN_PX, Math.min(window.innerWidth - bw - DRAG_MARGIN_PX, left));
-        top = Math.max(DRAG_MARGIN_PX, Math.min(window.innerHeight - bh - DRAG_MARGIN_PX, top));
+        left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(window.innerWidth - bw - CFG.DRAG_MARGIN_PX, left));
+        top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(window.innerHeight - bh - CFG.DRAG_MARGIN_PX, top));
         badge.style.setProperty('left', left + 'px', 'important');
         badge.style.setProperty('top', top + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');

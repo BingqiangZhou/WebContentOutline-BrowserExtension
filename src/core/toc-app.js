@@ -36,11 +36,16 @@
   }
 
   // Constants
-  const PANEL_WIDTH = typeof uiConst === 'function' ? uiConst('PANEL_WIDTH', 280) : 280;
-  const PANEL_HEIGHT = typeof uiConst === 'function' ? uiConst('PANEL_HEIGHT', 400) : 400;
-  const BUTTON_OFFSET = typeof uiConst === 'function' ? uiConst('BUTTON_OFFSET', 20) : 20;
-  const DRAG_MARGIN_PX = typeof uiConst === 'function' ? uiConst('DRAG_MARGIN_PX', 4) : 4;
-  const NAV_LOCK_FAILSAFE_MS = typeof uiConst === 'function' ? uiConst('NAV_LOCK_FAILSAFE_MS', 8000) : 8000;
+  const CFG = (() => {
+    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+    return {
+      PANEL_WIDTH: get('PANEL_WIDTH', 280),
+      PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
+      BUTTON_OFFSET: get('BUTTON_OFFSET', 20),
+      DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
+      NAV_LOCK_FAILSAFE_MS: get('NAV_LOCK_FAILSAFE_MS', 8000),
+    };
+  })();
 
   const isContextInvalidatedError = (typeof isContextInvalidatedErrorUtil === 'function')
     ? isContextInvalidatedErrorUtil
@@ -136,7 +141,7 @@
     };
     const armNavLockFailsafe = () => {
       clearNavLockFailsafe();
-      const ms = (Number.isFinite(NAV_LOCK_FAILSAFE_MS) && NAV_LOCK_FAILSAFE_MS > 0) ? NAV_LOCK_FAILSAFE_MS : 0;
+      const ms = (Number.isFinite(CFG.NAV_LOCK_FAILSAFE_MS) && CFG.NAV_LOCK_FAILSAFE_MS > 0) ? CFG.NAV_LOCK_FAILSAFE_MS : 0;
       if (!ms) return;
       try {
         navLockFailsafeTimer = setTimeout(() => {
@@ -173,12 +178,12 @@
     };
 
     // Helper to constrain position to screen bounds
-    const constrainPosition = (left, top, width = PANEL_WIDTH, height = PANEL_HEIGHT) => {
-      const maxLeft = window.innerWidth - width - DRAG_MARGIN_PX;
-      const maxTop = window.innerHeight - height - DRAG_MARGIN_PX;
+    const constrainPosition = (left, top, width = CFG.PANEL_WIDTH, height = CFG.PANEL_HEIGHT) => {
+      const maxLeft = window.innerWidth - width - CFG.DRAG_MARGIN_PX;
+      const maxTop = window.innerHeight - height - CFG.DRAG_MARGIN_PX;
       return {
-        left: Math.max(DRAG_MARGIN_PX, Math.min(maxLeft, left)),
-        top: Math.max(DRAG_MARGIN_PX, Math.min(maxTop, top))
+        left: Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, left)),
+        top: Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, top))
       };
     };
 
@@ -531,7 +536,7 @@
             // Estimate initial panel position (will be refined after measurement)
             let panelLeft;
             if (expandSide === 'right') {
-              panelLeft = savedPos.x - PANEL_WIDTH;
+              panelLeft = savedPos.x - CFG.PANEL_WIDTH;
             } else {
               panelLeft = savedPos.x;
             }
@@ -579,8 +584,8 @@
                 const panelEl = document.querySelector('.toc-floating');
                 if (panelEl) {
                   const rect = panelEl.getBoundingClientRect();
-                  const pw = panelEl.offsetWidth || PANEL_WIDTH;
-                  const ph = panelEl.offsetHeight || PANEL_HEIGHT;
+                  const pw = panelEl.offsetWidth || CFG.PANEL_WIDTH;
+                  const ph = panelEl.offsetHeight || CFG.PANEL_HEIGHT;
                   const constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
 
                   panelEl.style.setProperty('left', constrained.left + 'px', 'important');
