@@ -476,7 +476,7 @@
       try {
         // Get collapse button center position
         let buttonCenter = null;
-        const collapseBtn = document.querySelector('.toc-floating [data-role="collapse"]');
+        const collapseBtn = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"] [data-role="collapse"]');
         if (collapseBtn) {
           const rect = collapseBtn.getBoundingClientRect();
           const x = rect.left + rect.width / 2;
