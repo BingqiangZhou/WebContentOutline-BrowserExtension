@@ -970,10 +970,15 @@ function collectBySelector(selector) {
     }
   }
   try {
-    return Array.from(document.querySelectorAll(selector.expr));
-  } catch {
-    return [];
-  }
+      const nodeList = document.querySelectorAll(selector.expr);
+      const limit = uiConst('TOC_MAX_CANDIDATES', 1200);
+      const len = Math.min(nodeList.length, limit);
+      const result = new Array(len);
+      for (let i = 0; i < len; i++) result[i] = nodeList[i];
+      return result;
+    } catch {
+      return [];
+    }
 }
 
 /**
