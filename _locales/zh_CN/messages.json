@@ -196,5 +196,9 @@
   "errorInvalidSelector": {
     "message": "选择器无效，无法保存。",
     "description": "选择器表达式校验失败时提示"
+  },
+  "ctxInvalidatedNotice": {
+    "message": "扩展已更新，请刷新网页以正常使用",
+    "description": "扩展上下文失效时显示的通知"
   }
 }

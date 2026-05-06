@@ -196,5 +196,9 @@
   "errorInvalidSelector": {
     "message": "Invalid selector. Unable to save.",
     "description": "Shown when a selector expression fails validation"
+  },
+  "ctxInvalidatedNotice": {
+    "message": "Extension updated, please reload this browser tab",
+    "description": "Notice shown when extension context is invalidated after an update"
   }
 }

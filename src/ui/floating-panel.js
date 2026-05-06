@@ -619,7 +619,7 @@
       notice.className = 'toc-ctx-invalidated-notice';
       notice.setAttribute('role', 'alert');
       notice.setAttribute('aria-live', 'assertive');
-      notice.textContent = '扩展已更新，请刷新网页以正常使用 / Extension updated, please reload this browser tab';
+      notice.textContent = msg('ctxInvalidatedNotice');
       panel.appendChild(notice);
     }
 
