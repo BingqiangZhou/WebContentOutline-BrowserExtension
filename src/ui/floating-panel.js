@@ -18,7 +18,8 @@
   const CLEAR_USER_SELECTED_DELAY_MS = typeof uiConst === 'function' ? uiConst('CLEAR_USER_SELECTED_DELAY_MS', 200) : 200;
 
   function renderFloatingPanel(opts) {
-    const { side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false } = opts;
+    let { items } = opts;
+    const { side, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false } = opts;
     // Remove any existing panel to prevent duplicates
     try {
       document.querySelectorAll('.toc-floating').forEach(el => {
@@ -358,67 +359,41 @@
     list.setAttribute('aria-orientation', 'vertical');
     list.setAttribute('aria-label', msg('tocTitle'));
 
-    if (tocMeta && tocMeta.truncated) {
-      const note = document.createElement('div');
-      note.className = 'toc-empty';
-      note.setAttribute('role', 'note');
-      note.setAttribute('aria-live', 'polite');
-      const max = tocMeta.maxItems || 400;
-      const msgWithMax = msg('truncatedNoticeWithMax', String(max));
-      if (msgWithMax && msgWithMax !== 'truncatedNoticeWithMax') {
-        note.textContent = msgWithMax;
-      } else {
-        const msgText = msg('truncatedNotice');
-        note.textContent = (msgText && msgText !== 'truncatedNotice') ? msgText : '';
+    // --- Incremental update helpers ---
+    let currentTocMeta = tocMeta || null;
+
+    const renderListItems = () => {
+      while (list.firstChild) {
+        try { list.removeChild(list.firstChild); } catch (_) { break; }
       }
-      list.appendChild(note);
-    }
 
-    if (!items.length) {
-      const empty = document.createElement('div');
-      empty.className = 'toc-empty';
-      empty.setAttribute('role', 'status');
-      empty.textContent = msg('emptyTocMessage');
-      list.appendChild(empty);
-    } else {
-      items.forEach(item => {
-        item._userSelected = false;
-      });
-
-      const handleItemClick = (item, node, e) => {
-        if (e && e.preventDefault) e.preventDefault();
-
-        setNavLock(true);
-
-        items.forEach(it => {
-          it._userSelected = false;
-          if (it._node) {
-            it._node.classList.remove('active');
-            try { it._node.removeAttribute('aria-current'); } catch (_) {}
-            try { it._node.tabIndex = -1; } catch (_) {}
-          }
-        });
-
-        item._userSelected = true;
-        node.classList.add('active');
-        try { node.setAttribute('aria-current', 'location'); } catch (_) {}
-        try { node.tabIndex = 0; } catch (_) {}
-
-        try {
-          const { scrollToElement } = window.TOC_UTILS || {};
-          if (scrollToElement) {
-            scrollToElement(item.el);
-          } else {
-            item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }
-        } catch {
-          const { scrollToElement } = window.TOC_UTILS || {};
-          if (scrollToElement) scrollToElement(item.el);
+      if (currentTocMeta && currentTocMeta.truncated) {
+        const note = document.createElement('div');
+        note.className = 'toc-empty';
+        note.setAttribute('role', 'note');
+        note.setAttribute('aria-live', 'polite');
+        const max = currentTocMeta.maxItems || 400;
+        const msgWithMax = msg('truncatedNoticeWithMax', String(max));
+        if (msgWithMax && msgWithMax !== 'truncatedNoticeWithMax') {
+          note.textContent = msgWithMax;
+        } else {
+          const msgText = msg('truncatedNotice');
+          note.textContent = (msgText && msgText !== 'truncatedNotice') ? msgText : '';
         }
+        list.appendChild(note);
+      }
 
-        unlockLater();
-      };
+      if (!items.length) {
+        const empty = document.createElement('div');
+        empty.className = 'toc-empty';
+        empty.setAttribute('role', 'status');
+        empty.textContent = msg('emptyTocMessage');
+        list.appendChild(empty);
+      }
+    };
 
+    const renderItemButtons = () => {
+      items.forEach(item => { item._userSelected = false; });
       items.forEach((item, index) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -430,49 +405,205 @@
         item._node = btn;
         list.appendChild(btn);
       });
+    };
 
-      onListClick = (e) => {
-        const node = e.target.closest('.toc-item');
-        if (!node || !list.contains(node)) return;
-        const idx = parseInt(node.dataset.index, 10);
-        const item = items[idx];
-        if (!item) return;
-        handleItemClick(item, node, e);
+    const handleItemClick = (item, node, e) => {
+      if (e && e.preventDefault) e.preventDefault();
+      setNavLock(true);
+      items.forEach(it => {
+        it._userSelected = false;
+        if (it._node) {
+          it._node.classList.remove('active');
+          try { it._node.removeAttribute('aria-current'); } catch (_) {}
+          try { it._node.tabIndex = -1; } catch (_) {}
+        }
+      });
+      item._userSelected = true;
+      node.classList.add('active');
+      try { node.setAttribute('aria-current', 'location'); } catch (_) {}
+      try { node.tabIndex = 0; } catch (_) {}
+      try {
+        const { scrollToElement } = window.TOC_UTILS || {};
+        if (scrollToElement) {
+          scrollToElement(item.el);
+        } else {
+          item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      } catch {
+        const { scrollToElement } = window.TOC_UTILS || {};
+        if (scrollToElement) scrollToElement(item.el);
+      }
+      unlockLater();
+    };
+
+    const teardownIntersectionObserver = () => {
+      if (intersectionObserver) {
+        try { intersectionObserver.disconnect(); } catch (_) {}
+        intersectionObserver = null;
+      }
+      if (observeRaf != null) {
+        try { cancelAnimationFrame(observeRaf); } catch (_) {}
+        observeRaf = null;
+      }
+      if (ioRaf != null) {
+        try { cancelAnimationFrame(ioRaf); } catch (_) {}
+        ioRaf = null;
+      }
+    };
+
+    const setupIntersectionObserver = () => {
+      teardownIntersectionObserver();
+      if (!items.length || !('IntersectionObserver' in window)) return;
+
+      const map = new Map();
+      const topByEl = new Map();
+      items.forEach(it => { if (it.el) map.set(it.el, it); });
+      let active;
+      const intersecting = new Set();
+
+      const clearAllActive = () => {
+        items.forEach(item => {
+          if (item._node) {
+            item._node.classList.remove('active');
+            try { item._node.removeAttribute('aria-current'); } catch (_) {}
+          }
+        });
+        active = null;
       };
-      list.addEventListener('click', onListClick);
 
-      onListKeydown = (e) => {
-        if (!e) return;
-        const key = e.key;
-        const node = e.target && e.target.closest ? e.target.closest('.toc-item') : null;
-        const nodes = Array.from(list.querySelectorAll('.toc-item'));
-        const currentIndex = node ? nodes.indexOf(node) : -1;
+      const processIntersections = (entries) => {
+        if (cleanedUp) return;
+        if (!panel || !panel.isConnected) {
+          try { intersectionObserver && intersectionObserver.disconnect(); } catch (_) {}
+          intersectionObserver = null;
+          return;
+        }
+        if (getNavLock()) return;
+        const { isRebuilding } = window.TOC_APP || {};
+        if (isRebuilding && isRebuilding()) return;
 
-        if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
-          if (!nodes.length) return;
-          e.preventDefault();
-          let nextIndex = currentIndex >= 0 ? currentIndex : 0;
-          if (key === 'ArrowDown') nextIndex = Math.min(nodes.length - 1, nextIndex + 1);
-          if (key === 'ArrowUp') nextIndex = Math.max(0, nextIndex - 1);
-          if (key === 'Home') nextIndex = 0;
-          if (key === 'End') nextIndex = nodes.length - 1;
-          try {
-            nodes.forEach((n, idx) => { n.tabIndex = idx === nextIndex ? 0 : -1; });
-          } catch (_) {}
-          try { nodes[nextIndex].focus({ preventScroll: false }); } catch (_) { nodes[nextIndex].focus(); }
+        const userSelected = items.find(it => it._userSelected);
+        if (userSelected) {
+          clearAllActive();
+          if (userSelected._node && !userSelected._node.classList.contains('active')) {
+            userSelected._node.classList.add('active');
+            try { userSelected._node.setAttribute('aria-current', 'location'); } catch (_) {}
+            active = userSelected;
+          }
           return;
         }
 
-        if (key !== 'Enter' && key !== ' ') return;
-        if (!node || !list.contains(node)) return;
-        const idx = parseInt(node.dataset.index, 10);
-        const item = items[idx];
-        if (!item) return;
-        e.preventDefault();
-        handleItemClick(item, node, e);
+        entries.forEach(entry => {
+          try {
+            if (entry && entry.target && !document.contains(entry.target)) {
+              intersectionObserver && intersectionObserver.unobserve && intersectionObserver.unobserve(entry.target);
+              const it = map.get(entry.target);
+              if (it) { intersecting.delete(it); try { topByEl.delete(it.el); } catch (_) {} }
+              return;
+            }
+          } catch (_) {}
+          const it = map.get(entry.target);
+          if (!it || !it._node) return;
+          if (entry.isIntersecting) {
+            intersecting.add(it);
+            try {
+              if (entry.boundingClientRect && Number.isFinite(entry.boundingClientRect.top)) {
+                topByEl.set(it.el, entry.boundingClientRect.top);
+              }
+            } catch (_) {}
+          } else {
+            intersecting.delete(it);
+            try { topByEl.delete(it.el); } catch (_) {}
+          }
+        });
+
+        const visibleItems = Array.from(intersecting).filter(it => it.el && document.contains(it.el));
+        visibleItems.sort((a, b) => {
+          const ta = topByEl.has(a.el) ? topByEl.get(a.el) : 0;
+          const tb = topByEl.has(b.el) ? topByEl.get(b.el) : 0;
+          return ta - tb;
+        });
+
+        if (visibleItems.length > 0) {
+          const newActive = visibleItems[0];
+          if (active !== newActive) {
+            clearAllActive();
+            newActive._node.classList.add('active');
+            try { newActive._node.setAttribute('aria-current', 'location'); } catch (_) {}
+            active = newActive;
+          }
+        }
       };
-      list.addEventListener('keydown', onListKeydown);
+
+      intersectionObserver = new IntersectionObserver((entries) => {
+        if (cleanedUp) return;
+        if (ioRaf) return;
+        ioRaf = requestAnimationFrame(() => {
+          ioRaf = null;
+          if (cleanedUp) return;
+          processIntersections(entries);
+        });
+      }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
+
+      observeRaf = requestAnimationFrame(() => {
+        observeRaf = null;
+        if (cleanedUp) return;
+        if (!panel || !panel.isConnected) return;
+        if (!intersectionObserver) return;
+        items.forEach(it => {
+          if (it.el && document.contains(it.el)) {
+            intersectionObserver.observe(it.el);
+          }
+        });
+      });
+    };
+
+    renderListItems();
+    if (items.length > 0) {
+      renderItemButtons();
     }
+
+    onListClick = (e) => {
+      const node = e.target.closest('.toc-item');
+      if (!node || !list.contains(node)) return;
+      const idx = parseInt(node.dataset.index, 10);
+      const item = items[idx];
+      if (!item) return;
+      handleItemClick(item, node, e);
+    };
+    list.addEventListener('click', onListClick);
+
+    onListKeydown = (e) => {
+      if (!e) return;
+      const key = e.key;
+      const node = e.target && e.target.closest ? e.target.closest('.toc-item') : null;
+      const nodes = Array.from(list.querySelectorAll('.toc-item'));
+      const currentIndex = node ? nodes.indexOf(node) : -1;
+
+      if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
+        if (!nodes.length) return;
+        e.preventDefault();
+        let nextIndex = currentIndex >= 0 ? currentIndex : 0;
+        if (key === 'ArrowDown') nextIndex = Math.min(nodes.length - 1, nextIndex + 1);
+        if (key === 'ArrowUp') nextIndex = Math.max(0, nextIndex - 1);
+        if (key === 'Home') nextIndex = 0;
+        if (key === 'End') nextIndex = nodes.length - 1;
+        try {
+          nodes.forEach((n, idx) => { n.tabIndex = idx === nextIndex ? 0 : -1; });
+        } catch (_) {}
+        try { nodes[nextIndex].focus({ preventScroll: false }); } catch (_) { nodes[nextIndex].focus(); }
+        return;
+      }
+
+      if (key !== 'Enter' && key !== ' ') return;
+      if (!node || !list.contains(node)) return;
+      const idx = parseInt(node.dataset.index, 10);
+      const item = items[idx];
+      if (!item) return;
+      e.preventDefault();
+      handleItemClick(item, node, e);
+    };
+    list.addEventListener('keydown', onListKeydown);
 
     panel.appendChild(header);
 
@@ -666,120 +797,46 @@
 
     panel.remove = () => cleanup({ removedExternally: false });
 
-    // Active highlight via IntersectionObserver with RAF throttling for performance
-    if (items.length && 'IntersectionObserver' in window) {
-      const map = new Map();
-      const topByEl = new Map();
-      items.forEach(it => {
-        if (it.el) {
-          map.set(it.el, it);
-        }
-      });
-      let active;
-      const intersecting = new Set();
+    setupIntersectionObserver();
 
-      const clearAllActive = () => {
-        items.forEach(item => {
-          if (item._node) {
-            item._node.classList.remove('active');
-            try { item._node.removeAttribute('aria-current'); } catch (_) {}
-          }
-        });
-        active = null;
-      };
+    const updateItems = (newItems, newTocMeta) => {
+      if (cleanedUp) return false;
+      if (!panel || !panel.isConnected) return false;
 
-      // Process intersection entries - extracted for RAF throttling
-      const processIntersections = (entries) => {
-        if (cleanedUp) return;
-        if (!panel || !panel.isConnected) {
-          try { intersectionObserver && intersectionObserver.disconnect(); } catch (_) {}
-          intersectionObserver = null;
-          return;
-        }
-        // Skip updates during rebuild to prevent page jumps
-        if (getNavLock()) return;
-        const { isRebuilding } = window.TOC_APP || {};
-        if (isRebuilding && isRebuilding()) return;
-
-        const userSelected = items.find(it => it._userSelected);
-        if (userSelected) {
-          clearAllActive();
-          if (userSelected._node && !userSelected._node.classList.contains('active')) {
-            userSelected._node.classList.add('active');
-            try { userSelected._node.setAttribute('aria-current', 'location'); } catch (_) {}
-            active = userSelected;
-          }
-          return;
-        }
-
-        entries.forEach(entry => {
-          try {
-            if (entry && entry.target && !document.contains(entry.target)) {
-              intersectionObserver && intersectionObserver.unobserve && intersectionObserver.unobserve(entry.target);
-              const it = map.get(entry.target);
-              if (it) {
-                intersecting.delete(it);
-                try { topByEl.delete(it.el); } catch (_) {}
-              }
-              return;
-            }
-          } catch (_) {}
-          const it = map.get(entry.target);
-          if (!it || !it._node) return;
-          if (entry.isIntersecting) {
-            intersecting.add(it);
-            try {
-              if (entry.boundingClientRect && Number.isFinite(entry.boundingClientRect.top)) {
-                topByEl.set(it.el, entry.boundingClientRect.top);
-              }
-            } catch (_) {}
-          } else {
-            intersecting.delete(it);
-            try { topByEl.delete(it.el); } catch (_) {}
-          }
-        });
-
-        const visibleItems = Array.from(intersecting).filter(it => it.el && document.contains(it.el));
-        visibleItems.sort((a, b) => {
-          const ta = topByEl.has(a.el) ? topByEl.get(a.el) : 0;
-          const tb = topByEl.has(b.el) ? topByEl.get(b.el) : 0;
-          return ta - tb;
-        });
-
-        if (visibleItems.length > 0) {
-          const newActive = visibleItems[0];
-          if (active !== newActive) {
-            clearAllActive();
-            newActive._node.classList.add('active');
-            try { newActive._node.setAttribute('aria-current', 'location'); } catch (_) {}
-            active = newActive;
+      // Check for identical content — no-op if nothing changed
+      if (items.length === newItems.length && items.length > 0) {
+        let identical = true;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].text !== newItems[i].text || items[i].el !== newItems[i].el) {
+            identical = false;
+            break;
           }
         }
-      };
+        if (identical) return false;
+      }
 
-      intersectionObserver = new IntersectionObserver((entries) => {
-        if (cleanedUp) return;
-        // RAF throttling: skip if we already have a pending update
-        if (ioRaf) return;
-        ioRaf = requestAnimationFrame(() => {
-          ioRaf = null;
-          if (cleanedUp) return;
-          processIntersections(entries);
-        });
-      }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
+      // Both empty — nothing to do
+      if (items.length === 0 && newItems.length === 0) {
+        if ((!currentTocMeta || !currentTocMeta.truncated) && (!newTocMeta || !newTocMeta.truncated)) {
+          return false;
+        }
+      }
 
-      observeRaf = requestAnimationFrame(() => {
-        observeRaf = null;
-        if (cleanedUp) return;
-        if (!panel || !panel.isConnected) return;
-        if (!intersectionObserver) return;
-        items.forEach(it => {
-          if (it.el && document.contains(it.el)) {
-            intersectionObserver.observe(it.el);
-          }
-        });
-      });
-    }
+      // Swap the items array — all existing closures will see the new value
+      items = newItems;
+      currentTocMeta = newTocMeta || null;
+
+      // Re-render list content (clears old items, adds new buttons)
+      renderListItems();
+      if (items.length > 0) {
+        renderItemButtons();
+      }
+
+      // Teardown and recreate IntersectionObserver for new item elements
+      setupIntersectionObserver();
+
+      return true;
+    };
 
     return {
       remove() { panel.remove(); },
@@ -790,7 +847,8 @@
         const rect = btn.getBoundingClientRect();
         if (!rect || rect.width <= 0 || rect.height <= 0) return null;
         return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-      }
+      },
+      updateItems
     };
   }
 
