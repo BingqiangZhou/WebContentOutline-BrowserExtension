@@ -173,7 +173,7 @@ Selectors (CSS/XPath)
 
 - `permissions`: ["storage", "tabs", "scripting"]
 - `host_permissions`: ["http://*/*", "https://*/*"]
-- `default_locale`: "zh_CN" - i18n support
+- `default_locale`: "en" - i18n support
 - Content scripts are injected dynamically via `chrome.scripting` when a site is enabled
 - Service worker for background logic
 
