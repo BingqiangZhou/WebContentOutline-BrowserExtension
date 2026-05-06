@@ -59,19 +59,23 @@ jobs:
           body: |
             ## Web TOC Assistant ${{ steps.get-version.outputs.tag_version }}
 
-            ### Installation
-            **Option 1: Install from Web Store**
+            ### Installation / 安装
+
+            **Option 1: Install from Web Store / 从应用商店安装**
             - [Chrome Web Store](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
             - [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
 
-            **Option 2: Load Unpacked Extension**
-            1. Download the `webtoc-assistant-v${{ steps.get-version.outputs.version }}.zip` file below
-            2. Open Edge/Chrome and navigate to `edge://extensions/` or `chrome://extensions/`
-            3. Enable "Developer mode"
-            4. Click "Load unpacked" and select the extracted folder
+            **Option 2: Load Unpacked Extension / 加载已解压的扩展**
+            1. Download the `webtoc-assistant-v${{ steps.get-version.outputs.version }}.zip` file below / 下载下方的 `webtoc-assistant-v${{ steps.get-version.outputs.version }}.zip` 文件
+            2. Open Edge/Chrome and navigate to `edge://extensions/` or `chrome://extensions/` / 打开 Edge/Chrome 访问 `edge://extensions/` 或 `chrome://extensions/`
+            3. Enable "Developer mode" / 启用"开发人员模式"
+            4. Click "Load unpacked" and select the extracted folder / 点击"加载已解压的扩展程序"并选择解压后的文件夹
 
-            ### Changes
-            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.get-version.outputs.version }}) for details.
+            ### Changes / 更新内容
+
+            🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.get-version.outputs.version }})
+
+            🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG_CN.md#${{ steps.get-version.outputs.version }})
           files: dist/packages/*.zip
           draft: false
           prerelease: false
