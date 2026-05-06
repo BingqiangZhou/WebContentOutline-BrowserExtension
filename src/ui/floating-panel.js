@@ -41,15 +41,16 @@
     const listenerSignal = listenersController ? listenersController.signal : null;
     const addWindowListener = (type, handler, options) => {
       const capture = (typeof options === 'boolean') ? options : !!(options && options.capture);
+      let attached = false;
       try {
         if (listenerSignal) {
           window.addEventListener(type, handler, { ...(options || {}), signal: listenerSignal });
-          return () => {
-            try { window.removeEventListener(type, handler, capture); } catch (_) {}
-          };
+          attached = true;
         }
       } catch (_) {}
-      window.addEventListener(type, handler, options);
+      if (!attached) {
+        window.addEventListener(type, handler, options);
+      }
       return () => {
         try { window.removeEventListener(type, handler, capture); } catch (_) {}
       };
