@@ -235,9 +235,9 @@
       if (typeof MutationObserver !== 'undefined') {
         const resolveObserveRoot = () => {
           try {
-            return document.querySelector('main') || document.querySelector('article') || document.body || document.documentElement;
-          } catch (_) {
             return document.body || document.documentElement;
+          } catch (_) {
+            return document.documentElement;
           }
         };
         const observer = new MutationObserver((mutations) => {
