@@ -44,6 +44,7 @@
       BUTTON_OFFSET: get('BUTTON_OFFSET', 20),
       DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
       NAV_LOCK_FAILSAFE_MS: get('NAV_LOCK_FAILSAFE_MS', 8000),
+      REBUILD_MAX_LOOPS: get('REBUILD_MAX_LOOPS', 10),
     };
   })();
 
@@ -399,8 +400,7 @@
         return rebuildInFlight;
       }
       rebuildInFlight = (async () => {
-        const maxLoops = (typeof uiConst === 'function') ? uiConst('REBUILD_MAX_LOOPS', 10) : 10;
-        const loops = Number.isFinite(maxLoops) ? Math.max(1, Math.floor(maxLoops)) : 10;
+        const loops = Number.isFinite(CFG.REBUILD_MAX_LOOPS) ? Math.max(1, Math.floor(CFG.REBUILD_MAX_LOOPS)) : 10;
         for (let i = 0; i < loops; i++) {
           rebuildQueued = false;
           try {
