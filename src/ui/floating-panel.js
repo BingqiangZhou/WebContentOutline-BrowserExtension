@@ -114,6 +114,7 @@
 
     const constrainCurrentPosition = () => {
       try {
+        if (panel.style.visibility === 'hidden') return;
         const rect = panel.getBoundingClientRect();
         const pw = panel.offsetWidth || CFG.PANEL_WIDTH;
         const ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
