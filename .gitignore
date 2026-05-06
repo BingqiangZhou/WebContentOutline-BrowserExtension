@@ -1,3 +1,6 @@
 test*
 
 *.zip
+
+# Superpowers plugin working docs (specs, plans) — local only
+docs/superpowers/

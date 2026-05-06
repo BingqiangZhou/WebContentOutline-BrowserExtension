@@ -31,7 +31,7 @@ A web table of contents generator that automatically creates interactive floatin
 ### 📍 Flexible UI Interaction
 - **Floating Panel**: Expandable TOC panel with left/right side display support
 - **Draggable Panel**: Drag the panel header to reposition; position is automatically saved
-- **Draggable Button**: Collapsed "TOC" button supports drag positioning
+- **Draggable Button**: Collapsed "TOC" button supports drag positioning (mouse, touch, and stylus)
 - **Position Memory**: Remembers panel and button position per domain, synchronizes positions when collapsing/expanding, and stays stable on window resize (horizontal snaps to the anchored edge; vertical scales with viewport height)
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
@@ -213,7 +213,8 @@ For complex page structures, you can use XPath:
 │   ├── README.md              # Technical documentation
 │   ├── utils/                 # Utility modules
 │   │   ├── css-selector.js   # CSS selector generation
-│   │   └── toc-builder.js    # TOC building logic
+│   │   ├── toc-builder.js    # TOC building logic
+│   │   └── drag-helper.js    # Pointer-event drag controller
 │   ├── ui/                    # UI components
 │   │   ├── collapsed-TOC button.js    # Collapsed button
 │   │   ├── element-picker.js     # Element picker
@@ -232,14 +233,14 @@ For complex page structures, you can use XPath:
 - **Extension Standard**: Manifest V3
 - **Language**: Vanilla JavaScript + CSS3 (No build system)
 - **Storage**: `chrome.storage.local` API
-- **Permissions**: `storage`, `tabs`, `scripting`
+- **Permissions**: `storage`, `tabs`, `scripting`, `alarms`
 - **Host Permissions**: `http://*/*`, `https://*/*`
 
 ### Architecture
 
-**Modular Design**: 10 module files loaded in dependency order
+**Modular Design**: 11 module files loaded in dependency order
 - Layer 1: `utils.js` - Base utilities
-- Layer 2: `utils/css-selector.js`, `utils/toc-builder.js` - Utility modules
+- Layer 2: `utils/css-selector.js`, `utils/toc-builder.js`, `utils/drag-helper.js` - Utility modules
 - Layer 3: `ui/collapsed-TOC button.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI components
 - Layer 4: `core/config-manager.js`, `core/mutation-observer.js`, `core/toc-app.js` - Core logic
 - Layer 5: `content.js` - Entry point

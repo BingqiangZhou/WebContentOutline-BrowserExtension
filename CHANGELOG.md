@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#063---2026-03-15)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#070---2026-05-07)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.7.0](#070---2026-05-07) - 2026-05-07
 - [0.6.3](#063---2026-03-15) - 2026-03-15
 - [0.6.2](#062---2026-03-14) - 2026-03-14
 - [0.6.1](#061---2026-02-05) - 2026-02-05
@@ -23,6 +24,80 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.7.0] - 2026-05-07
+
+### 🚀 新增 / Added
+- **触摸/触控笔拖拽支持 / Touch and pen drag support**
+  - 拖拽系统从 mouse events 迁移到 pointer events，支持触摸屏和触控笔 / Migrated drag system from mouse events to pointer events for touchscreen and stylus support
+  - 折叠徽标添加 `touch-action: none`，防止拖拽时触发页面滚动 / Added `touch-action: none` on collapsed badge to prevent page scroll during drag
+- **`data-toc-owner` 命名空间属性 / Namespace attribute for extension elements**
+  - 所有扩展 UI 元素添加 `data-toc-owner="web-toc-assistant"` 属性，避免与宿主页面元素冲突 / Added `data-toc-owner` attribute to all extension UI elements to avoid conflicts with host page elements
+- **增量面板更新 / Incremental panel updates**
+  - 新增 `updateItems` 方法，重建时仅更新变化的 TOC 项，避免完整重新渲染 / Added `updateItems` method to update only changed TOC items during rebuild, avoiding full re-renders
+- **写入前日志（write-ahead intent）/ Write-ahead intent log**
+  - 后台 service worker 写入前保存意图日志，防止 MV3 休眠导致数据丢失 / Saves intent before storage writes to prevent data loss from MV3 service worker hibernation
+- **存储写入序列化 / Serialized storage writes**
+  - 所有存储写入通过队列序列化，防止 TOCTOU 竞态条件 / All storage writes serialized through a queue to prevent TOCTOU race conditions
+- **重建熔断器 / Rebuild circuit breaker**
+  - 追踪连续重建失败次数，超过阈值后冷却，防止无限重建循环 / Tracks consecutive rebuild failures and cools down after threshold to prevent infinite rebuild loops
+- **上下文失效刷新链接 / Context invalidated refresh link**
+  - 扩展上下文失效通知中添加可点击的"刷新页面"链接 / Added clickable "Refresh Page" link in extension context invalidated notice
+
+### 🔧 更改 / Changed
+- **渲染函数重构为选项对象 / Render function refactored to options object**
+  - `renderFloatingPanel` 从 14 个位置参数改为选项对象参数 / Changed `renderFloatingPanel` from 14 positional parameters to an options object
+- **常量配置整合为 CFG 对象 / Constants consolidated into per-file CFG objects**
+  - 所有模块的常量从分散的 `uiConst()` 调用整合为集中的 `CFG` 对象 / Consolidated scattered `uiConst()` calls into centralized `CFG` objects across all modules
+- **MutationObserver 无条件启动 / MutationObserver starts unconditionally**
+  - 不再检查选择器有效性，始终启动观察，改善 SPA 页面支持 / No longer checks selector validity before starting, always observes for improved SPA support
+- **`pendingRebuild` 改为计数器 / `pendingRebuild` changed from boolean to counter**
+  - 防止高频 DOM 变更时丢失重建请求 / Prevents lost rebuild requests during high-frequency DOM changes
+- **并行标签处理 / Parallel tab processing**
+  - `updateIconsForOrigin` 和 `broadcastEnabledToOrigin` 改为 `Promise.allSettled` 并行处理 / Changed to `Promise.allSettled` for parallel tab processing
+- **动态防抖参数调优 / Dynamic debounce tuning**
+  - 指数从 1.5 降至 1.3，上限从 2000ms 降至 1000ms，活跃页面上 TOC 更新更快 / Reduced exponent from 1.5 to 1.3 and cap from 2000ms to 1000ms for faster TOC updates on active pages
+- **新增 `alarms` 权限 / Added `alarms` permission**
+  - 使用 `chrome.alarms` 替代 `setInterval` 进行后台定时任务 / Uses `chrome.alarms` instead of `setInterval` for background scheduled tasks
+- **CSS 选择器验证不再执行 DOM 查询 / CSS selector validation no longer executes DOM queries**
+  - 移除 `querySelector` 回退验证，避免副作用 / Removed `querySelector` fallback validation to avoid side effects
+
+### 🐛 修复 / Fixed
+- **元素拾取器 Escape 键不再折叠 TOC 面板 / Escape in element picker no longer collapses TOC panel**
+- **折叠徽标位置漂移 / Badge position drift**
+  - 移除 `expand()` 中的位置保存，防止累积漂移 / Removed position save from `expand()` to prevent cumulative drift
+- **面板头部按钮点击无响应 / Panel header buttons not responding to clicks**
+- **元素拾取器高亮使用 `position:fixed` 修正滚动偏移 / Element picker highlight uses `position:fixed` for correct scroll tracking**
+- **CSS 转义 polyfill 处理连字符后数字 / CSS escape polyfill handles digit-after-hyphen correctly**
+- **浮动面板 roving tabindex、removalObserver、scroll 回退、用户选择追踪 / Floating panel roving tabindex, removalObserver, scroll fallback, user-selected tracking**
+- **后台 service worker 双重切换、双击竞态、alarm 重置 / Background service worker double-toggle, double-click race, alarm reset**
+- **配置写入错误处理、空值保护、变更防抖重置 / Config write error handling, null guard, mutation debounce reset**
+- **toc-app 重建竞态、展开闪烁、活动状态恢复 / toc-app rebuild race, expand flicker, active state restoration**
+- **内容脚本清理钩子和去重展开/折叠逻辑 / Content script cleanup hooks and deduplicated expand/collapse logic**
+- **`destroy()` 后重建循环正确停止 / Rebuild loop correctly stops after `destroy()`**
+- **`addWindowListener` 信号监听器防重复注册 / Prevent double-registration in `addWindowListener` signal fallback**
+- **拖拽取消时不再保存位置 / Drag cancel no longer saves position**
+- **后台 service worker 重启后可通过 `__TOC_APP_LOADED__` 重置重新启用 / Reset `__TOC_APP_LOADED__` in `destroy()` to allow re-enable without page reload**
+
+### ⚡ 技术改进 / Technical Improvements
+- **批量布局读取 / Batch layout reads**
+  - `isElementVisible` 重构为 `batchCollectVisibility`，一次同步布局遍历替代逐元素查询 / Refactored `isElementVisible` into `batchCollectVisibility` with one synchronous layout pass instead of per-element queries
+- **内存缓存 / In-memory caches**
+  - 面板展开状态和徽标位置使用内存缓存，减少存储读取 / Added in-memory caches for panel expanded state and badge position to reduce storage reads
+- **removalObserver 优化 / removalObserver optimization**
+  - 缩窄为 `document.body` 的 `childList` 监听，替代全子树监听 / Narrowed to `document.body` `childList`-only instead of full subtree observation
+- **配置脏标记 / Config dirty flag**
+  - 重建时仅在配置变更后读取存储，跳过无变更读取 / Skips config storage reads during rebuild unless config has changed
+- **模块依赖校验 / Module dependency validation**
+  - 所有模块添加加载时依赖检查，缺失时输出明确错误日志 / Added load-time dependency checks to all modules with clear error logging when missing
+- **IntersectionObserver 条目缓冲 / IntersectionObserver entry buffering**
+  - RAF 节流期间缓冲条目而非丢弃，避免丢失滚动位置 / Buffers entries during RAF throttle instead of dropping, preventing lost scroll positions
+- **每选择器匹配上限 / Per-selector match limit**
+  - CSS `querySelectorAll` 结果添加上限，防止宽泛选择器导致页面冻结 / Added limit on `querySelectorAll` results per selector to prevent page freeze on broad selectors
+- **i18n 补全 / i18n completion**
+  - 新增 `ctxInvalidatedNotice`、`ctxInvalidatedRefresh`、`titleStorageQuotaExceeded`、`titleStorageWriteFailed`、`warningStorageQuotaPruned` 等国际化键 / Added new i18n keys for context invalidation, storage errors, and quota pruning
 
 ---
 

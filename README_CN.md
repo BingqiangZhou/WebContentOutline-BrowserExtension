@@ -31,7 +31,7 @@
 ### 📍 灵活的界面交互
 - **浮动面板**：可展开的目录面板，支持左右侧显示
 - **可拖拽面板**：拖拽面板标题栏可重新定位，位置自动保存
-- **可拖拽按钮**：收起后的"目录"按钮支持拖拽定位
+- **可拖拽按钮**：收起后的"目录"按钮支持拖拽定位（支持鼠标、触摸屏和触控笔）
 - **位置记忆**：按域名记住面板和按钮位置，折叠/展开时同步位置；窗口尺寸变化时水平位置自动贴到原侧边（左/右），竖直位置按窗口高度比例缩放
 - **平滑滚动**：点击目录项平滑滚动到对应位置
 
@@ -213,7 +213,8 @@
 │   ├── README.md              # 技术文档
 │   ├── utils/                 # 工具模块
 │   │   ├── css-selector.js   # CSS 选择器生成
-│   │   └── toc-builder.js    # TOC 构建逻辑
+│   │   ├── toc-builder.js    # TOC 构建逻辑
+│   │   └── drag-helper.js    # Pointer Events 拖拽控制器
 │   ├── ui/                    # UI 组件
 │   │   ├── collapsed-badge.js    # 折叠按钮
 │   │   ├── element-picker.js     # 元素拾取器
@@ -232,14 +233,14 @@
 - **扩展标准**：Manifest V3
 - **开发语言**：原生 JavaScript + CSS3（无构建系统）
 - **存储方案**：`chrome.storage.local` API
-- **权限需求**：`storage`、`tabs`、`scripting`
+- **权限需求**：`storage`、`tabs`、`scripting`、`alarms`
 - **站点权限**：`http://*/*`、`https://*/*`
 
 ### 架构设计
 
-**模块化设计**：10 个模块文件，按依赖顺序加载
+**模块化设计**：11 个模块文件，按依赖顺序加载
 - Layer 1: `utils.js` - 基础工具
-- Layer 2: `utils/css-selector.js`, `utils/toc-builder.js` - 工具模块
+- Layer 2: `utils/css-selector.js`, `utils/toc-builder.js`, `utils/drag-helper.js` - 工具模块
 - Layer 3: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI 组件
 - Layer 4: `core/config-manager.js`, `core/mutation-observer.js`, `core/toc-app.js` - 核心逻辑
 - Layer 5: `content.js` - 入口文件
