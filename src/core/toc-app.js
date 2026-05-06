@@ -251,6 +251,10 @@
     };
 
     const rebuildOnce = async () => {
+      if (destroyed) {
+        isRebuilding = false;
+        return false;
+      }
       // Set rebuild flag to prevent IntersectionObserver interference
       isRebuilding = true;
       try {
@@ -367,6 +371,7 @@
       rebuildInFlight = (async () => {
         const loops = Number.isFinite(CFG.REBUILD_MAX_LOOPS) ? Math.max(1, Math.floor(CFG.REBUILD_MAX_LOOPS)) : 10;
         for (let i = 0; i < loops; i++) {
+          if (destroyed) break;
           rebuildQueued = false;
           try {
             await rebuildOnce();
