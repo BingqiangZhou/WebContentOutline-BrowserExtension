@@ -10,9 +10,14 @@
 
   let configsSaveLock = Promise.resolve();
   function queueConfigsWrite(task) {
-    const run = () => Promise.resolve().then(task);
-    const next = configsSaveLock.then(run, run);
-    configsSaveLock = next.catch(e => { console.warn('[toc] config write chain error:', e); });
+    const next = configsSaveLock.then(async () => {
+      const ok = await task();
+      return !!ok;
+    }).catch(e => {
+      console.warn('[toc] config write chain error:', e);
+      return false;
+    });
+    configsSaveLock = next;
     return next;
   }
 
@@ -311,6 +316,10 @@
 
   async function saveSelector(selector, cfg) {
     try {
+      if (!cfg) {
+        showToast && showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
+        return false;
+      }
       const expr = String(selector || '').trim();
       if (!expr || (validateSelectorExpression && !validateSelectorExpression('css', expr))) {
         showToast && showToast(msg('errorInvalidSelector'), { type: 'error' });

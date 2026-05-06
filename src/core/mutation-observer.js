@@ -230,6 +230,8 @@
     function start(cfg) {
       stopTimers();
       pendingRebuild = 0;
+      consecutiveMutations = 0;
+      lastMutationTime = 0;
       disconnectObserver();
 
       if (typeof MutationObserver !== 'undefined') {
