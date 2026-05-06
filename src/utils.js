@@ -71,9 +71,8 @@
  */
 function isExtensionContextInvalidated() {
   try {
-    // Try to access a chrome API - this will throw if context is invalidated
-    chrome.i18n.getMessage('test');
-    return false;
+    if (typeof chrome === 'undefined') return false;
+    return !chrome.runtime?.id;
   } catch (_) {
     return true;
   }
