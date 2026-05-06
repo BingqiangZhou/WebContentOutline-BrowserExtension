@@ -35,6 +35,7 @@ const SESSION_KEYS = {
 const INJECTION_COOLDOWN_MS = 1200;
 const INJECTION_PING_RETRY_MS = 200;
 const injectionInFlight = new Map();
+let actionClickInFlight = false;
 
 function isHttpUrl(url) {
   return !!(url && /^https?:\/\//i.test(url));
@@ -501,44 +502,50 @@ async function handleActionClick(tab) {
   if (!tab || !tab.id || !tab.url) return;
   const url = tab.url;
   if (!isHttpUrl(url)) return;
-  const origin = originFromUrl(url);
-  const currentlyEnabled = await getEnabledByOrigin(origin);
-  const nextEnabled = !currentlyEnabled;
-  const saved = await setEnabledByOrigin(origin, nextEnabled);
-  if (!saved || !saved.ok) {
-    // Keep UI consistent with persisted state.
-    await updateIconsForOrigin(origin);
-    try {
-      await chrome.action.setBadgeText({ tabId: tab.id, text: '!' });
-      await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#d93025' });
-      const titleKey = saved && saved.quota ? 'titleStorageQuotaExceeded' : 'titleStorageWriteFailed';
-      const fallback = saved && saved.quota
-        ? 'Web TOC: Storage quota exceeded (changes not saved)'
-        : 'Web TOC: Storage error (changes not saved)';
-      const title = chrome.i18n.getMessage(titleKey) || fallback;
-      await setActionTitleAsync({ tabId: tab.id, title });
-    } catch (e) {
-      console.warn('[toc] failed to set storage failure badge/title:', e);
+  if (actionClickInFlight) return;
+  actionClickInFlight = true;
+  try {
+    const origin = originFromUrl(url);
+    const currentlyEnabled = await getEnabledByOrigin(origin);
+    const nextEnabled = !currentlyEnabled;
+    const saved = await setEnabledByOrigin(origin, nextEnabled);
+    if (!saved || !saved.ok) {
+      // Keep UI consistent with persisted state.
+      await updateIconsForOrigin(origin);
+      try {
+        await chrome.action.setBadgeText({ tabId: tab.id, text: '!' });
+        await chrome.action.setBadgeBackgroundColor({ tabId: tab.id, color: '#d93025' });
+        const titleKey = saved && saved.quota ? 'titleStorageQuotaExceeded' : 'titleStorageWriteFailed';
+        const fallback = saved && saved.quota
+          ? 'Web TOC: Storage quota exceeded (changes not saved)'
+          : 'Web TOC: Storage error (changes not saved)';
+        const title = chrome.i18n.getMessage(titleKey) || fallback;
+        await setActionTitleAsync({ tabId: tab.id, title });
+      } catch (e) {
+        console.warn('[toc] failed to set storage failure badge/title:', e);
+      }
+      // Best-effort: if content script is running, keep it consistent too.
+      sendEnabledToTab(tab.id, currentlyEnabled);
+      return;
     }
-    // Best-effort: if content script is running, keep it consistent too.
-    sendEnabledToTab(tab.id, currentlyEnabled);
-    return;
-  }
 
-  try { await chrome.action.setBadgeText({ tabId: tab.id, text: '' }); } catch (_) {}
+    try { await chrome.action.setBadgeText({ tabId: tab.id, text: '' }); } catch (_) {}
 
-  if (saved.enabled) {
-    await ensureContentScript(tab.id, tab.url);
+    if (saved.enabled) {
+      await ensureContentScript(tab.id, tab.url);
+      await updateIconsForOrigin(origin);
+      await broadcastEnabledToOrigin(origin, true, tab.id);
+      sendEnabledToTab(tab.id, true);
+      await requestOpenPanel(tab.id);
+      return;
+    }
+
     await updateIconsForOrigin(origin);
-    await broadcastEnabledToOrigin(origin, true, tab.id);
-    sendEnabledToTab(tab.id, true);
-    await requestOpenPanel(tab.id);
-    return;
+    await broadcastEnabledToOrigin(origin, false, tab.id);
+    sendEnabledToTab(tab.id, false);
+  } finally {
+    actionClickInFlight = false;
   }
-
-  await updateIconsForOrigin(origin);
-  await broadcastEnabledToOrigin(origin, false, tab.id);
-  sendEnabledToTab(tab.id, false);
 }
 
 chrome.action.onClicked.addListener(handleActionClick);
@@ -593,7 +600,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // Periodic cleanup for orphaned entries using chrome.alarms (survives service worker suspension)
 try {
-  chrome.alarms.create('tocCleanup', { periodInMinutes: 5 });
+  chrome.alarms.get('tocCleanup', (existing) => {
+    if (!existing) {
+      chrome.alarms.create('tocCleanup', { periodInMinutes: 5 });
+    }
+  });
 } catch (_) {}
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name !== 'tocCleanup') return;
@@ -607,31 +618,40 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   }).catch(() => {});
 });
 
+async function recoverPendingIntent() {
+  try {
+    const pending = await getPendingIntent();
+    if (pending && pending.origin && Number.isFinite(pending.ts) && (Date.now() - pending.ts) < 60000) {
+      console.debug('[toc] recovering pending toggle intent:', pending);
+      // Clear intent BEFORE calling setEnabledByOrigin to prevent double-save
+      // on service worker kill during recovery
+      await clearPendingIntent();
+      await setEnabledByOrigin(pending.origin, pending.enabled);
+    } else if (pending) {
+      await clearPendingIntent();
+    }
+  } catch (_) {}
+}
+
+async function processAllTabs() {
+  const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
+  const map = await getEnabledMap();
+  await processInBatches(tabs, async (t) => {
+    if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
+    if (t.id && t.url && isHttpUrl(t.url)) {
+      const origin = originFromUrl(t.url);
+      if (map[origin]) {
+        await ensureContentScript(t.id, t.url);
+      }
+    }
+  }, 5);
+}
+
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
-    // Recover any pending write that was interrupted by service worker restart
-    try {
-      const pending = await getPendingIntent();
-      if (pending && pending.origin && Number.isFinite(pending.ts) && (Date.now() - pending.ts) < 60000) {
-        console.debug('[toc] recovering pending toggle intent:', pending);
-        await setEnabledByOrigin(pending.origin, pending.enabled);
-        await clearPendingIntent();
-      } else if (pending) {
-        await clearPendingIntent();
-      }
-    } catch (_) {}
-    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
-    const map = await getEnabledMap();
-    await processInBatches(tabs, async (t) => {
-      if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
-      if (t.id && t.url && isHttpUrl(t.url)) {
-        const origin = originFromUrl(t.url);
-        if (map[origin]) {
-          await ensureContentScript(t.id, t.url);
-        }
-      }
-    }, 5);
+    await recoverPendingIntent();
+    await processAllTabs();
   } catch (e) {
     console.warn('[toc] onInstalled failed:', e);
   }
@@ -639,29 +659,9 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(async () => {
   try {
-    // Recover any pending write that was interrupted by service worker restart
-    try {
-      const pending = await getPendingIntent();
-      if (pending && pending.origin && Number.isFinite(pending.ts) && (Date.now() - pending.ts) < 60000) {
-        console.debug('[toc] recovering pending toggle intent:', pending);
-        await setEnabledByOrigin(pending.origin, pending.enabled);
-        await clearPendingIntent();
-      } else if (pending) {
-        await clearPendingIntent();
-      }
-    } catch (_) {}
+    await recoverPendingIntent();
     await setGlobalDefaultIconDisabled();
-    const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
-    const map = await getEnabledMap();
-    await processInBatches(tabs, async (t) => {
-      if (t.id) await queueIconUpdate(t.id, t.url).catch(() => {});
-      if (t.id && t.url && isHttpUrl(t.url)) {
-        const origin = originFromUrl(t.url);
-        if (map[origin]) {
-          await ensureContentScript(t.id, t.url);
-        }
-      }
-    }, 5);
+    await processAllTabs();
   } catch (e) {
     console.warn('[toc] onStartup failed:', e);
   }
