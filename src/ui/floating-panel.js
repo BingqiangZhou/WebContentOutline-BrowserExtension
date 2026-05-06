@@ -675,7 +675,11 @@
     const { createDragController } = window.TOC_DRAG || {};
     let dragController = createDragController ? createDragController({
       element: panel,
-      shouldStart: (e) => !!(e && e.target && e.target.closest && e.target.closest('.toc-header')),
+      shouldStart: (e) => {
+        if (!e || !e.target || !e.target.closest) return false;
+        if (e.target.closest('.toc-btn, button')) return false;
+        return !!e.target.closest('.toc-header');
+      },
       getRect: () => panel.getBoundingClientRect(),
       onStart: () => {
         panel.style.cursor = 'grabbing';
