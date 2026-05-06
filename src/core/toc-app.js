@@ -189,21 +189,14 @@
     };
 
     const clearRebuildFlag = () => {
-      // Prefer clearing on next paint, but include a timer fallback in case rAF is throttled.
       clearRebuildTimers();
+      // Failsafe: if nothing clears the flag within 1500ms, force-clear it.
+      // The restoreActiveSnapshot RAF is responsible for clearing isRebuilding
+      // after the active item restoration completes.
       try {
         rebuildClearTimer = setTimeout(() => { isRebuilding = false; rebuildClearTimer = null; }, 1500);
       } catch (_) {
         rebuildClearTimer = null;
-      }
-      try {
-        scheduleRaf(() => {
-          isRebuilding = false;
-          clearRebuildTimers();
-        });
-      } catch (_) {
-        isRebuilding = false;
-        clearRebuildTimers();
       }
     };
 
@@ -381,14 +374,9 @@
         }
         console.warn('[toc] rebuild failed:', e);
       } finally {
-        // Failsafe: if restoration never cleared the flag, clear it soon.
-        if (typeof activeRestoreTimeout === 'number') {
-          scheduleRaf(() => {
-            scheduleRaf(() => {
-              if (isRebuilding) isRebuilding = false;
-            });
-          });
-        } else {
+        // If no restore is pending, clear immediately. Otherwise the
+        // restore callback or the failsafe timer will handle it.
+        if (typeof activeRestoreTimeout !== 'number') {
           clearRebuildFlag();
         }
       }
