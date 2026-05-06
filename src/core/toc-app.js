@@ -453,7 +453,7 @@
       try {
         // Get collapse button center position
         let buttonCenter = null;
-        const collapseBtn = document.querySelector('.toc-floating .toc-header-row .toc-btn:last-child');
+        const collapseBtn = document.querySelector('.toc-floating [data-role="collapse"]');
         if (collapseBtn) {
           const rect = collapseBtn.getBoundingClientRect();
           const x = rect.left + rect.width / 2;

@@ -113,7 +113,7 @@
         let refX = rect.left + pw / 2;
         let refY = rect.top + ph / 2;
         try {
-          const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+          const collapseBtn = panel.querySelector('[data-role="collapse"]');
           if (collapseBtn) {
             const btnRect = collapseBtn.getBoundingClientRect();
             if (btnRect.width > 0 && btnRect.height > 0) {
@@ -150,7 +150,7 @@
 
         // Persist collapse button center so next launch aligns to the current viewport.
         try {
-          const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+          const collapseBtn = panel.querySelector('[data-role="collapse"]');
           if (collapseBtn) {
             const btnRect = collapseBtn.getBoundingClientRect();
             const x = btnRect.left + btnRect.width / 2;
@@ -284,6 +284,7 @@
     btnCollapse.textContent = msg('buttonCollapse');
     btnCollapse.title = msg('buttonCollapseTitle');
     btnCollapse.setAttribute('aria-label', msg('buttonCollapseTitle') || msg('buttonCollapse'));
+    btnCollapse.setAttribute('data-role', 'collapse');
     onBtnCollapseClick = () => { try { onCollapse && onCollapse(); } catch (_) {} };
     btnCollapse.addEventListener('click', onBtnCollapseClick);
 
@@ -537,7 +538,7 @@
         if (!drag.moved) return;
         // Save collapse button center position
         try {
-          const collapseBtn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+          const collapseBtn = panel.querySelector('[data-role="collapse"]');
           if (collapseBtn && setBadgePosByHost) {
             const btnRect = collapseBtn.getBoundingClientRect();
             const x = btnRect.left + btnRect.width / 2;
@@ -778,7 +779,7 @@
       remove() { panel.remove(); },
       whenShown,
       measureCollapseButton() {
-        const btn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+        const btn = panel.querySelector('[data-role="collapse"]');
         if (!btn) return null;
         const rect = btn.getBoundingClientRect();
         if (!rect || rect.width <= 0 || rect.height <= 0) return null;
