@@ -127,10 +127,6 @@
     "message": "Failed to read latest config, using memory state",
     "description": "Warning message when reading config fails"
   },
-  "logSavePositionFailed": {
-    "message": "Failed to save position:",
-    "description": "Warning message when saving position fails"
-  },
   "logSaveConfigFailed": {
     "message": "Failed to save site configuration",
     "description": "Error message when saving config fails"
@@ -200,5 +196,17 @@
   "ctxInvalidatedNotice": {
     "message": "Extension updated, please reload this browser tab",
     "description": "Notice shown when extension context is invalidated after an update"
+  },
+  "titleStorageQuotaExceeded": {
+    "message": "Web TOC: Storage quota exceeded (changes not saved)",
+    "description": "Icon title when storage write fails due to quota limits"
+  },
+  "titleStorageWriteFailed": {
+    "message": "Web TOC: Storage error (changes not saved)",
+    "description": "Icon title when storage write fails for other reasons"
+  },
+  "warningStorageQuotaPruned": {
+    "message": "Storage quota reached. Some older data was removed to save your changes.",
+    "description": "Toast shown when data is pruned due to storage quota"
   }
 }

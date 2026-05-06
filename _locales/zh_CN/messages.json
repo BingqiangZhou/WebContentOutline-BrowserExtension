@@ -127,10 +127,6 @@
     "message": "读取最新配置失败，使用内存状态",
     "description": "读取配置失败时的警告消息"
   },
-  "logSavePositionFailed": {
-    "message": "保存位置失败:",
-    "description": "保存位置失败时的警告消息"
-  },
   "logSaveConfigFailed": {
     "message": "保存站点配置失败",
     "description": "保存配置失败时的错误消息"
@@ -200,5 +196,17 @@
   "ctxInvalidatedNotice": {
     "message": "扩展已更新，请刷新网页以正常使用",
     "description": "扩展上下文失效时显示的通知"
+  },
+  "titleStorageQuotaExceeded": {
+    "message": "网页目录：存储空间不足（更改未保存）",
+    "description": "存储写入因配额限制失败时的图标标题"
+  },
+  "titleStorageWriteFailed": {
+    "message": "网页目录：存储错误（更改未保存）",
+    "description": "存储写入失败时的图标标题"
+  },
+  "warningStorageQuotaPruned": {
+    "message": "存储空间不足，已移除部分较旧数据以保存您的更改。",
+    "description": "因存储配额执行数据修剪时显示的提示"
   }
 }
