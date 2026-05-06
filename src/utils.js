@@ -732,6 +732,9 @@ async function getBadgePosMap() {
     return await setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
   }
 
+  let __badgePosCache = null;
+  let __badgePosCacheReady = false;
+
 function resolveBadgePosForViewport(pos) {
   try {
     if (!pos) return null;
@@ -793,46 +796,57 @@ function resolveBadgePosForViewport(pos) {
 }
 
 async function getBadgePosByHost(host) {
-  const map = await getBadgePosMap();
-  const pos = map[host] || null;
+  if (!__badgePosCacheReady) {
+    __badgePosCache = await getBadgePosMap();
+    __badgePosCacheReady = true;
+  }
+  const pos = (__badgePosCache && __badgePosCache[host]) || null;
   return resolveBadgePosForViewport(pos);
 }
 
   async function setBadgePosByHost(host, pos) {
+    if (!host) return null;
+
+    // Update cache synchronously so subsequent reads are instant
+    if (!__badgePosCacheReady) {
+      try { __badgePosCache = await getBadgePosMap(); } catch (_) { __badgePosCache = {}; }
+      __badgePosCacheReady = true;
+    }
+
+    let enriched = pos;
+    try {
+      const x = pos && getFiniteNumber(pos.x);
+      const y = pos && getFiniteNumber(pos.y);
+      const vw = (typeof window !== 'undefined') ? getFiniteNumber(window.innerWidth) : null;
+      const vh = (typeof window !== 'undefined') ? getFiniteNumber(window.innerHeight) : null;
+      if (x != null && y != null && vw && vh) {
+        const anchorX = (pos.anchorX === 'left' || pos.anchorX === 'right')
+          ? pos.anchorX
+          : (x > (vw / 2) ? 'right' : 'left');
+        const marginX = (anchorX === 'right') ? (vw - x) : x;
+        enriched = {
+          ...pos,
+          x,
+          y,
+          vw,
+          vh,
+          anchorX,
+          marginX,
+          updatedAt: (typeof pos.updatedAt === 'number') ? pos.updatedAt : Date.now()
+        };
+      }
+    } catch (_) {
+      enriched = pos;
+    }
+
+    touchObjectKey(__badgePosCache, host, enriched);
+    pruneObjectToLimit(__badgePosCache, uiConst('STORAGE_MAX_MAP_KEYS', 400));
+
+    // Fire-and-forget: serialize the write but do not await it on the hot path.
+    // The caller can still await if it needs confirmation (e.g. pagehide).
     return serializedWrite('tocBadgePosMap', async () => {
-   const map = await getBadgePosMap();
-   if (!host) return null;
-
-   let enriched = pos;
-   try {
-     const x = pos && getFiniteNumber(pos.x);
-     const y = pos && getFiniteNumber(pos.y);
-     const vw = (typeof window !== 'undefined') ? getFiniteNumber(window.innerWidth) : null;
-     const vh = (typeof window !== 'undefined') ? getFiniteNumber(window.innerHeight) : null;
-     if (x != null && y != null && vw && vh) {
-       const anchorX = (pos.anchorX === 'left' || pos.anchorX === 'right')
-         ? pos.anchorX
-         : (x > (vw / 2) ? 'right' : 'left');
-       const marginX = (anchorX === 'right') ? (vw - x) : x;
-       enriched = {
-         ...pos,
-         x,
-         y,
-         vw,
-         vh,
-         anchorX,
-         marginX,
-         updatedAt: (typeof pos.updatedAt === 'number') ? pos.updatedAt : Date.now()
-       };
-     }
-   } catch (_) {
-     enriched = pos;
-   }
-
-   touchObjectKey(map, host, enriched);
-   pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
-   const ok = await saveBadgePosMap(map);
-   return ok ? (map[host] || null) : null;
+      const ok = await saveBadgePosMap(__badgePosCache);
+      return ok ? (__badgePosCache[host] || null) : null;
     });
   }
 
