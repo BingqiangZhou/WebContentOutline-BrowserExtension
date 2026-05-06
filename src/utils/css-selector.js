@@ -32,7 +32,6 @@
       const isUnderscore = codeUnit === 0x005F;
 
       const isFirst = i === 0;
-      const isSecond = i === 1;
 
       if (isControl) {
         result += '\\' + codeUnit.toString(16) + ' ';
@@ -40,7 +39,7 @@
       }
 
       // If the identifier starts with a digit, or second char is digit when first is hyphen.
-      if ((isFirst && isDigit) || (isFirst && isHyphen && length > 1 && isSecond && isDigit)) {
+      if ((isFirst && isDigit) || (isFirst && isHyphen && length > 1 && ident.charCodeAt(1) >= 0x0030 && ident.charCodeAt(1) <= 0x0039)) {
         result += '\\' + codeUnit.toString(16) + ' ';
         continue;
       }
