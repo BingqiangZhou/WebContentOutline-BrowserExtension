@@ -12,7 +12,7 @@
   const PENDING_REBUILD_RECHECK_MS = typeof uiConst === 'function' ? uiConst('PENDING_REBUILD_RECHECK_MS', 100) : 100;
   const CLEAR_USER_SELECTED_DELAY_MS = typeof uiConst === 'function' ? uiConst('CLEAR_USER_SELECTED_DELAY_MS', 200) : 200;
 
-  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta) {
+  function renderFloatingPanel(side, items, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false) {
     // Remove any existing panel to prevent duplicates
     try {
       document.querySelectorAll('.toc-floating').forEach(el => {
@@ -255,7 +255,7 @@
       }
     };
 
-    panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'} toc-floating-expand`;
+    panel.className = `toc-floating toc-floating-${side === 'left' ? 'left' : 'right'}${skipAnimation ? '' : ' toc-floating-expand'}`;
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
     onPanelKeydown = (e) => {
@@ -482,21 +482,25 @@
     panel.appendChild(list);
     document.documentElement.appendChild(panel);
 
-    // Show panel and trigger expand animation
+    // Show panel — optionally skip expand animation
     showRaf = requestAnimationFrame(() => {
       showRaf = null;
       if (cleanedUp) return;
       if (!panel || !panel.isConnected) return;
       panel.style.visibility = '';
-      panel.classList.add('toc-expanded');
-      try { resolveShown && resolveShown(); } catch (_) {}
-      if (timers.expandAnim) clearTimeout(timers.expandAnim);
-      timers.expandAnim = setTimeout(() => {
-        timers.expandAnim = null;
-        if (cleanedUp) return;
-        if (!panel || !panel.isConnected) return;
-        panel.classList.remove('toc-floating-expand', 'toc-expanded');
-      }, EXPAND_ANIM_MS);
+      if (skipAnimation) {
+        try { resolveShown && resolveShown(); } catch (_) {}
+      } else {
+        panel.classList.add('toc-expanded');
+        try { resolveShown && resolveShown(); } catch (_) {}
+        if (timers.expandAnim) clearTimeout(timers.expandAnim);
+        timers.expandAnim = setTimeout(() => {
+          timers.expandAnim = null;
+          if (cleanedUp) return;
+          if (!panel || !panel.isConnected) return;
+          panel.classList.remove('toc-floating-expand', 'toc-expanded');
+        }, EXPAND_ANIM_MS);
+      }
     });
 
     // Make header draggable
@@ -772,7 +776,14 @@
 
     return {
       remove() { panel.remove(); },
-      whenShown
+      whenShown,
+      measureCollapseButton() {
+        const btn = panel.querySelector('.toc-header-row .toc-btn:last-child');
+        if (!btn) return null;
+        const rect = btn.getBoundingClientRect();
+        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+        return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+      }
     };
   }
 

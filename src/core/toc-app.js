@@ -509,17 +509,15 @@
           if (savedPos && Number.isFinite(savedPos.x)) {
             expandSide = savedPos.x > (window.innerWidth / 2) ? 'right' : 'left';
 
-            // Calculate panel position to align button center with saved badge center
+            // Estimate initial panel position (will be refined after measurement)
             let panelLeft;
             if (expandSide === 'right') {
-              panelLeft = savedPos.x + BUTTON_OFFSET - PANEL_WIDTH;
+              panelLeft = savedPos.x - PANEL_WIDTH;
             } else {
-              panelLeft = savedPos.x - BUTTON_OFFSET;
+              panelLeft = savedPos.x;
             }
-
-            // Constrain to screen bounds
-            const constrained = constrainPosition(panelLeft, (Number.isFinite(savedPos.y) ? savedPos.y : 120) - BUTTON_OFFSET);
-            panelPos = { left: constrained.left, top: constrained.top };
+            const panelTop = Number.isFinite(savedPos.y) ? savedPos.y : 120;
+            panelPos = { left: panelLeft, top: panelTop };
           }
         }
 
@@ -541,39 +539,38 @@
             () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
             mutationObserver ? mutationObserver.getPendingRebuild : () => false,
             mutationObserver ? mutationObserver.setPendingRebuild : () => {},
-            panelPos,  // Pass calculated position to avoid flicker
-            tocMeta
+            panelPos,  // Initial rough position — refined below
+            tocMeta,
+            !!savedPos  // skipAnimation when expanding from badge
           );
         }
 
-        // Fine-tune after render for perfect alignment
-        if (savedPos && panelPos && (Number.isFinite(savedPos.x) || Number.isFinite(savedPos.y))) {
+        // Measure collapse button in the hidden panel and align it to saved badge center
+        if (savedPos && panelInstance && panelInstance.measureCollapseButton) {
           try {
-            if (panelInstance && panelInstance.whenShown) {
-              await panelInstance.whenShown;
-            }
-          } catch (_) {}
-          scheduleRaf(() => {
-            const panelEl = document.querySelector('.toc-floating');
-            const collapseBtn = panelEl ? panelEl.querySelector('.toc-header-row .toc-btn:last-child') : null;
-            if (collapseBtn && panelEl && collapseBtn.getBoundingClientRect().width > 0) {
-              const btnRect = collapseBtn.getBoundingClientRect();
-              const offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - (btnRect.left + btnRect.width / 2)) : 0;
-              const offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - (btnRect.top + btnRect.height / 2)) : 0;
+            const btnRect = panelInstance.measureCollapseButton();
+            if (btnRect && Number.isFinite(btnRect.left)) {
+              const btnCenterX = btnRect.left + btnRect.width / 2;
+              const btnCenterY = btnRect.top + btnRect.height / 2;
+              const offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - btnCenterX) : 0;
+              const offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - btnCenterY) : 0;
 
-              if (Math.abs(offsetX) > 1 || Math.abs(offsetY) > 1) {
-                const rect = panelEl.getBoundingClientRect();
-                const pw = panelEl.offsetWidth || PANEL_WIDTH;
-                const ph = panelEl.offsetHeight || PANEL_HEIGHT;
-                const constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
+              if (Math.abs(offsetX) > 0.5 || Math.abs(offsetY) > 0.5) {
+                const panelEl = document.querySelector('.toc-floating');
+                if (panelEl) {
+                  const rect = panelEl.getBoundingClientRect();
+                  const pw = panelEl.offsetWidth || PANEL_WIDTH;
+                  const ph = panelEl.offsetHeight || PANEL_HEIGHT;
+                  const constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
 
-                panelEl.style.setProperty('left', constrained.left + 'px', 'important');
-                panelEl.style.setProperty('top', constrained.top + 'px', 'important');
-                panelEl.style.setProperty('right', 'auto', 'important');
-                panelEl.style.setProperty('bottom', 'auto', 'important');
+                  panelEl.style.setProperty('left', constrained.left + 'px', 'important');
+                  panelEl.style.setProperty('top', constrained.top + 'px', 'important');
+                  panelEl.style.setProperty('right', 'auto', 'important');
+                  panelEl.style.setProperty('bottom', 'auto', 'important');
+                }
               }
             }
-          });
+          } catch (_) {}
         }
 
         try { setPanelExpandedByOrigin && setPanelExpandedByOrigin(location.origin, true); } catch (_) {}
