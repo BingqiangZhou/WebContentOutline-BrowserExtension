@@ -277,13 +277,32 @@
     }
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]').forEach(n => n.remove());
+      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]').forEach(n => {
+        try { if (typeof n.__TOC_CLEANUP__ === 'function') n.__TOC_CLEANUP__(); } catch (_) {}
+        n.remove();
+      });
     } catch (e) {
       console.warn(msg('logPrefix') + ' cleanup DOM failed:', e);
     }
 
     // Content script should stop reacting after app is stopped to avoid unexpected reinitialization.
     dispose({ reason: 'stopApp' });
+  }
+
+  async function applyExpandState(opts) {
+    if (!appInstance) return;
+    try {
+      if (opts && opts.expandPanel) {
+        if (appInstance.expand) await appInstance.expand();
+      } else {
+        const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
+        if (expanded && appInstance.expand) {
+          await appInstance.expand();
+        } else if (appInstance.collapse) {
+          appInstance.collapse();
+        }
+      }
+    } catch (_) {}
   }
 
   function enqueueEnabledTransition(nextEnabled, opts = {}) {
@@ -297,22 +316,7 @@
         // Even when the enabled state doesn't change, callers may request an expand.
         if (want) {
           await ensureStarted();
-          if (opts && opts.expandPanel) {
-            try {
-              if (appInstance && appInstance.expand) {
-                await appInstance.expand();
-              }
-            } catch (_) {}
-          } else {
-            try {
-              const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
-              if (expanded && appInstance && appInstance.expand) {
-                await appInstance.expand();
-              } else if (appInstance && appInstance.collapse) {
-                appInstance.collapse();
-              }
-            } catch (_) {}
-          }
+          await applyExpandState(opts);
         }
         return;
       }
@@ -324,22 +328,7 @@
       }
 
       await ensureStarted();
-      if (opts && opts.expandPanel) {
-        try {
-          if (appInstance && appInstance.expand) {
-            await appInstance.expand();
-          }
-        } catch (_) {}
-      } else {
-        try {
-          const expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
-          if (expanded && appInstance && appInstance.expand) {
-            await appInstance.expand();
-          } else if (appInstance && appInstance.collapse) {
-            appInstance.collapse();
-          }
-        } catch (_) {}
-      }
+      await applyExpandState(opts);
     });
     const safe = next.catch((e) => {
       console.warn(msg('logPrefix') + ' enabled transition failed:', e);
