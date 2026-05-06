@@ -52,7 +52,7 @@
   let startInFlight = null;
   let disposed = false;
   let listenersAttached = false;
-  let domReadyHandler = null;
+
   let messageListener = null;
   let storageListener = null;
 
@@ -72,12 +72,6 @@
     messageListener = null;
     storageListener = null;
 
-    try {
-      if (domReadyHandler) {
-        document.removeEventListener('DOMContentLoaded', domReadyHandler);
-      }
-    } catch (_) {}
-    domReadyHandler = null;
   }
 
   function dispose(opts = {}) {
@@ -101,14 +95,11 @@
     } catch (_) {}
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge, .toc-floating').forEach(n => {
+      document.querySelectorAll('.toc-collapsed-badge, .toc-floating, .toc-overlay, .toc-toast-container').forEach(n => {
         try {
           const cleanup = n && n.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
         } catch (_) {}
-        try { n.remove(); } catch (_) {}
-      });
-      document.querySelectorAll('.toc-overlay, .toc-toast-container').forEach(n => {
         try { n.remove(); } catch (_) {}
       });
     } catch (_) {}
