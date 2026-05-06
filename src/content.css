@@ -542,6 +542,7 @@
   position: fixed !important;
   top: 120px !important;
   z-index: var(--toc-z-index) !important;
+  touch-action: none !important;
   padding: 8px 10px !important;
   background: #2f6feb !important;
   color: #fff !important;
