@@ -32,7 +32,8 @@
       startX: 0,
       startY: 0,
       offsetX: 0,
-      offsetY: 0
+      offsetY: 0,
+      pointerId: null
     };
 
     const resolveRect = () => {
@@ -59,9 +60,14 @@
       return true;
     };
 
-    const removeDocumentListeners = () => {
-      try { document.removeEventListener('mousemove', handleMouseMove, true); } catch (_) {}
-      try { document.removeEventListener('mouseup', handleMouseUp, true); } catch (_) {}
+    const removePointerListeners = () => {
+      try { element.removeEventListener('pointermove', handlePointerMove, true); } catch (_) {}
+      try { element.removeEventListener('pointerup', handlePointerUp, true); } catch (_) {}
+      try { element.removeEventListener('pointercancel', handlePointerCancel, true); } catch (_) {}
+      if (state.pointerId != null) {
+        try { element.releasePointerCapture(state.pointerId); } catch (_) {}
+      }
+      state.pointerId = null;
     };
 
     const endDrag = (e, opts = {}) => {
@@ -69,7 +75,7 @@
       const stop = !!(opts && opts.stopPropagation);
       if (!state.active || state.destroyed) return;
       try {
-        removeDocumentListeners();
+        removePointerListeners();
       } finally {
         state.active = false;
       }
@@ -84,7 +90,7 @@
       }
     };
 
-    function handleMouseMove(e) {
+    function handlePointerMove(e) {
       if (!state.active || state.destroyed) return;
       if (!element || !element.isConnected) {
         endDrag(e, { preventDefault: false, stopPropagation: false });
@@ -103,11 +109,15 @@
       } catch (_) {}
     }
 
-    function handleMouseUp(e) {
+    function handlePointerUp(e) {
       endDrag(e, { preventDefault: true, stopPropagation: true });
     }
 
-    function handleMouseDown(e) {
+    function handlePointerCancel(e) {
+      endDrag(e, { preventDefault: false, stopPropagation: false });
+    }
+
+    function handlePointerDown(e) {
       if (state.destroyed) return;
       if (e.button !== 0) return;
       if (!canStart(e)) return;
@@ -120,9 +130,12 @@
       state.startY = e.clientY;
       state.offsetX = e.clientX - rect.left;
       state.offsetY = e.clientY - rect.top;
+      state.pointerId = e.pointerId;
 
-      document.addEventListener('mousemove', handleMouseMove, true);
-      document.addEventListener('mouseup', handleMouseUp, true);
+      try { element.setPointerCapture(e.pointerId); } catch (_) {}
+      element.addEventListener('pointermove', handlePointerMove, true);
+      element.addEventListener('pointerup', handlePointerUp, true);
+      element.addEventListener('pointercancel', handlePointerCancel, true);
 
       try {
         onStart && onStart(state, e);
@@ -134,15 +147,15 @@
       } catch (_) {}
     }
 
-    element.addEventListener('mousedown', handleMouseDown, true);
+    element.addEventListener('pointerdown', handlePointerDown, true);
 
     return {
       destroy() {
         if (state.destroyed) return;
         state.destroyed = true;
-        element.removeEventListener('mousedown', handleMouseDown, true);
+        element.removeEventListener('pointerdown', handlePointerDown, true);
         state.active = false;
-        removeDocumentListeners();
+        removePointerListeners();
         state.moved = false;
         state.startX = 0;
         state.startY = 0;
