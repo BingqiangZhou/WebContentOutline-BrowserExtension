@@ -786,7 +786,7 @@
             if (panel && panel.isConnected) return;
             cleanup({ removedExternally: true });
           });
-          removalObserver.observe(document.documentElement, { childList: true, subtree: true });
+          removalObserver.observe(document.body, { childList: true });
           return;
         } catch (_) {
           removalObserver = null;
