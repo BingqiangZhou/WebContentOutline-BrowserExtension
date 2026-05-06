@@ -277,9 +277,6 @@
         if (getNavLock()) {
           // Do NOT swap out the active panel's items while locked; existing event handlers
           // still reference the old items array. Defer applying changes to the next rebuild.
-          if (mutationObserver && mutationObserver.setPendingRebuild) {
-            mutationObserver.setPendingRebuild(true);
-          }
           // Reset flag when deferring rebuild
           clearRebuildFlag();
           return;
