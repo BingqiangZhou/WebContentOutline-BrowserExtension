@@ -86,6 +86,7 @@
     let pendingIoEntries = [];
     let removalObserver = null;
     let cleanedUp = false;
+    let userSelectedItem = null;
     const pickerStartEvent = 'toc-picker-start';
     const pickerEndEvent = 'toc-picker-end';
     let onPanelKeydown = null;
@@ -234,6 +235,7 @@
           items.forEach(it => {
             it._userSelected = false;
           });
+          userSelectedItem = null;
         }, CFG.CLEAR_USER_SELECTED_DELAY_MS);
       }, CFG.UNLOCK_AFTER_MS);
     };
@@ -403,6 +405,7 @@
 
     const renderItemButtons = () => {
       items.forEach(item => { item._userSelected = false; });
+      userSelectedItem = null;
       items.forEach((item, index) => {
         const btn = document.createElement('button');
         btn.type = 'button';
@@ -428,6 +431,7 @@
         }
       });
       item._userSelected = true;
+      userSelectedItem = item;
       node.classList.add('active');
       try { node.setAttribute('aria-current', 'location'); } catch (_) {}
       try { node.tabIndex = 0; } catch (_) {}
@@ -438,8 +442,10 @@
         } else {
           item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
-      } catch {
-        try { item.el.scrollIntoView(true); } catch (_) {}
+      } catch (_) {
+        try { item.el.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (_2) {
+          try { item.el.scrollIntoView(true); } catch (_3) {}
+        }
       }
       unlockLater();
     };
@@ -474,9 +480,11 @@
           if (item._node) {
             item._node.classList.remove('active');
             try { item._node.removeAttribute('aria-current'); } catch (_) {}
+            try { item._node.tabIndex = -1; } catch (_) {}
           }
         });
         active = null;
+        userSelectedItem = null;
       };
 
       const processIntersections = (entries) => {
@@ -490,13 +498,12 @@
         const { isRebuilding } = window.TOC_APP || {};
         if (isRebuilding && isRebuilding()) return;
 
-        const userSelected = items.find(it => it._userSelected);
-        if (userSelected) {
+        if (userSelectedItem) {
           clearAllActive();
-          if (userSelected._node && !userSelected._node.classList.contains('active')) {
-            userSelected._node.classList.add('active');
-            try { userSelected._node.setAttribute('aria-current', 'location'); } catch (_) {}
-            active = userSelected;
+          if (userSelectedItem._node && !userSelectedItem._node.classList.contains('active')) {
+            userSelectedItem._node.classList.add('active');
+            try { userSelectedItem._node.setAttribute('aria-current', 'location'); } catch (_) {}
+            active = userSelectedItem;
           }
           return;
         }
@@ -786,7 +793,7 @@
             if (panel && panel.isConnected) return;
             cleanup({ removedExternally: true });
           });
-          removalObserver.observe(document.body, { childList: true });
+          removalObserver.observe(document.documentElement, { childList: true });
           return;
         } catch (_) {
           removalObserver = null;
