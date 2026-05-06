@@ -1,6 +1,11 @@
 (() => {
   'use strict';
 
+  if (!window.TOC_UTILS) {
+    console.error('[toc] mutation-observer.js not loaded — missing dependencies: TOC_UTILS');
+    return;
+  }
+
   let isExtensionContextValid = true;
 
   function createMutationObserver(onRebuild, getNavLock) {

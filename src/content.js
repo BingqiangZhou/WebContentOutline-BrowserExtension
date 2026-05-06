@@ -23,6 +23,13 @@
   } = window.TOC_UTILS || {};
   const { initForConfig } = window.TOC_APP || {};
 
+  const missing = [];
+  if (!window.TOC_UTILS) missing.push('TOC_UTILS');
+  if (!window.TOC_APP) missing.push('TOC_APP');
+  if (missing.length) {
+    console.error('[toc] content.js not loaded — missing dependencies:', missing.join(', '));
+    return;
+  }
   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) {
     console.error(msg('logPrefix') + ' ' + msg('logMissingDependencies'));
     return;

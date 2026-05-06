@@ -2,6 +2,12 @@
   'use strict';
 
   const { msg = (key) => key, uiConst, getFocusableWithin } = window.TOC_UTILS || {};
+
+  if (!window.TOC_UTILS) {
+    console.error('[toc] element-picker.js not loaded — missing dependencies: TOC_UTILS');
+    return;
+  }
+
   const PICKER_TIMEOUT_MS = typeof uiConst === 'function' ? uiConst('PICKER_TIMEOUT_MS', 20000) : 20000;
   const MAX_Z_INDEX = typeof uiConst === 'function' ? uiConst('MAX_Z_INDEX', 2147483647) : 2147483647;
 

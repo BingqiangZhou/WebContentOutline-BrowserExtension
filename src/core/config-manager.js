@@ -3,6 +3,11 @@
 
   const { msg = (key) => key, getConfigs, saveConfigs, showToast, validateSelectorExpression } = window.TOC_UTILS || {};
 
+  if (!window.TOC_UTILS) {
+    console.error('[toc] config-manager.js not loaded — missing dependencies: TOC_UTILS');
+    return;
+  }
+
   let configsSaveLock = Promise.resolve();
   function queueConfigsWrite(task) {
     const run = () => Promise.resolve().then(task);

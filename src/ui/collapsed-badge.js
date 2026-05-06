@@ -3,6 +3,11 @@
 
   const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost, uiConst } = window.TOC_UTILS || {};
 
+  if (!window.TOC_UTILS) {
+    console.error('[toc] collapsed-badge.js not loaded — missing dependencies: TOC_UTILS');
+    return;
+  }
+
   // Constants
   const BADGE_WIDTH = typeof uiConst === 'function' ? uiConst('BADGE_WIDTH', 80) : 80;
   const BADGE_HEIGHT = typeof uiConst === 'function' ? uiConst('BADGE_HEIGHT', 32) : 32;

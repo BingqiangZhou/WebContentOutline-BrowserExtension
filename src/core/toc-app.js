@@ -23,6 +23,18 @@
 
   const { createMutationObserver } = window.MUTATION_OBSERVER || {};
 
+  const missing = [];
+  if (!window.TOC_BUILDER) missing.push('TOC_BUILDER');
+  if (!window.TOC_UI) missing.push('TOC_UI');
+  if (!window.CSS_SELECTOR) missing.push('CSS_SELECTOR');
+  if (!window.CONFIG_MANAGER) missing.push('CONFIG_MANAGER');
+  if (!window.MUTATION_OBSERVER) missing.push('MUTATION_OBSERVER');
+  if (!window.TOC_UTILS) missing.push('TOC_UTILS');
+  if (missing.length) {
+    console.error('[toc] toc-app.js not loaded — missing dependencies:', missing.join(', '));
+    return;
+  }
+
   // Constants
   const PANEL_WIDTH = typeof uiConst === 'function' ? uiConst('PANEL_WIDTH', 280) : 280;
   const PANEL_HEIGHT = typeof uiConst === 'function' ? uiConst('PANEL_HEIGHT', 400) : 400;

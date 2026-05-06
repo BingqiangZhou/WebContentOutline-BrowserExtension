@@ -3,6 +3,11 @@
 
   const { msg = (key) => key, setBadgePosByHost, uiConst, isExtensionContextInvalidated } = window.TOC_UTILS || {};
 
+  if (!window.TOC_UTILS) {
+    console.error('[toc] floating-panel.js not loaded — missing dependencies: TOC_UTILS');
+    return;
+  }
+
   const UNLOCK_AFTER_MS = typeof uiConst === 'function' ? uiConst('UNLOCK_AFTER_MS', 1000) : 1000;
   const SCROLL_STOP_MS = typeof uiConst === 'function' ? uiConst('SCROLL_STOP_MS', 500) : 500;
   const PANEL_WIDTH = typeof uiConst === 'function' ? uiConst('PANEL_WIDTH', 280) : 280;
