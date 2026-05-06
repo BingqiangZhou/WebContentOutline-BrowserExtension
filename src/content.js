@@ -498,7 +498,7 @@
     await new Promise(r => setTimeout(r, 50));
 
     // Now initialize TOC
-    main();
+    await main();
   }
 
   initWhenStable();
