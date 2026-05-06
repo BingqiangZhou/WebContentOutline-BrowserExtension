@@ -4,12 +4,13 @@
 
 All notable changes to the Web TOC Assistant extension will be documented in this file.
 
-[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#070---2026-05-07)
+[版本目录 / Table of Contents](#版本目录--table-of-contents) • [最新版本 / Latest](#071---2026-05-07)
 
 ---
 
 ## 版本目录 / Table of Contents
 
+- [0.7.1](#071---2026-05-07) - 2026-05-07
 - [0.7.0](#070---2026-05-07) - 2026-05-07
 - [0.6.3](#063---2026-03-15) - 2026-03-15
 - [0.6.2](#062---2026-03-14) - 2026-03-14
@@ -24,6 +25,32 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.7.1] - 2026-05-07
+
+### 🐛 修复 / Fixed
+- **CSS 注入幂等性 / CSS injection idempotency**
+  - 重复启用/重新注入时先移除旧 CSS 再插入，避免样式重复 / Removes prior CSS injection before re-inserting to prevent duplicate styles on repeated enable/reinject cycles
+- **按站点的操作点击锁 / Per-origin action click lock**
+  - 扩展图标点击锁从全局布尔值改为按源 Set，允许同时对不同站点操作 / Changed from global boolean to per-origin Set, allowing simultaneous enable/disable on different sites
+- **写入前意图存储迁移为按源映射 / Pending intent migrated to per-origin map**
+  - 支持多源意图恢复，添加 60 秒过期清理和旧格式兼容 / Supports multi-origin recovery with 60s expiry cleanup and legacy format compatibility
+- **可见性样式使用 `!important` 一致性 / Visibility style `!important` consistency**
+  - 面板和徽标的 `visibility: hidden` 使用 `setProperty(..., 'important')` 和 `removeProperty`，抵抗宿主页面样式覆盖 / Panel and badge visibility now uses `setProperty(..., 'important')` and `removeProperty` to resist host page style overrides
+- **元素拾取器事件传播 / Element picker event propagation**
+  - 点击和右键菜单添加 `stopPropagation` 和 `stopImmediatePropagation`，防止宿主页面拦截 / Added `stopPropagation` and `stopImmediatePropagation` to click and contextmenu handlers
+- **事件目标空值保护 / Event target null guards**
+  - 元素拾取器和浮动面板的 `e.target.closest` 添加空值检查 / Added null guards for `e.target.closest` in element picker and floating panel
+- **异步间隙后的 disposed 状态检查 / Disposed state check after async gap**
+  - `content.js` 中 `getConfigs()` 异步调用后再次检查 disposed 标志 / Added second `disposed` check after async `getConfigs()` in content.js main()
+
+### ⚡ 技术改进 / Technical Improvements
+- **`getSessionMap` 返回值校验 / `getSessionMap` return validation**
+  - 验证返回值为非数组对象，防止损坏数据导致异常 / Validates return value is a non-array object to prevent corruption errors
+- **启动时恢复待处理意图 / Startup pending intent recovery**
+  - 扩展启动时立即执行 `recoverPendingIntent`，恢复上次未完成的操作 / Runs `recoverPendingIntent` on startup to recover incomplete toggle operations
 
 ---
 
