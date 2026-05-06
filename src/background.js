@@ -42,6 +42,15 @@ function isHttpUrl(url) {
 
 const BG_MAX_MAP_KEYS = 400;
 
+const __writeQueues = {};
+function serializedWrite(key, asyncFn) {
+  const prev = __writeQueues[key] || Promise.resolve();
+  const run = () => asyncFn();
+  const next = prev.then(run, run);
+  __writeQueues[key] = next.catch(() => {});
+  return next;
+}
+
 function isQuotaExceededError(err) {
   try {
     if (!err) return false;
@@ -107,8 +116,9 @@ async function saveEnabledMap(map) {
     const quota = isQuotaExceededError(e);
     if (quota) {
       try {
-        pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
-        await chrome.storage.local.set({ [KEY]: map });
+        const pruned = { ...map };
+        pruneObjectToLimit(pruned, BG_MAX_MAP_KEYS);
+        await chrome.storage.local.set({ [KEY]: pruned });
         return { ok: true, pruned: true };
       } catch (e2) {
         console.warn('[toc] saveEnabledMap failed after prune:', e2, { quota: isQuotaExceededError(e2) });
@@ -126,16 +136,18 @@ async function getEnabledByOrigin(origin) {
 }
 
 async function setEnabledByOrigin(origin, enabled) {
-  const map = await getEnabledMap();
-  if (!origin) return { ok: false, enabled: false, quota: false, error: null };
-  const prev = !!map[origin];
-  touchObjectKey(map, origin, !!enabled);
-  pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
-  const res = await saveEnabledMap(map);
-  if (!res || !res.ok) {
-    return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
-  }
-  return { ok: true, enabled: !!map[origin], quota: false, error: null };
+  return serializedWrite('tocSiteEnabledMap', async () => {
+    const map = await getEnabledMap();
+    if (!origin) return { ok: false, enabled: false, quota: false, error: null };
+    const prev = !!map[origin];
+    touchObjectKey(map, origin, !!enabled);
+    pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
+    const res = await saveEnabledMap(map);
+    if (!res || !res.ok) {
+      return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
+    }
+    return { ok: true, enabled: !!map[origin], quota: false, error: null };
+  });
 }
 
 function getIconPathMap(enabled) {
@@ -288,13 +300,15 @@ async function getInjectedState(tabId) {
 }
 
 async function setInjectedState(tabId, state) {
-  const map = await getSessionMap(SESSION_KEYS.INJECTED_TABS);
-  if (state) {
-    map[String(tabId)] = state;
-  } else {
-    delete map[String(tabId)];
-  }
-  await setSessionMap(SESSION_KEYS.INJECTED_TABS, map);
+  return serializedWrite('tocInjectedTabs', async () => {
+    const map = await getSessionMap(SESSION_KEYS.INJECTED_TABS);
+    if (state) {
+      map[String(tabId)] = state;
+    } else {
+      delete map[String(tabId)];
+    }
+    await setSessionMap(SESSION_KEYS.INJECTED_TABS, map);
+  });
 }
 
 function sleep(ms) {
