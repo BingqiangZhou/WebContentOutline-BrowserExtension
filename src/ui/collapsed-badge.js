@@ -177,6 +177,18 @@
       });
     };
     window.addEventListener('resize', onResize, RESIZE_LISTENER_OPTS);
+    const onPageHide = () => {
+      if (pendingPersistCenter && setBadgePosByHost) {
+        try { clearTimeout(persistTimer); } catch (_) {}
+        persistTimer = null;
+        const p = pendingPersistCenter;
+        pendingPersistCenter = null;
+        if (Number.isFinite(p.x) && Number.isFinite(p.y)) {
+          try { setBadgePosByHost(location.host, p); } catch (_) {}
+        }
+      }
+    };
+    try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
 
     // Drag handling
     const { createDragController } = window.TOC_DRAG || {};
@@ -203,6 +215,7 @@
       onEnd: (drag) => {
         badge.style.cursor = '';
         badge.style.userSelect = '';
+        if (drag.cancelled) return;
         if (!drag.moved) {
           onExpand();
           return;
@@ -222,6 +235,7 @@
       destroyed = true;
       try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
       try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
+      try { window.removeEventListener('pagehide', onPageHide, true); } catch (_) {}
       try { badge.removeEventListener('keydown', onKeydown); } catch (_) {}
       if (persistTimer) {
         try { clearTimeout(persistTimer); } catch (_) {}

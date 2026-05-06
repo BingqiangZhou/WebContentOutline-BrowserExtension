@@ -29,6 +29,7 @@
       active: false,
       destroyed: false,
       moved: false,
+      cancelled: false,
       startX: 0,
       startY: 0,
       offsetX: 0,
@@ -64,6 +65,7 @@
       try { element.removeEventListener('pointermove', handlePointerMove, true); } catch (_) {}
       try { element.removeEventListener('pointerup', handlePointerUp, true); } catch (_) {}
       try { element.removeEventListener('pointercancel', handlePointerCancel, true); } catch (_) {}
+      try { element.removeEventListener('lostpointercapture', handlePointerCancel, true); } catch (_) {}
       if (state.pointerId != null) {
         try { element.releasePointerCapture(state.pointerId); } catch (_) {}
       }
@@ -114,6 +116,7 @@
     }
 
     function handlePointerCancel(e) {
+      state.cancelled = true;
       endDrag(e, { preventDefault: false, stopPropagation: false });
     }
 
@@ -136,6 +139,7 @@
       element.addEventListener('pointermove', handlePointerMove, true);
       element.addEventListener('pointerup', handlePointerUp, true);
       element.addEventListener('pointercancel', handlePointerCancel, true);
+      element.addEventListener('lostpointercapture', handlePointerCancel, true);
 
       try {
         onStart && onStart(state, e);
