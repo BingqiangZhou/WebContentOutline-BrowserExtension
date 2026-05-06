@@ -288,6 +288,7 @@
         if (!panelInstance) {
           items = newItems;
           tocMeta = newMeta;
+          consecutiveRebuildFailures = 0;
           clearRebuildFlag();
           return;
         }
