@@ -6,220 +6,244 @@
 
 ## 重构成果
 
-原始的 `content.js` 文件包含了 847 行代码（30.4KB），现已重构为模块化架构：
-- **重构前**: 单文件 847 行
-- **重构后**: 10 个模块文件，主入口仅 49 行
+内容脚本源码使用 ES Modules 组织，并在构建时通过 esbuild 打包为单个 IIFE：
+- **源码**: `src/content.js` 作为入口，直接 import `utils/toc-utils.js` 和 `core/toc-app.js`，其余模块通过依赖树传递引入
+- **产物**: `dist/build/src/content.js` 是 Chrome MV3 实际动态注入的 bundle
+- **兼容**: 仅保留 `window.TOC_APP` 的少量调试入口和 `window.__TOC_ASSISTANT_CLEANUP__` 清理钩子，不再依赖全局模块命名空间
 
 ## 📁 文件结构与代码统计
 
 ```
 src/
-├── content.js (约400行)        # 主入口文件 - 应用启动和初始化
-├── utils.js (约450行)          # 基础工具函数 - 存储、选择器、DOM操作、位置管理、存储配额处理
-├── content.css (336行)         # 样式文件 - 包含防御性CSS保护和动画
+├── content.js                  # 内容脚本入口 (469行) - 应用启动、重注入清理、消息/storage listener
+├── background.js               # MV3 service worker (758行) - 图标状态、站点开关、动态注入
+├── content.css                 # 样式文件 (895行) - 包含防御性CSS保护、CSS自定义属性主题、动画
 ├── README.md                   # 项目文档
-├── utils/                      # 工具模块 (132行)
-│   ├── css-selector.js (51行)  # CSS选择器生成工具
-│   └── toc-builder.js (81行)   # TOC构建逻辑和元素过滤
-├── ui/                         # UI组件模块 (约750行)
-│   ├── collapsed-badge.js (约160行) # 可拖拽折叠按钮（增强键盘交互）
-│   ├── element-picker.js (约110行)  # 交互式元素拾取器（改进焦点管理）
-│   └── floating-panel.js (约480行)  # 主浮动面板和目录列表（增强错误处理）
-└── core/                       # 核心逻辑模块 (约850行)
-    ├── config-manager.js (约160行)  # 配置管理和持久化（含重试逻辑）
-    ├── mutation-observer.js (约190行) # 页面变化监听（改进清理逻辑）
-    └── toc-app.js (约500行)         # 主应用逻辑（导航锁故障保护、动画帧管理）
+├── shared/                     # background 与内容脚本共享/对应的存储原语
+│   ├── storage-primitives.js       # (63行) importScripts 格式，设置 globalThis.__STORAGE_PRIMITIVES
+│   └── storage-primitives-esm.js   # (53行) ESM 格式，供内容脚本 bundle 使用
+├── utils/                      # 工具模块 (1,546行)
+│   ├── constants.js            # (76行)  STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
+│   ├── core-utils.js           # (218行) 通用工具：消息、校验、焦点管理、JSON解析
+│   ├── toast.js                # (91行)  Toast 提示
+│   ├── storage.js              # (412行) 存储操作：getConfigs/saveConfigs 等
+│   ├── badge-position.js       # (128行) 徽标位置管理
+│   ├── dom-utils.js            # (191行) DOM操作：选择器执行、元素去重、配置匹配
+│   ├── css-selector.js         # (52行)  CSS选择器生成算法
+│   ├── toc-builder.js          # (139行) TOC构建：选择器执行、元素过滤、项目映射
+│   ├── drag-helper.js          # (171行) 拖拽辅助
+│   ├── focus-trap.js           # (49行)  焦点陷阱
+│   └── toc-utils.js            # (19行)  barrel 重导出模块
+├── ui/                         # UI组件 (1,426行)
+│   ├── collapsed-badge.js      # (266行) 折叠状态按钮
+│   ├── element-picker.js       # (272行) 元素拾取器
+│   └── floating-panel.js       # (888行) 主浮动面板
+└── core/                       # 核心逻辑 (1,711行)
+    ├── toc-app.js              # (658行) 主应用协调器
+    ├── config-manager.js       # (343行) 配置管理
+    ├── rebuild-scheduler.js    # (253行) 重建调度器
+    ├── url-monitor.js          # (196行) URL变化监测
+    ├── dom-watcher.js          # (162行) DOM变化监测
+    ├── nav-lock.js             # (78行)  导航锁
+    └── event-bus.js            # (21行)  事件总线
 ```
 
-**总计**: 约3100行代码
+总计约 6,921 行源码。
 
-## 🔧 模块加载顺序
+## 🔧 模块加载机制
 
-模块通过 `src/background.js` 中的 `CONTENT_SCRIPTS` 数组按依赖顺序动态注入：
-
-1. **基础层** - `utils.js` (360行)
-2. **工具层** - `utils/css-selector.js` (51行) + `utils/toc-builder.js` (81行)
-3. **UI层** - `ui/collapsed-badge.js` (139行) + `ui/element-picker.js` (108行) + `ui/floating-panel.js` (405行)
-4. **核心层** - `core/config-manager.js` (108行) + `core/mutation-observer.js` (130行) + `core/toc-app.js` (392行)
-5. **入口层** - `content.js` (161行)
+源码模块不再按运行时顺序逐个注入。`build.js` 使用 esbuild 从 `src/content.js` 静态追踪 ESM 依赖，打包成 `dist/build/src/content.js`。`src/background.js` 通过 `getContentScriptFiles()` 检测源文件是否包含 `import` 语句，选择注入 bundle 或源文件。
 
 ## 🌐 全局命名空间设计
 
-```javascript
-window.TOC_UTILS          // 基础工具：存储、DOM操作、选择器匹配、位置管理
-window.CSS_SELECTOR       // CSS选择器生成：buildClassSelector, cssPathFor
-window.TOC_BUILDER        // TOC构建：buildTocItems, buildTocItemsFromSelectors
-window.TOC_UI            // UI组件：renderFloatingPanel, renderCollapsedBadge, createElementPicker
-window.CONFIG_MANAGER    // 配置管理：siteConfig, saveSelector, updateConfigFromStorage
-window.MUTATION_OBSERVER // 页面监听：createMutationObserver
-window.TOC_APP          // 主应用：initForConfig, expand, collapse, rebuild
-```
+运行时不再暴露 `window.TOC_UTILS`、`window.TOC_UI`、`window.CONFIG_MANAGER` 等全局模块。源码通过 ESM import/export 连接；构建产物是单个 IIFE，消除注入顺序和全局污染风险。
+
+保留的兼容/调试入口：
+- `window.__TOC_ASSISTANT_LOADED__`：重注入防护标志
+- `window.__TOC_ASSISTANT_CLEANUP__`：重注入或扩展 reload 时清理当前实例
+- `window.TOC_APP.initForConfig`：调试入口，等同 ESM 导出的 `initForConfig`
+- `window.TOC_APP.rebuild` / `window.TOC_APP.isRebuilding`：当前面板实例的调试辅助
+- `globalThis.__STORAGE_PRIMITIVES`：仅 background service worker 可用
 
 ## 🏗️ 架构设计原则
 
 ### 1. 单一职责原则
-每个模块只负责特定功能域：
-- **utils.js**: 基础工具和存储操作
-- **css-selector.js**: CSS选择器生成算法
-- **toc-builder.js**: TOC项目构建和过滤逻辑
-- **floating-panel.js**: 浮动面板UI和交互
-- **config-manager.js**: 配置的CRUD操作
+每个模块只负责特定功能域。工具层拆分为 11 个独立文件（存储、DOM、选择器、拖拽、焦点等），核心层拆分为 7 个文件（编排、配置、监听、调度、锁、事件），UI层拆分为 3 个组件文件。
 
-### 2. 依赖注入模式
-通过全局命名空间实现松耦合：
-```javascript
-const { getConfigs, findMatchingConfig } = window.TOC_UTILS || {};
-const { initForConfig } = window.TOC_APP || {};
-```
+### 2. 静态模块依赖
+通过 ES Modules 明确表达模块依赖，由 esbuild 在构建时打包和校验。无需关心加载顺序。
 
 ### 3. 防御性编程
-每个模块都包含依赖检查和错误处理：
+每个模块包含错误处理和扩展上下文失效检测：
 ```javascript
-if (!getConfigs || !initForConfig) {
-  console.error('[目录助手] 缺少必要的依赖模块');
+if (isExtensionContextInvalidated()) {
+  console.warn('[TOC Assistant] Extension context invalidated');
   return;
 }
 ```
 
 ## 🎯 核心功能模块详解
 
-### 基础工具层 (约450行)
-**utils.js** - 提供扩展的基础能力
-- 存储操作：`getConfigs()`, `saveConfigs()`
-- TOC按钮位置管理：`getBadgePosByHost()`, `setBadgePosByHost()`
-- 位置管理（徽标中心点）：`getBadgePosByHost()`, `setBadgePosByHost()`（窗口尺寸变化时：水平位置贴到原侧边，竖直位置按窗口高度比例缩放）
-- 选择器执行：`collectBySelector()`
-- DOM操作：`uniqueInDocumentOrder()`, `scrollToElement()`
-- URL匹配：`findMatchingConfig()`
-- **存储配额处理**
-  - 配额检测：`isQuotaExceededError()`
-  - 数据修剪：`pruneObjectToLimit()`
+### 工具模块层 (1,546行)
 
-### 工具模块层 (132行)
-**css-selector.js** (51行) - CSS选择器生成
-- 优先使用 class 选择器
-- 回退到路径选择器（nth-of-type）
-- 优化代码可读性和可维护性
+**constants.js** (76行) — 常量定义
+- `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap）
+- `UI_CONSTANTS`: UI 尺寸和布局常量
+- `CLEANUP_SELECTOR`: 扩展元素清理选择器
 
-**toc-builder.js** (81行) - TOC构建和元素过滤
+**core-utils.js** (218行) — 通用工具
+- 扩展上下文失效检测: `isExtensionContextInvalidated()`
+- 消息封装: `msg()`
+- 焦点管理: `getFocusableWithin()`
+- JSON解析、数值校验、选择器表达式验证
+- `originFromUrl()`: URL → origin 转换
+
+**storage.js** (412行) — 存储操作
+- `getStorage()` / `setStorage()`: 通用存储读写
+- `getConfigs()` / `saveConfigs()`: TOC 配置管理
+- `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
+- `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
+- `getBadgePosMap()` / `saveBadgePosMap()`: 徽标位置
+- 使用 `storage-primitives-esm.js` 的 `serializedWrite` 保证写入顺序
+
+**dom-utils.js** (191行) — DOM操作
+- `collectBySelector()`: 执行 CSS/XPath 选择器
+- `uniqueInDocumentOrder()`: 通过 `compareDocumentPosition` 去重
+- `findMatchingConfig()`: URL 通配符匹配
+- `getSiteEnabledByOrigin()`: 按域名查询启用状态
+
+**toc-builder.js** (139行) — TOC构建
 - 选择器执行（CSS/XPath）
-- 增强的元素可见性检测：
-  - 计算样式检查（display、visibility、opacity）
-  - 边界矩形检测（零尺寸元素过滤）
-  - 父元素溢出裁剪检测（overflow:hidden）
-  - offsetParent 检查（排除隐藏在 DOM 树外的元素）
+- 元素可见性检测：计算样式、边界矩形、overflow 裁剪、offsetParent
 - 元素去重排序（compareDocumentPosition）
 
-### UI组件层 (约750行)
-**collapsed-badge.js** (约160行) - 折叠状态按钮
+**css-selector.js** (52行) — CSS选择器生成
+- 优先使用 class 选择器
+- 回退到路径选择器（nth-of-type）
+
+**badge-position.js** (128行) — 徽标位置管理
+- 按域名存储位置
+- 窗口尺寸变化时：水平贴边，竖直按高度比例缩放
+
+**drag-helper.js** (171行) — 拖拽辅助
+- 鼠标/触摸拖拽支持
+- 拖拽 vs 点击判定
+
+**focus-trap.js** (49行) — 焦点陷阱
+- 对话框内的 Tab 键焦点循环
+
+**toast.js** (91行) — Toast 提示
+- 临时提示消息显示
+
+**toc-utils.js** (19行) — barrel 重导出
+- 聚合 utils/ 下所有模块的导出
+
+### UI组件层 (1,426行)
+
+**collapsed-badge.js** (266行) — 折叠状态按钮
 - 可拖拽定位，支持位置记忆
 - 跨域名位置持久化
-- 支持左右侧位置（left/right）
-- 与面板位置同步（折叠时继承面板位置）
-- 窗口尺寸变化时：水平位置贴到原侧边（左/右），竖直位置按窗口高度比例缩放
-- 防止意外触发的拖拽检测
-- 增强的键盘交互支持
+- 支持左右侧位置
+- 与面板位置同步
+- 键盘交互支持
 
-**element-picker.js** (约110行) - 元素拾取器
+**element-picker.js** (272行) — 元素拾取器
 - 实时高亮悬停元素
 - 避免选中扩展自身UI
 - 支持ESC取消和右键取消
-- 改进的焦点管理
+- 焦点管理
 
-**floating-panel.js** (约480行) - 主浮动面板
+**floating-panel.js** (888行) — 主浮动面板
 - 目录列表渲染和交互
-- IntersectionObserver自动高亮
+- IntersectionObserver 自动高亮
 - 用户选择锁定机制
-- 操作按钮集成
-- 可拖拽标题栏（拖拽时保存位置，与TOC按钮位置同步）
-- 支持左右侧位置（left/right）
-- 窗口尺寸变化时：水平位置贴到原侧边（左/右），竖直位置按窗口高度比例缩放
-- 增强的错误处理
+- 可拖拽标题栏
+- 支持左右侧位置
+- 错误处理
 
-### 核心逻辑层 (约850行)
-**config-manager.js** (约160行) - 配置管理
+### 核心逻辑层 (1,711行)
+
+**toc-app.js** (658行) — 主应用协调器
+- 组件生命周期管理（`initForConfig` 返回 `{ rebuild, collapse, expand, destroy }`）
+- 状态同步和事件协调
+- 重建逻辑和优化
+- 面板/徽标位置同步
+- 导航锁故障保护（8秒超时自动解锁）
+- 动画帧管理和资源清理
+
+**config-manager.js** (343行) — 配置管理
 - 站点配置的保存和读取
 - 选择器管理界面
 - 配置清空功能
-- 重试逻辑
-  - `mutateConfigsWithRetry` 用于配置变更验证
-  - 增强的错误处理和恢复机制
+- `mutateConfigsWithRetry` 配置变更验证
+- 通过 event-bus 发送 `toc:config-changed` 事件
 
-**mutation-observer.js** (约190行) - 页面监听
-- 自动变化检测
-- 防抖重建机制
-- 导航锁定期间的延迟处理
-- 改进的清理逻辑
-  - 断开连接时正确清理观察者
-  - 防止内存泄漏
+**rebuild-scheduler.js** (253行) — 重建调度器
+- 协调 dom-watcher 和 url-monitor
+- 动态防抖：`DEBOUNCE_MS * 1.3^consecutiveMutations`，上限 1000ms
+- 导航锁集成（等待解锁后重建）
+- 失败重试逻辑（1秒延迟）
+- 断路器（连续5次失败后暂停）
 
-**toc-app.js** (约500行) - 主应用协调器
-- 组件生命周期管理
-- 状态同步和事件协调
-- 重建逻辑和优化（防止页面跳动）
-- 重建中状态标志管理
-- 面板/TOC按钮位置同步（折叠/展开时保持位置一致；窗口尺寸变化时水平贴边、竖直按高度比例缩放）
-- 导航锁故障保护
-  - 8秒超时自动解锁机制
-  - 防止导航锁定卡死
-- 动画帧管理
-  - requestAnimationFrame 调度和清理
-  - 组件销毁时的资源清理
+**url-monitor.js** (196行) — URL变化监测
+- History API 拦截（pushState/replaceState）
+- 轮询检测 URL 变化
+- popstate 事件监听
+
+**dom-watcher.js** (162行) — DOM变化监测
+- MutationObserver 监听 DOM 变更
+- 上下文失效检测和自动断开
+
+**nav-lock.js** (78行) — 导航锁
+- `lock(durationMs)`, `unlock()`, `isLocked()`, `onUnlock(callback)`, `destroy()`
+- 防止 IntersectionObserver 在用户点击 TOC 项时干扰
+- 自动超时解锁
+
+**event-bus.js** (21行) — 事件总线
+- `on(event, fn)`, `off(event, fn)`, `emit(event, ...args)`
+- 当前仅用于 `toc:config-changed` 事件
 
 ## 🛡️ 样式保护机制
 
-### CSS防御策略 (336行样式)
-1. **优先级保护**: 所有样式使用 `!important`
-2. **全局重置**: 防止网站样式干扰
-3. **属性覆盖**: 重置所有可能被影响的CSS属性
+### CSS防御策略 (895行样式)
+1. **CSS自定义属性主题**: 使用 `--toc-bg-panel` 等变量支持亮色/暗色主题
+2. **优先级保护**: 所有样式使用 `!important`
+3. **全局重置**: `.toc-floating, .toc-floating * { all: unset !important; }`
 4. **交互保护**: 确保按钮和链接正常工作
-
-### 样式组织
-```css
-/* 全局重置 */
-.toc-floating, .toc-floating *, .toc-collapsed-badge, .toc-collapsed-badge * {
-  all: unset !important;
-  box-sizing: border-box !important;
-}
-
-/* 组件样式 */
-.toc-floating { /* 浮动面板 */ }
-.toc-btn { /* 操作按钮 */ }
-.toc-item { /* 目录项 */ }
-.toc-collapsed-badge { /* 折叠按钮 */ }
-```
 
 ## ⚡ 性能优化策略
 
 ### 1. 自动重建机制
 - 内容相同时跳过重建
 - 用户交互期间延迟重建
-- 防抖处理页面变化
+- 动态防抖（爆发突变时自动增加防抖间隔）
+- 断路器保护（连续失败后暂停）
 
 ### 2. 内存管理
-- 正确清理事件监听器
+- `destroy()` 方法清理事件监听器和观察者
 - 定时器自动清理
 - 组件销毁时的资源释放
 
 ### 3. DOM操作优化
 - 批量DOM更新
 - 避免强制重排
-- 使用DocumentFragment
+- 使用 DocumentFragment
 
 ## 🔄 扩展和维护
 
 ### 添加新功能
-1. 在对应模块目录创建新文件
-2. 更新 `src/background.js` 中的 `CONTENT_SCRIPTS` 加载顺序
-3. 通过全局命名空间暴露API
-4. 在依赖模块中引入使用
+1. 在对应模块目录创建新文件，使用 `export` 导出
+2. 在需要使用的模块中通过 `import` 引入
+3. esbuild 在构建时自动解析和打包，无需关心加载顺序
+4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
 
 ### 调试和测试
-- 每个模块独立可测试
+- 无自动化测试框架，需手动加载扩展测试
 - 控制台日志分级输出
 - 错误边界和降级处理
+- `window.TOC_APP` 可在控制台调试
 
 ### 代码质量
 - 统一的代码风格
 - 完整的错误处理
-- 详细的注释文档
+- ESM 静态依赖，构建时校验

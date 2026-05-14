@@ -1,11 +1,10 @@
-define('core-utils', ['toc-constants'], function(C) {
-  var uiConst = C.uiConst;
+import { uiConst } from './constants.js';
 
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
    * @returns {boolean}
    */
-  function isExtensionContextInvalidated() {
+export function isExtensionContextInvalidated() {
     try {
       if (typeof chrome === 'undefined') return false;
       return !chrome.runtime || !chrome.runtime.id;
@@ -20,7 +19,7 @@ define('core-utils', ['toc-constants'], function(C) {
    * @param {string|string[]} [substitutions]
    * @returns {string}
    */
-  function msg(key, substitutions) {
+export function msg(key, substitutions) {
     try {
       return chrome.i18n.getMessage(key, substitutions) || key;
     } catch (_) {
@@ -28,13 +27,13 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
-  function isPlainObject(value) {
+export function isPlainObject(value) {
     if (!value || typeof value !== 'object') return false;
     var proto = Object.getPrototypeOf(value);
     return proto === Object.prototype || proto === null;
   }
 
-  function isContextInvalidatedError(e) {
+export function isContextInvalidatedError(e) {
     try {
       if (!e) return false;
       var text = String(e && (e.message || (e.toString && e.toString()) || e) || '');
@@ -45,7 +44,7 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
-  function getFocusableWithin(rootEl) {
+export function getFocusableWithin(rootEl) {
     var root = rootEl && rootEl.querySelectorAll ? rootEl : null;
     if (!root) return [];
     var selector = [
@@ -67,7 +66,7 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
-  function safeJsonParse(raw) {
+export function safeJsonParse(raw) {
     if (typeof raw !== 'string') return null;
     if (raw.length > 20000) {
       try { console.warn('[toc] safeJsonParse: input too large, skip parse:', raw.length); } catch (_) {}
@@ -80,12 +79,12 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
-  function getFiniteNumber(value) {
+export function getFiniteNumber(value) {
     var num = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(num) ? num : null;
   }
 
-  function isSafeXPathExpression(expr) {
+export function isSafeXPathExpression(expr) {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
     if (!trimmed) return false;
@@ -150,7 +149,7 @@ define('core-utils', ['toc-constants'], function(C) {
     return true;
   }
 
-  function isValidCssSelector(expr) {
+export function isValidCssSelector(expr) {
     if (typeof expr !== 'string') return false;
     if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
@@ -180,27 +179,18 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
-  function validateSelectorExpression(type, expr) {
+export function validateSelectorExpression(type, expr) {
     try {
       if (type === 'xpath') return isSafeXPathExpression(expr);
       if (type === 'css') return isValidCssSelector(expr);
-      // Late-binding fallback for trackOnce (defined in toc-storage, loaded later)
-      var trackOnceFn = (typeof require === 'function' && require('toc-storage'))
-        ? require('toc-storage').trackOnce
-        : null;
-      if (typeof trackOnceFn === 'function') {
-        var onceKey = 'selectorType:' + String(type);
-        if (trackOnceFn(onceKey, uiConst('WARN_ONCE_MAX_KEYS', 200))) {
-          console.warn('[toc] validateSelectorExpression: unsupported selector type:', type);
-        }
-      }
+      console.warn('[toc] validateSelectorExpression: unsupported selector type:', type);
       return false;
     } catch (_) {
       return false;
     }
   }
 
-  function originFromUrl(url) {
+export function originFromUrl(url) {
     try {
       return new URL(url).origin;
     } catch (e) {
@@ -212,7 +202,7 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
-  var api = {
+var api = {
     isExtensionContextInvalidated: isExtensionContextInvalidated,
     msg: msg,
     isPlainObject: isPlainObject,
@@ -225,10 +215,4 @@ define('core-utils', ['toc-constants'], function(C) {
     validateSelectorExpression: validateSelectorExpression,
     originFromUrl: originFromUrl
   };
-  // Backward compat
-  try {
-    var T = typeof globalThis !== 'undefined' ? globalThis.TOC_UTILS : (typeof window !== 'undefined' ? window.TOC_UTILS : null);
-    if (T) Object.assign(T, api);
-  } catch (_) {}
-  return api;
-});
+export default api;

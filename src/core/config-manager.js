@@ -1,14 +1,22 @@
-define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(tocUtils, coreUtils, focusTrap) {
-  'use strict';
+'use strict';
 
-  var msg = coreUtils.msg || function(key) { return key; };
-  var showToast = tocUtils.showToast;
-  var validateSelectorExpression = coreUtils.validateSelectorExpression;
-  var createFocusTrap = focusTrap.createFocusTrap;
-  var getConfigs = tocUtils.getConfigs;
-  var saveConfigs = tocUtils.saveConfigs;
+import { createFocusTrap } from '../utils/focus-trap.js';
+import { emit } from './event-bus.js';
+import {
+  showToast,
+  getConfigs,
+  saveConfigs,
+  findMatchingConfig,
+  getFocusableWithin,
+  msg,
+  validateSelectorExpression
+} from '../utils/toc-utils.js';
 
-  async function siteConfig(cfg) {
+  function notifyConfigChanged() {
+    if (emit) emit('toc:config-changed');
+  }
+
+export async function siteConfig(cfg) {
     try {
       var prevFocus = document.activeElement;
       var existing = document.querySelector('.toc-overlay');
@@ -154,11 +162,7 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
                 await refreshList(updatedSelectors);
                 countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
 
-                // Emit event instead of calling TOC_APP.rebuild() directly
-                if (typeof require === 'function') {
-                  var emit = require('loader').emit;
-                  if (emit) emit('toc:config-changed');
-                }
+                notifyConfigChanged();
               } catch (e2) {
                 console.warn(msg('logClearConfigFailed'), e2);
                 showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
@@ -215,7 +219,6 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
 
       var getFocusable = function() {
         try {
-          var getFocusableWithin = tocUtils.getFocusableWithin;
           if (typeof getFocusableWithin === 'function') return getFocusableWithin(box);
         } catch (_) {}
         return [];
@@ -253,11 +256,7 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
             await refreshList([]);
             countLabel.textContent = msg('configSavedSelectors') + ' (0)';
 
-            // Emit event instead of calling TOC_APP.rebuild() directly
-            if (typeof require === 'function') {
-              var emit = require('loader').emit;
-              if (emit) emit('toc:config-changed');
-            }
+            notifyConfigChanged();
             close();
           }
         } catch (e2) {
@@ -280,7 +279,7 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
     }
   }
 
-  async function saveSelector(selector, cfg) {
+export async function saveSelector(selector, cfg) {
     try {
       if (!cfg) {
         showToast && showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
@@ -320,14 +319,16 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
     }
   }
 
-  async function updateConfigFromStorage(cfg) {
+export async function updateConfigFromStorage(cfg) {
     try {
       var configs = await getConfigs();
       var urlPattern = location.protocol + '//' + location.host + '/*';
-      var idxNow = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+      var latest = findMatchingConfig(configs, location.href);
+      if (!latest) {
+        latest = configs.find(function(c) { return c && c.urlPattern === urlPattern; }) || null;
+      }
 
-      if (idxNow >= 0) {
-        var latest = configs[idxNow];
+      if (latest) {
         cfg.selectors = Array.isArray(latest.selectors) ? latest.selectors.slice() : [];
         cfg.side = (latest.side === 'left' || latest.side === 'right') ? latest.side : cfg.side;
       } else {
@@ -338,6 +339,5 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
     }
   }
 
-  var api = { siteConfig: siteConfig, saveSelector: saveSelector, updateConfigFromStorage: updateConfigFromStorage };
-  return api;
-});
+var api = { siteConfig: siteConfig, saveSelector: saveSelector, updateConfigFromStorage: updateConfigFromStorage };
+export default api;

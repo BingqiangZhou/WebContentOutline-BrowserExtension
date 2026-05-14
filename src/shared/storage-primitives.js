@@ -1,5 +1,5 @@
-// Shared storage primitives for both background service worker and content scripts.
-// Loaded via importScripts in background, injected as content script elsewhere.
+// Shared storage primitives for the background service worker.
+// The content script bundle uses storage-primitives-esm.js instead.
 // Creates globalThis.__STORAGE_PRIMITIVES — completely self-contained, no external dependencies.
 
 var __storagePrimitivesFactory = function() {
@@ -60,10 +60,4 @@ var __storagePrimitivesFactory = function() {
   return api;
 };
 
-// Register with define() if available (content script context),
-// otherwise set global directly (service worker context via importScripts).
-if (typeof define === 'function') {
-  define('storage-primitives', [], __storagePrimitivesFactory);
-} else {
-  __storagePrimitivesFactory();
-}
+__storagePrimitivesFactory();

@@ -1,10 +1,7 @@
-define('toc-builder', ['dom-utils', 'toc-constants'],
-  function(domUtils, constants) {
-    'use strict';
+'use strict';
 
-    var collectBySelector = domUtils.collectBySelector;
-    var uniqueInDocumentOrder = domUtils.uniqueInDocumentOrder;
-    var uiConst = constants.uiConst;
+import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
+import { uiConst } from './constants.js';
 
     var TOC_TEXT_MAX_LEN = (typeof uiConst === 'function') ? uiConst('TOC_TEXT_MAX_LEN', 200) : 200;
     var TOC_MAX_ITEMS = (typeof uiConst === 'function') ? uiConst('TOC_MAX_ITEMS', 400) : 400;
@@ -19,7 +16,7 @@ define('toc-builder', ['dom-utils', 'toc-constants'],
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
 
-    function buildTocItemsFromSelectors(selectors, cfg) {
+export function buildTocItemsFromSelectors(selectors, cfg) {
       var elements = [];
       var list = Array.isArray(selectors) ? selectors : [];
       var perSelectorLimit = Math.max(100, Math.floor(TOC_MAX_CANDIDATES / Math.max(1, list.length)));
@@ -123,7 +120,7 @@ define('toc-builder', ['dom-utils', 'toc-constants'],
       };
     }
 
-    function buildTocItems(cfg, extraSelectors) {
+export function buildTocItems(cfg, extraSelectors) {
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
       var combined = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
 
@@ -134,11 +131,9 @@ define('toc-builder', ['dom-utils', 'toc-constants'],
       return buildTocItemsFromSelectors(combined, cfg);
     }
 
-    var api = {
+var api = {
       buildTocItems: buildTocItems,
       buildTocItemsFromSelectors: buildTocItemsFromSelectors
     };
 
-    return api;
-  }
-);
+export default api;

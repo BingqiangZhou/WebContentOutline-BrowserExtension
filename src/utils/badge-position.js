@@ -1,31 +1,11 @@
-define('badge-position', ['toc-storage', 'storage-primitives', 'toc-constants'],
-  function(storage, storagePrimitives, constants) {
-    'use strict';
+'use strict';
 
-    var getBadgePosMap = storage.getBadgePosMap;
-    var saveBadgePosMap = storage.saveBadgePosMap;
-    var uiConst = constants.uiConst;
-    var getFiniteNumber = constants.getFiniteNumber;
-    var serializedWrite = storagePrimitives.serializedWrite;
-    var touchObjectKey = storagePrimitives.touchObjectKey;
-    var pruneObjectToLimit = storagePrimitives.pruneObjectToLimit;
+import { getBadgePosMap, saveBadgePosMap } from './storage.js';
+import { uiConst } from './constants.js';
+import { getFiniteNumber } from './core-utils.js';
+import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/storage-primitives-esm.js';
 
-    var __badgePosCache = null;
-    var __badgePosCacheReady = false;
-
-    // Listen for storage changes to invalidate cache
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
-      try {
-        chrome.storage.onChanged.addListener(function(changes, area) {
-          if (area === 'local' && changes.tocBadgePosMap) {
-            __badgePosCache = null;
-            __badgePosCacheReady = false;
-          }
-        });
-      } catch (_) {}
-    }
-
-    function resolveBadgePosForViewport(pos) {
+export function resolveBadgePosForViewport(pos) {
       try {
         if (!pos) return null;
 
@@ -85,26 +65,17 @@ define('badge-position', ['toc-storage', 'storage-primitives', 'toc-constants'],
       }
     }
 
-    function getBadgePosByHost(host) {
-      if (!__badgePosCacheReady) {
-        return getBadgePosMap().then(function(map) {
-          __badgePosCache = map;
-          __badgePosCacheReady = true;
-          var pos = (__badgePosCache && __badgePosCache[host]) || null;
-          return resolveBadgePosForViewport(pos);
-        });
-      }
-      var pos = (__badgePosCache && __badgePosCache[host]) || null;
-      return Promise.resolve(resolveBadgePosForViewport(pos));
+export function getBadgePosByHost(host) {
+      return getBadgePosMap().then(function(map) {
+        var pos = (map && map[host]) || null;
+        return resolveBadgePosForViewport(pos);
+      });
     }
 
-    function setBadgePosByHost(host, pos) {
+export function setBadgePosByHost(host, pos) {
       if (!host) return Promise.resolve(null);
 
-      // Update cache synchronously so subsequent reads are instant
-      var cacheReady = __badgePosCacheReady;
-
-      var enrichAndSave = function() {
+      var enrichAndSave = function(map) {
         var enriched = pos;
         try {
           var x = pos && getFiniteNumber(pos.x);
@@ -130,41 +101,28 @@ define('badge-position', ['toc-storage', 'storage-primitives', 'toc-constants'],
           enriched = pos;
         }
 
-        touchObjectKey(__badgePosCache, host, enriched);
-        pruneObjectToLimit(__badgePosCache, uiConst('STORAGE_MAX_MAP_KEYS', 400));
+        map = map || {};
+        touchObjectKey(map, host, enriched);
+        pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
 
-        // Fire-and-forget: serialize the write but do not await it on the hot path.
-        // The caller can still await if it needs confirmation (e.g. pagehide).
-        return serializedWrite('tocBadgePosMap', function() {
-          return saveBadgePosMap(__badgePosCache).then(function(ok) {
-            return ok ? (__badgePosCache[host] || null) : null;
-          });
+        return saveBadgePosMap(map).then(function(ok) {
+          return ok ? (map[host] || null) : null;
         });
       };
 
-      if (!cacheReady) {
+      return serializedWrite('tocBadgePosMap', function() {
         return getBadgePosMap().then(function(map) {
-          __badgePosCache = map || {};
-          __badgePosCacheReady = true;
-          return enrichAndSave();
+          return enrichAndSave(map || {});
         }).catch(function() {
-          __badgePosCache = {};
-          __badgePosCacheReady = true;
-          return enrichAndSave();
+          return enrichAndSave({});
         });
-      }
-
-      return enrichAndSave();
+      });
     }
 
-    var api = {
+var api = {
       getBadgePosByHost: getBadgePosByHost,
       setBadgePosByHost: setBadgePosByHost,
       resolveBadgePosForViewport: resolveBadgePosForViewport
     };
 
-    try { Object.assign((globalThis.TOC_UTILS || {}), api); } catch (_) {}
-
-    return api;
-  }
-);
+export default api;

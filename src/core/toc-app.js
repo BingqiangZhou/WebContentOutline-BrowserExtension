@@ -1,24 +1,31 @@
-define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating-panel', 'config-manager', 'rebuild-scheduler', 'toc-constants', 'css-selector'],
-  function(tocBuilder, collapsedBadge, elementPickerMod, floatingPanel, configManager, schedulerMod, C, cssSelector) {
-  'use strict';
+'use strict';
 
-  var buildTocItems = tocBuilder.buildTocItems;
-  var renderCollapsedBadge = collapsedBadge.renderCollapsedBadge;
-  var renderFloatingPanel = floatingPanel.renderFloatingPanel;
-  var createElementPicker = elementPickerMod.createElementPicker;
-  var showPickerResult = elementPickerMod.showPickerResult;
-  var siteConfig = configManager.siteConfig;
-  var saveSelector = configManager.saveSelector;
-  var updateConfigFromStorage = configManager.updateConfigFromStorage;
-  var createRebuildScheduler = schedulerMod.createRebuildScheduler;
-  var buildClassSelector = cssSelector.buildClassSelector;
-  var cssPathFor = cssSelector.cssPathFor;
-  var uiConst = C.uiConst;
+import { buildTocItems } from '../utils/toc-builder.js';
+import { renderCollapsedBadge } from '../ui/collapsed-badge.js';
+import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
+import { renderFloatingPanel } from '../ui/floating-panel.js';
+import { siteConfig, saveSelector, updateConfigFromStorage } from './config-manager.js';
+import { createRebuildScheduler } from './rebuild-scheduler.js';
+import {
+  msg,
+  showToast,
+  cleanupOwnedElements,
+  getBadgePosByHost,
+  setBadgePosByHost,
+  setPanelExpandedByOrigin
+} from '../utils/toc-utils.js';
+import { uiConst } from '../utils/constants.js';
+import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
+import {
+  isContextInvalidatedError,
+  isExtensionContextInvalidated
+} from '../utils/core-utils.js';
+import * as NL from './nav-lock.js';
+import { on } from './event-bus.js';
 
   // Event handler for config changes
   var _activeRebuild = null;
   try {
-    var on = (typeof require === 'function') ? require('loader').on : null;
     if (on) {
       on('toc:config-changed', function() { if (_activeRebuild) _activeRebuild(); });
     }
@@ -38,27 +45,11 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
     };
   })();
 
-  var isContextInvalidatedError = null;
-  var isExtensionContextInvalidated = null;
-  try {
-    var coreUtils = (typeof require === 'function') ? require('core-utils') : null;
-    isContextInvalidatedError = coreUtils && coreUtils.isContextInvalidatedError;
-    isExtensionContextInvalidated = coreUtils && coreUtils.isExtensionContextInvalidated;
-  } catch (_) {}
-
-  function initForConfig(cfg) {
+export function initForConfig(cfg) {
     var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    try {
-      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner]')).forEach(function(el) {
-        try {
-          var cleanup = el && el.__TOC_CLEANUP__;
-          if (typeof cleanup === 'function') cleanup();
-        } catch (_) {}
-        try { el.remove(); } catch (_) {}
-      });
-    } catch (_) {}
+    if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner]');
 
     // Per-instance rebuild flag to prevent IntersectionObserver interference
     var isRebuilding = false;
@@ -99,7 +90,6 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
-    var NL = (typeof require === 'function') ? require('nav-lock') : globalThis.NAV_LOCK;
     var getNavLock = function() { return NL.isLocked(); };
     var setNavLock = function(v) { if (v) NL.lock(); else NL.unlock(); };
     var cancelActiveRestore = function() {
@@ -232,13 +222,12 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
             noticeEl.setAttribute('role', 'alert');
             noticeEl.setAttribute('aria-live', 'assertive');
             var noticeTextEl = document.createElement('span');
-            var msgFn = (typeof require === 'function') ? require('toc-utils').msg : null;
-            noticeTextEl.textContent = msgFn ? msgFn('ctxInvalidatedNotice') : 'Extension updated. Please refresh the page.';
+            noticeTextEl.textContent = msg('ctxInvalidatedNotice') || 'Extension updated. Please refresh the page.';
             noticeEl.appendChild(noticeTextEl);
             var refreshLinkEl = document.createElement('a');
             refreshLinkEl.className = 'toc-ctx-refresh-link';
             refreshLinkEl.href = '#';
-            refreshLinkEl.textContent = msgFn ? msgFn('ctxInvalidatedRefresh') : 'Refresh';
+            refreshLinkEl.textContent = msg('ctxInvalidatedRefresh') || 'Refresh';
             refreshLinkEl.addEventListener('click', function(e) {
               e.preventDefault();
               try { location.reload(); } catch (_) {}
@@ -477,10 +466,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
           var y = rect.top + rect.height / 2;
           if (Number.isFinite(x) && Number.isFinite(y)) {
             buttonCenter = { x: x, y: y };
-            try {
-              var setBadgePosByHost = (typeof require === 'function') ? require('toc-utils').setBadgePosByHost : null;
-              if (setBadgePosByHost) setBadgePosByHost(location.host, buttonCenter);
-            } catch (_) {}
+            try { if (setBadgePosByHost) setBadgePosByHost(location.host, buttonCenter); } catch (_) {}
           }
         }
 
@@ -493,10 +479,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
         if (!badgeInstance && renderCollapsedBadge) {
           badgeInstance = renderCollapsedBadge(side, expand, buttonCenter);
         }
-        try {
-          var setPanelExpandedByOrigin = (typeof require === 'function') ? require('toc-utils').setPanelExpandedByOrigin : null;
-          if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, false);
-        } catch (_) {}
+        try { if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
       } catch (e) {
         console.debug('[toc] collapse failed:', e);
       }
@@ -527,11 +510,6 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
         } catch (_) {}
 
         // Get saved badge center position
-        var getBadgePosByHost = null;
-        try {
-          getBadgePosByHost = (typeof require === 'function') ? require('toc-utils').getBadgePosByHost : null;
-        } catch (_) {}
-
         if (getBadgePosByHost) {
           if (!savedPos || !Number.isFinite(savedPos.x) || !Number.isFinite(savedPos.y)) {
             savedPos = await getBadgePosByHost(location.host);
@@ -605,10 +583,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
           } catch (_) {}
         }
 
-        try {
-          var setPanelExpandedByOrigin = (typeof require === 'function') ? require('toc-utils').setPanelExpandedByOrigin : null;
-          if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, true);
-        } catch (_) {}
+        try { if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, true); } catch (_) {}
       } catch (e) {
         if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
           console.debug('[toc] expand failed:', e);
@@ -678,7 +653,6 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
     }
   }
 
-  var api = { initForConfig: initForConfig };
-  try { window.TOC_APP = window.TOC_APP || {}; window.TOC_APP.initForConfig = initForConfig; } catch (_) {}
-  return api;
-});
+var api = { initForConfig: initForConfig };
+try { window.TOC_APP = window.TOC_APP || {}; window.TOC_APP.initForConfig = initForConfig; } catch (_) {}
+export default api;

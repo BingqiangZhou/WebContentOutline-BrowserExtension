@@ -208,9 +208,8 @@
 ├── build.js                   # 构建和打包脚本
 ├── package.json               # Node.js 元数据
 ├── src/
-│   ├── loader.js              # 模块加载器（define/require）
 │   ├── background.js          # 后台服务工作者
-│   ├── content.js             # 内容脚本入口
+│   ├── content.js             # 内容脚本入口（ESM）
 │   ├── content.css            # 内容脚本样式
 │   ├── utils/                 # 工具模块
 │   │   ├── constants.js       # 存储键名、UI 常量
@@ -225,7 +224,8 @@
 │   │   ├── toc-builder.js     # TOC 构建逻辑
 │   │   └── drag-helper.js     # Pointer Events 拖拽控制器
 │   ├── shared/                # 跨上下文共享模块
-│   │   └── storage-primitives.js  # 共享存储工具函数
+│   │   ├── storage-primitives.js     # 共享存储工具（importScripts 格式）
+│   │   └── storage-primitives-esm.js # ESM 版本，供内容脚本 bundle 使用
 │   ├── ui/                    # UI 组件
 │   │   ├── collapsed-badge.js # 折叠按钮
 │   │   ├── element-picker.js  # 元素拾取器
@@ -236,6 +236,7 @@
 │       ├── dom-watcher.js     # MutationObserver 封装
 │       ├── url-monitor.js     # URL/hash 变更监控
 │       ├── rebuild-scheduler.js # 重建调度与协调
+│       ├── event-bus.js       # 轻量事件总线（发布/订阅）
 │       └── toc-app.js         # 主应用逻辑
 ├── docs/                      # 文档资源
 │   ├── PRIVACY_POLICY.md      # 隐私政策
@@ -248,7 +249,7 @@
 
 - **运行环境**：Edge/Chrome 浏览器（Chromium 内核）
 - **扩展标准**：Manifest V3
-- **开发语言**：原生 JavaScript + CSS3（无构建系统）
+- **开发语言**：原生 JavaScript + CSS3（ES Modules，使用 esbuild 打包）
 - **存储方案**：`chrome.storage.local` API
 - **权限需求**：`storage`、`tabs`、`scripting`、`alarms`
 - **站点权限**：`http://*/*`、`https://*/*`

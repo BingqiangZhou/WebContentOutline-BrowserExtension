@@ -1,40 +1,16 @@
-define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-constants'],
-  function(storage, coreUtils, storagePrimitives, constants) {
-    'use strict';
+'use strict';
 
-    var getEnabledMap = storage.getEnabledMap;
-    var saveEnabledMap = storage.saveEnabledMap;
-    var getPanelStateMap = storage.getPanelStateMap;
-    var savePanelStateMap = storage.savePanelStateMap;
-    var uiConst = constants.uiConst;
-    var serializedWrite = storagePrimitives.serializedWrite;
-    var touchObjectKey = storagePrimitives.touchObjectKey;
-    var pruneObjectToLimit = storagePrimitives.pruneObjectToLimit;
-    var isSafeXPathExpression = coreUtils.isSafeXPathExpression;
-    var originFromUrl = coreUtils.originFromUrl;
-
-    // --- Module-private cache for panel expanded state ---
-    var __panelStateCache = null;
-    var __panelStateCacheReady = false;
-
-    // Listen for storage changes to invalidate cache
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
-      try {
-        chrome.storage.onChanged.addListener(function(changes, area) {
-          if (area === 'local' && changes.tocPanelExpandedMap) {
-            __panelStateCache = null;
-            __panelStateCacheReady = false;
-          }
-        });
-      } catch (_) {}
-    }
+import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';
+import { uiConst } from './constants.js';
+import { serializedWrite, pruneObjectToLimit } from '../shared/storage-primitives-esm.js';
+import { isSafeXPathExpression, originFromUrl } from './core-utils.js';
 
     /**
      * Simple wildcard matcher: supports * as any chars
      * @param {string} pattern e.g., https://example.com/articles/* or *://*.example.com/*
      * @param {string} text URL to test
      */
-    function matchWildcard(pattern, text) {
+export function matchWildcard(pattern, text) {
       if (typeof pattern !== 'string' || typeof text !== 'string') return false;
       if (pattern === '*') return true;
       var parts = pattern.split('*');
@@ -71,7 +47,7 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
      * @param {Array} configs
      * @param {string} url
      */
-    function findMatchingConfig(configs, url) {
+export function findMatchingConfig(configs, url) {
       return configs.find(function(cfg) {
         if (!cfg || !cfg.urlPattern) return false;
         return matchWildcard(cfg.urlPattern, url);
@@ -83,57 +59,35 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
      * @param {string} [origin]
      * @returns {Promise<boolean>}
      */
-    function getSiteEnabledByOrigin(origin) {
+export function getSiteEnabledByOrigin(origin) {
       return getEnabledMap().then(function(map) {
         var key = origin || (typeof location !== 'undefined' ? location.origin : '');
         return !!(key && map[key]);
       });
     }
 
-    function getPanelExpandedByOrigin(origin) {
+export function getPanelExpandedByOrigin(origin) {
       var doRead = function(map) {
         var key = origin || (typeof location !== 'undefined' ? location.origin : '');
         return !!(key && map && map[key]);
       };
 
-      if (!__panelStateCacheReady) {
-        return getPanelStateMap().then(function(map) {
-          __panelStateCache = map;
-          __panelStateCacheReady = true;
-          return doRead(__panelStateCache);
-        });
-      }
-      return Promise.resolve(doRead(__panelStateCache));
+      return getPanelStateMap().then(function(map) {
+        return doRead(map);
+      });
     }
 
-    function setPanelExpandedByOrigin(origin, expanded) {
-      var doWrite = function() {
+export function setPanelExpandedByOrigin(origin, expanded) {
+      return serializedWrite('tocPanelExpandedMap', function() {
         var key = origin || (typeof location !== 'undefined' ? location.origin : '');
         if (!key) return Promise.resolve(false);
-        __panelStateCache[key] = !!expanded;
-
-        // Fire-and-forget the storage write
-        return serializedWrite('tocPanelExpandedMap', function() {
-          return getPanelStateMap().then(function(map) {
-            map[key] = !!expanded;
-            pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
-            return savePanelStateMap(map);
-          });
-        });
-      };
-
-      if (!__panelStateCacheReady) {
         return getPanelStateMap().then(function(map) {
-          __panelStateCache = map || {};
-          __panelStateCacheReady = true;
-          return doWrite();
-        }).catch(function() {
-          __panelStateCache = {};
-          __panelStateCacheReady = true;
-          return doWrite();
+          map = map || {};
+          map[key] = !!expanded;
+          pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
+          return savePanelStateMap(map);
         });
-      }
-      return doWrite();
+      });
     }
 
     /**
@@ -141,7 +95,7 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
      * @param {{type: 'css'|'xpath', expr: string}} selector
      * @returns {Element[]}
      */
-    function collectBySelector(selector) {
+export function collectBySelector(selector) {
       if (!selector || !selector.expr) return [];
       if (selector.type === 'xpath') {
         if (!isSafeXPathExpression(selector.expr)) return [];
@@ -175,7 +129,7 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
      * Deduplicate elements preserving first-occurrence order
      * @param {Element[]} list
      */
-    function uniqueInDocumentOrder(list) {
+export function uniqueInDocumentOrder(list) {
       var seen = new Set();
       var result = [];
       for (var i = 0; i < list.length; i++) {
@@ -192,7 +146,7 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
      * Smooth scroll to element
      * @param {Element} el
      */
-    function scrollToElement(el) {
+export function scrollToElement(el) {
       try {
         var reduceMotion = (function() {
           try {
@@ -207,7 +161,21 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
       }
     }
 
-    var api = {
+export function cleanupOwnedElements(selectorFallback) {
+      var fallback = selectorFallback || '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]';
+      var selector = selectorFallback || uiConst('CLEANUP_SELECTOR', fallback);
+      try {
+        document.querySelectorAll(selector).forEach(function(el) {
+          try {
+            var cleanup = el && el.__TOC_CLEANUP__;
+            if (typeof cleanup === 'function') cleanup();
+          } catch (_) {}
+          try { el.remove(); } catch (_) {}
+        });
+      } catch (_) {}
+    }
+
+var api = {
       originFromUrl: originFromUrl,
       matchWildcard: matchWildcard,
       findMatchingConfig: findMatchingConfig,
@@ -216,11 +184,8 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
       setPanelExpandedByOrigin: setPanelExpandedByOrigin,
       collectBySelector: collectBySelector,
       uniqueInDocumentOrder: uniqueInDocumentOrder,
-      scrollToElement: scrollToElement
+      scrollToElement: scrollToElement,
+      cleanupOwnedElements: cleanupOwnedElements
     };
 
-    try { Object.assign((globalThis.TOC_UTILS || {}), api); } catch (_) {}
-
-    return api;
-  }
-);
+export default api;

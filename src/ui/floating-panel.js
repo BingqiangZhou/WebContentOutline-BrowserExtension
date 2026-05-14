@@ -1,11 +1,14 @@
-define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function(tocUtils, dragHelper, C) {
-  'use strict';
+'use strict';
 
-  var msg = tocUtils.msg || function(key) { return key; };
-  var setBadgePosByHost = tocUtils.setBadgePosByHost;
-  var uiConst = C.uiConst;
-  var createDragController = dragHelper.createDragController;
-  var scrollToElement = tocUtils.scrollToElement;
+import {
+  msg,
+  setBadgePosByHost,
+  scrollToElement,
+  cleanupOwnedElements
+} from '../utils/toc-utils.js';
+import { uiConst } from '../utils/constants.js';
+import { createDragController } from '../utils/drag-helper.js';
+import * as NL from '../core/nav-lock.js';
 
   var CFG = (function() {
     var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
@@ -21,7 +24,7 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
     };
   })();
 
-  function renderFloatingPanel(opts) {
+export function renderFloatingPanel(opts) {
     var items = opts.items;
     var side = opts.side;
     var onCollapse = opts.onCollapse;
@@ -35,17 +38,8 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
     var skipAnimation = opts.skipAnimation;
     var getIsRebuilding = opts.getIsRebuilding || function() { return false; };
 
-    var NL = (typeof require === 'function') ? require('nav-lock') : globalThis.NAV_LOCK;
     // Remove any existing panel to prevent duplicates
-    try {
-      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-floating[data-toc-owner]')).forEach(function(el) {
-        try {
-          var cleanup = el && el.__TOC_CLEANUP__;
-          if (typeof cleanup === 'function') cleanup();
-        } catch (_) {}
-        try { el.remove(); } catch (_) {}
-      });
-    } catch (_) {}
+    if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner]');
 
     var panel = document.createElement('div');
     var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -891,6 +885,4 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
     };
   }
 
-  var api = { renderFloatingPanel: renderFloatingPanel };
-  return api;
-});
+export default { renderFloatingPanel: renderFloatingPanel };

@@ -1,10 +1,8 @@
-define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(tocUtils, focusTrap, C) {
-  'use strict';
+'use strict';
 
-  var msg = tocUtils.msg || function(key) { return key; };
-  var uiConst = C.uiConst;
-  var getFocusableWithin = tocUtils.getFocusableWithin;
-  var createFocusTrap = focusTrap.createFocusTrap;
+import { msg, getFocusableWithin } from '../utils/toc-utils.js';
+import { uiConst } from '../utils/constants.js';
+import { createFocusTrap } from '../utils/focus-trap.js';
 
   var CFG = (function() {
     var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
@@ -14,7 +12,7 @@ define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(
     };
   })();
 
-  function showPickerResult(selector, saveCb) {
+export function showPickerResult(selector, saveCb) {
     var prevFocus = document.activeElement;
     var existing = document.querySelector('.toc-overlay');
     if (existing) {
@@ -104,7 +102,7 @@ define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(
     return { close: close };
   }
 
-  function createElementPicker(onPicked, onCancel) {
+export function createElementPicker(onPicked, onCancel) {
     if (!document.body) {
       console.warn('[toc] DOM not ready, cannot start element picker');
       onCancel && onCancel();
@@ -271,6 +269,4 @@ define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(
     return { cleanup: cleanup };
   }
 
-  var api = { showPickerResult: showPickerResult, createElementPicker: createElementPicker };
-  return api;
-});
+export default { showPickerResult: showPickerResult, createElementPicker: createElementPicker };

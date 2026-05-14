@@ -1,5 +1,4 @@
-define('dom-watcher', [], function() {
-  'use strict';
+'use strict';
 
   var OBSERVED_ATTRIBUTES = [
     'hidden',
@@ -20,7 +19,7 @@ define('dom-watcher', [], function() {
    * @param {function} onMutation - Called with no args when a meaningful DOM change is detected.
    * @returns {object}
    */
-  function createDomWatcher(onMutation) {
+export function createDomWatcher(onMutation) {
     var observerRef = null;
     var isContextValid = true;
 
@@ -160,5 +159,4 @@ define('dom-watcher', [], function() {
     };
   }
 
-  return { createDomWatcher: createDomWatcher };
-});
+export default { createDomWatcher: createDomWatcher };

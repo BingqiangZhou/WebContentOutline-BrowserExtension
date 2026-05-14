@@ -208,9 +208,8 @@ For complex page structures, you can use XPath:
 │   └── zh_CN/
 │       └── messages.json      # Chinese translation
 ├── src/
-│   ├── loader.js              # Module loader (define/require)
 │   ├── background.js          # Background service worker
-│   ├── content.js             # Content script entry
+│   ├── content.js             # Content script entry (ESM)
 │   ├── content.css            # Content script styles
 │   ├── utils/                 # Utility modules
 │   │   ├── constants.js       # Storage keys, UI constants
@@ -225,7 +224,8 @@ For complex page structures, you can use XPath:
 │   │   ├── toc-builder.js     # TOC building logic
 │   │   └── drag-helper.js     # Pointer-event drag controller
 │   ├── shared/                # Shared between contexts
-│   │   └── storage-primitives.js  # Shared storage utilities
+│   │   ├── storage-primitives.js     # Shared storage utilities (importScripts format)
+│   │   └── storage-primitives-esm.js # ESM version for content script bundle
 │   ├── ui/                    # UI components
 │   │   ├── collapsed-badge.js # Collapsed TOC button
 │   │   ├── element-picker.js  # Element picker
@@ -236,6 +236,7 @@ For complex page structures, you can use XPath:
 │       ├── dom-watcher.js     # MutationObserver wrapper
 │       ├── url-monitor.js     # URL/hash change monitor
 │       ├── rebuild-scheduler.js # Rebuild scheduling & coordination
+│       ├── event-bus.js       # Lightweight event bus (pub/sub)
 │       └── toc-app.js         # Main application logic
 ├── docs/                      # Documentation assets
 │   ├── PRIVACY_POLICY.md      # Privacy policy
@@ -248,24 +249,28 @@ For complex page structures, you can use XPath:
 
 - **Runtime**: Edge/Chrome browser (Chromium-based)
 - **Extension Standard**: Manifest V3
-- **Language**: Vanilla JavaScript + CSS3 (No build system)
+- **Language**: Vanilla JavaScript + CSS3 (ES Modules, bundled with esbuild)
 - **Storage**: `chrome.storage.local` API
 - **Permissions**: `storage`, `tabs`, `scripting`, `alarms`
 - **Host Permissions**: `http://*/*`, `https://*/*`
 
 ### Architecture
 
-**Modular Design**: 23 module files using `define()`/`require()` dependency injection (defined in `src/background.js` CONTENT_SCRIPTS array)
-- Layer 0: `loader.js` - Module registration system
-- Layer 1: `utils/constants.js`, `utils/core-utils.js`, `utils/toast.js` - Base utilities
-- Layer 2: `shared/storage-primitives.js`, `utils/storage.js`, `utils/toc-utils.js`, `utils/badge-position.js`, `utils/dom-utils.js` - Storage & DOM utilities
-- Layer 3: `utils/drag-helper.js`, `utils/css-selector.js`, `utils/focus-trap.js`, `utils/toc-builder.js` - Utility modules
-- Layer 4: `core/nav-lock.js` - Navigation lock module
-- Layer 5: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI components
-- Layer 6: `core/config-manager.js`, `core/url-monitor.js`, `core/dom-watcher.js`, `core/rebuild-scheduler.js`, `core/toc-app.js` - Core logic
-- Layer 7: `content.js` - Entry point
+**ES Modules + esbuild**: Source code uses standard ESM `import`/`export`. esbuild bundles the content script tree into a single IIFE at build time. No runtime module loading or load-order concerns.
 
-**Module System**: Modules use `define(name, deps, factory)` for dependency injection with event-based communication (replaces circular dependencies)
+**Content Script Dependency Graph**:
+```
+src/content.js (entry)
+  ├── utils/toc-utils.js (barrel re-export of all utils)
+  └── core/toc-app.js (orchestrator)
+        ├── ui/ components (collapsed-badge, element-picker, floating-panel)
+        ├── core/config-manager.js → event-bus.js, focus-trap.js
+        └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
+```
+
+**Background Script**: Uses `importScripts('shared/storage-primitives.js')` (MV3 service workers cannot use ESM). Accesses shared utilities via `globalThis.__STORAGE_PRIMITIVES`.
+
+**Shared Storage Primitives**: Two versions of the same logic — `storage-primitives.js` (for `importScripts`) and `storage-primitives-esm.js` (for content script bundle).
 
 ### Key Algorithms
 
@@ -275,7 +280,7 @@ For complex page structures, you can use XPath:
 - **Debounced Rebuild**: MutationObserver + dynamic debounce (500ms–1s) to avoid frequent updates
 - **Selector Generation**: Prioritizes class selector, falls back to path selector
 - **Navigation Lock**: Locks IntersectionObserver during user clicks to prevent jumping
-- **Navigation Lock Failsafe**: Auto-unlocks after timeout (3s default) if stuck
+- **Navigation Lock Failsafe**: Auto-unlocks after timeout (8s) if stuck
 - **Animation Frame Management**: Schedules and cleans up requestAnimationFrame callbacks
 - **Storage Quota Handling**: Auto-prunes old data when quota exceeded
 - **Config Mutation Retry**: Retries failed config mutations with verification
@@ -370,10 +375,10 @@ Site configuration is stored in `chrome.storage.local`:
 ## 🔧 Development Guide
 
 ### Build & Packaging
-This project uses pure vanilla JavaScript with no build tools for development. A `build.js` script handles validation and packaging:
-- Edit files directly - no compilation needed
-- Run `node build.js` to validate syntax and create distributable zip
-- The build script copies runtime files to `dist/build/` and creates `dist/packages/v{version}.zip`
+Source code uses ES Modules, bundled with esbuild at build time:
+- Edit files directly — esbuild resolves ESM imports at build time
+- Run `node build.js` to bundle with esbuild, validate syntax, and create distributable zip
+- The build script produces `dist/build/src/content.js` (bundled IIFE) and creates `dist/packages/v{version}.zip`
 
 ### Debugging
 1. **Background Page**: Click "Service Worker" at `edge://extensions/` to view background logs
@@ -382,9 +387,9 @@ This project uses pure vanilla JavaScript with no build tools for development. A
 
 ### Adding New Features
 1. Create new file in appropriate module directory (`utils/`, `ui/`, `core/`, `shared/`)
-2. Update load order in `src/background.js` `CONTENT_SCRIPTS` array (maintain dependency order)
-3. Expose API via global namespace (`window.MODULE_NAME`)
-4. Add dependency checks in consuming modules
+2. Use `export` for the module's public API
+3. `import` from the module wherever needed (esbuild resolves at build time)
+4. If it's a utility, consider adding to `utils/toc-utils.js` barrel re-export
 
 For detailed technical documentation, see [`CLAUDE.md`](CLAUDE.md).
 

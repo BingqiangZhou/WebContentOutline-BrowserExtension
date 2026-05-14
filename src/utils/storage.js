@@ -1,18 +1,20 @@
-define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], function(CU, SP, C) {
-  var uiConst = C.uiConst;
-  var isPlainObject = CU.isPlainObject;
-  var isExtensionContextInvalidated = CU.isExtensionContextInvalidated;
-  var isContextInvalidatedError = CU.isContextInvalidatedError;
-  var msg = CU.msg;
-  var STORAGE_KEYS = C.STORAGE_KEYS;
-
-  var serializedWrite = SP.serializedWrite;
-  var isQuotaExceededError = SP.isQuotaExceededError;
-  var touchObjectKey = SP.touchObjectKey;
-  var pruneObjectToLimit = SP.pruneObjectToLimit;
+import { uiConst, STORAGE_KEYS } from './constants.js';
+import {
+  isPlainObject,
+  isExtensionContextInvalidated,
+  isContextInvalidatedError,
+  validateSelectorExpression,
+  msg
+} from './core-utils.js';
+import {
+  serializedWrite,
+  isQuotaExceededError,
+  pruneObjectToLimit
+} from '../shared/storage-primitives-esm.js';
+import { showToast } from './toast.js';
 
   var __storageErrorOnce = new Map();
-  function trackOnce(onceKey, maxKeys) {
+export function trackOnce(onceKey, maxKeys) {
     try {
       if (__storageErrorOnce.has(onceKey)) return false;
       __storageErrorOnce.set(onceKey, Date.now());
@@ -28,13 +30,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     }
   }
 
-  // Late-binding reference to showToast (from toast module)
-  function getShowToast() {
-    var toastMod = typeof require === 'function' ? require('toast') : null;
-    return toastMod && toastMod.showToast ? toastMod.showToast : null;
-  }
-
-  function notifyStorageWriteError(key, err) {
+export function notifyStorageWriteError(key, err) {
     try {
       var kind = isQuotaExceededError(err) ? 'quota' : 'unknown';
       var onceKey = kind + ':' + String(key || '');
@@ -44,7 +40,6 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
       var errStr = String(err && (err.message || err.toString && err.toString() || err) || '');
       console.warn('[toc] storage write failed: key="' + key + '", error="' + errStr + '"');
       if (typeof document !== 'undefined' && document.documentElement) {
-        var showToast = getShowToast();
         if (typeof showToast === 'function') {
           var messageKey = kind === 'quota' ? 'errorStorageQuotaExceeded' : 'errorStorageWriteFailed';
           var text = msg(messageKey);
@@ -56,7 +51,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     } catch (_) {}
   }
 
-  function normalizeSelectorEntry(entry) {
+export function normalizeSelectorEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
     var type = entry.type === 'css' || entry.type === 'xpath' ? entry.type : null;
     if (!type) return null;
@@ -65,7 +60,6 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     if (type === 'css' && expr.length > uiConst('CSS_SELECTOR_MAX_LENGTH', 2000)) return null;
     if (type === 'xpath' && expr.length > uiConst('XPATH_MAX_LENGTH', 2000)) return null;
     try {
-      var validateSelectorExpression = CU.validateSelectorExpression;
       if (typeof validateSelectorExpression === 'function' && !validateSelectorExpression(type, expr)) return null;
     } catch (_) {
       return null;
@@ -74,7 +68,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     return result;
   }
 
-  function normalizeTocConfigs(value, opts) {
+export function normalizeTocConfigs(value, opts) {
     if (!opts) opts = {};
     var list = Array.isArray(value) ? value : [];
     var maxSitesRaw = uiConst('STORAGE_MAX_SITES', 200);
@@ -149,7 +143,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     return deduped.slice(0, finalMaxSites).map(function(x) { return x.cfg; });
   }
 
-  function validateStorageValue(key, value) {
+export function validateStorageValue(key, value) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return Array.isArray(value);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.PANEL_STATE_MAP) return isPlainObject(value);
@@ -157,7 +151,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     return true;
   }
 
-  function normalizeStorageValue(key, value, opts) {
+export function normalizeStorageValue(key, value, opts) {
     if (!opts) opts = {};
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value, opts);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
@@ -188,7 +182,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * @param {*} fallback
    * @returns {Promise<*>}
    */
-  function getStorage(key, fallback) {
+export function getStorage(key, fallback) {
     // Check if extension context is invalidated before calling Chrome API
     if (isExtensionContextInvalidated()) {
       return Promise.resolve(fallback);
@@ -229,7 +223,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * @param {*} value
    * @returns {Promise<boolean>}
    */
-  function setStorage(key, value) {
+export function setStorage(key, value) {
     // Check if extension context is invalidated before calling Chrome API
     if (isExtensionContextInvalidated()) {
       return Promise.resolve(false);
@@ -291,7 +285,6 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
                   var warnKey = 'warningStorageQuotaNotSaved';
                   var warnText = msg(warnKey);
                   var fallbackWarn = 'Storage quota reached. Changes were not saved.';
-                  var showToast = getShowToast();
                   if (typeof showToast === 'function') {
                     showToast((warnText && warnText !== warnKey) ? warnText : fallbackWarn, { type: 'warning', durationMs: 5000 });
                   }
@@ -308,9 +301,8 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
                       var wKey = 'warningStorageQuotaPruned';
                       var wText = msg(wKey);
                       var fText = 'Storage quota reached. Some older data was removed to save your changes.';
-                      var showT = getShowToast();
-                      if (typeof showT === 'function') {
-                        showT((wText && wText !== wKey) ? wText : fText, { type: 'warning', durationMs: 5000 });
+                      if (typeof showToast === 'function') {
+                        showToast((wText && wText !== wKey) ? wText : fText, { type: 'warning', durationMs: 5000 });
                       }
                     }
                   }
@@ -340,7 +332,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * Get configs from chrome.storage.local
    * @returns {Promise<Array>}
    */
-  function getConfigs() {
+export function getConfigs() {
     return getStorage(STORAGE_KEYS.TOC_CONFIGS, []);
   }
 
@@ -349,7 +341,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * @param {Array} configs
    * @returns {Promise<void>}
    */
-  function saveConfigs(configs) {
+export function saveConfigs(configs) {
     return serializedWrite(STORAGE_KEYS.TOC_CONFIGS, function() { return setStorage(STORAGE_KEYS.TOC_CONFIGS, configs); });
   }
 
@@ -357,7 +349,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * Get site enabled map { origin: boolean } from chrome.storage.local
    * @returns {Promise<Record<string, boolean>>}
    */
-  function getEnabledMap() {
+export function getEnabledMap() {
     return getStorage(STORAGE_KEYS.SITE_ENABLE_MAP, {});
   }
 
@@ -365,14 +357,14 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * Save site enabled map to chrome.storage.local
    * @param {Record<string, boolean>} map
    */
-  function saveEnabledMap(map) {
+export function saveEnabledMap(map) {
     return setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
   }
 
   /**
    * Get panel expanded state map { origin: boolean } from chrome.storage.local
    */
-  function getPanelStateMap() {
+export function getPanelStateMap() {
     return getStorage(STORAGE_KEYS.PANEL_STATE_MAP, {});
   }
 
@@ -380,14 +372,14 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * Save panel expanded state map
    * @param {Record<string, boolean>} map
    */
-  function savePanelStateMap(map) {
+export function savePanelStateMap(map) {
     return setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
   }
 
   /**
    * Get badge position map { host: { x, y, vw?, vh?, anchorX?, marginX? } }
    */
-  function getBadgePosMap() {
+export function getBadgePosMap() {
     return getStorage(STORAGE_KEYS.BADGE_POS_MAP, {});
   }
 
@@ -395,11 +387,11 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
    * Save badge position map
    * @param {Record<string, any>} map
    */
-  function saveBadgePosMap(map) {
+export function saveBadgePosMap(map) {
     return setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
   }
 
-  var api = {
+var api = {
     trackOnce: trackOnce,
     notifyStorageWriteError: notifyStorageWriteError,
     normalizeSelectorEntry: normalizeSelectorEntry,
@@ -417,10 +409,4 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
     getBadgePosMap: getBadgePosMap,
     saveBadgePosMap: saveBadgePosMap
   };
-  // Backward compat
-  try {
-    var T = typeof globalThis !== 'undefined' ? globalThis.TOC_UTILS : (typeof window !== 'undefined' ? window.TOC_UTILS : null);
-    if (T) Object.assign(T, api);
-  } catch (_) {}
-  return api;
-});
+export default api;

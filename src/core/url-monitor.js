@@ -1,5 +1,4 @@
-define('url-monitor', [], function() {
-  'use strict';
+'use strict';
 
   /**
    * Creates a URL change monitor that detects pushState, replaceState,
@@ -12,7 +11,7 @@ define('url-monitor', [], function() {
    * @param {function} opts.getLastRebuildTime - Returns timestamp of last rebuild
    * @returns {object}
    */
-  function createUrlMonitor(opts) {
+export function createUrlMonitor(opts) {
     var uiConst = opts && opts.uiConst;
     var checkAndReconnect = (opts && opts.checkAndReconnect) || null;
     var getLastRebuildTime = (opts && opts.getLastRebuildTime) || function() { return 0; };
@@ -82,6 +81,9 @@ define('url-monitor', [], function() {
         if (!isContextValid || document.hidden) {
           pollTimer = setTimeout(poll, POLL_INTERVAL_THROTTLED_MS);
           return;
+        }
+        if (location.href !== lastKnownUrl) {
+          onUrlChange();
         }
         if (typeof checkAndReconnect === 'function') {
           checkAndReconnect();
@@ -191,5 +193,4 @@ define('url-monitor', [], function() {
     };
   }
 
-  return { createUrlMonitor: createUrlMonitor };
-});
+export default { createUrlMonitor: createUrlMonitor };

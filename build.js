@@ -1,28 +1,19 @@
 #!/usr/bin/env node
-// Build script for Web TOC Assistant
-// Currently validates and copies source files to dist/build/.
-// Future: esbuild bundling when modules are converted to ES imports.
+// Build script for Web TOC Assistant.
+// Bundles the content script with esbuild and copies MV3 runtime assets to dist/build.
 
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
+const esbuild = require('esbuild');
 
 const ROOT_DIR = __dirname;
 const DIST_DIR = path.join(ROOT_DIR, 'dist', 'build');
 const SRC_DIR = path.join(ROOT_DIR, 'src');
 
-function getLoadOrder() {
-  const bg = fs.readFileSync(path.join(SRC_DIR, 'background.js'), 'utf8');
-  const match = bg.match(/CONTENT_SCRIPTS\s*=\s*\[([\s\S]*?)\]/);
-  if (!match) {
-    console.error('Cannot find CONTENT_SCRIPTS in background.js');
-    process.exit(1);
-  }
-  return match[1]
-    .split('\n')
-    .map(l => l.trim().replace(/['",]/g, ''))
-    .filter(l => l.endsWith('.js'));
-}
+const RUNTIME_EXTENSIONS = new Set([
+  '.js', '.css', '.json', '.png', '.svg', '.gif', '.jpg', '.ico', '.html'
+]);
 
 function validateFile(filePath) {
   try {
@@ -35,10 +26,15 @@ function validateFile(filePath) {
   }
 }
 
-// Only copy runtime files (.js, .css, .json, .png, .svg, etc.) — skip docs (.md, .txt)
-const RUNTIME_EXTENSIONS = new Set([
-  '.js', '.css', '.json', '.png', '.svg', '.gif', '.jpg', '.ico', '.html'
-]);
+function copyFile(src, dest) {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+}
+
+function writeFile(dest, text) {
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.writeFileSync(dest, text);
+}
 
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -49,90 +45,105 @@ function copyRecursive(src, dest) {
     if (entry.isDirectory()) {
       copyRecursive(srcPath, destPath);
     } else if (RUNTIME_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
-      fs.copyFileSync(srcPath, destPath);
+      copyFile(srcPath, destPath);
     }
   }
 }
 
-console.log('Building Web TOC Assistant...\n');
+async function buildContentScript() {
+  await esbuild.build({
+    entryPoints: [path.join(SRC_DIR, 'content.js')],
+    bundle: true,
+    format: 'iife',
+    platform: 'browser',
+    target: ['chrome116'],
+    outfile: path.join(DIST_DIR, 'src', 'content.js'),
+    logLevel: 'silent',
+    legalComments: 'none'
+  });
+}
 
-// Step 1: Validate load order
-const loadOrder = getLoadOrder();
-console.log(`Load order: ${loadOrder.length} scripts`);
+async function main() {
+  console.log('Building Web TOC Assistant...\n');
 
-// Step 2: Validate syntax of content scripts
-let errors = 0;
-for (const file of loadOrder) {
-  const filePath = path.join(ROOT_DIR, file);
-  if (!fs.existsSync(filePath)) {
-    console.error(`  MISSING: ${file}`);
-    errors++;
-    continue;
+  let errors = 0;
+  for (const file of [
+    path.join(ROOT_DIR, 'build.js'),
+    path.join(SRC_DIR, 'background.js'),
+    path.join(SRC_DIR, 'shared', 'storage-primitives.js')
+  ]) {
+    if (!validateFile(file)) errors++;
   }
-  if (!validateFile(filePath)) errors++;
-}
 
-// Also validate background.js
-if (!validateFile(path.join(SRC_DIR, 'background.js'))) errors++;
+  const contentCss = path.join(SRC_DIR, 'content.css');
+  if (!fs.existsSync(contentCss)) {
+    console.error('  MISSING: src/content.css');
+    errors++;
+  }
 
-// Validate content.css exists (no syntax check for CSS via node)
-const contentCss = path.join(SRC_DIR, 'content.css');
-if (!fs.existsSync(contentCss)) {
-  console.error(`  MISSING: src/content.css`);
-  errors++;
-}
+  if (errors > 0) {
+    console.error(`\n${errors} error(s) found. Fix before packaging.`);
+    process.exit(1);
+  }
 
-if (errors > 0) {
-  console.error(`\n${errors} error(s) found. Fix before packaging.`);
-  process.exit(1);
-}
+  if (fs.existsSync(DIST_DIR)) fs.rmSync(DIST_DIR, { recursive: true });
+  fs.mkdirSync(DIST_DIR, { recursive: true });
 
-console.log('  All files passed syntax validation.');
+  try {
+    await buildContentScript();
+  } catch (e) {
+    console.error('  BUNDLE ERROR: src/content.js');
+    console.error(e && e.errors ? e.errors : e);
+    process.exit(1);
+  }
 
-// Step 3: Copy to dist/build
-if (fs.existsSync(DIST_DIR)) fs.rmSync(DIST_DIR, { recursive: true });
-fs.mkdirSync(DIST_DIR, { recursive: true });
+  if (!validateFile(path.join(DIST_DIR, 'src', 'content.js'))) {
+    process.exit(1);
+  }
 
-// Copy manifest.json
-fs.copyFileSync(
-  path.join(ROOT_DIR, 'manifest.json'),
-  path.join(DIST_DIR, 'manifest.json')
-);
+  copyFile(path.join(ROOT_DIR, 'manifest.json'), path.join(DIST_DIR, 'manifest.json'));
+  const backgroundSource = fs.readFileSync(path.join(SRC_DIR, 'background.js'), 'utf8')
+    .replace(
+      "const CONTENT_SCRIPT_DEV_BUNDLE = 'dist/build/src/content.js';",
+      "const CONTENT_SCRIPT_DEV_BUNDLE = 'src/content.js';"
+    );
+  writeFile(path.join(DIST_DIR, 'src', 'background.js'), backgroundSource);
+  copyFile(path.join(SRC_DIR, 'content.css'), path.join(DIST_DIR, 'src', 'content.css'));
+  copyFile(
+    path.join(SRC_DIR, 'shared', 'storage-primitives.js'),
+    path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js')
+  );
 
-// Copy src/
-copyRecursive(SRC_DIR, path.join(DIST_DIR, 'src'));
+  const localesDir = path.join(ROOT_DIR, '_locales');
+  if (fs.existsSync(localesDir)) {
+    copyRecursive(localesDir, path.join(DIST_DIR, '_locales'));
+  }
 
-// Copy _locales/
-const localesDir = path.join(ROOT_DIR, '_locales');
-if (fs.existsSync(localesDir)) {
-  copyRecursive(localesDir, path.join(DIST_DIR, '_locales'));
-}
+  const iconsDir = path.join(ROOT_DIR, 'icons');
+  if (fs.existsSync(iconsDir)) {
+    copyRecursive(iconsDir, path.join(DIST_DIR, 'icons'));
+  }
 
-// Copy icons/
-const iconsDir = path.join(ROOT_DIR, 'icons');
-if (fs.existsSync(iconsDir)) {
-  copyRecursive(iconsDir, path.join(DIST_DIR, 'icons'));
-}
+  console.log('  Content script bundled with esbuild.');
+  console.log('\nBuild complete. Output in dist/build/');
 
-console.log('\nBuild complete. Output in dist/build/');
-console.log('  Scripts validated: ' + loadOrder.length);
-
-// Step 4: Package as zip
-const VERSION = (() => {
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'manifest.json'), 'utf8'));
-  return manifest.version;
-})();
+  const packagesDir = path.join(ROOT_DIR, 'dist', 'packages');
+  fs.mkdirSync(packagesDir, { recursive: true });
 
-const packagesDir = path.join(ROOT_DIR, 'dist', 'packages');
-fs.mkdirSync(packagesDir, { recursive: true });
-
-const zipFile = path.join(packagesDir, `v${VERSION}.zip`);
-try {
-  execSync(`cd "${DIST_DIR}" && zip -r "${zipFile}" .`, { stdio: 'pipe' });
-  const stats = fs.statSync(zipFile);
-  const kb = (stats.size / 1024).toFixed(1);
-  console.log(`\nPackage created: dist/packages/v${VERSION}.zip (${kb} KB)`);
-} catch (e) {
-  console.error('Failed to create zip package');
-  process.exit(1);
+  const zipFile = path.join(packagesDir, `v${manifest.version}.zip`);
+  try {
+    execSync(`cd "${DIST_DIR}" && zip -r "${zipFile}" .`, { stdio: 'pipe' });
+    const stats = fs.statSync(zipFile);
+    const kb = (stats.size / 1024).toFixed(1);
+    console.log(`\nPackage created: dist/packages/v${manifest.version}.zip (${kb} KB)`);
+  } catch (e) {
+    console.error('Failed to create zip package');
+    process.exit(1);
+  }
 }
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

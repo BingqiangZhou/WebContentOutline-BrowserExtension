@@ -17,31 +17,8 @@ function originFromUrl(url) {
   }
 }
 
-const CONTENT_SCRIPTS = [
-  'src/loader.js',
-  'src/utils/constants.js',
-  'src/utils/core-utils.js',
-  'src/utils/toast.js',
-  'src/shared/storage-primitives.js',
-  'src/utils/storage.js',
-  'src/utils/toc-utils.js',
-  'src/utils/badge-position.js',
-  'src/utils/dom-utils.js',
-  'src/utils/drag-helper.js',
-  'src/utils/css-selector.js',
-  'src/utils/focus-trap.js',
-  'src/utils/toc-builder.js',
-  'src/core/nav-lock.js',
-  'src/ui/collapsed-badge.js',
-  'src/ui/element-picker.js',
-  'src/ui/floating-panel.js',
-  'src/core/config-manager.js',
-  'src/core/url-monitor.js',
-  'src/core/dom-watcher.js',
-  'src/core/rebuild-scheduler.js',
-  'src/core/toc-app.js',
-  'src/content.js'
-];
+const CONTENT_SCRIPT_BUNDLE = 'src/content.js';
+const CONTENT_SCRIPT_DEV_BUNDLE = 'dist/build/src/content.js';
 
 const CONTENT_CSS = ['src/content.css'];
 const SESSION_KEYS = {
@@ -137,11 +114,19 @@ async function setEnabledByOrigin(origin, enabled) {
 function getIconPathMap(enabled) {
   const base = enabled ? 'icons/png/toc-enabled' : 'icons/png/toc-disabled';
   return {
-    "16": chrome.runtime.getURL(`${base}-16.png`),
-    "32": chrome.runtime.getURL(`${base}-32.png`),
-    "48": chrome.runtime.getURL(`${base}-48.png`),
-    "128": chrome.runtime.getURL(`${base}-128.png`)
+    "16": `/${base}-16.png`,
+    "32": `/${base}-32.png`,
+    "48": `/${base}-48.png`,
+    "128": `/${base}-128.png`
   };
+}
+
+function makeAbsoluteIconPathMap(pathMap) {
+  const out = {};
+  for (const [size, iconPath] of Object.entries(pathMap || {})) {
+    out[size] = chrome.runtime.getURL(String(iconPath).replace(/^\/+/, ''));
+  }
+  return out;
 }
 
 async function setActionIconAsync(details) {
@@ -149,7 +134,16 @@ async function setActionIconAsync(details) {
     await chrome.action.setIcon(details);
     return true;
   } catch (e) {
-    console.error('[toc] setIcon error:', e.message);
+    try {
+      if (details && details.path && typeof details.path === 'object') {
+        await chrome.action.setIcon({ ...details, path: makeAbsoluteIconPathMap(details.path) });
+        return true;
+      }
+    } catch (fallbackErr) {
+      console.error('[toc] setIcon error:', fallbackErr.message || fallbackErr);
+      return false;
+    }
+    console.error('[toc] setIcon error:', e.message || e);
     return false;
   }
 }
@@ -396,6 +390,27 @@ async function setInjectionBadge(tabId, failed) {
   }
 }
 
+let resolvedContentScriptFiles = null;
+async function getContentScriptFiles() {
+  if (resolvedContentScriptFiles) return resolvedContentScriptFiles;
+  try {
+    const res = await fetch(chrome.runtime.getURL(CONTENT_SCRIPT_BUNDLE), { cache: 'no-store' });
+    const text = res && res.ok ? await res.text() : '';
+    if (/^\s*import\s/m.test(text)) {
+      const devRes = await fetch(chrome.runtime.getURL(CONTENT_SCRIPT_DEV_BUNDLE), { cache: 'no-store' });
+      if (devRes && devRes.ok) {
+        resolvedContentScriptFiles = [CONTENT_SCRIPT_DEV_BUNDLE];
+        return resolvedContentScriptFiles;
+      }
+      console.warn('[toc] source content script is unbundled; run npm run build or load dist/build as the extension root');
+    }
+  } catch (e) {
+    console.warn('[toc] content script resolution failed:', e);
+  }
+  resolvedContentScriptFiles = [CONTENT_SCRIPT_BUNDLE];
+  return resolvedContentScriptFiles;
+}
+
 async function injectIntoTab(tabId) {
   // First, inject CSS before JS to ensure styles are available
   let cssInserted = false;
@@ -425,13 +440,15 @@ async function injectIntoTab(tabId) {
 
   // Fast path: inject all JS files in one call (keeps current file-based structure).
   try {
-    if (CONTENT_SCRIPTS.length) {
-      await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS });
+    const contentScripts = await getContentScriptFiles();
+    if (contentScripts.length) {
+      await chrome.scripting.executeScript({ target: { tabId }, files: contentScripts });
     }
   } catch (e) {
     console.warn('[toc] injectIntoTab failed (js bundle):', e, { tabId });
     // Fallback: inject sequentially so we can surface the exact failing file.
-    for (const file of CONTENT_SCRIPTS) {
+    const contentScripts = await getContentScriptFiles();
+    for (const file of contentScripts) {
       try {
         await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
       } catch (seqErr) {

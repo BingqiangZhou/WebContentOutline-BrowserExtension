@@ -1,8 +1,7 @@
-define('toast', ['toc-constants', 'core-utils'], function(C, CU) {
-  var UI_CONSTANTS = C.UI_CONSTANTS;
-  var msg = CU.msg;
+import { UI_CONSTANTS } from './constants.js';
+import { msg } from './core-utils.js';
 
-  function ensureToastContainer() {
+export function ensureToastContainer() {
     var existing = document.querySelector('.toc-toast-container');
     if (existing) return existing;
     var container = document.createElement('div');
@@ -19,7 +18,7 @@ define('toast', ['toc-constants', 'core-utils'], function(C, CU) {
    * @param {string} text
    * @param {{type?: 'info'|'success'|'warning'|'error', durationMs?: number}} [opts]
    */
-  function showToast(text, opts) {
+export function showToast(text, opts) {
     if (!opts) opts = {};
     try {
       var type = opts.type || 'info';
@@ -85,14 +84,8 @@ define('toast', ['toc-constants', 'core-utils'], function(C, CU) {
     }
   }
 
-  var api = {
+var api = {
     ensureToastContainer: ensureToastContainer,
     showToast: showToast
   };
-  // Backward compat
-  try {
-    var T = typeof globalThis !== 'undefined' ? globalThis.TOC_UTILS : (typeof window !== 'undefined' ? window.TOC_UTILS : null);
-    if (T) Object.assign(T, api);
-  } catch (_) {}
-  return api;
-});
+export default api;

@@ -1,10 +1,8 @@
-define('drag-helper', ['toc-constants'],
-  function(constants) {
-    'use strict';
+'use strict';
 
-    var uiConst = constants.uiConst;
+import { uiConst } from './constants.js';
 
-    function createDragController(options) {
+export function createDragController(options) {
       var element = options && options.element;
       var shouldStart = options && options.shouldStart;
       var getRect = options && options.getRect;
@@ -166,10 +164,8 @@ define('drag-helper', ['toc-constants'],
       };
     }
 
-    var api = {
+var api = {
       createDragController: createDragController
     };
 
-    return api;
-  }
-);
+export default api;

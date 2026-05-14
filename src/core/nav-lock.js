@@ -1,7 +1,6 @@
-define('nav-lock', ['toc-constants'], function(C) {
-  'use strict';
+'use strict';
 
-  var uiConst = C.uiConst;
+import { uiConst } from '../utils/constants.js';
 
   var _locked = false;
   var _setAt = 0;
@@ -74,7 +73,6 @@ define('nav-lock', ['toc-constants'], function(C) {
     _onUnlockCallbacks = [];
   };
 
-  var api = { lock: lock, unlock: unlock, isLocked: isLocked, onUnlock: onUnlock, destroy: destroy };
-  try { globalThis.NAV_LOCK = api; } catch (_) {}
-  return api;
-});
+export { lock, unlock, isLocked, onUnlock, destroy };
+
+export default { lock: lock, unlock: unlock, isLocked: isLocked, onUnlock: onUnlock, destroy: destroy };

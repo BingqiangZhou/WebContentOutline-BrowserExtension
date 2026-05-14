@@ -1,11 +1,13 @@
-define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], function(tocUtils, dragHelper, C) {
-  'use strict';
+'use strict';
 
-  var msg = tocUtils.msg || function(key) { return key; };
-  var getBadgePosByHost = tocUtils.getBadgePosByHost;
-  var setBadgePosByHost = tocUtils.setBadgePosByHost;
-  var uiConst = C.uiConst;
-  var createDragController = dragHelper.createDragController;
+import {
+  msg,
+  getBadgePosByHost,
+  setBadgePosByHost,
+  cleanupOwnedElements
+} from '../utils/toc-utils.js';
+import { uiConst } from '../utils/constants.js';
+import { createDragController } from '../utils/drag-helper.js';
 
   // Constants
   var CFG = (function() {
@@ -19,17 +21,9 @@ define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], functio
     };
   })();
 
-  function renderCollapsedBadge(side, onExpand, centerPos) {
+export function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates
-    try {
-      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner]')).forEach(function(el) {
-        try {
-          var cleanup = el && el.__TOC_CLEANUP__;
-          if (typeof cleanup === 'function') cleanup();
-        } catch (_) {}
-        try { el.remove(); } catch (_) {}
-      });
-    } catch (_) {}
+    if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner]');
 
     var badge = document.createElement('button');
     badge.type = 'button';
@@ -269,6 +263,4 @@ define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], functio
     };
   }
 
-  var api = { renderCollapsedBadge: renderCollapsedBadge };
-  return api;
-});
+export default { renderCollapsedBadge: renderCollapsedBadge };

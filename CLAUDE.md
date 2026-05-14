@@ -7,14 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that automatically generates interactive floating table of contents for any webpage using DOM element detection.
 
 **Key characteristics:**
-- Pure vanilla JavaScript - no build system, no bundler, no TypeScript
-- Modular architecture with global namespace dependency injection
+- ES Modules architecture with esbuild bundling into a single IIFE
+- Pure vanilla JavaScript with a `build.js` script for validation, bundling, and packaging
 - All-in-one CSS with `!important` to resist host page interference
 - Per-site enable/disable state stored in `chrome.storage.local`
 
 ## Installation and Development
 
-**No build process** - this is a zero-build extension.
+**Build & packaging**: Run `node build.js` to bundle with esbuild, validate syntax, and create a distributable zip. Development mode auto-detects unbundled source files.
 
 ### Loading the extension
 1. Open Edge/Chrome: `edge://extensions/` or `chrome://extensions/`
@@ -22,9 +22,11 @@ Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that a
 3. Click "Load unpacked" and select the project folder
 
 ### Making changes
-- Edit files directly - no compilation needed
+- Edit files directly — esbuild resolves ESM imports at build time
+- For bundled testing: run `node build.js`, then load from `dist/build/`
+- For dev: load from project root — background.js auto-detects unbundled source
 - Changes to `manifest.json`: reload the extension
-- Changes to content scripts: refresh the page
+- Changes to content scripts: refresh the page (or rebuild if using bundled mode)
 - Changes to `background.js`: reload the extension
 
 ### Testing
@@ -32,45 +34,59 @@ No automated test framework. Manual testing required by loading the extension an
 
 ## Architecture
 
-### Module Dependency Layers (Critical Load Order)
+### Module System
 
-The extension uses a **layered module system** with dependency injection via global namespaces. The load order is defined in `src/background.js` (the `CONTENT_SCRIPTS` array) and is critical:
+Content script modules use **ES Modules** (`import`/`export`). At build time, esbuild bundles the entire dependency tree starting from `src/content.js` into a single IIFE at `dist/build/src/content.js`. There is no runtime module loading or load-order concern.
+
+The background service worker cannot use ESM (MV3 limitation). It uses `importScripts('shared/storage-primitives.js')` and accesses shared utilities via `globalThis.__STORAGE_PRIMITIVES`.
+
+### Dependency Graph
 
 ```
-Layer 1: utils.js
-    ↓
-Layer 2: utils/css-selector.js, utils/toc-builder.js, utils/drag-helper.js
-    ↓
-Layer 3: ui/collapsed-badge.js, ui/element-picker.js, ui/floating-panel.js
-    ↓
-Layer 4: core/config-manager.js, core/mutation-observer.js, core/toc-app.js
-    ↓
-Layer 5: content.js
-    ↓ (background.js - service worker, separate context)
+src/content.js (entry point)
+  ├── utils/toc-utils.js (barrel re-export)
+  │     ├── constants.js, core-utils.js, toast.js
+  │     ├── storage.js, badge-position.js, dom-utils.js
+  │     └── (storage.js → shared/storage-primitives-esm.js)
+  └── core/toc-app.js (orchestrator)
+        ├── utils/toc-builder.js → dom-utils.js
+        ├── ui/collapsed-badge.js, ui/element-picker.js, ui/floating-panel.js
+        ├── core/config-manager.js → event-bus.js, focus-trap.js
+        ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
+        └── core/nav-lock.js
 ```
 
-### Global Namespace API
+Background script (separate context):
+```
+src/background.js
+  └── importScripts → shared/storage-primitives.js (globalThis.__STORAGE_PRIMITIVES)
+```
 
-All modules expose APIs via `window` object (content script context):
-- `window.TOC_UTILS` - Storage, DOM operations, selector execution, URL matching
-- `window.CSS_SELECTOR` - Selector generation: `buildClassSelector()`, `cssPathFor()`
-- `window.TOC_BUILDER` - TOC building: `buildTocItems()`, `buildTocItemsFromSelectors()`
-- `window.TOC_UI` - UI components: panel rendering, badge, element picker
-- `window.CONFIG_MANAGER` - Config management: `siteConfig()`, `saveSelector()`
-- `window.MUTATION_OBSERVER` - DOM observer with debounced rebuilds
-- `window.TOC_APP` - Main app: `initForConfig()`, `expand()`, `collapse()`, `rebuild()`
+### Window Globals
+
+Only a few window globals remain for compatibility/debugging:
+
+| Global | Purpose |
+|--------|---------|
+| `window.__TOC_ASSISTANT_LOADED__` | Reinjection guard (prevents double-initialization) |
+| `window.__TOC_ASSISTANT_CLEANUP__` | Disposal hook for dev reload/reinjection |
+| `window.TOC_APP` | Debug access: `initForConfig`, `rebuild`, `isRebuilding` |
+| `globalThis.__STORAGE_PRIMITIVES` | Background service worker only (not available in content scripts) |
 
 ### Entry Points
 
-**`src/background.js`** - Service worker (264 lines)
+**`src/background.js`** - Service worker (758 lines)
+- Uses `importScripts('shared/storage-primitives.js')` for shared storage utilities
 - Manages per-site enable/disable state in `chrome.storage.local` → `tocSiteEnabledMap`
 - Updates extension icon (enabled=blue, disabled=gray)
+- Injects content script via `chrome.scripting.executeScript` (single bundled file)
 - Cross-tab synchronization for same origin
 - Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`
 
-**`src/content.js`** - Content script entry (161 lines)
+**`src/content.js`** - Content script entry (469 lines)
 - Checks site enable state on load
-- Initializes `TOC_APP.initForConfig(cfg)`
+- Imports `initForConfig` from `core/toc-app.js` via ESM
+- Sets up reinjection guard and cleanup hooks
 - Message listeners: `toc:openPanel`, `toc:updateEnabled`
 
 ### Core Subsystems
@@ -81,13 +97,13 @@ All modules expose APIs via `window` object (content script context):
 - Dynamic icon switching based on state
 - Message broadcast to all tabs of same origin
 
-**2. Configuration Management (`core/config-manager.js`)**
+**2. Configuration Management (`core/config-manager.js`, 343 lines)**
 - Storage: `chrome.storage.local` → key: `tocConfigs`
 - Per-site URL pattern matching (wildcards supported)
 - Selector management (CSS/XPath)
-- Panel state persistence
+- Emits `toc:config-changed` via event bus when configs update
 
-**3. TOC Building Pipeline (`utils/toc-builder.js`)**
+**3. TOC Building Pipeline (`utils/toc-builder.js`, 139 lines)**
 ```
 Selectors (CSS/XPath)
   → collectBySelector() → DOM Elements
@@ -96,17 +112,21 @@ Selectors (CSS/XPath)
   → Map to TOC items {id, el, text}
 ```
 
-**4. UI State Management (`core/toc-app.js`)**
-- Navigation lock mechanism (prevents IntersectionObserver interference during user clicks)
+**4. UI State Management (`core/toc-app.js`, 658 lines)**
+- Uses nav-lock via ESM import for navigation locking
 - Active item restoration after rebuild
 - Pending rebuild queue (processes after navigation unlock)
-- Component lifecycle coordination
+- Component lifecycle coordination with `destroy()` cleanup
 
-**5. Dynamic Content Updates (`core/mutation-observer.js`)**
-- MutationObserver with 500ms debounce
-- Selector validation before observation
-- Navigation-aware rebuilding
-- Pending rebuild queue during user interaction
+**5. Dynamic Content Updates**
+Split into three focused modules:
+- `core/dom-watcher.js` (162 lines) — MutationObserver-based DOM change detection
+- `core/url-monitor.js` (196 lines) — URL change detection via History API + polling
+- `core/rebuild-scheduler.js` (253 lines) — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
+
+**6. Event Bus (`core/event-bus.js`, 21 lines)**
+- Lightweight pub/sub: `on(event, fn)`, `off(event, fn)`, `emit(event, ...args)`
+- Currently used for `toc:config-changed` event (config-manager → toc-app)
 
 ### Storage Schema
 
@@ -136,23 +156,23 @@ Selectors (CSS/XPath)
 
 ## Defensive Programming Patterns
 
-1. **Dependency checking**: Every module checks for required globals
+1. **Import validation**: Modules check imported symbols at initialization
    ```javascript
-   const { getConfigs, initForConfig } = window.TOC_UTILS || {};
-   if (!getConfigs || !initForConfig) return;
+   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) return;
    ```
 
 2. **Fallback storage**: localStorage if chrome.storage unavailable
 
 3. **Error boundaries**: try/catch around all chrome API calls
 
-4. **Cleanup hooks**: Override `.remove()` to clear event listeners
+4. **Cleanup hooks**: `destroy()` methods on toc-app, nav-lock, rebuild-scheduler for full teardown
 
 5. **CSS isolation**: All styles use `!important` with global reset
 
 ## CSS Architecture (`src/content.css`)
 
-- **306 lines** of defensive CSS
+- **895 lines** of defensive CSS
+- Uses CSS custom properties for light/dark theming
 - Global reset: `.toc-floating, .toc-floating * { all: unset !important; }`
 - All styles use `!important` to prevent host page interference
 - Components: floating panel, badge, overlay dialogs, buttons
@@ -161,43 +181,54 @@ Selectors (CSS/XPath)
 
 **Element deduplication**: Uses `compareDocumentPosition` to maintain DOM order
 
-**Hidden element filtering**: Checks `display:none`, `visibility:hidden`, `opacity:0`, zero dimensions
+**Hidden element filtering**: Checks `display:none`, `visibility:hidden`, `opacity:0`, zero dimensions, overflow clipping
 
 **Selector generation** (`utils/css-selector.js`):
 - Priority: class-based selector
 - Fallback: path selector with nth-of-type
 
-**Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items
+**Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 8 seconds as a safety fallback.
+
+**Rebuild scheduling** (`core/rebuild-scheduler.js`):
+- Dynamic debounce: `DEBOUNCE_MS * 1.3^consecutiveMutations`, capped at 1000ms
+- Circuit breaker: pauses after 5 consecutive failures
 
 ## Manifest V3 Specifics
 
 - `permissions`: ["storage", "tabs", "scripting", "alarms"]
 - `host_permissions`: ["http://*/*", "https://*/*"]
 - `default_locale`: "en" - i18n support
-- Content scripts are injected dynamically via `chrome.scripting` when a site is enabled
-- Service worker for background logic
+- Content script is a single bundled IIFE, injected dynamically via `chrome.scripting.executeScript`
+- Background script uses `importScripts()` (MV3 service workers cannot use ESM)
+- Shared storage primitives exist in two formats: `.js` (for `importScripts`) and `-esm.js` (for content script bundle)
 
 ## Common Modification Patterns
 
 ### Adding a new content script module
 1. Create file in appropriate directory (`utils/`, `ui/`, `core/`)
-2. Expose API via `window.MODULE_NAME`
-3. Add to `src/background.js` `CONTENT_SCRIPTS` array in correct dependency order
-4. Add dependency checks in consuming modules
+2. Use `export` for the module's public API
+3. `import` from the module wherever needed (esbuild resolves at build time)
+4. If it's a utility, consider adding to `utils/toc-utils.js` barrel re-export
 
 ### Modifying TOC building logic
 Edit `utils/toc-builder.js` - handles selector execution, filtering, and item mapping
 
 ### Modifying UI components
-- Floating panel: `ui/floating-panel.js` (main TOC rendering, IntersectionObserver)
-- Collapsed badge: `ui/collapsed-badge.js` (draggable button)
-- Element picker: `ui/element-picker.js` (hover highlighting, click selection)
+- Floating panel: `ui/floating-panel.js` (888 lines, main TOC rendering, IntersectionObserver)
+- Collapsed badge: `ui/collapsed-badge.js` (266 lines, draggable button)
+- Element picker: `ui/element-picker.js` (272 lines, hover highlighting, click selection)
 
 ### Adding new storage keys
-Use `chrome.storage.local` - follow existing patterns in `utils.js` for storage wrappers
+Use `chrome.storage.local` - follow existing patterns in `utils/storage.js` for storage wrappers. Add the key name to `STORAGE_KEYS` in `utils/constants.js`.
 
 ### Per-site state changes
 Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPanelExpandedMap` for UI state
+
+### Building and packaging
+Run `node build.js` to:
+1. Bundle `src/content.js` with esbuild into `dist/build/src/content.js` (IIFE format)
+2. Copy runtime files to `dist/build/` (background.js, content.css, manifest.json, icons, locales, storage-primitives.js)
+3. Package into `dist/packages/v{version}.zip`
 
 ## Working Documents
 

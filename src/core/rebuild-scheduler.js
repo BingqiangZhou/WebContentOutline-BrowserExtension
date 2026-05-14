@@ -1,7 +1,10 @@
-define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], function(domWatcherMod, urlMonitorMod, C) {
-  'use strict';
+'use strict';
 
-  var uiConst = C.uiConst;
+import { createDomWatcher } from './dom-watcher.js';
+import { createUrlMonitor } from './url-monitor.js';
+import * as NL from './nav-lock.js';
+import { uiConst } from '../utils/constants.js';
+import { isContextInvalidatedError } from '../utils/core-utils.js';
 
   // Timing constants
   var DEBOUNCE_MS = uiConst('MUTATION_DEBOUNCE_MS', 500);
@@ -16,9 +19,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
    * @param {function} onRebuild - Async function called to perform a TOC rebuild.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-  function createRebuildScheduler(onRebuild) {
-    var NL = globalThis.NAV_LOCK;
-
+export function createRebuildScheduler(onRebuild) {
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
     var rebuildInFlight = null;
@@ -40,6 +41,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
     // Sub-components
     var domWatcher = null;
     var urlMonitor = null;
+    var activeCfg = null;
 
     var stopSchedulerTimers = function() {
       if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
@@ -58,13 +60,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
         lastRebuildFromMo = Date.now();
         return true;
       }).catch(function(e) {
-        var coreUtils = (typeof require === 'function') ? require('core-utils') : null;
-        var checkFn = (coreUtils && typeof coreUtils.isContextInvalidatedError === 'function')
-          ? coreUtils.isContextInvalidatedError
-          : function(err) {
-              return !!(err && err.message && err.message.includes('Extension context invalidated'));
-            };
-        var invalidated = checkFn(e);
+        var invalidated = isContextInvalidatedError(e);
         if (invalidated) {
           isExtensionContextValid = false;
           hasPendingRebuild = false;
@@ -193,6 +189,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
     };
 
     var onUrlChange = function(immediate) {
+      if (activeCfg && typeof activeCfg.__markConfigDirty === 'function') activeCfg.__markConfigDirty();
       scheduleRebuild(immediate);
     };
 
@@ -203,13 +200,14 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
       consecutiveMutations = 0;
       lastMutationTime = 0;
       isExtensionContextValid = true;
+      activeCfg = cfg || null;
 
       // Create dom-watcher
-      domWatcher = domWatcherMod.createDomWatcher(onMutation);
+      domWatcher = createDomWatcher(onMutation);
       var watcherOk = domWatcher.start();
 
       // Create url-monitor, passing dom-watcher's checkAndReconnect as callback
-      urlMonitor = urlMonitorMod.createUrlMonitor({
+      urlMonitor = createUrlMonitor({
         uiConst: uiConst,
         checkAndReconnect: (domWatcher && typeof domWatcher.checkAndReconnect === 'function')
           ? function() { domWatcher.checkAndReconnect(); }
@@ -232,6 +230,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
         hasPendingRebuild = false;
         rebuildInFlight = null;
         isExtensionContextValid = false;
+        activeCfg = null;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
       setPendingRebuild: function(val) {
@@ -251,5 +250,4 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
     return handle;
   }
 
-  return { createRebuildScheduler: createRebuildScheduler };
-});
+export default { createRebuildScheduler: createRebuildScheduler };

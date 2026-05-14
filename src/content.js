@@ -1,3 +1,21 @@
+import {
+  msg,
+  getConfigs,
+  findMatchingConfig,
+  getSiteEnabledByOrigin,
+  getPanelExpandedByOrigin,
+  getBadgePosByHost,
+  setBadgePosByHost,
+  isContextInvalidatedError,
+  cleanupOwnedElements,
+  safeJsonParse,
+  isPlainObject,
+  getFiniteNumber,
+  uiConst,
+  STORAGE_KEYS
+} from './utils/toc-utils.js';
+import { initForConfig } from './core/toc-app.js';
+
 (function() {
   'use strict';
 
@@ -11,40 +29,6 @@
   if (window.__TOC_ASSISTANT_LOADED__) return;
   window.__TOC_ASSISTANT_LOADED__ = true;
 
-  var TOC_UTILS = (typeof require === 'function') ? require('toc-utils') : window.TOC_UTILS;
-  var TOC_APP = (typeof require === 'function') ? require('toc-app') : window.TOC_APP;
-
-  var msg = function(key) { return key; };
-  var getConfigs = null;
-  var findMatchingConfig = null;
-  var getSiteEnabledByOrigin = null;
-  var getPanelExpandedByOrigin = null;
-  var getBadgePosByHost = null;
-  var setBadgePosByHost = null;
-  var isContextInvalidatedError = null;
-  var uiConst = null;
-
-  if (TOC_UTILS) {
-    msg = TOC_UTILS.msg || msg;
-    getConfigs = TOC_UTILS.getConfigs;
-    findMatchingConfig = TOC_UTILS.findMatchingConfig;
-    getSiteEnabledByOrigin = TOC_UTILS.getSiteEnabledByOrigin;
-    getPanelExpandedByOrigin = TOC_UTILS.getPanelExpandedByOrigin;
-    getBadgePosByHost = TOC_UTILS.getBadgePosByHost;
-    setBadgePosByHost = TOC_UTILS.setBadgePosByHost;
-    isContextInvalidatedError = TOC_UTILS.isContextInvalidatedError;
-    uiConst = TOC_UTILS.uiConst;
-  }
-
-  var initForConfig = TOC_APP && TOC_APP.initForConfig;
-
-  var missing = [];
-  if (!TOC_UTILS) missing.push('TOC_UTILS');
-  if (!TOC_APP) missing.push('TOC_APP');
-  if (missing.length) {
-    console.error('[toc] content.js not loaded — missing dependencies:', missing.join(', '));
-    return;
-  }
   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) {
     console.error(msg('logPrefix') + ' ' + msg('logMissingDependencies'));
     return;
@@ -104,15 +88,7 @@
       }
     } catch (_) {}
     appInstance = null;
-    try {
-      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]')).forEach(function(n) {
-        try {
-          var cleanup = n && n.__TOC_CLEANUP__;
-          if (typeof cleanup === 'function') cleanup();
-        } catch (_) {}
-        try { n.remove(); } catch (_) {}
-      });
-    } catch (_) {}
+    if (cleanupOwnedElements) cleanupOwnedElements();
 
     // Allow reinjection to reinitialize cleanly.
     try { window.__TOC_ASSISTANT_LOADED__ = false; } catch (_) {}
@@ -134,10 +110,6 @@
       var lockKey = legacyKey + '::migrating';
       var raw = localStorage.getItem(legacyKey);
       if (!raw) return;
-      var safeJsonParse = TOC_UTILS.safeJsonParse;
-      var isPlainObject = TOC_UTILS.isPlainObject;
-      var getFiniteNumber = TOC_UTILS.getFiniteNumber;
-      var uiConst = TOC_UTILS.uiConst;
       var parsed = safeJsonParse ? safeJsonParse(raw) : null;
       var hasOwn = function(obj, key) { return !!(obj && Object.prototype.hasOwnProperty.call(obj, key)); };
       if (isPlainObject && isPlainObject(parsed) && hasOwn(parsed, 'left') && hasOwn(parsed, 'top')) {
@@ -284,10 +256,7 @@
     }
     appInstance = null;
     try {
-      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]')).forEach(function(n) {
-        try { if (typeof n.__TOC_CLEANUP__ === 'function') n.__TOC_CLEANUP__(); } catch (_) {}
-        n.remove();
-      });
+      if (cleanupOwnedElements) cleanupOwnedElements();
     } catch (e) {
       console.warn(msg('logPrefix') + ' cleanup DOM failed:', e);
     }
@@ -443,9 +412,7 @@
     } catch (_) {}
 
     try {
-      var KEY = (TOC_UTILS && TOC_UTILS.STORAGE_KEYS && TOC_UTILS.STORAGE_KEYS.SITE_ENABLE_MAP)
-        ? TOC_UTILS.STORAGE_KEYS.SITE_ENABLE_MAP
-        : 'tocSiteEnabledMap';
+      var KEY = STORAGE_KEYS && STORAGE_KEYS.SITE_ENABLE_MAP ? STORAGE_KEYS.SITE_ENABLE_MAP : 'tocSiteEnabledMap';
       storageListener = function(changes, areaName) {
         if (disposed) return;
         if (areaName !== 'local') return;
