@@ -52,6 +52,11 @@
     let popstateHandler = null;
     let hashchangeHandler = null;
 
+    // Polling fallback state
+    let pollTimer = null;
+    let lastContentSignature = null;
+    let lastRebuildFromMo = 0;
+
     const disconnectObserver = () => {
       const obs = observerRef;
       observerRef = null;
@@ -81,6 +86,7 @@
         clearTimeout(urlChangeTimer);
         urlChangeTimer = null;
       }
+      stopPolling();
       unlockPollStartTs = 0;
       unlockWarned = false;
     };
@@ -89,6 +95,7 @@
       if (!isExtensionContextValid) return;
       try {
         await onRebuild();
+        lastRebuildFromMo = Date.now();
         return true;
       } catch (e) {
         const { isContextInvalidatedError } = window.TOC_UTILS || {};
@@ -235,6 +242,85 @@
       }, uiConst('URL_CHANGE_DEDUP_MS', 500));
     };
 
+    function computeContentSignature(cfg) {
+      try {
+        const selectors = cfg && cfg.selectors;
+        if (!selectors || !selectors.length) return null;
+        const exprs = selectors.map(s => s.expr).filter(Boolean);
+        if (!exprs.length) return null;
+        const selector = exprs.join(',');
+        const els = document.querySelectorAll(selector);
+        let hash = 0;
+        const len = Math.min(els.length, 400);
+        for (let i = 0; i < len; i++) {
+          const el = els[i];
+          const text = el.textContent || '';
+          hash = ((hash << 5) - hash + text.length) | 0;
+          hash = ((hash << 5) - hash + (el.offsetTop | 0)) | 0;
+        }
+        return els.length + ':' + hash;
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function checkAndReconnectObserver() {
+      if (!observerRef) return;
+      try {
+        const root = document.documentElement || document.body;
+        if (!root) return;
+        observerRef.takeRecords();
+      } catch (_) {
+        try {
+          observerRef.disconnect();
+          observerRef.observe(document.documentElement || document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: OBSERVED_ATTRIBUTES
+          });
+          console.debug('[toc] reconnected MutationObserver');
+        } catch (e) {
+          console.warn('[toc] failed to reconnect MutationObserver:', e);
+        }
+      }
+    }
+
+    function startPolling(cfg) {
+      stopPolling();
+      const POLL_INTERVAL_MS = uiConst('POLL_INTERVAL_MS', 3000);
+      const POLL_INTERVAL_THROTTLED_MS = uiConst('POLL_INTERVAL_THROTTLED_MS', 10000);
+      const poll = () => {
+        if (!isExtensionContextValid || document.hidden) {
+          pollTimer = setTimeout(poll, POLL_INTERVAL_THROTTLED_MS);
+          return;
+        }
+        checkAndReconnectObserver();
+
+        const sig = computeContentSignature(cfg);
+        if (sig !== null && sig !== lastContentSignature) {
+          lastContentSignature = sig;
+          hasPendingRebuild = true;
+          attemptRebuild();
+        }
+        const timeSinceMoRebuild = Date.now() - lastRebuildFromMo;
+        const isBadgeMode = !document.querySelector('.toc-floating[data-toc-owner]');
+        const interval = (timeSinceMoRebuild < POLL_INTERVAL_THROTTLED_MS || isBadgeMode)
+          ? POLL_INTERVAL_THROTTLED_MS
+          : POLL_INTERVAL_MS;
+        pollTimer = setTimeout(poll, interval);
+      };
+      pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    }
+
     function hasMeaningfulChange(mutations) {
       for (const m of mutations) {
         try {
@@ -353,7 +439,7 @@
           try { observer.disconnect(); } catch (_) {}
           stopTimers();
           return {
-            disconnect() { stopTimers(); },
+            disconnect() { stopPolling(); stopTimers(); },
             getPendingRebuild: () => false,
             setPendingRebuild: () => {}
           };
@@ -372,11 +458,15 @@
           try { observer.disconnect(); } catch (_) {}
           stopTimers();
           return {
-            disconnect() { stopTimers(); },
+            disconnect() { stopPolling(); stopTimers(); },
             getPendingRebuild: () => false,
             setPendingRebuild: () => {}
           };
         }
+
+        // Start polling fallback
+        lastContentSignature = computeContentSignature(cfg);
+        startPolling(cfg);
 
         return {
           disconnect() {
@@ -402,6 +492,7 @@
                 try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
                 hashchangeHandler = null;
               }
+              stopPolling();
               stopTimers();
             }
           },
@@ -442,6 +533,7 @@
             try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
             hashchangeHandler = null;
           }
+          stopPolling();
           stopTimers();
         },
         getPendingRebuild: () => false,
