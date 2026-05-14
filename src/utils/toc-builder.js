@@ -19,86 +19,6 @@ define('toc-builder', ['dom-utils', 'toc-constants'],
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
 
-    /**
-     * Batch-read layout data for all elements in one synchronous pass,
-     * then filter visibility using the cached data.
-     */
-    function batchCollectVisibility(elements) {
-      var len = elements.length;
-      var styles = new Array(len);
-      var rects = new Array(len);
-      var offsetParents = new Array(len);
-      var offsetWidths = new Array(len);
-      var offsetHeights = new Array(len);
-
-      // Phase 1: Batch all layout-triggering reads in one synchronous block.
-      for (var i = 0; i < len; i++) {
-        var el = elements[i];
-        try {
-          styles[i] = window.getComputedStyle(el);
-          rects[i] = el.getBoundingClientRect();
-          offsetParents[i] = el.offsetParent;
-          offsetWidths[i] = el.offsetWidth;
-          offsetHeights[i] = el.offsetHeight;
-        } catch (_) {
-          styles[i] = null;
-          rects[i] = null;
-          offsetParents[i] = null;
-          offsetWidths[i] = 0;
-          offsetHeights[i] = 0;
-        }
-      }
-
-      // Phase 2: Filter based on cached layout data.
-      var visible = new Array(len);
-      for (var j = 0; j < len; j++) {
-        var el2 = elements[j];
-        var style = styles[j];
-        var rect = rects[j];
-
-        if (!el2 || !el2.isConnected) { visible[j] = false; continue; }
-        if (!style) { visible[j] = false; continue; }
-        if (style.display === 'none') { visible[j] = false; continue; }
-        if (offsetParents[j] === null && style.position !== 'fixed') { visible[j] = false; continue; }
-        if (offsetWidths[j] === 0 || offsetHeights[j] === 0) { visible[j] = false; continue; }
-        if (style.visibility === 'hidden' || style.visibility === 'collapse') { visible[j] = false; continue; }
-        var opacity = parseFloat(style.opacity);
-        if (Number.isFinite(opacity) && opacity <= 0) { visible[j] = false; continue; }
-        if (!rect || rect.width === 0 || rect.height === 0) { visible[j] = false; continue; }
-
-        // Check parent clipping (uses cached rect from phase 1)
-        var clipped = false;
-        var parent = el2.parentElement;
-        var depth = 0;
-        while (parent && depth < 3) {
-          var parentStyle;
-          try { parentStyle = window.getComputedStyle(parent); } catch (_) { break; }
-          if (parentStyle) {
-            var overflowVal = parentStyle.overflow;
-            var overflowX = parentStyle.overflowX;
-            var overflowY = parentStyle.overflowY;
-            var clips = overflowVal === 'hidden' || overflowVal === 'clip'
-              || overflowX === 'hidden' || overflowX === 'clip'
-              || overflowY === 'hidden' || overflowY === 'clip';
-            if (clips) {
-              var parentRect;
-              try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
-              if (rect.right <= parentRect.left || rect.left >= parentRect.right ||
-                  rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
-                clipped = true;
-                break;
-              }
-            }
-          }
-          parent = parent.parentElement;
-          depth++;
-        }
-        visible[j] = !clipped;
-      }
-
-      return visible;
-    }
-
     function buildTocItemsFromSelectors(selectors, cfg) {
       var elements = [];
       var list = Array.isArray(selectors) ? selectors : [];
@@ -125,17 +45,66 @@ define('toc-builder', ['dom-utils', 'toc-constants'],
         truncated = true;
       }
 
-      // Batch visibility check — one synchronous layout pass for all candidates
-      var visibility = batchCollectVisibility(candidates);
-
       var items = [];
       for (var m = 0; m < candidates.length; m++) {
         var el = candidates[m];
-        if (!el) continue;
+
+        // Phase 1: cheap checks (no layout reads)
+        if (!el || !el.isConnected) continue;
 
         var text = getTrimmedText(el);
         if (!keepEmpty && (!text || text.length === 0)) continue;
-        if (!visibility[m]) continue;
+
+        // Phase 2: style + geometry checks (one layout read batch per element)
+        var style;
+        try { style = window.getComputedStyle(el); } catch (_) { continue; }
+        if (!style) continue;
+        if (style.display === 'none') continue;
+
+        var offsetParent;
+        try { offsetParent = el.offsetParent; } catch (_) { continue; }
+        if (offsetParent === null && style.position !== 'fixed') continue;
+
+        var ow, oh;
+        try { ow = el.offsetWidth; oh = el.offsetHeight; } catch (_) { continue; }
+        if (ow === 0 || oh === 0) continue;
+
+        if (style.visibility === 'hidden' || style.visibility === 'collapse') continue;
+        var opacity = parseFloat(style.opacity);
+        if (Number.isFinite(opacity) && opacity <= 0) continue;
+
+        var rect;
+        try { rect = el.getBoundingClientRect(); } catch (_) { continue; }
+        if (!rect || rect.width === 0 || rect.height === 0) continue;
+
+        // Phase 3: parent clipping check (only for phase 2 survivors)
+        var clipped = false;
+        var parent = el.parentElement;
+        var depth = 0;
+        while (parent && depth < 3) {
+          var parentStyle;
+          try { parentStyle = window.getComputedStyle(parent); } catch (_) { break; }
+          if (parentStyle) {
+            var overflowVal = parentStyle.overflow;
+            var overflowX = parentStyle.overflowX;
+            var overflowY = parentStyle.overflowY;
+            var clips = overflowVal === 'hidden' || overflowVal === 'clip'
+              || overflowX === 'hidden' || overflowX === 'clip'
+              || overflowY === 'hidden' || overflowY === 'clip';
+            if (clips) {
+              var parentRect;
+              try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
+              if (rect.right <= parentRect.left || rect.left >= parentRect.right
+                  || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
+                clipped = true;
+                break;
+              }
+            }
+          }
+          parent = parent.parentElement;
+          depth++;
+        }
+        if (clipped) continue;
 
         items.push({ id: 'toc-item-' + items.length, el: el, text: text });
         if (items.length >= TOC_MAX_ITEMS) {
