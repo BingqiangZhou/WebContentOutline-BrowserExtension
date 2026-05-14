@@ -9,7 +9,8 @@
 
   const { buildTocItems } = window.TOC_BUILDER || {};
   const { renderCollapsedBadge, renderFloatingPanel, createElementPicker, showPickerResult } = window.TOC_UI || {};
-  const { buildClassSelector, cssPathFor } = window.CSS_SELECTOR || {};
+  var CSS_SEL_MOD = (typeof require === 'function') ? require('css-selector') : null;
+  const { buildClassSelector, cssPathFor } = CSS_SEL_MOD || window.CSS_SELECTOR || {};
   const { siteConfig, saveSelector, updateConfigFromStorage } = window.CONFIG_MANAGER || {};
   const {
     setPanelExpandedByOrigin,
