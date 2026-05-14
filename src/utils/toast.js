@@ -1,13 +1,11 @@
-(() => {
-  const T = globalThis.TOC_UTILS;
-  if (!T) return;
-
-  const { msg, UI_CONSTANTS } = T;
+define('toast', ['toc-constants', 'core-utils'], function(C, CU) {
+  var UI_CONSTANTS = C.UI_CONSTANTS;
+  var msg = CU.msg;
 
   function ensureToastContainer() {
-    const existing = document.querySelector('.toc-toast-container');
+    var existing = document.querySelector('.toc-toast-container');
     if (existing) return existing;
-    const container = document.createElement('div');
+    var container = document.createElement('div');
     container.className = 'toc-toast-container';
     container.setAttribute('data-toc-owner', 'web-toc-assistant');
     container.setAttribute('role', 'region');
@@ -21,30 +19,31 @@
    * @param {string} text
    * @param {{type?: 'info'|'success'|'warning'|'error', durationMs?: number}} [opts]
    */
-  function showToast(text, opts = {}) {
+  function showToast(text, opts) {
+    if (!opts) opts = {};
     try {
-      const type = opts.type || 'info';
-      const durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : UI_CONSTANTS.TOAST_DURATION_MS;
-      const container = ensureToastContainer();
+      var type = opts.type || 'info';
+      var durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : UI_CONSTANTS.TOAST_DURATION_MS;
+      var container = ensureToastContainer();
 
-      const toast = document.createElement('div');
-      toast.className = `toc-toast toc-toast-${type}`;
+      var toast = document.createElement('div');
+      toast.className = 'toc-toast toc-toast-' + type;
       toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
       toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
 
-      const message = document.createElement('div');
+      var message = document.createElement('div');
       message.className = 'toc-toast-message';
       message.textContent = String(text || '');
 
-      const closeBtn = document.createElement('button');
+      var closeBtn = document.createElement('button');
       closeBtn.type = 'button';
       closeBtn.className = 'toc-toast-close';
       closeBtn.textContent = msg('symbolClose');
       closeBtn.setAttribute('aria-label', msg('buttonClose'));
 
-      let timerId = null;
-      let removed = false;
-      const removeToast = () => {
+      var timerId = null;
+      var removed = false;
+      var removeToast = function() {
         if (removed) return;
         removed = true;
         if (timerId) {
@@ -58,14 +57,14 @@
       };
 
       closeBtn.addEventListener('click', removeToast, { once: true });
-      toast.addEventListener('click', (e) => {
+      toast.addEventListener('click', function(e) {
         // Allow clicking toast body to dismiss, but ignore text selection drags.
         if (e && e.target && e.target.closest && e.target.closest('button')) return;
         try {
-          const sel = window.getSelection && window.getSelection();
+          var sel = window.getSelection && window.getSelection();
           if (sel && !sel.isCollapsed) {
-            const a = sel.anchorNode;
-            const f = sel.focusNode;
+            var a = sel.anchorNode;
+            var f = sel.focusNode;
             if ((a && toast.contains(a)) || (f && toast.contains(f))) return;
           }
         } catch (_) {}
@@ -82,12 +81,18 @@
 
       return { close: removeToast };
     } catch (_) {
-      return { close: () => {} };
+      return { close: function() {} };
     }
   }
 
-  Object.assign(T, {
-    ensureToastContainer,
-    showToast
-  });
-})();
+  var api = {
+    ensureToastContainer: ensureToastContainer,
+    showToast: showToast
+  };
+  // Backward compat
+  try {
+    var T = typeof globalThis !== 'undefined' ? globalThis.TOC_UTILS : (typeof window !== 'undefined' ? window.TOC_UTILS : null);
+    if (T) Object.assign(T, api);
+  } catch (_) {}
+  return api;
+});

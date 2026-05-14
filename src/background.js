@@ -24,6 +24,7 @@ const CONTENT_SCRIPTS = [
   'src/utils/toast.js',
   'src/shared/storage-primitives.js',
   'src/utils/storage.js',
+  'src/utils/toc-utils.js',
   'src/utils/badge-position.js',
   'src/utils/dom-utils.js',
   'src/utils/drag-helper.js',

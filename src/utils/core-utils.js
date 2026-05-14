@@ -1,6 +1,5 @@
-(() => {
-  const T = globalThis.TOC_UTILS;
-  if (!T) return;
+define('core-utils', ['toc-constants'], function(C) {
+  var uiConst = C.uiConst;
 
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
@@ -9,7 +8,7 @@
   function isExtensionContextInvalidated() {
     try {
       if (typeof chrome === 'undefined') return false;
-      return !chrome.runtime?.id;
+      return !chrome.runtime || !chrome.runtime.id;
     } catch (_) {
       return true;
     }
@@ -31,25 +30,25 @@
 
   function isPlainObject(value) {
     if (!value || typeof value !== 'object') return false;
-    const proto = Object.getPrototypeOf(value);
+    var proto = Object.getPrototypeOf(value);
     return proto === Object.prototype || proto === null;
   }
 
   function isContextInvalidatedError(e) {
     try {
       if (!e) return false;
-      const text = String(e && (e.message || (e.toString && e.toString()) || e) || '');
-      const lowered = text.toLowerCase();
-      return lowered.includes('extension context invalidated') || lowered.includes('context invalidated');
+      var text = String(e && (e.message || (e.toString && e.toString()) || e) || '');
+      var lowered = text.toLowerCase();
+      return lowered.indexOf('extension context invalidated') !== -1 || lowered.indexOf('context invalidated') !== -1;
     } catch (_) {
       return false;
     }
   }
 
   function getFocusableWithin(rootEl) {
-    const root = rootEl && rootEl.querySelectorAll ? rootEl : null;
+    var root = rootEl && rootEl.querySelectorAll ? rootEl : null;
     if (!root) return [];
-    const selector = [
+    var selector = [
       'button:not([disabled])',
       'textarea:not([disabled])',
       'input:not([disabled])',
@@ -58,9 +57,9 @@
       '[tabindex]:not([tabindex="-1"])'
     ].join(',');
     try {
-      return Array.from(root.querySelectorAll(selector)).filter(el => {
+      return Array.from(root.querySelectorAll(selector)).filter(function(el) {
         if (!el || !el.focus) return false;
-        const style = window.getComputedStyle(el);
+        var style = window.getComputedStyle(el);
         return style && style.visibility !== 'hidden' && style.display !== 'none';
       });
     } catch (_) {
@@ -76,39 +75,39 @@
     }
     try {
       return JSON.parse(raw);
-    } catch {
+    } catch (e) {
       return null;
     }
   }
 
   function getFiniteNumber(value) {
-    const num = typeof value === 'number' ? value : Number(value);
+    var num = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(num) ? num : null;
   }
 
   function isSafeXPathExpression(expr) {
     if (typeof expr !== 'string') return false;
-    const trimmed = expr.trim();
+    var trimmed = expr.trim();
     if (!trimmed) return false;
     if (trimmed.length > uiConst('XPATH_MAX_LENGTH', 2000)) return false;
 
     // Avoid extremely broad document scans that are likely to be slow.
-    if (trimmed.startsWith('//*') || /^\/\/(node|text|comment)\s*\(/i.test(trimmed)) return false;
+    if (trimmed.indexOf('//*') === 0 || /^\/\/(node|text|comment)\s*\(/i.test(trimmed)) return false;
 
     // Disallow control characters.
-    for (let i = 0; i < trimmed.length; i++) {
-      const code = trimmed.charCodeAt(i);
+    for (var i = 0; i < trimmed.length; i++) {
+      var code = trimmed.charCodeAt(i);
       if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
     }
 
     // Basic structural checks: balanced quotes/brackets/parentheses, and avoid extreme nesting.
-    let inSingle = false;
-    let inDouble = false;
-    let parenDepth = 0;
-    let bracketDepth = 0;
-    const MAX_NESTING = 64;
-    for (let i = 0; i < trimmed.length; i++) {
-      const ch = trimmed[i];
+    var inSingle = false;
+    var inDouble = false;
+    var parenDepth = 0;
+    var bracketDepth = 0;
+    var MAX_NESTING = 64;
+    for (var i = 0; i < trimmed.length; i++) {
+      var ch = trimmed[i];
       if (!inDouble && ch === "'") {
         inSingle = !inSingle;
         continue;
@@ -130,22 +129,22 @@
 
     // Reject namespace prefixes (e.g. ns:div) because we evaluate without a namespace resolver.
     // Allow axis specifiers like following-sibling::.
-    let nsInSingle = false;
-    let nsInDouble = false;
-    for (let i = 0; i < trimmed.length; i++) {
-      const ch = trimmed[i];
+    var nsInSingle = false;
+    var nsInDouble = false;
+    for (var i = 0; i < trimmed.length; i++) {
+      var ch = trimmed[i];
       if (!nsInDouble && ch === "'") { nsInSingle = !nsInSingle; continue; }
       if (!nsInSingle && ch === '"') { nsInDouble = !nsInDouble; continue; }
       if (nsInSingle || nsInDouble) continue;
       if (ch === ':') {
-        const prev = trimmed[i - 1] || '';
-        const next = trimmed[i + 1] || '';
+        var prev = trimmed[i - 1] || '';
+        var next = trimmed[i + 1] || '';
         if (prev !== ':' && next !== ':') return false;
       }
     }
 
     // Browser XPath support is limited, but reject common external-document/function patterns anyway.
-    const forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i;
+    var forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i;
     if (forbiddenFn.test(trimmed)) return false;
 
     return true;
@@ -154,25 +153,25 @@
   function isValidCssSelector(expr) {
     if (typeof expr !== 'string') return false;
     if (typeof document === 'undefined' || !document) return false;
-    const trimmed = expr.trim();
+    var trimmed = expr.trim();
     if (!trimmed) return false;
     // Disallow control chars
-    for (let i = 0; i < trimmed.length; i++) {
-      const code = trimmed.charCodeAt(i);
+    for (var i = 0; i < trimmed.length; i++) {
+      var code = trimmed.charCodeAt(i);
       if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
     }
-    const maxLen = uiConst('CSS_SELECTOR_MAX_LENGTH', 2000);
+    var maxLen = uiConst('CSS_SELECTOR_MAX_LENGTH', 2000);
     if (trimmed.length > maxLen) return false;
     try {
       // Syntax validation without querying the page DOM.
-      const frag = document.createDocumentFragment ? document.createDocumentFragment() : null;
+      var frag = document.createDocumentFragment ? document.createDocumentFragment() : null;
       if (frag && frag.querySelector) {
         frag.querySelector(trimmed);
         return true;
       }
       // Fallback: use @supports selector() if available.
       if (typeof CSS !== 'undefined' && CSS && typeof CSS.supports === 'function') {
-        if (CSS.supports(`selector(${trimmed})`)) return true;
+        if (CSS.supports('selector(' + trimmed + ')')) return true;
       }
       // No validation method available — trust the selector syntax.
       return true;
@@ -185,9 +184,12 @@
     try {
       if (type === 'xpath') return isSafeXPathExpression(expr);
       if (type === 'css') return isValidCssSelector(expr);
-      const trackOnceFn = T.trackOnce;
+      // Late-binding fallback for trackOnce (defined in toc-storage, loaded later)
+      var trackOnceFn = (typeof require === 'function' && require('toc-storage'))
+        ? require('toc-storage').trackOnce
+        : null;
       if (typeof trackOnceFn === 'function') {
-        const onceKey = `selectorType:${String(type)}`;
+        var onceKey = 'selectorType:' + String(type);
         if (trackOnceFn(onceKey, uiConst('WARN_ONCE_MAX_KEYS', 200))) {
           console.warn('[toc] validateSelectorExpression: unsupported selector type:', type);
         }
@@ -198,16 +200,22 @@
     }
   }
 
-  Object.assign(T, {
-    isExtensionContextInvalidated,
-    msg,
-    isPlainObject,
-    isContextInvalidatedError,
-    getFocusableWithin,
-    safeJsonParse,
-    getFiniteNumber,
-    isSafeXPathExpression,
-    isValidCssSelector,
-    validateSelectorExpression
-  });
-})();
+  var api = {
+    isExtensionContextInvalidated: isExtensionContextInvalidated,
+    msg: msg,
+    isPlainObject: isPlainObject,
+    isContextInvalidatedError: isContextInvalidatedError,
+    getFocusableWithin: getFocusableWithin,
+    safeJsonParse: safeJsonParse,
+    getFiniteNumber: getFiniteNumber,
+    isSafeXPathExpression: isSafeXPathExpression,
+    isValidCssSelector: isValidCssSelector,
+    validateSelectorExpression: validateSelectorExpression
+  };
+  // Backward compat
+  try {
+    var T = typeof globalThis !== 'undefined' ? globalThis.TOC_UTILS : (typeof window !== 'undefined' ? window.TOC_UTILS : null);
+    if (T) Object.assign(T, api);
+  } catch (_) {}
+  return api;
+});
