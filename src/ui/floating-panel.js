@@ -24,7 +24,8 @@
 
   function renderFloatingPanel(opts) {
     let { items } = opts;
-    const { side, onCollapse, onRefresh, onPick, onSiteConfig, getNavLock, setNavLock, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false } = opts;
+    const { side, onCollapse, onRefresh, onPick, onSiteConfig, getPendingRebuild, setPendingRebuild, panelPos, tocMeta, skipAnimation = false } = opts;
+    const NL = globalThis.NAV_LOCK;
     // Remove any existing panel to prevent duplicates
     try {
       document.querySelectorAll('.toc-floating[data-toc-owner]').forEach(el => {
@@ -216,7 +217,7 @@
 
       timers.unlock = setTimeout(() => {
         timers.unlock = null;
-        setNavLock(false);
+        NL.unlock();
 
         if (getPendingRebuild && getPendingRebuild()) {
           if (timers.pendingRebuildRecheck) clearTimeout(timers.pendingRebuildRecheck);
@@ -245,18 +246,18 @@
     };
 
     const onScroll = () => {
-      if (!getNavLock()) return;
+      if (!NL.isLocked()) return;
       if (timers.scrollStop) clearTimeout(timers.scrollStop);
       timers.scrollStop = setTimeout(() => {
         timers.scrollStop = null;
-        setNavLock(false);
+        NL.unlock();
       }, CFG.SCROLL_STOP_MS);
     };
 
     const removeScrollListener = addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
 
     const cleanupLock = () => {
-      try { setNavLock && setNavLock(false); } catch (_) {}
+      try { NL.unlock(); } catch (_) {}
       if (timers.unlock) { clearTimeout(timers.unlock); timers.unlock = null; }
       if (timers.scrollStop) { clearTimeout(timers.scrollStop); timers.scrollStop = null; }
       if (timers.pendingRebuildRecheck) { clearTimeout(timers.pendingRebuildRecheck); timers.pendingRebuildRecheck = null; }
@@ -425,7 +426,7 @@
 
     const handleItemClick = (item, node, e) => {
       if (e && e.preventDefault) e.preventDefault();
-      setNavLock(true);
+      NL.lock();
       items.forEach(it => {
         it._userSelected = false;
         if (it._node) {
@@ -506,7 +507,7 @@
           intersectionObserver = null;
           return;
         }
-        if (getNavLock()) return;
+        if (NL.isLocked()) return;
         const { isRebuilding } = window.TOC_APP || {};
         if (isRebuilding && isRebuilding()) return;
 

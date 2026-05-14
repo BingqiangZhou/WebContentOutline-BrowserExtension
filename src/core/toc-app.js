@@ -319,7 +319,7 @@
           panelInstance.remove();
           panelInstance = renderFloatingPanel ? renderFloatingPanel({
             side: rebuildSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
-            onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
+            onSiteConfig: () => siteConfig && siteConfig(cfg),
             getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : () => false,
             setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : () => {},
             panelPos,
@@ -520,7 +520,7 @@
         if (renderFloatingPanel && !panelInstance) {
           panelInstance = renderFloatingPanel({
             side: expandSide, items, onCollapse: collapse, onRefresh: rebuild, onPick: startPick,
-            onSiteConfig: () => siteConfig && siteConfig(cfg), getNavLock, setNavLock,
+            onSiteConfig: () => siteConfig && siteConfig(cfg),
             getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : () => false,
             setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : () => {},
             panelPos,
