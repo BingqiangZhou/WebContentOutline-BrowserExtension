@@ -18,6 +18,7 @@ function originFromUrl(url) {
 }
 
 const CONTENT_SCRIPTS = [
+  'src/loader.js',
   'src/utils/constants.js',
   'src/utils/core-utils.js',
   'src/utils/toast.js',
