@@ -1,0 +1,9 @@
+{
+  "name": "web-toc-assistant",
+  "version": "0.7.1",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "devDependencies": {}
+}
