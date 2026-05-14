@@ -43,8 +43,9 @@
       PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
       BUTTON_OFFSET: get('BUTTON_OFFSET', 20),
       DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
-      NAV_LOCK_FAILSAFE_MS: get('NAV_LOCK_FAILSAFE_MS', 8000),
+      NAV_LOCK_FAILSAFE_MS: get('NAV_LOCK_FAILSAFE_MS', 3000),
       REBUILD_MAX_LOOPS: get('REBUILD_MAX_LOOPS', 10),
+      REBUILD_COOLDOWN_MS: get('REBUILD_COOLDOWN_MS', 5000),
     };
   })();
 
@@ -268,12 +269,12 @@
       // Circuit breaker: skip rebuild if too many consecutive failures
       if (consecutiveRebuildFailures >= 5) {
         if (!failureCooldownTimer) {
-          console.warn('[toc] rebuild circuit breaker active, pausing for 30s after 5 consecutive failures');
+          console.warn('[toc] rebuild circuit breaker active, pausing for 5s after 5 consecutive failures');
           try {
             failureCooldownTimer = setTimeout(() => {
               failureCooldownTimer = null;
               consecutiveRebuildFailures = 0;
-            }, 30000);
+            }, CFG.REBUILD_COOLDOWN_MS);
           } catch (_) {
             consecutiveRebuildFailures = 0;
           }
