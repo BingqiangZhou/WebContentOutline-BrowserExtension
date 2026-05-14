@@ -1,7 +1,8 @@
 // Shared storage primitives for both background service worker and content scripts.
 // Loaded via importScripts in background, injected as content script elsewhere.
 // Creates globalThis.__STORAGE_PRIMITIVES — completely self-contained, no external dependencies.
-define('storage-primitives', [], function() {
+
+var __storagePrimitivesFactory = function() {
   var __writeQueues = {};
 
   function serializedWrite(key, asyncFn) {
@@ -57,4 +58,12 @@ define('storage-primitives', [], function() {
   };
   try { globalThis.__STORAGE_PRIMITIVES = api; } catch (_) {}
   return api;
-});
+};
+
+// Register with define() if available (content script context),
+// otherwise set global directly (service worker context via importScripts).
+if (typeof define === 'function') {
+  define('storage-primitives', [], __storagePrimitivesFactory);
+} else {
+  __storagePrimitivesFactory();
+}

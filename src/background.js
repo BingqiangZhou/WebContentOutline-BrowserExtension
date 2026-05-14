@@ -1,6 +1,6 @@
 // Background service worker for MV3 - per-site enable/disable, icon state, and dynamic injection
 
-importScripts('src/shared/storage-primitives.js');
+importScripts('shared/storage-primitives.js');
 const { serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit } = globalThis.__STORAGE_PRIMITIVES;
 
 // Storage keys needed by background.js
