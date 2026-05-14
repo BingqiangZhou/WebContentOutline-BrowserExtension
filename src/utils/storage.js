@@ -400,11 +400,7 @@ define('toc-storage', ['core-utils', 'storage-primitives', 'toc-constants'], fun
   }
 
   var api = {
-    serializedWrite: serializedWrite,
-    touchObjectKey: touchObjectKey,
-    pruneObjectToLimit: pruneObjectToLimit,
     trackOnce: trackOnce,
-    isQuotaExceededError: isQuotaExceededError,
     notifyStorageWriteError: notifyStorageWriteError,
     normalizeSelectorEntry: normalizeSelectorEntry,
     normalizeTocConfigs: normalizeTocConfigs,
