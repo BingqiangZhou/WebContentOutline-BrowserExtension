@@ -4,7 +4,6 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
   var msg = tocUtils.msg || function(key) { return key; };
   var setBadgePosByHost = tocUtils.setBadgePosByHost;
   var uiConst = C.uiConst;
-  var isExtensionContextInvalidated = tocUtils.isExtensionContextInvalidated;
   var createDragController = dragHelper.createDragController;
   var scrollToElement = tocUtils.scrollToElement;
 
@@ -651,28 +650,6 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
     list.addEventListener('keydown', onListKeydown);
 
     panel.appendChild(header);
-
-    // Check for invalidated extension context and show notice
-    if (typeof isExtensionContextInvalidated === 'function' && isExtensionContextInvalidated()) {
-      var notice = document.createElement('div');
-      notice.className = 'toc-ctx-invalidated-notice';
-      notice.setAttribute('role', 'alert');
-      notice.setAttribute('aria-live', 'assertive');
-      var noticeText = document.createElement('span');
-      noticeText.textContent = msg('ctxInvalidatedNotice');
-      notice.appendChild(noticeText);
-      var refreshLink = document.createElement('a');
-      refreshLink.className = 'toc-ctx-refresh-link';
-      refreshLink.href = '#';
-      refreshLink.textContent = msg('ctxInvalidatedRefresh');
-      refreshLink.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        try { location.reload(); } catch (_) {}
-      });
-      notice.appendChild(refreshLink);
-      panel.appendChild(notice);
-    }
 
     panel.appendChild(list);
     document.documentElement.appendChild(panel);

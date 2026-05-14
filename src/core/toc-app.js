@@ -39,9 +39,11 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
   })();
 
   var isContextInvalidatedError = null;
+  var isExtensionContextInvalidated = null;
   try {
     var coreUtils = (typeof require === 'function') ? require('core-utils') : null;
     isContextInvalidatedError = coreUtils && coreUtils.isContextInvalidatedError;
+    isExtensionContextInvalidated = coreUtils && coreUtils.isExtensionContextInvalidated;
   } catch (_) {}
 
   function initForConfig(cfg) {
@@ -214,6 +216,39 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
       if (destroyed) {
         isRebuilding = false;
         return false;
+      }
+      // Early exit: if extension context is invalidated, stop all rebuilds
+      // and show notice once on existing panel (don't re-create panel).
+      if (isExtensionContextInvalidated && isExtensionContextInvalidated()) {
+        clearRebuildFlag();
+        if (mutationObserver && mutationObserver.disconnect) {
+          try { mutationObserver.disconnect(); } catch (_) {}
+        }
+        // Show notice on existing panel if not already present
+        if (panelInstance && !document.querySelector('.toc-ctx-invalidated-notice')) {
+          try {
+            var noticeEl = document.createElement('div');
+            noticeEl.className = 'toc-ctx-invalidated-notice';
+            noticeEl.setAttribute('role', 'alert');
+            noticeEl.setAttribute('aria-live', 'assertive');
+            var noticeTextEl = document.createElement('span');
+            var msgFn = (typeof require === 'function') ? require('toc-utils').msg : null;
+            noticeTextEl.textContent = msgFn ? msgFn('ctxInvalidatedNotice') : 'Extension updated. Please refresh the page.';
+            noticeEl.appendChild(noticeTextEl);
+            var refreshLinkEl = document.createElement('a');
+            refreshLinkEl.className = 'toc-ctx-refresh-link';
+            refreshLinkEl.href = '#';
+            refreshLinkEl.textContent = msgFn ? msgFn('ctxInvalidatedRefresh') : 'Refresh';
+            refreshLinkEl.addEventListener('click', function(e) {
+              e.preventDefault();
+              try { location.reload(); } catch (_) {}
+            });
+            noticeEl.appendChild(refreshLinkEl);
+            var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
+            if (panelEl) panelEl.insertBefore(noticeEl, panelEl.querySelector('.toc-list'));
+          } catch (_) {}
+        }
+        return;
       }
       // Circuit breaker: skip rebuild if too many consecutive failures
       if (consecutiveRebuildFailures >= 5) {
