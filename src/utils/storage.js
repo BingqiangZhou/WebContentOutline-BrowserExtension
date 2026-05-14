@@ -12,40 +12,11 @@
     STORAGE_KEYS
   } = T;
 
-  const __writeQueues = {};
-  function serializedWrite(key, asyncFn) {
-    const prev = __writeQueues[key] || Promise.resolve();
-    const run = () => asyncFn();
-    const next = prev.then(run, run);
-    __writeQueues[key] = next.catch(() => {});
-    return next;
-  }
-
-  function touchObjectKey(map, key, value) {
-    try {
-      if (!map || !key) return;
-      if (Object.prototype.hasOwnProperty.call(map, key)) {
-        try { delete map[key]; } catch (_) {}
-      }
-      map[key] = value;
-    } catch (_) {}
-  }
-
-  function pruneObjectToLimit(map, maxKeys) {
-    try {
-      if (!isPlainObject(map)) return map;
-      const limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : uiConst('STORAGE_MAX_MAP_KEYS', 400);
-      const keys = Object.keys(map);
-      if (keys.length <= limit) return map;
-      const removeCount = keys.length - limit;
-      for (let i = 0; i < removeCount; i++) {
-        try { delete map[keys[i]]; } catch (_) {}
-      }
-      return map;
-    } catch (_) {
-      return map;
-    }
-  }
+  const SP = globalThis.__STORAGE_PRIMITIVES || {};
+  const serializedWrite = SP.serializedWrite;
+  const isQuotaExceededError = SP.isQuotaExceededError;
+  const touchObjectKey = SP.touchObjectKey;
+  const pruneObjectToLimit = SP.pruneObjectToLimit;
 
   const __storageErrorOnce = new Map();
   function trackOnce(onceKey, maxKeys) {
@@ -61,17 +32,6 @@
       return true;
     } catch (_) {
       return true;
-    }
-  }
-
-  function isQuotaExceededError(err) {
-    try {
-      if (!err) return false;
-      if (err.name === 'QuotaExceededError') return true;
-      const text = String(err && (err.message || err.toString && err.toString() || err) || '');
-      return /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
-    } catch (_) {
-      return false;
     }
   }
 

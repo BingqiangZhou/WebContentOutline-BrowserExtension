@@ -1,5 +1,8 @@
 // Background service worker for MV3 - per-site enable/disable, icon state, and dynamic injection
 
+importScripts('src/shared/storage-primitives.js');
+const { serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit } = globalThis.__STORAGE_PRIMITIVES;
+
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
   SITE_ENABLE_MAP: 'tocSiteEnabledMap'
@@ -18,6 +21,7 @@ const CONTENT_SCRIPTS = [
   'src/utils/constants.js',
   'src/utils/core-utils.js',
   'src/utils/toast.js',
+  'src/shared/storage-primitives.js',
   'src/utils/storage.js',
   'src/utils/badge-position.js',
   'src/utils/dom-utils.js',
@@ -50,55 +54,9 @@ function isHttpUrl(url) {
 
 const BG_MAX_MAP_KEYS = 400;
 
-const __writeQueues = {};
-function serializedWrite(key, asyncFn) {
-  const prev = __writeQueues[key] || Promise.resolve();
-  const run = () => asyncFn();
-  const next = prev.then(run, run);
-  __writeQueues[key] = next.catch(() => {});
-  return next;
-}
-
 async function processInBatches(items, fn, batchSize = 5) {
   for (let i = 0; i < items.length; i += batchSize) {
     await Promise.allSettled(items.slice(i, i + batchSize).map(fn));
-  }
-}
-
-function isQuotaExceededError(err) {
-  try {
-    if (!err) return false;
-    if (err.name === 'QuotaExceededError') return true;
-    const text = String(err && (err.message || err.toString && err.toString() || err) || '');
-    return /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
-  } catch (_) {
-    return false;
-  }
-}
-
-function touchObjectKey(map, key, value) {
-  try {
-    if (!map || !key) return;
-    if (Object.prototype.hasOwnProperty.call(map, key)) {
-      try { delete map[key]; } catch (_) {}
-    }
-    map[key] = value;
-  } catch (_) {}
-}
-
-function pruneObjectToLimit(map, maxKeys) {
-  try {
-    if (!map || typeof map !== 'object') return map;
-    const limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : BG_MAX_MAP_KEYS;
-    const keys = Object.keys(map);
-    if (keys.length <= limit) return map;
-    const removeCount = keys.length - limit;
-    for (let i = 0; i < removeCount; i++) {
-      try { delete map[keys[i]]; } catch (_) {}
-    }
-    return map;
-  } catch (_) {
-    return map;
   }
 }
 
