@@ -54,7 +54,9 @@ define('toc-constants', [], function() {
    STORAGE_MAX_SITES: 200,
    STORAGE_MAX_SELECTORS_PER_SITE: 50,
    STORAGE_MAX_MAP_KEYS: 400,
-   STORAGE_ERROR_ONCE_MAX_KEYS: 200
+   STORAGE_ERROR_ONCE_MAX_KEYS: 200,
+
+   CLEANUP_SELECTOR: '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]',
  };
 
  function uiConst(name, fallback) {

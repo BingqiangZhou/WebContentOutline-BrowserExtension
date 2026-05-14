@@ -22,6 +22,7 @@
   var getBadgePosByHost = null;
   var setBadgePosByHost = null;
   var isContextInvalidatedError = null;
+  var uiConst = null;
 
   if (TOC_UTILS) {
     msg = TOC_UTILS.msg || msg;
@@ -32,6 +33,7 @@
     getBadgePosByHost = TOC_UTILS.getBadgePosByHost;
     setBadgePosByHost = TOC_UTILS.setBadgePosByHost;
     isContextInvalidatedError = TOC_UTILS.isContextInvalidatedError;
+    uiConst = TOC_UTILS.uiConst;
   }
 
   var initForConfig = TOC_APP && TOC_APP.initForConfig;
@@ -103,7 +105,7 @@
     } catch (_) {}
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]').forEach(function(n) {
+      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]')).forEach(function(n) {
         try {
           var cleanup = n && n.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
@@ -282,7 +284,7 @@
     }
     appInstance = null;
     try {
-      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]').forEach(function(n) {
+      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]')).forEach(function(n) {
         try { if (typeof n.__TOC_CLEANUP__ === 'function') n.__TOC_CLEANUP__(); } catch (_) {}
         n.remove();
       });

@@ -22,7 +22,7 @@ define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], functio
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates
     try {
-      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner]').forEach(function(el) {
+      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner]')).forEach(function(el) {
         try {
           var cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();

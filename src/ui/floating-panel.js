@@ -38,7 +38,7 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
     var NL = (typeof require === 'function') ? require('nav-lock') : globalThis.NAV_LOCK;
     // Remove any existing panel to prevent duplicates
     try {
-      document.querySelectorAll('.toc-floating[data-toc-owner]').forEach(function(el) {
+      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-floating[data-toc-owner]')).forEach(function(el) {
         try {
           var cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();

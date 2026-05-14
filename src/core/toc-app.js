@@ -51,7 +51,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
     try {
-      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner]').forEach(function(el) {
+      document.querySelectorAll(uiConst('CLEANUP_SELECTOR', '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner]')).forEach(function(el) {
         try {
           var cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
