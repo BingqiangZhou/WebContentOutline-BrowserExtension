@@ -229,39 +229,16 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
      * @param {Element[]} list
      */
     function uniqueInDocumentOrder(list) {
-      var set = new Set();
-      // Track original index to keep stable order when sorting is ambiguous.
-      var arrWithIndex = [];
+      var seen = new Set();
+      var result = [];
       for (var i = 0; i < list.length; i++) {
         var el = list[i];
-        if (!el) continue;
-        if (set.has(el)) continue;
-        set.add(el);
-        arrWithIndex.push({ el: el, originalIndex: i });
+        if (el && !seen.has(el)) {
+          seen.add(el);
+          result.push(el);
+        }
       }
-
-      arrWithIndex.sort(function(a, b) {
-        if (a.el === b.el) return 0;
-        // If elements are not connected, preserve original order.
-        if (!a.el.isConnected || !b.el.isConnected) {
-          return a.originalIndex - b.originalIndex;
-        }
-        try {
-          var pos = a.el.compareDocumentPosition(b.el);
-          if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1;
-          if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;
-          if (pos & Node.DOCUMENT_POSITION_CONTAINS) return -1;
-          if (pos & Node.DOCUMENT_POSITION_CONTAINED_BY) return 1;
-          // If position cannot be determined, preserve original order.
-          return a.originalIndex - b.originalIndex;
-        } catch (e) {
-          // compareDocumentPosition can fail; preserve original order.
-          console.warn('[toc] compareDocumentPosition failed:', e);
-          return a.originalIndex - b.originalIndex;
-        }
-      });
-
-      return arrWithIndex.map(function(item) { return item.el; });
+      return result;
     }
 
     /**
