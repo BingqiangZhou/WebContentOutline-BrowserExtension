@@ -1,70 +1,60 @@
-(() => {
+define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(tocUtils, coreUtils, focusTrap) {
   'use strict';
 
-  const { msg = (key) => key, getConfigs, saveConfigs, showToast, validateSelectorExpression } = window.TOC_UTILS || {};
-
-  if (!window.TOC_UTILS) {
-    console.error('[toc] config-manager.js not loaded — missing dependencies: TOC_UTILS');
-    return;
-  }
-
-  let configsSaveLock = Promise.resolve();
-  function queueConfigsWrite(task) {
-    const next = configsSaveLock.then(async () => {
-      const ok = await task();
-      return !!ok;
-    }).catch(e => {
-      console.warn('[toc] config write chain error:', e);
-      return false;
-    });
-    configsSaveLock = next;
-    return next;
-  }
+  var msg = coreUtils.msg || function(key) { return key; };
+  var showToast = tocUtils.showToast;
+  var validateSelectorExpression = coreUtils.validateSelectorExpression;
+  var createFocusTrap = focusTrap.createFocusTrap;
+  var getConfigs = tocUtils.getConfigs;
+  var saveConfigs = tocUtils.saveConfigs;
 
   async function siteConfig(cfg) {
     try {
-      const prevFocus = document.activeElement;
-      const existing = document.querySelector('.toc-overlay');
+      var prevFocus = document.activeElement;
+      var existing = document.querySelector('.toc-overlay');
       if (existing) {
         existing.remove();
       }
 
-      const configs = await getConfigs();
-      const urlPattern = `${location.protocol}//${location.host}/*`;
-      const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);
-      const list = idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : [];
+      var configs = await getConfigs();
+      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var idx = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+      var list = idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : [];
 
-      const box = document.createElement('div');
+      var box = document.createElement('div');
       box.className = 'toc-overlay';
       box.setAttribute('data-toc-owner', 'web-toc-assistant');
       box.setAttribute('role', 'dialog');
       box.setAttribute('aria-modal', 'true');
       box.tabIndex = -1;
 
-      const header = document.createElement('div');
+      var header = document.createElement('div');
       header.className = 'toc-overlay-header';
       header.textContent = msg('configDialogTitle') + ' - ' + urlPattern;
-      header.id = `toc-overlay-title-${Math.random().toString(36).slice(2)}`;
+      header.id = 'toc-overlay-title-' + Math.random().toString(36).slice(2);
       box.setAttribute('aria-labelledby', header.id);
       box.appendChild(header);
 
-      const body = document.createElement('div');
+      var body = document.createElement('div');
       body.className = 'toc-overlay-body';
 
-      const countLabel = document.createElement('div');
+      var countLabel = document.createElement('div');
       countLabel.className = 'toc-config-count';
       countLabel.textContent = msg('configSavedSelectors') + ' (' + (list ? list.length : 0) + ')';
       body.appendChild(countLabel);
 
-      const listDiv = document.createElement('div');
+      var listDiv = document.createElement('div');
       listDiv.className = 'toc-overlay-list';
 
-      const mutateConfigsWithRetry = async ({ mutate, verify, maxAttempts = 3 }) => {
-        const attempts = Number.isFinite(maxAttempts) ? Math.max(1, Math.floor(maxAttempts)) : 3;
-        const verifyFn = (typeof verify === 'function') ? verify : null;
+      var mutateConfigsWithRetry = async function(opts) {
+        var mutate = opts.mutate;
+        var verify = opts.verify;
+        var maxAttempts = opts.maxAttempts;
+        var attempts = Number.isFinite(maxAttempts) ? Math.max(1, Math.floor(maxAttempts)) : 3;
+        var verifyFn = (typeof verify === 'function') ? verify : null;
 
-        for (let i = 0; i < attempts; i++) {
-          const configsNow = await getConfigs();
+        for (var i = 0; i < attempts; i++) {
+          var configsNow = await getConfigs();
 
           // Avoid a write when the desired state is already present (also reduces multi-tab overwrite risk).
           if (verifyFn) {
@@ -73,8 +63,8 @@
             } catch (_) {}
           }
 
-          const nextConfigs = mutate(configsNow);
-          const ok = await saveConfigs(nextConfigs);
+          var nextConfigs = mutate(configsNow);
+          var ok = await saveConfigs(nextConfigs);
           if (!ok) return false;
 
           // In multi-tab scenarios another writer may update storage between our write and a read-back verify.
@@ -85,20 +75,20 @@
           } catch (_) {}
 
           // Yield a tick before retrying to reduce tight-loop contention across tabs.
-          try { await new Promise((r) => setTimeout(r, 0)); } catch (_) {}
+          try { await new Promise(function(r) { setTimeout(r, 0); }); } catch (_) {}
         }
 
         // Best-effort final check against current storage.
         if (verifyFn) {
           try {
-            const finalNow = await getConfigs();
+            var finalNow = await getConfigs();
             if (verifyFn(finalNow)) return true;
           } catch (_) {}
         }
         return false;
       };
 
-      const refreshList = async (selectors) => {
+      var refreshList = async function(selectors) {
         try {
           if (listDiv.replaceChildren) listDiv.replaceChildren();
           else listDiv.textContent = '';
@@ -106,16 +96,16 @@
           listDiv.textContent = '';
         }
         if (selectors && selectors.length) {
-          selectors.forEach((s, sIndex) => {
-            const item = document.createElement('div');
+          selectors.forEach(function(s, sIndex) {
+            var item = document.createElement('div');
             item.className = 'toc-selector-item';
 
-            const textSpan = document.createElement('span');
+            var textSpan = document.createElement('span');
             textSpan.className = 'toc-selector-text';
             textSpan.textContent = s.type + ':' + s.expr;
             item.appendChild(textSpan);
 
-            const deleteBtn = document.createElement('button');
+            var deleteBtn = document.createElement('button');
             deleteBtn.type = 'button';
             deleteBtn.className = 'toc-selector-delete';
             deleteBtn.textContent = msg('symbolClose');
@@ -124,33 +114,31 @@
             deleteBtn.dataset.selType = String(s.type || '');
             deleteBtn.dataset.selExpr = String(s.expr || '');
 
-            deleteBtn.addEventListener('click', async (e) => {
+            deleteBtn.addEventListener('click', async function(e) {
               try {
                 e.stopPropagation();
-                const selType = String(deleteBtn.dataset.selType || '').trim();
-                const selExpr = String(deleteBtn.dataset.selExpr || '').trim();
+                var selType = String(deleteBtn.dataset.selType || '').trim();
+                var selExpr = String(deleteBtn.dataset.selExpr || '').trim();
                 if (!selType || !selExpr) return;
 
-                const ok = await queueConfigsWrite(async () => {
-                  return await mutateConfigsWithRetry({
-                    mutate: (configsNow) => {
-                      const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
-                      if (idxNow < 0) return configsNow;
-                      const existingNow = configsNow[idxNow] || {};
-                      const arr = Array.isArray(existingNow.selectors) ? existingNow.selectors.slice() : [];
-                      const nextArr = arr.filter(s2 => !(s2 && s2.type === selType && s2.expr === selExpr));
-                      if (nextArr.length === arr.length) return configsNow;
-                      const next = configsNow.slice();
-                      next[idxNow] = { ...existingNow, selectors: nextArr, updatedAt: Date.now() };
-                      return next;
-                    },
-                    verify: (after) => {
-                      const idx = after.findIndex(c => c && c.urlPattern === urlPattern);
-                      if (idx < 0) return true;
-                      const arr = Array.isArray(after[idx].selectors) ? after[idx].selectors : [];
-                      return !arr.some(s2 => s2 && s2.type === selType && s2.expr === selExpr);
-                    }
-                  });
+                var ok = await mutateConfigsWithRetry({
+                  mutate: function(configsNow) {
+                    var idxNow = configsNow.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+                    if (idxNow < 0) return configsNow;
+                    var existingNow = configsNow[idxNow] || {};
+                    var arr = Array.isArray(existingNow.selectors) ? existingNow.selectors.slice() : [];
+                    var nextArr = arr.filter(function(s2) { return !(s2 && s2.type === selType && s2.expr === selExpr); });
+                    if (nextArr.length === arr.length) return configsNow;
+                    var next = configsNow.slice();
+                    next[idxNow] = { side: existingNow.side, urlPattern: existingNow.urlPattern, selectors: nextArr, updatedAt: Date.now() };
+                    return next;
+                  },
+                  verify: function(after) {
+                    var idx = after.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+                    if (idx < 0) return true;
+                    var arr = Array.isArray(after[idx].selectors) ? after[idx].selectors : [];
+                    return !arr.some(function(s2) { return s2 && s2.type === selType && s2.expr === selExpr; });
+                  }
                 });
 
                 if (!ok) {
@@ -158,16 +146,18 @@
                   return;
                 }
 
-                const configsLatest = await getConfigs();
-                const latest = configsLatest.find(c => c && c.urlPattern === urlPattern) || null;
-                const updatedSelectors = latest && Array.isArray(latest.selectors) ? latest.selectors : [];
+                var configsLatest = await getConfigs();
+                var latest = configsLatest.find(function(c) { return c && c.urlPattern === urlPattern; }) || null;
+                var updatedSelectors = latest && Array.isArray(latest.selectors) ? latest.selectors : [];
                 cfg.selectors = updatedSelectors;
                 if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
                 await refreshList(updatedSelectors);
                 countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
 
-                if (window.TOC_APP && window.TOC_APP.rebuild) {
-                  await window.TOC_APP.rebuild();
+                // Emit event instead of calling TOC_APP.rebuild() directly
+                if (typeof require === 'function') {
+                  var emit = require('loader').emit;
+                  if (emit) emit('toc:config-changed');
                 }
               } catch (e2) {
                 console.warn(msg('logClearConfigFailed'), e2);
@@ -188,15 +178,15 @@
       body.appendChild(listDiv);
       box.appendChild(body);
 
-      const actions = document.createElement('div');
+      var actions = document.createElement('div');
       actions.className = 'toc-overlay-actions';
 
-      const btnClear = document.createElement('button');
+      var btnClear = document.createElement('button');
       btnClear.className = 'toc-btn toc-btn-danger';
       btnClear.dataset.act = 'clear';
       btnClear.textContent = msg('buttonClearConfig');
 
-      const btnClose = document.createElement('button');
+      var btnClose = document.createElement('button');
       btnClose.className = 'toc-btn';
       btnClose.dataset.act = 'close';
       btnClose.textContent = msg('buttonClose');
@@ -205,15 +195,15 @@
       actions.appendChild(btnClose);
       box.appendChild(actions);
 
-      const restoreFocus = () => {
+      var restoreFocus = function() {
         try {
           if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
             prevFocus.focus({ preventScroll: true });
           }
         } catch (_) {}
       };
-      let focusRaf = null;
-      const close = () => {
+      var focusRaf = null;
+      var close = function() {
         if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
         if (focusRaf) {
           try { cancelAnimationFrame(focusRaf); } catch (_) {}
@@ -223,41 +213,36 @@
         restoreFocus();
       };
 
-      const getFocusable = () => {
+      var getFocusable = function() {
         try {
-          const { getFocusableWithin } = window.TOC_UTILS || {};
+          var getFocusableWithin = tocUtils.getFocusableWithin;
           if (typeof getFocusableWithin === 'function') return getFocusableWithin(box);
-        } catch (_) {
-        }
+        } catch (_) {}
         return [];
       };
 
-      var removeFocusTrap = (typeof require === 'function') && require('focus-trap')
-        ? require('focus-trap').createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable })
-        : null;
+      var removeFocusTrap = createFocusTrap ? createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable }) : null;
 
-      box.addEventListener('click', async (e) => {
+      box.addEventListener('click', async function(e) {
         try {
           if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
-          const btn = e.target.closest('[data-act]');
+          var btn = e.target.closest('[data-act]');
           if (!btn || btn.nodeType !== Node.ELEMENT_NODE) return;
-          const act = btn.dataset.act;
+          var act = btn.dataset.act;
           if (act === 'close') { close(); return; }
           if (act === 'clear') {
-            const ok = await queueConfigsWrite(async () => {
-              return await mutateConfigsWithRetry({
-                mutate: (configsNow) => {
-                  const idxNow = configsNow.findIndex(c => c && c.urlPattern === urlPattern);
-                  if (idxNow < 0) return configsNow;
-                  const next = configsNow.slice();
-                  next.splice(idxNow, 1);
-                  return next;
-                },
-                verify: (after) => {
-                  const idx = after.findIndex(c => c && c.urlPattern === urlPattern);
-                  return idx < 0;
-                }
-              });
+            var ok = await mutateConfigsWithRetry({
+              mutate: function(configsNow) {
+                var idxNow = configsNow.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+                if (idxNow < 0) return configsNow;
+                var next = configsNow.slice();
+                next.splice(idxNow, 1);
+                return next;
+              },
+              verify: function(after) {
+                var idx = after.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+                return idx < 0;
+              }
             });
             if (!ok) {
               showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
@@ -267,8 +252,11 @@
             if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
             await refreshList([]);
             countLabel.textContent = msg('configSavedSelectors') + ' (0)';
-            if (window.TOC_APP && window.TOC_APP.rebuild) {
-              await window.TOC_APP.rebuild();
+
+            // Emit event instead of calling TOC_APP.rebuild() directly
+            if (typeof require === 'function') {
+              var emit = require('loader').emit;
+              if (emit) emit('toc:config-changed');
             }
             close();
           }
@@ -280,7 +268,7 @@
 
       document.documentElement.appendChild(box);
       try {
-        focusRaf = requestAnimationFrame(() => {
+        focusRaf = requestAnimationFrame(function() {
           focusRaf = null;
           if (!box || !box.isConnected) return;
           try { btnClose.focus({ preventScroll: true }); } catch (_) {}
@@ -298,36 +286,34 @@
         showToast && showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
         return false;
       }
-      const expr = String(selector || '').trim();
+      var expr = String(selector || '').trim();
       if (!expr || (validateSelectorExpression && !validateSelectorExpression('css', expr))) {
         showToast && showToast(msg('errorInvalidSelector'), { type: 'error' });
         return false;
       }
 
-      return await queueConfigsWrite(async () => {
-        const configsNow = await getConfigs();
-        const configs = Array.isArray(configsNow) ? configsNow.slice() : [];
-        const urlPattern = `${location.protocol}//${location.host}/*`;
-        const entry = { type: 'css', expr };
-        const idx = configs.findIndex(c => c && c.urlPattern === urlPattern);
-        const sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
-        const now = Date.now();
+      var configsNow = await getConfigs();
+      var configs = Array.isArray(configsNow) ? configsNow.slice() : [];
+      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var entry = { type: 'css', expr: expr };
+      var idx = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
+      var sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+      var now = Date.now();
 
-        if (idx >= 0) {
-          const existing = configs[idx] || {};
-          const arr = Array.isArray(existing.selectors) ? existing.selectors.slice() : [];
-          if (!arr.some(s => s && s.type === 'css' && s.expr === expr)) {
-            arr.unshift(entry);
-          }
-          configs[idx] = { ...existing, side: sidePersist, urlPattern, selectors: arr, updatedAt: now };
-        } else {
-          configs.push({ urlPattern, side: sidePersist, selectors: [entry], collapsedDefault: false, updatedAt: now });
+      if (idx >= 0) {
+        var existing = configs[idx] || {};
+        var arr = Array.isArray(existing.selectors) ? existing.selectors.slice() : [];
+        if (!arr.some(function(s) { return s && s.type === 'css' && s.expr === expr; })) {
+          arr.unshift(entry);
         }
+        configs[idx] = { side: existing.side, urlPattern: urlPattern, selectors: arr, collapsedDefault: existing.collapsedDefault || false, updatedAt: now };
+      } else {
+        configs.push({ urlPattern: urlPattern, side: sidePersist, selectors: [entry], collapsedDefault: false, updatedAt: now });
+      }
 
-        const ok = await saveConfigs(configs);
-        if (ok && cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
-        return !!ok;
-      });
+      var ok = await saveConfigs(configs);
+      if (ok && cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+      return !!ok;
     } catch (e) {
       console.error(msg('logSaveConfigFailed'), e);
       return false;
@@ -336,12 +322,12 @@
 
   async function updateConfigFromStorage(cfg) {
     try {
-      const configs = await getConfigs();
-      const urlPattern = `${location.protocol}//${location.host}/*`;
-      const idxNow = configs.findIndex(c => c && c.urlPattern === urlPattern);
+      var configs = await getConfigs();
+      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var idxNow = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
 
       if (idxNow >= 0) {
-        const latest = configs[idxNow];
+        var latest = configs[idxNow];
         cfg.selectors = Array.isArray(latest.selectors) ? latest.selectors.slice() : [];
         cfg.side = (latest.side === 'left' || latest.side === 'right') ? latest.side : cfg.side;
       } else {
@@ -352,9 +338,7 @@
     }
   }
 
-  window.CONFIG_MANAGER = {
-    siteConfig,
-    saveSelector,
-    updateConfigFromStorage
-  };
-})();
+  var api = { siteConfig: siteConfig, saveSelector: saveSelector, updateConfigFromStorage: updateConfigFromStorage };
+  try { window.CONFIG_MANAGER = api; } catch (_) {}
+  return api;
+});
