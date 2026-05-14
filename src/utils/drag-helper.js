@@ -170,11 +170,6 @@ define('drag-helper', ['toc-constants'],
       createDragController: createDragController
     };
 
-    try {
-      var ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : self);
-      ROOT.TOC_DRAG = api;
-    } catch (_) {}
-
     return api;
   }
 );

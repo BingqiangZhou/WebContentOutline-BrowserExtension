@@ -892,6 +892,5 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
   }
 
   var api = { renderFloatingPanel: renderFloatingPanel };
-  try { window.TOC_UI = window.TOC_UI || {}; window.TOC_UI.renderFloatingPanel = renderFloatingPanel; } catch (_) {}
   return api;
 });

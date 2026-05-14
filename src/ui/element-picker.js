@@ -272,6 +272,5 @@ define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(
   }
 
   var api = { showPickerResult: showPickerResult, createElementPicker: createElementPicker };
-  try { window.TOC_UI = window.TOC_UI || {}; window.TOC_UI.showPickerResult = showPickerResult; window.TOC_UI.createElementPicker = createElementPicker; } catch (_) {}
   return api;
 });

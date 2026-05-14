@@ -339,6 +339,5 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
   }
 
   var api = { siteConfig: siteConfig, saveSelector: saveSelector, updateConfigFromStorage: updateConfigFromStorage };
-  try { window.CONFIG_MANAGER = api; } catch (_) {}
   return api;
 });

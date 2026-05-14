@@ -270,6 +270,5 @@ define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], functio
   }
 
   var api = { renderCollapsedBadge: renderCollapsedBadge };
-  try { window.TOC_UI = window.TOC_UI || {}; window.TOC_UI.renderCollapsedBadge = renderCollapsedBadge; } catch (_) {}
   return api;
 });

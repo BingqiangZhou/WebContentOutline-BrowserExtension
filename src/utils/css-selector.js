@@ -51,6 +51,5 @@ define('css-selector', [], function() {
   }
 
   var api = { buildClassSelector: buildClassSelector, cssPathFor: cssPathFor };
-  try { window.CSS_SELECTOR = api; } catch (_) {}
   return api;
 });

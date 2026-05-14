@@ -139,8 +139,6 @@ define('toc-builder', ['dom-utils', 'toc-constants'],
       buildTocItemsFromSelectors: buildTocItemsFromSelectors
     };
 
-    try { window.TOC_BUILDER = api; } catch (_) {}
-
     return api;
   }
 );
