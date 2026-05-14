@@ -47,7 +47,7 @@ define('toast', ['toc-constants', 'core-utils'], function(C, CU) {
         if (removed) return;
         removed = true;
         if (timerId) {
-          try { clearTimeout(timerId); } catch (_) {}
+          clearTimeout(timerId);
           timerId = null;
         }
         try { toast.remove(); } catch (_) {}

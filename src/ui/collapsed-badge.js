@@ -187,7 +187,7 @@ define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], functio
     window.addEventListener('resize', onResize, RESIZE_LISTENER_OPTS);
     var onPageHide = function() {
       if (pendingPersistCenter && setBadgePosByHost) {
-        try { clearTimeout(persistTimer); } catch (_) {}
+        clearTimeout(persistTimer);
         persistTimer = null;
         var p = pendingPersistCenter;
         pendingPersistCenter = null;
@@ -246,7 +246,7 @@ define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], functio
       try { window.removeEventListener('pagehide', onPageHide, true); } catch (_) {}
       try { badge.removeEventListener('keydown', onKeydown); } catch (_) {}
       if (persistTimer) {
-        try { clearTimeout(persistTimer); } catch (_) {}
+        clearTimeout(persistTimer);
         persistTimer = null;
       }
       try {

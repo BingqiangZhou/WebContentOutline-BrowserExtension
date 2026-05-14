@@ -85,7 +85,7 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
     var clearAllTimers = function() {
       Object.keys(timers).forEach(function(key) {
         if (timers[key]) {
-          try { clearTimeout(timers[key]); } catch (_) {}
+          clearTimeout(timers[key]);
           timers[key] = null;
         }
       });
@@ -278,11 +278,11 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
         intersectionObserver = null;
       }
       if (observeRaf != null) {
-        try { cancelAnimationFrame(observeRaf); } catch (_) {}
+        cancelAnimationFrame(observeRaf);
         observeRaf = null;
       }
       if (ioRaf != null) {
-        try { cancelAnimationFrame(ioRaf); } catch (_) {}
+        cancelAnimationFrame(ioRaf);
         ioRaf = null;
       }
       pendingIoEntries = [];
@@ -481,11 +481,11 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
         intersectionObserver = null;
       }
       if (observeRaf != null) {
-        try { cancelAnimationFrame(observeRaf); } catch (_) {}
+        cancelAnimationFrame(observeRaf);
         observeRaf = null;
       }
       if (ioRaf != null) {
-        try { cancelAnimationFrame(ioRaf); } catch (_) {}
+        cancelAnimationFrame(ioRaf);
         ioRaf = null;
       }
     };
@@ -771,7 +771,7 @@ define('floating-panel', ['toc-utils', 'drag-helper', 'toc-constants'], function
         removalObserver = null;
       }
       if (timers.removal != null) {
-        try { clearTimeout(timers.removal); } catch (_) {}
+        clearTimeout(timers.removal);
         timers.removal = null;
       }
     };

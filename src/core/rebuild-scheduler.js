@@ -241,7 +241,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
           hasPendingRebuild = false;
         }
         if (!hasPendingRebuild) {
-          if (retryTimer) { try { clearTimeout(retryTimer); } catch (_) {} retryTimer = null; }
+          if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
           return;
         }
         attemptRebuild();

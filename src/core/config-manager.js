@@ -206,7 +206,7 @@ define('config-manager', ['toc-utils', 'core-utils', 'focus-trap'], function(toc
       var close = function() {
         if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
         if (focusRaf) {
-          try { cancelAnimationFrame(focusRaf); } catch (_) {}
+          cancelAnimationFrame(focusRaf);
           focusRaf = null;
         }
         try { box.remove(); } catch (_) {}

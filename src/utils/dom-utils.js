@@ -16,6 +16,18 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
     var __panelStateCache = null;
     var __panelStateCacheReady = false;
 
+    // Listen for storage changes to invalidate cache
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+      try {
+        chrome.storage.onChanged.addListener(function(changes, area) {
+          if (area === 'local' && changes.tocPanelExpandedMap) {
+            __panelStateCache = null;
+            __panelStateCacheReady = false;
+          }
+        });
+      } catch (_) {}
+    }
+
     /**
      * Get origin string from a URL
      * @param {string} url

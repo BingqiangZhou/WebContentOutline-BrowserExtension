@@ -77,7 +77,7 @@ define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(
     var close = function() {
       if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
       if (focusRaf) {
-        try { cancelAnimationFrame(focusRaf); } catch (_) {}
+        cancelAnimationFrame(focusRaf);
         focusRaf = null;
       }
       try { wrap.remove(); } catch (_) {}
@@ -249,11 +249,11 @@ define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(
       try { document.removeEventListener('contextmenu', onCtx, true); } catch (_) {}
       try { window.removeEventListener('pagehide', onPageHide, true); } catch (_) {}
       if (moveRaf) {
-        try { cancelAnimationFrame(moveRaf); } catch (_) {}
+        cancelAnimationFrame(moveRaf);
         moveRaf = null;
       }
       pendingMove = null;
-      if (timeoutId) { try { clearTimeout(timeoutId); } catch (_) {} timeoutId = null; }
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
       var h = highlight;
       highlight = null;
       try {

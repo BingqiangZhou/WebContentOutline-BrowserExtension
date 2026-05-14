@@ -64,7 +64,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
     var destroyed = false;
     var clearRebuildTimers = function() {
       if (rebuildClearTimer != null) {
-        try { clearTimeout(rebuildClearTimer); } catch (_) {}
+        clearTimeout(rebuildClearTimer);
         rebuildClearTimer = null;
       }
     };
@@ -102,7 +102,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
     var setNavLock = function(v) { if (v) NL.lock(); else NL.unlock(); };
     var cancelActiveRestore = function() {
       if (typeof activeRestoreTimeout !== 'number') return;
-      try { cancelAnimationFrame(activeRestoreTimeout); } catch (_) {}
+      cancelAnimationFrame(activeRestoreTimeout);
       activeRestoreTimeout = null;
     };
 
@@ -592,7 +592,7 @@ define('toc-app', ['toc-builder', 'collapsed-badge', 'element-picker', 'floating
       clearRebuildTimers();
       NL.destroy();
       if (failureCooldownTimer) {
-        try { clearTimeout(failureCooldownTimer); } catch (_) {}
+        clearTimeout(failureCooldownTimer);
         failureCooldownTimer = null;
       }
       consecutiveRebuildFailures = 0;

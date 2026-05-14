@@ -13,6 +13,18 @@ define('badge-position', ['toc-storage', 'storage-primitives', 'toc-constants'],
     var __badgePosCache = null;
     var __badgePosCacheReady = false;
 
+    // Listen for storage changes to invalidate cache
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+      try {
+        chrome.storage.onChanged.addListener(function(changes, area) {
+          if (area === 'local' && changes.tocBadgePosMap) {
+            __badgePosCache = null;
+            __badgePosCacheReady = false;
+          }
+        });
+      } catch (_) {}
+    }
+
     function resolveBadgePosForViewport(pos) {
       try {
         if (!pos) return null;
