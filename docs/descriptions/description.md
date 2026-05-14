@@ -339,3 +339,143 @@ Ready to transform your browsing experience? Install Web TOC Assistant and start
 ---
 
 **注意**：这是一个轻量级开源扩展。源代码可在 https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension 上获取。欢迎贡献！
+
+
+---
+
+## New - Chinese
+
+网页目录助手 Web TOC Assistant 是一款浏览器扩展，可以为任意网页自动生成浮动目录，让你在阅读长文章、技术文档、教程、论坛帖子和在线课程时快速跳转到指定章节。
+
+它会自动识别页面中的标题结构，并在网页侧边显示一个可交互的目录面板。你可以点击目录项快速定位内容，也可以拖动目录按钮或面板位置，让它适应你的阅读习惯。
+
+主要功能
+
+• 自动生成网页目录
+自动识别页面中的 h1-h6 标题，并生成清晰的目录结构。
+
+• 快速跳转内容
+点击目录项即可平滑滚动到对应位置，适合阅读长文档、博客和教程。
+
+• 当前阅读位置高亮
+目录会自动高亮当前正在阅读的章节，帮助你掌握页面结构。
+
+• 支持自定义选择器
+当网页标题结构不标准时，可以使用 CSS 或 XPath 选择器指定需要生成目录的元素。
+
+• 可视化元素选择
+通过“选取元素”功能，直接在页面上点击目标元素，快速创建自定义目录规则。
+
+• 按网站保存配置
+不同网站可以保存不同的目录规则和启用状态，适合经常阅读固定网站内容的用户。
+
+• 支持浅色和深色模式
+界面会根据浏览器或系统主题自动适配，夜间阅读更舒适。
+
+适合这些场景
+
+• 阅读 API 文档：快速跳转到指定接口或章节
+• 阅读长篇博客：不用反复滚动查找内容
+• 阅读在线教程：按步骤浏览更清晰
+• 阅读研究文章：快速了解文章结构
+• 浏览论坛帖子：快速定位重点内容
+• 阅读复杂网页：把长页面变成可导航文档
+
+如何使用
+
+1. 安装扩展后，打开任意网页。
+2. 点击浏览器工具栏中的 Web TOC Assistant 图标启用插件。
+3. 页面上会出现 TOC 浮动按钮。
+4. 点击 TOC 按钮展开目录面板。
+5. 点击任意目录项即可跳转到对应内容。
+6. 如果目录识别不准确，可以使用“选取元素”功能自定义规则。
+
+权限与隐私
+
+Web TOC Assistant 只在本地分析网页结构，用于生成目录。
+
+• storage：用于保存你的站点配置和界面位置偏好
+• tabs：用于支持按网站启用或禁用插件
+• scripting：用于在启用的网站中注入目录功能
+• alarms：用于支持稳定的后台任务
+
+所有配置都保存在你的浏览器本地。插件不会把你的网页内容、浏览数据或个人信息发送到任何服务器。
+
+开源地址
+
+Web TOC Assistant 是一款开源浏览器扩展，你可以在 GitHub 查看源代码、提交反馈或参与改进。
+
+GitHub：
+https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension
+
+Web TOC Assistant 适合希望提升网页阅读效率的用户，尤其适合经常阅读技术文档、长文章、教程和复杂网页内容的人。
+
+
+
+
+## New - English
+
+Web TOC Assistant is a browser extension that automatically generates a floating table of contents for any webpage. It helps you quickly navigate long articles, technical documentation, tutorials, forum posts, online courses, and other complex web pages.
+
+The extension detects the heading structure of the current page and displays an interactive TOC panel on the side of the webpage. You can click any TOC item to jump directly to the corresponding section, or drag the floating button and panel to place them wherever they fit your reading workflow.
+
+Main Features
+
+• Automatic Table of Contents Generation
+Automatically detects h1-h6 headings on a webpage and creates a clear hierarchical outline.
+
+• Quick Page Navigation
+Click any TOC item to smoothly scroll to the corresponding section, making long pages easier to browse.
+
+• Active Section Highlighting
+The TOC automatically highlights the section you are currently reading, helping you understand where you are in the page structure.
+
+• Custom Selector Support
+When a webpage does not use standard heading tags, you can define custom CSS or XPath selectors to generate a more accurate TOC.
+
+• Visual Element Selection
+Use the element picker to select content directly on the page and quickly create custom TOC rules.
+
+• Per-site Configuration
+Save different TOC rules and enablement settings for different websites, making the extension useful for sites you visit frequently.
+
+• Light and Dark Mode Support
+The interface adapts to your browser or system theme for a more comfortable reading experience.
+
+Use Cases
+
+• Technical documentation: Quickly jump to specific APIs, sections, or examples
+• Long-form articles: Navigate content without endless scrolling
+• Online tutorials: Follow structured steps more easily
+• Research papers: Understand and browse the article structure faster
+• Forum posts: Locate important sections in long discussions
+• Complex webpages: Turn long pages into navigable documents
+
+How to Use
+
+1. Install the extension and open any webpage.
+2. Click the Web TOC Assistant icon in the browser toolbar to enable it.
+3. A floating TOC button will appear on the page.
+4. Click the TOC button to open the table of contents panel.
+5. Click any TOC item to jump to the corresponding section.
+6. If the TOC is not accurate, use the element picker or custom selector settings to adjust the rules.
+
+Permissions and Privacy
+
+Web TOC Assistant only analyzes the structure of the current webpage locally in your browser to generate the table of contents.
+
+• storage: Used to save your site settings and interface position preferences
+• tabs: Used to support enabling or disabling the extension for specific websites
+• scripting: Used to inject the TOC feature into enabled webpages
+• alarms: Used to support stable background tasks
+
+All settings are stored locally in your browser. The extension does not send your webpage content, browsing data, or personal information to any server.
+
+Open Source
+
+Web TOC Assistant is an open-source browser extension. You can view the source code, submit feedback, or contribute to the project on GitHub.
+
+GitHub:
+https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension
+
+Web TOC Assistant is designed for users who want a better webpage reading experience, especially those who frequently read technical documentation, long articles, tutorials, and complex web content.
