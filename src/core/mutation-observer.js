@@ -44,6 +44,14 @@
     let consecutiveMutations = 0;
     let lastMutationTime = 0;
 
+    // URL change monitoring state
+    let originalPushState = null;
+    let originalReplaceState = null;
+    let lastKnownUrl = '';
+    let urlChangeTimer = null;
+    let popstateHandler = null;
+    let hashchangeHandler = null;
+
     const disconnectObserver = () => {
       const obs = observerRef;
       observerRef = null;
@@ -68,6 +76,10 @@
       if (postFlightTimer) {
         clearTimeout(postFlightTimer);
         postFlightTimer = null;
+      }
+      if (urlChangeTimer) {
+        clearTimeout(urlChangeTimer);
+        urlChangeTimer = null;
       }
       unlockPollStartTs = 0;
       unlockWarned = false;
@@ -177,12 +189,16 @@
       unlockTimer = setTimeout(check, CFG.UNLOCK_POLL_MS);
     }
 
-    function scheduleRebuild() {
+    function scheduleRebuild(immediate) {
       if (!isExtensionContextValid) return;
+      if (immediate) {
+        hasPendingRebuild = true;
+        attemptRebuild();
+        return;
+      }
       const now = Date.now();
       const timeSinceLast = now - lastMutationTime;
 
-      // Dynamic debounce: increase debounce time for frequent changes
       if (timeSinceLast < 1000) {
         consecutiveMutations++;
       } else {
@@ -202,6 +218,22 @@
         attemptRebuild();
       }, dynamicDebounce);
     }
+
+    const onUrlChange = () => {
+      if (!isExtensionContextValid) return;
+      const currentUrl = location.href;
+      if (currentUrl === lastKnownUrl) return;
+      lastKnownUrl = currentUrl;
+      if (urlChangeTimer) clearTimeout(urlChangeTimer);
+      urlChangeTimer = setTimeout(() => {
+        urlChangeTimer = null;
+        if (!isExtensionContextValid) return;
+        if (location.href !== lastKnownUrl) {
+          lastKnownUrl = location.href;
+        }
+        scheduleRebuild(true);
+      }, uiConst('URL_CHANGE_DEDUP_MS', 500));
+    };
 
     function hasMeaningfulChange(mutations) {
       for (const m of mutations) {
@@ -243,6 +275,53 @@
       consecutiveMutations = 0;
       lastMutationTime = 0;
       disconnectObserver();
+
+      // --- URL change monitoring setup ---
+      if (originalPushState !== null) {
+        try { history.pushState = originalPushState; } catch (_) {}
+        originalPushState = null;
+      }
+      if (originalReplaceState !== null) {
+        try { history.replaceState = originalReplaceState; } catch (_) {}
+        originalReplaceState = null;
+      }
+      if (popstateHandler) {
+        try { window.removeEventListener('popstate', popstateHandler); } catch (_) {}
+        popstateHandler = null;
+      }
+      if (hashchangeHandler) {
+        try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
+        hashchangeHandler = null;
+      }
+      if (urlChangeTimer) {
+        clearTimeout(urlChangeTimer);
+        urlChangeTimer = null;
+      }
+
+      try {
+        originalPushState = history.pushState;
+        originalReplaceState = history.replaceState;
+        lastKnownUrl = location.href;
+
+        history.pushState = function wrappedPushState() {
+          const result = originalPushState.apply(this, arguments);
+          try { onUrlChange(); } catch (_) {}
+          return result;
+        };
+        history.replaceState = function wrappedReplaceState() {
+          const result = originalReplaceState.apply(this, arguments);
+          try { onUrlChange(); } catch (_) {}
+          return result;
+        };
+
+        popstateHandler = () => { try { onUrlChange(); } catch (_) {} };
+        hashchangeHandler = () => { try { onUrlChange(); } catch (_) {} };
+        window.addEventListener('popstate', popstateHandler);
+        window.addEventListener('hashchange', hashchangeHandler);
+      } catch (e) {
+        console.warn('[toc] failed to set up URL change monitoring:', e);
+      }
+      // --- end URL change monitoring setup ---
 
       if (typeof MutationObserver !== 'undefined') {
         const resolveObserveRoot = () => {
@@ -307,6 +386,22 @@
             } catch (_) {
               // ignore
             } finally {
+              if (originalPushState !== null) {
+                try { history.pushState = originalPushState; } catch (_) {}
+                originalPushState = null;
+              }
+              if (originalReplaceState !== null) {
+                try { history.replaceState = originalReplaceState; } catch (_) {}
+                originalReplaceState = null;
+              }
+              if (popstateHandler) {
+                try { window.removeEventListener('popstate', popstateHandler); } catch (_) {}
+                popstateHandler = null;
+              }
+              if (hashchangeHandler) {
+                try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
+                hashchangeHandler = null;
+              }
               stopTimers();
             }
           },
@@ -330,7 +425,25 @@
       }
 
       return {
-        disconnect() { stopTimers(); },
+        disconnect() {
+          if (originalPushState !== null) {
+            try { history.pushState = originalPushState; } catch (_) {}
+            originalPushState = null;
+          }
+          if (originalReplaceState !== null) {
+            try { history.replaceState = originalReplaceState; } catch (_) {}
+            originalReplaceState = null;
+          }
+          if (popstateHandler) {
+            try { window.removeEventListener('popstate', popstateHandler); } catch (_) {}
+            popstateHandler = null;
+          }
+          if (hashchangeHandler) {
+            try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
+            hashchangeHandler = null;
+          }
+          stopTimers();
+        },
         getPendingRebuild: () => false,
         setPendingRebuild: () => {}
       };
