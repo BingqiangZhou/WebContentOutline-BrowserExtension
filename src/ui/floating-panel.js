@@ -492,12 +492,13 @@ export function renderFloatingPanel(opts) {
         if (NL.isLocked()) return;
         if (getIsRebuilding()) return;
 
-        if (userSelectedItem) {
+        var _sel = userSelectedItem;
+        if (_sel) {
           clearAllActive();
-          if (userSelectedItem._node && !userSelectedItem._node.classList.contains('active')) {
-            userSelectedItem._node.classList.add('active');
-            try { userSelectedItem._node.setAttribute('aria-current', 'location'); } catch (_) {}
-            active = userSelectedItem;
+          if (_sel._node && !_sel._node.classList.contains('active')) {
+            _sel._node.classList.add('active');
+            try { _sel._node.setAttribute('aria-current', 'location'); } catch (_) {}
+            active = _sel;
           }
           return;
         }
