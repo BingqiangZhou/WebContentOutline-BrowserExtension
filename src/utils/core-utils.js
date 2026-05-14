@@ -86,6 +86,118 @@
     return Number.isFinite(num) ? num : null;
   }
 
+  function isSafeXPathExpression(expr) {
+    if (typeof expr !== 'string') return false;
+    const trimmed = expr.trim();
+    if (!trimmed) return false;
+    if (trimmed.length > uiConst('XPATH_MAX_LENGTH', 2000)) return false;
+
+    // Avoid extremely broad document scans that are likely to be slow.
+    if (trimmed.startsWith('//*') || /^\/\/(node|text|comment)\s*\(/i.test(trimmed)) return false;
+
+    // Disallow control characters.
+    for (let i = 0; i < trimmed.length; i++) {
+      const code = trimmed.charCodeAt(i);
+      if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
+    }
+
+    // Basic structural checks: balanced quotes/brackets/parentheses, and avoid extreme nesting.
+    let inSingle = false;
+    let inDouble = false;
+    let parenDepth = 0;
+    let bracketDepth = 0;
+    const MAX_NESTING = 64;
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (!inDouble && ch === "'") {
+        inSingle = !inSingle;
+        continue;
+      }
+      if (!inSingle && ch === '"') {
+        inDouble = !inDouble;
+        continue;
+      }
+      if (inSingle || inDouble) continue;
+      if (ch === '(') parenDepth++;
+      if (ch === ')') parenDepth--;
+      if (ch === '[') bracketDepth++;
+      if (ch === ']') bracketDepth--;
+      if (parenDepth < 0 || bracketDepth < 0) return false;
+      if (parenDepth > MAX_NESTING || bracketDepth > MAX_NESTING) return false;
+    }
+    if (inSingle || inDouble) return false;
+    if (parenDepth !== 0 || bracketDepth !== 0) return false;
+
+    // Reject namespace prefixes (e.g. ns:div) because we evaluate without a namespace resolver.
+    // Allow axis specifiers like following-sibling::.
+    let nsInSingle = false;
+    let nsInDouble = false;
+    for (let i = 0; i < trimmed.length; i++) {
+      const ch = trimmed[i];
+      if (!nsInDouble && ch === "'") { nsInSingle = !nsInSingle; continue; }
+      if (!nsInSingle && ch === '"') { nsInDouble = !nsInDouble; continue; }
+      if (nsInSingle || nsInDouble) continue;
+      if (ch === ':') {
+        const prev = trimmed[i - 1] || '';
+        const next = trimmed[i + 1] || '';
+        if (prev !== ':' && next !== ':') return false;
+      }
+    }
+
+    // Browser XPath support is limited, but reject common external-document/function patterns anyway.
+    const forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i;
+    if (forbiddenFn.test(trimmed)) return false;
+
+    return true;
+  }
+
+  function isValidCssSelector(expr) {
+    if (typeof expr !== 'string') return false;
+    if (typeof document === 'undefined' || !document) return false;
+    const trimmed = expr.trim();
+    if (!trimmed) return false;
+    // Disallow control chars
+    for (let i = 0; i < trimmed.length; i++) {
+      const code = trimmed.charCodeAt(i);
+      if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
+    }
+    const maxLen = uiConst('CSS_SELECTOR_MAX_LENGTH', 2000);
+    if (trimmed.length > maxLen) return false;
+    try {
+      // Syntax validation without querying the page DOM.
+      const frag = document.createDocumentFragment ? document.createDocumentFragment() : null;
+      if (frag && frag.querySelector) {
+        frag.querySelector(trimmed);
+        return true;
+      }
+      // Fallback: use @supports selector() if available.
+      if (typeof CSS !== 'undefined' && CSS && typeof CSS.supports === 'function') {
+        if (CSS.supports(`selector(${trimmed})`)) return true;
+      }
+      // No validation method available — trust the selector syntax.
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function validateSelectorExpression(type, expr) {
+    try {
+      if (type === 'xpath') return isSafeXPathExpression(expr);
+      if (type === 'css') return isValidCssSelector(expr);
+      const trackOnceFn = T.trackOnce;
+      if (typeof trackOnceFn === 'function') {
+        const onceKey = `selectorType:${String(type)}`;
+        if (trackOnceFn(onceKey, uiConst('WARN_ONCE_MAX_KEYS', 200))) {
+          console.warn('[toc] validateSelectorExpression: unsupported selector type:', type);
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Object.assign(T, {
     isExtensionContextInvalidated,
     msg,
@@ -93,6 +205,9 @@
     isContextInvalidatedError,
     getFocusableWithin,
     safeJsonParse,
-    getFiniteNumber
+    getFiniteNumber,
+    isSafeXPathExpression,
+    isValidCssSelector,
+    validateSelectorExpression
   });
 })();
