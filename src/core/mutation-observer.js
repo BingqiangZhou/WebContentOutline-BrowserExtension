@@ -8,13 +8,13 @@
 
   let isExtensionContextValid = true;
 
-  function createMutationObserver(onRebuild, getNavLock) {
+  function createMutationObserver(onRebuild) {
+    const NL = globalThis.NAV_LOCK;
     const { uiConst } = window.TOC_UTILS || {};
     const CFG = (() => {
       const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
       return {
         DEBOUNCE_MS: get('MUTATION_DEBOUNCE_MS', 500),
-        UNLOCK_POLL_MS: get('MUTATION_UNLOCK_POLL_MS', 200),
         REBUILD_RETRY_MS: get('MUTATION_REBUILD_RETRY_MS', 1000),
         MUTATION_UNLOCK_POLL_MAX_MS: get('MUTATION_UNLOCK_POLL_MAX_MS', 30000),
         MAX_DYNAMIC_DEBOUNCE_MS: 1000,
@@ -32,9 +32,7 @@
     const OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
     let debounceTimer = null;
     let hasPendingRebuild = false;
-    let unlockTimer = null;
-    let unlockPollStartTs = 0;
-    let unlockWarned = false;
+    let unlockFailsafeTimer = null;
     let retryTimer = null;
     let postFlightTimer = null;
     let observerRef = null;
@@ -70,9 +68,9 @@
         clearTimeout(debounceTimer);
         debounceTimer = null;
       }
-      if (unlockTimer) {
-        clearTimeout(unlockTimer);
-        unlockTimer = null;
+      if (unlockFailsafeTimer) {
+        clearTimeout(unlockFailsafeTimer);
+        unlockFailsafeTimer = null;
       }
       if (retryTimer) {
         clearTimeout(retryTimer);
@@ -87,8 +85,7 @@
         urlChangeTimer = null;
       }
       stopPolling();
-      unlockPollStartTs = 0;
-      unlockWarned = false;
+      unlockWaitActive = false;
     };
 
     const safeRebuild = async () => {
@@ -134,7 +131,7 @@
         hasPendingRebuild = true;
         return rebuildInFlight;
       }
-      if (getNavLock()) {
+      if (NL.isLocked()) {
         hasPendingRebuild = true;
         waitForUnlock();
         return Promise.resolve(false);
@@ -169,31 +166,27 @@
       return rebuildInFlight;
     };
 
+    let unlockWaitActive = false;
+
     function waitForUnlock() {
-      if (unlockTimer) return;
-      if (!unlockPollStartTs) unlockPollStartTs = Date.now();
-      const MAX_POLL_MS = CFG.MUTATION_UNLOCK_POLL_MAX_MS;
-      const check = () => {
-        unlockTimer = null;
-        if (!isExtensionContextValid) return;
-        if (!getNavLock()) {
-          unlockPollStartTs = 0;
-          unlockWarned = false;
-          if (hasPendingRebuild) {
-            attemptRebuild();
-          }
-          return;
+      if (unlockWaitActive) return;
+      unlockWaitActive = true;
+
+      NL.onUnlock(() => {
+        unlockWaitActive = false;
+        if (hasPendingRebuild) {
+          attemptRebuild();
         }
-        if (Number.isFinite(MAX_POLL_MS) && MAX_POLL_MS > 0 && (Date.now() - unlockPollStartTs) > MAX_POLL_MS) {
-          if (!unlockWarned) {
-            unlockWarned = true;
-            console.warn('[toc] nav lock stuck; will keep polling at a lower frequency');
-          }
+      });
+
+      // Failsafe: if NAV_LOCK failsafe doesn't fire, force check after MUTATION_UNLOCK_POLL_MAX_MS
+      unlockFailsafeTimer = setTimeout(() => {
+        unlockFailsafeTimer = null;
+        if (unlockWaitActive) {
+          unlockWaitActive = false;
+          if (hasPendingRebuild) attemptRebuild();
         }
-        const nextPollMs = unlockWarned ? Math.max(CFG.UNLOCK_POLL_MS, 1000) : CFG.UNLOCK_POLL_MS;
-        unlockTimer = setTimeout(check, nextPollMs);
-      };
-      unlockTimer = setTimeout(check, CFG.UNLOCK_POLL_MS);
+      }, CFG.MUTATION_UNLOCK_POLL_MAX_MS);
     }
 
     function scheduleRebuild(immediate) {

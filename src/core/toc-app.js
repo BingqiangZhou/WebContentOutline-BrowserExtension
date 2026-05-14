@@ -605,7 +605,7 @@
 
     try {
       if (createMutationObserver) {
-        const observerFactory = createMutationObserver(rebuild, getNavLock);
+        const observerFactory = createMutationObserver(rebuild);
         mutationObserver = observerFactory.start(cfg);
       }
 
