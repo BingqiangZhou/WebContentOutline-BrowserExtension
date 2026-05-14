@@ -198,7 +198,7 @@ define('rebuild-scheduler', ['dom-watcher', 'url-monitor', 'toc-constants'], fun
 
     function start(cfg) {
       // Stop any previous instance
-      disconnect();
+      handle.disconnect();
       hasPendingRebuild = false;
       consecutiveMutations = 0;
       lastMutationTime = 0;
