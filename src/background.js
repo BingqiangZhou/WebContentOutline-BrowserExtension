@@ -36,7 +36,9 @@ const CONTENT_SCRIPTS = [
   'src/ui/element-picker.js',
   'src/ui/floating-panel.js',
   'src/core/config-manager.js',
-  'src/core/mutation-observer.js',
+  'src/core/url-monitor.js',
+  'src/core/dom-watcher.js',
+  'src/core/rebuild-scheduler.js',
   'src/core/toc-app.js',
   'src/content.js'
 ];

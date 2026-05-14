@@ -22,14 +22,15 @@
     isContextInvalidatedError: isContextInvalidatedErrorUtil
   } = window.TOC_UTILS || {};
 
-  const { createMutationObserver } = window.MUTATION_OBSERVER || {};
+  var schedulerMod = (typeof require === 'function') ? require('rebuild-scheduler') : null;
+  var createRebuildScheduler = schedulerMod ? schedulerMod.createRebuildScheduler : null;
 
   const missing = [];
   if (!window.TOC_BUILDER) missing.push('TOC_BUILDER');
   if (!window.TOC_UI) missing.push('TOC_UI');
   if (!window.CSS_SELECTOR) missing.push('CSS_SELECTOR');
   if (!window.CONFIG_MANAGER) missing.push('CONFIG_MANAGER');
-  if (!window.MUTATION_OBSERVER) missing.push('MUTATION_OBSERVER');
+  if (!schedulerMod) missing.push('rebuild-scheduler');
   if (!window.TOC_UTILS) missing.push('TOC_UTILS');
   if (missing.length) {
     console.error('[toc] toc-app.js not loaded — missing dependencies:', missing.join(', '));
@@ -605,9 +606,9 @@
     };
 
     try {
-      if (createMutationObserver) {
-        const observerFactory = createMutationObserver(rebuild);
-        mutationObserver = observerFactory.start(cfg);
+      if (createRebuildScheduler) {
+        mutationObserver = createRebuildScheduler(rebuild);
+        mutationObserver.start(cfg);
       }
 
       TOC_APP.rebuild = rebuild;
