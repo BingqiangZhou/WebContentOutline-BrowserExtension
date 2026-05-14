@@ -110,10 +110,15 @@ git add manifest.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE
 git commit -m "chore: bump version to X.Y.Z"
 ```
 
-## Step 6: Package
+## Step 6: Validate and Package
 
-Create the zip file excluding development files:
+First, run the build script to validate all source files:
+```bash
+node build.js
+```
+If validation fails, stop and fix the errors before proceeding.
 
+Then create the zip file excluding development files:
 ```bash
 # Read version
 VERSION=$(grep '"version"' manifest.json | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
@@ -121,14 +126,18 @@ VERSION=$(grep '"version"' manifest.json | head -1 | sed 's/.*"version"[[:space:
 # Create packages directory
 mkdir -p dist/packages
 
-# Create zip excluding specified patterns
+# Create zip excluding development files
 zip -r "dist/packages/v${VERSION}.zip" . -x \
     ".claude/*" "CLAUDE.md" ".claude-*" \
     ".git/*" ".gitignore" ".gitattributes" \
     ".github/*" \
     "dist/*" \
     "node_modules/*" \
-    "docs/superpowers/*"
+    "docs/superpowers/*" \
+    "build.js" \
+    "package.json" \
+    "package-lock.json" \
+    "*.md"
 
 echo "Package created: dist/packages/v${VERSION}.zip"
 ```
@@ -149,3 +158,4 @@ After creating the zip, verify:
 2. The file name matches the version format (e.g., `v0.7.0.zip`)
 3. Report the file size of the created zip
 4. The git tag was created and pushed to remote successfully (check with `git ls-remote --tags origin`)
+5. The zip does NOT contain development files (build.js, package.json, .claude/, etc.)
