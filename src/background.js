@@ -29,6 +29,7 @@ const CONTENT_SCRIPTS = [
   'src/utils/dom-utils.js',
   'src/utils/drag-helper.js',
   'src/utils/css-selector.js',
+  'src/utils/focus-trap.js',
   'src/utils/toc-builder.js',
   'src/core/nav-lock.js',
   'src/ui/collapsed-badge.js',

@@ -214,6 +214,7 @@
       };
       let focusRaf = null;
       const close = () => {
+        if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
         if (focusRaf) {
           try { cancelAnimationFrame(focusRaf); } catch (_) {}
           focusRaf = null;
@@ -231,34 +232,9 @@
         return [];
       };
 
-      box.addEventListener('keydown', (e) => {
-        if (!e) return;
-        if (e.key === 'Tab') {
-          const focusables = getFocusable();
-          if (!focusables.length) {
-            try { e.preventDefault(); } catch (_) {}
-            try { box.focus({ preventScroll: true }); } catch (_) {}
-            return;
-          }
-          const first = focusables[0];
-          const last = focusables[focusables.length - 1];
-          const active = document.activeElement;
-          if (e.shiftKey && active === first) {
-            try { e.preventDefault(); } catch (_) {}
-            try { last.focus(); } catch (_) {}
-            return;
-          }
-          if (!e.shiftKey && active === last) {
-            try { e.preventDefault(); } catch (_) {}
-            try { first.focus(); } catch (_) {}
-            return;
-          }
-        }
-        if (e.key === 'Escape') {
-          try { e.preventDefault(); } catch (_) {}
-          close();
-        }
-      });
+      var removeFocusTrap = (typeof require === 'function') && require('focus-trap')
+        ? require('focus-trap').createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable })
+        : null;
 
       box.addEventListener('click', async (e) => {
         try {
