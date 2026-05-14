@@ -90,44 +90,6 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
       });
     }
 
-    /**
-     * Set enabled state for an origin
-     * @param {string} origin
-     * @param {boolean} enabled
-     */
-    function setSiteEnabledByOrigin(origin, enabled) {
-      return serializedWrite('tocSiteEnabledMap', function() {
-        return getEnabledMap().then(function(map) {
-          if (!origin) return false;
-          touchObjectKey(map, origin, !!enabled);
-          pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
-          return saveEnabledMap(map).then(function(ok) {
-            return ok ? !!map[origin] : false;
-          });
-        });
-      });
-    }
-
-    /**
-     * Toggle enabled state for an origin and return the new state
-     * @param {string} origin
-     * @returns {Promise<boolean>}
-     */
-    function toggleSiteEnabledByOrigin(origin) {
-      return serializedWrite('tocSiteEnabledMap', function() {
-        return getEnabledMap().then(function(map) {
-          var prev = !!map[origin];
-          var next = !prev;
-          if (!origin) return prev;
-          touchObjectKey(map, origin, next);
-          pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
-          return saveEnabledMap(map).then(function(ok) {
-            return ok ? next : prev;
-          });
-        });
-      });
-    }
-
     function getPanelExpandedByOrigin(origin) {
       var doRead = function(map) {
         var key = origin || (typeof location !== 'undefined' ? location.origin : '');
@@ -250,8 +212,6 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
       matchWildcard: matchWildcard,
       findMatchingConfig: findMatchingConfig,
       getSiteEnabledByOrigin: getSiteEnabledByOrigin,
-      setSiteEnabledByOrigin: setSiteEnabledByOrigin,
-      toggleSiteEnabledByOrigin: toggleSiteEnabledByOrigin,
       getPanelExpandedByOrigin: getPanelExpandedByOrigin,
       setPanelExpandedByOrigin: setPanelExpandedByOrigin,
       collectBySelector: collectBySelector,
