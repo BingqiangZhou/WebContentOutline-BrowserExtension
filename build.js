@@ -35,6 +35,11 @@ function validateFile(filePath) {
   }
 }
 
+// Only copy runtime files (.js, .css, .json, .png, .svg, etc.) — skip docs (.md, .txt)
+const RUNTIME_EXTENSIONS = new Set([
+  '.js', '.css', '.json', '.png', '.svg', '.gif', '.jpg', '.ico', '.html'
+]);
+
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
@@ -43,7 +48,7 @@ function copyRecursive(src, dest) {
     const destPath = path.join(dest, entry.name);
     if (entry.isDirectory()) {
       copyRecursive(srcPath, destPath);
-    } else {
+    } else if (RUNTIME_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
       fs.copyFileSync(srcPath, destPath);
     }
   }
@@ -111,3 +116,23 @@ if (fs.existsSync(iconsDir)) {
 
 console.log('\nBuild complete. Output in dist/build/');
 console.log('  Scripts validated: ' + loadOrder.length);
+
+// Step 4: Package as zip
+const VERSION = (() => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'manifest.json'), 'utf8'));
+  return manifest.version;
+})();
+
+const packagesDir = path.join(ROOT_DIR, 'dist', 'packages');
+fs.mkdirSync(packagesDir, { recursive: true });
+
+const zipFile = path.join(packagesDir, `v${VERSION}.zip`);
+try {
+  execSync(`cd "${DIST_DIR}" && zip -r "${zipFile}" .`, { stdio: 'pipe' });
+  const stats = fs.statSync(zipFile);
+  const kb = (stats.size / 1024).toFixed(1);
+  console.log(`\nPackage created: dist/packages/v${VERSION}.zip (${kb} KB)`);
+} catch (e) {
+  console.error('Failed to create zip package');
+  process.exit(1);
+}

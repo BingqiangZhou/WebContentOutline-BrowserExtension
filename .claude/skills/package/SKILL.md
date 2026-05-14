@@ -110,37 +110,16 @@ git add manifest.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE
 git commit -m "chore: bump version to X.Y.Z"
 ```
 
-## Step 6: Validate and Package
+## Step 6: Build and Package
 
-First, run the build script to validate all source files:
+Run the build script. It validates all source files, copies runtime files to `dist/build/`, and creates the zip package:
 ```bash
 node build.js
 ```
+
 If validation fails, stop and fix the errors before proceeding.
 
-Then create the zip file excluding development files:
-```bash
-# Read version
-VERSION=$(grep '"version"' manifest.json | head -1 | sed 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
-
-# Create packages directory
-mkdir -p dist/packages
-
-# Create zip excluding development files
-zip -r "dist/packages/v${VERSION}.zip" . -x \
-    ".claude/*" "CLAUDE.md" ".claude-*" \
-    ".git/*" ".gitignore" ".gitattributes" \
-    ".github/*" \
-    "dist/*" \
-    "node_modules/*" \
-    "docs/superpowers/*" \
-    "build.js" \
-    "package.json" \
-    "package-lock.json" \
-    "*.md"
-
-echo "Package created: dist/packages/v${VERSION}.zip"
-```
+The build script produces `dist/packages/v${VERSION}.zip` from the clean `dist/build/` directory. No manual zip commands needed.
 
 ## Step 7: Tag and Push
 
