@@ -417,9 +417,7 @@ Web TOC Assistant 适合希望提升网页阅读效率的用户，尤其适合�
 
 Web TOC Assistant is a browser extension that automatically generates a floating table of contents for any webpage. It helps you quickly navigate long articles, technical documentation, tutorials, forum posts, online courses, and other complex web pages.
 
-The extension detects the heading structure of the current page and displays an interactive TOC panel on the side of the webpage. You can click any TOC item to jump directly to the corresponding section, or drag the floating button and panel to place them wherever they fit your reading workflow.
-
-Main Features
+MAIN FEATURES
 
 • Automatic Table of Contents Generation
 Automatically detects h1-h6 headings on a webpage and creates a clear hierarchical outline.
@@ -437,12 +435,12 @@ When a webpage does not use standard heading tags, you can define custom CSS or 
 Use the element picker to select content directly on the page and quickly create custom TOC rules.
 
 • Per-site Configuration
-Save different TOC rules and enablement settings for different websites, making the extension useful for sites you visit frequently.
+Save different TOC rules and enablement settings for different websites.
 
 • Light and Dark Mode Support
 The interface adapts to your browser or system theme for a more comfortable reading experience.
 
-Use Cases
+USE CASES
 
 • Technical documentation: Quickly jump to specific APIs, sections, or examples
 • Long-form articles: Navigate content without endless scrolling
@@ -451,7 +449,7 @@ Use Cases
 • Forum posts: Locate important sections in long discussions
 • Complex webpages: Turn long pages into navigable documents
 
-How to Use
+HOW TO USE
 
 1. Install the extension and open any webpage.
 2. Click the Web TOC Assistant icon in the browser toolbar to enable it.
@@ -460,7 +458,7 @@ How to Use
 5. Click any TOC item to jump to the corresponding section.
 6. If the TOC is not accurate, use the element picker or custom selector settings to adjust the rules.
 
-Permissions and Privacy
+PERMISSIONS AND PRIVACY
 
 Web TOC Assistant only analyzes the structure of the current webpage locally in your browser to generate the table of contents.
 
@@ -471,11 +469,9 @@ Web TOC Assistant only analyzes the structure of the current webpage locally in 
 
 All settings are stored locally in your browser. The extension does not send your webpage content, browsing data, or personal information to any server.
 
-Open Source
+OPEN SOURCE
 
 Web TOC Assistant is an open-source browser extension. You can view the source code, submit feedback, or contribute to the project on GitHub.
 
 GitHub:
 https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension
-
-Web TOC Assistant is designed for users who want a better webpage reading experience, especially those who frequently read technical documentation, long articles, tutorials, and complex web content.
