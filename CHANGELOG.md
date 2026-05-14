@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#071---2026-05-07)
+[Table of Contents](#table-of-contents) • [Latest](#080---2026-05-15)
 
 ---
 
 ## Table of Contents
 
+- [0.8.0](#080---2026-05-15) - 2026-05-15
 - [0.7.1](#071---2026-05-07) - 2026-05-07
 - [0.7.0](#070---2026-05-07) - 2026-05-07
 - [0.6.3](#063---2026-03-15) - 2026-03-15
@@ -25,6 +26,47 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.8.0] - 2026-05-15
+
+### 🚀 Added
+- **ES Modules architecture with esbuild bundling**
+  - Migrated entire content script from monolithic `utils.js` and global namespace injection to standard ESM `import`/`export`
+  - esbuild bundles `src/content.js` into a single IIFE at build time — no runtime load-order concerns
+- **Build system**
+  - Added `build.js` with esbuild bundling, syntax validation, and dist packaging
+  - Build produces `dist/build/` with runtime files and `dist/packages/v{version}.zip`
+- **Modular architecture**
+  - Split monolithic `utils.js` (1126 lines) into 11 focused utility modules in `src/utils/`
+  - Split `mutation-observer.js` into 3 focused modules: `dom-watcher.js`, `url-monitor.js`, `rebuild-scheduler.js`
+  - Added standalone `nav-lock.js` module for navigation lock state
+  - Added `event-bus.js` for decoupled module communication
+  - Added `focus-trap.js` shared utility
+  - Extracted `floating-panel-helpers.js` from floating panel
+- **URL change monitoring**
+  - History API interception (`pushState`/`replaceState`) with polling fallback for SPAs
+- **CSS custom properties theming**
+  - Replaced duplicated light/dark CSS rules with CSS custom properties (`--toc-bg-panel`, etc.)
+- **CI/CD release workflow**
+
+### 🔧 Changed
+- **Module system evolution**: Global namespace → custom `define()`/`require()` → standard ESM
+- **Storage primitives**: Single ESM source file; build produces separate IIFE bundle for background service worker
+- **Constants consolidation**: Scattered `uiConst()` calls consolidated into per-file `CFG` objects
+- **Dynamic nav lock duration**: Adjusts lock time based on scroll distance
+
+### 🐛 Fixed
+- **Dark theme**: Not applying to Selector Generated and Site Configuration overlays
+- **Repeated context invalidation notices**: Prevented `ctxInvalidatedNotice` on every rebuild
+- **Service worker**: Fixed `importScripts` path for dual-context storage primitives
+- **Rebuild scheduler**: Fixed disconnect via `handle.disconnect()` in `start()`
+
+### ⚡ Technical Improvements
+- **Tiered visibility filtering**: Three-phase check with short-circuit at item limit — cheap DOM checks first, then style/geometry, then parent clipping
+- **O(n) Set-based dedup**: Replaced sort-based deduplication in `uniqueInDocumentOrder`
+- **Shared storage primitives**: Extracted to single source, eliminating context duplication
 
 ---
 
