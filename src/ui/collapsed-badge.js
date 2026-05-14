@@ -1,16 +1,15 @@
-(() => {
+define('collapsed-badge', ['toc-utils', 'drag-helper', 'toc-constants'], function(tocUtils, dragHelper, C) {
   'use strict';
 
-  const { msg = (key) => key, getBadgePosByHost, setBadgePosByHost, uiConst } = window.TOC_UTILS || {};
-
-  if (!window.TOC_UTILS) {
-    console.error('[toc] collapsed-badge.js not loaded — missing dependencies: TOC_UTILS');
-    return;
-  }
+  var msg = tocUtils.msg || function(key) { return key; };
+  var getBadgePosByHost = tocUtils.getBadgePosByHost;
+  var setBadgePosByHost = tocUtils.setBadgePosByHost;
+  var uiConst = C.uiConst;
+  var createDragController = dragHelper.createDragController;
 
   // Constants
-  const CFG = (() => {
-    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+  var CFG = (function() {
+    var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
     return {
       BADGE_WIDTH: get('BADGE_WIDTH', 80),
       BADGE_HEIGHT: get('BADGE_HEIGHT', 32),
@@ -23,18 +22,18 @@
   function renderCollapsedBadge(side, onExpand, centerPos) {
     // Remove any existing badge to prevent duplicates
     try {
-      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner]').forEach(el => {
+      document.querySelectorAll('.toc-collapsed-badge[data-toc-owner]').forEach(function(el) {
         try {
-          const cleanup = el && el.__TOC_CLEANUP__;
+          var cleanup = el && el.__TOC_CLEANUP__;
           if (typeof cleanup === 'function') cleanup();
         } catch (_) {}
         try { el.remove(); } catch (_) {}
       });
     } catch (_) {}
 
-    const badge = document.createElement('button');
+    var badge = document.createElement('button');
     badge.type = 'button';
-    badge.className = `toc-collapsed-badge ${side === 'left' ? 'left' : 'right'}`;
+    badge.className = 'toc-collapsed-badge ' + (side === 'left' ? 'left' : 'right');
     badge.setAttribute('data-toc-owner', 'web-toc-assistant');
     badge.textContent = msg('tocTitle');
     badge.title = msg('badgeTitle');
@@ -49,10 +48,10 @@
 
     document.documentElement.appendChild(badge);
 
-    let userMoved = false;
-    let destroyed = false;
-    let anchorX = (side === 'left') ? 'left' : 'right';
-    const onKeydown = (e) => {
+    var userMoved = false;
+    var destroyed = false;
+    var anchorX = (side === 'left') ? 'left' : 'right';
+    var onKeydown = function(e) {
       if (destroyed || !e) return;
       if (e.key === 'Enter' || e.key === ' ') {
         try { e.preventDefault(); } catch (_) {}
@@ -61,15 +60,24 @@
     };
 
     // Restore position: centerPos first, then from storage
-    const restorePosition = async () => {
-      let pos = centerPos;
+    var restorePosition = function() {
+      var pos = centerPos;
       if (!pos && getBadgePosByHost) {
-        try {
-          pos = await getBadgePosByHost(location.host);
-        } catch (_) {
-          pos = null;
-        }
+        return getBadgePosByHost(location.host).then(function(stored) {
+          if (destroyed || !badge || !badge.isConnected) {
+            try { if (badge) badge.style.removeProperty('visibility'); } catch (_) {}
+            return;
+          }
+          pos = stored;
+          applyPosition(pos);
+        }).catch(function() {
+          applyPosition(null);
+        });
       }
+      applyPosition(pos);
+    };
+
+    function applyPosition(pos) {
       if (destroyed || !badge || !badge.isConnected) {
         try { if (badge) badge.style.removeProperty('visibility'); } catch (_) {}
         return;
@@ -79,18 +87,18 @@
         return;
       }
 
-      const bw = badge.offsetWidth || CFG.BADGE_WIDTH;
-      const bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
+      var bw = badge.offsetWidth || CFG.BADGE_WIDTH;
+      var bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
 
       if (pos && Number.isFinite(pos.x)) {
         if (pos.anchorX === 'left' || pos.anchorX === 'right') {
           anchorX = pos.anchorX;
         }
         // Use saved position
-        const left = pos.x - bw / 2;
-        const top = (Number.isFinite(pos.y) ? pos.y : CFG.DEFAULT_TOP_MIN) - bh / 2;
-        const maxLeft = window.innerWidth - bw - CFG.DRAG_MARGIN_PX;
-        const maxTop = window.innerHeight - bh - CFG.DRAG_MARGIN_PX;
+        var left = pos.x - bw / 2;
+        var top = (Number.isFinite(pos.y) ? pos.y : CFG.DEFAULT_TOP_MIN) - bh / 2;
+        var maxLeft = window.innerWidth - bw - CFG.DRAG_MARGIN_PX;
+        var maxTop = window.innerHeight - bh - CFG.DRAG_MARGIN_PX;
         badge.style.setProperty('left', Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, left)) + 'px', 'important');
         badge.style.setProperty('top', Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, top)) + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
@@ -99,51 +107,51 @@
 
       // Show badge after position is set
       badge.style.removeProperty('visibility');
-    };
+    }
 
     restorePosition();
 
     badge.addEventListener('keydown', onKeydown);
 
-    let resizeRaf = null;
-    let lastViewportW = window.innerWidth;
-    let lastViewportH = window.innerHeight;
-    let persistTimer = null;
-    let pendingPersistCenter = null;
-    const RESIZE_LISTENER_OPTS = { passive: true };
-    const computeAnchoredScaledPosition = () => {
+    var resizeRaf = null;
+    var lastViewportW = window.innerWidth;
+    var lastViewportH = window.innerHeight;
+    var persistTimer = null;
+    var pendingPersistCenter = null;
+    var RESIZE_LISTENER_OPTS = { passive: true };
+    var computeAnchoredScaledPosition = function() {
       if (destroyed || !badge || !badge.isConnected) return;
       try {
-        const rect = badge.getBoundingClientRect();
-        const bw = badge.offsetWidth || CFG.BADGE_WIDTH;
-        const bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
+        var rect = badge.getBoundingClientRect();
+        var bw = badge.offsetWidth || CFG.BADGE_WIDTH;
+        var bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
 
-        const vw = window.innerWidth;
-        const vh = window.innerHeight;
-        const prevW = Number.isFinite(lastViewportW) && lastViewportW > 0 ? lastViewportW : vw;
-        const prevH = Number.isFinite(lastViewportH) && lastViewportH > 0 ? lastViewportH : vh;
+        var vw = window.innerWidth;
+        var vh = window.innerHeight;
+        var prevW = Number.isFinite(lastViewportW) && lastViewportW > 0 ? lastViewportW : vw;
+        var prevH = Number.isFinite(lastViewportH) && lastViewportH > 0 ? lastViewportH : vh;
 
-        const centerX = rect.left + bw / 2;
-        const centerY = rect.top + bh / 2;
+        var centerX = rect.left + bw / 2;
+        var centerY = rect.top + bh / 2;
 
         // Horizontal: snap to edge on resize (keep side, ignore interior offset).
         if (anchorX !== 'left' && anchorX !== 'right') {
           anchorX = centerX > (prevW / 2) ? 'right' : 'left';
         }
-        const edgePad = Math.max(CFG.DRAG_MARGIN_PX, CFG.DEFAULT_RIGHT);
-        const nextLeftEdge = (anchorX === 'right') ? (vw - bw - edgePad) : edgePad;
+        var edgePad = Math.max(CFG.DRAG_MARGIN_PX, CFG.DEFAULT_RIGHT);
+        var nextLeftEdge = (anchorX === 'right') ? (vw - bw - edgePad) : edgePad;
 
         // Vertical: scale reference point (badge center) by height ratio.
-        const ratioH = prevH ? (vh / prevH) : 1;
-        const nextCenterY = centerY * ratioH;
+        var ratioH = prevH ? (vh / prevH) : 1;
+        var nextCenterY = centerY * ratioH;
 
-        let nextLeft = nextLeftEdge;
-        let nextTop = nextCenterY - bh / 2;
+        var nextLeft = nextLeftEdge;
+        var nextTop = nextCenterY - bh / 2;
 
-        const maxLeft = vw - bw - CFG.DRAG_MARGIN_PX;
-        const maxTop = vh - bh - CFG.DRAG_MARGIN_PX;
-        const left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
-        const top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
+        var maxLeft = vw - bw - CFG.DRAG_MARGIN_PX;
+        var maxTop = vh - bh - CFG.DRAG_MARGIN_PX;
+        var left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
+        var top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
         badge.style.setProperty('left', left + 'px', 'important');
         badge.style.setProperty('top', top + 'px', 'important');
         badge.style.setProperty('right', 'auto', 'important');
@@ -153,19 +161,19 @@
         lastViewportH = vh;
 
         // Persist the badge center so next expand aligns to the current viewport.
-        pendingPersistCenter = { x: left + bw / 2, y: top + bh / 2, anchorX };
+        pendingPersistCenter = { x: left + bw / 2, y: top + bh / 2, anchorX: anchorX };
       } catch (_) {}
     };
-    const onResize = () => {
+    var onResize = function() {
       if (resizeRaf) return;
-      resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = requestAnimationFrame(function() {
         resizeRaf = null;
         computeAnchoredScaledPosition();
         if (pendingPersistCenter && setBadgePosByHost) {
           if (persistTimer) clearTimeout(persistTimer);
-          persistTimer = setTimeout(() => {
+          persistTimer = setTimeout(function() {
             persistTimer = null;
-            const p = pendingPersistCenter;
+            var p = pendingPersistCenter;
             pendingPersistCenter = null;
             try {
               if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
@@ -177,11 +185,11 @@
       });
     };
     window.addEventListener('resize', onResize, RESIZE_LISTENER_OPTS);
-    const onPageHide = () => {
+    var onPageHide = function() {
       if (pendingPersistCenter && setBadgePosByHost) {
         try { clearTimeout(persistTimer); } catch (_) {}
         persistTimer = null;
-        const p = pendingPersistCenter;
+        var p = pendingPersistCenter;
         pendingPersistCenter = null;
         if (Number.isFinite(p.x) && Number.isFinite(p.y)) {
           try { setBadgePosByHost(location.host, p); } catch (_) {}
@@ -191,20 +199,19 @@
     try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
 
     // Drag handling
-    const { createDragController } = window.TOC_DRAG || {};
-    const dragController = createDragController ? createDragController({
+    var dragController = createDragController ? createDragController({
       element: badge,
-      shouldStart: (e) => e.target === badge,
-      onStart: () => {
+      shouldStart: function(e) { return e.target === badge; },
+      onStart: function() {
         userMoved = true;
         badge.style.cursor = 'grabbing';
         badge.style.userSelect = 'none';
       },
-      onMove: (drag, e) => {
-        const bw = badge.offsetWidth || CFG.BADGE_WIDTH;
-        const bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
-        let left = e.clientX - drag.offsetX;
-        let top = e.clientY - drag.offsetY;
+      onMove: function(drag, e) {
+        var bw = badge.offsetWidth || CFG.BADGE_WIDTH;
+        var bh = badge.offsetHeight || CFG.BADGE_HEIGHT;
+        var left = e.clientX - drag.offsetX;
+        var top = e.clientY - drag.offsetY;
         left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(window.innerWidth - bw - CFG.DRAG_MARGIN_PX, left));
         top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(window.innerHeight - bh - CFG.DRAG_MARGIN_PX, top));
         badge.style.setProperty('left', left + 'px', 'important');
@@ -212,7 +219,7 @@
         badge.style.setProperty('right', 'auto', 'important');
         badge.style.setProperty('bottom', 'auto', 'important');
       },
-      onEnd: (drag) => {
+      onEnd: function(drag) {
         badge.style.cursor = '';
         badge.style.userSelect = '';
         if (drag.cancelled) return;
@@ -221,17 +228,18 @@
           return;
         }
         // Save badge center position
-        const rect = badge.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
+        var rect = badge.getBoundingClientRect();
+        var x = rect.left + rect.width / 2;
+        var y = rect.top + rect.height / 2;
         if (Number.isFinite(x) && Number.isFinite(y) && setBadgePosByHost) {
           anchorX = x > (window.innerWidth / 2) ? 'right' : 'left';
-          setBadgePosByHost(location.host, { x, y, anchorX });
+          setBadgePosByHost(location.host, { x: x, y: y, anchorX: anchorX });
         }
       }
     }) : null;
 
-    const cleanup = ({ removedExternally } = {}) => {
+    var cleanup = function(opts) {
+      opts = opts || {};
       destroyed = true;
       try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
       try { window.removeEventListener('resize', onResize, RESIZE_LISTENER_OPTS); } catch (_) {}
@@ -245,22 +253,23 @@
         if (typeof resizeRaf === 'number') cancelAnimationFrame(resizeRaf);
       } catch (_) {}
       resizeRaf = null;
-      if (!removedExternally) {
+      if (!opts.removedExternally) {
         try { badge.remove(); } catch (_) {}
       }
     };
 
     try {
-      badge.__TOC_CLEANUP__ = () => cleanup({ removedExternally: true });
+      badge.__TOC_CLEANUP__ = function() { cleanup({ removedExternally: true }); };
     } catch (_) {}
 
     return {
-      remove() {
+      remove: function() {
         cleanup({ removedExternally: false });
       }
     };
   }
 
-  window.TOC_UI = window.TOC_UI || {};
-  window.TOC_UI.renderCollapsedBadge = renderCollapsedBadge;
-})();
+  var api = { renderCollapsedBadge: renderCollapsedBadge };
+  try { window.TOC_UI = window.TOC_UI || {}; window.TOC_UI.renderCollapsedBadge = renderCollapsedBadge; } catch (_) {}
+  return api;
+});

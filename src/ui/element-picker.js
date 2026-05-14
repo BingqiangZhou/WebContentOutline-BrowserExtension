@@ -1,15 +1,13 @@
-(() => {
+define('element-picker', ['toc-utils', 'focus-trap', 'toc-constants'], function(tocUtils, focusTrap, C) {
   'use strict';
 
-  const { msg = (key) => key, uiConst, getFocusableWithin } = window.TOC_UTILS || {};
+  var msg = tocUtils.msg || function(key) { return key; };
+  var uiConst = C.uiConst;
+  var getFocusableWithin = tocUtils.getFocusableWithin;
+  var createFocusTrap = focusTrap.createFocusTrap;
 
-  if (!window.TOC_UTILS) {
-    console.error('[toc] element-picker.js not loaded — missing dependencies: TOC_UTILS');
-    return;
-  }
-
-  const CFG = (() => {
-    const get = (name, fallback) => (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback;
+  var CFG = (function() {
+    var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
     return {
       PICKER_TIMEOUT_MS: get('PICKER_TIMEOUT_MS', 20000),
       MAX_Z_INDEX: get('MAX_Z_INDEX', 2147483647),
@@ -17,28 +15,28 @@
   })();
 
   function showPickerResult(selector, saveCb) {
-    const prevFocus = document.activeElement;
-    const existing = document.querySelector('.toc-overlay');
+    var prevFocus = document.activeElement;
+    var existing = document.querySelector('.toc-overlay');
     if (existing) {
       existing.remove();
     }
 
-    const wrap = document.createElement('div');
+    var wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
     wrap.setAttribute('data-toc-owner', 'web-toc-assistant');
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
     wrap.tabIndex = -1;
 
-    const header = document.createElement('div');
+    var header = document.createElement('div');
     header.className = 'toc-overlay-header';
     header.textContent = msg('pickerResultTitle');
-    header.id = `toc-overlay-title-${Math.random().toString(36).slice(2)}`;
+    header.id = 'toc-overlay-title-' + Math.random().toString(36).slice(2);
     wrap.setAttribute('aria-labelledby', header.id);
 
-    const body = document.createElement('div');
+    var body = document.createElement('div');
     body.className = 'toc-overlay-body';
-    const textarea = document.createElement('textarea');
+    var textarea = document.createElement('textarea');
     textarea.className = 'toc-overlay-textarea';
     textarea.readOnly = true;
     textarea.setAttribute('aria-readonly', 'true');
@@ -46,16 +44,16 @@
     textarea.textContent = selector;
     body.appendChild(textarea);
 
-    const actions = document.createElement('div');
+    var actions = document.createElement('div');
     actions.className = 'toc-overlay-actions';
 
-    const btnSave = document.createElement('button');
+    var btnSave = document.createElement('button');
     btnSave.className = 'toc-btn toc-btn-primary';
     btnSave.dataset.act = 'save';
     btnSave.textContent = msg('buttonSaveAsConfig');
     btnSave.setAttribute('aria-label', msg('buttonSaveAsConfig'));
 
-    const btnClose = document.createElement('button');
+    var btnClose = document.createElement('button');
     btnClose.className = 'toc-btn';
     btnClose.dataset.act = 'close';
     btnClose.textContent = msg('buttonClose');
@@ -68,15 +66,15 @@
     wrap.appendChild(body);
     wrap.appendChild(actions);
 
-    const restoreFocus = () => {
+    var restoreFocus = function() {
       try {
         if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
           prevFocus.focus({ preventScroll: true });
         }
       } catch (_) {}
     };
-    let focusRaf = null;
-    const close = () => {
+    var focusRaf = null;
+    var close = function() {
       if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
       if (focusRaf) {
         try { cancelAnimationFrame(focusRaf); } catch (_) {}
@@ -86,40 +84,38 @@
       restoreFocus();
     };
 
-    var removeFocusTrap = (typeof require === 'function') && require('focus-trap')
-      ? require('focus-trap').createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin })
-      : null;
-    wrap.addEventListener('click', (e) => {
-      const target = e && e.target;
-      const btn = target && target.closest ? target.closest('[data-act]') : null;
+    var removeFocusTrap = createFocusTrap ? createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin }) : null;
+    wrap.addEventListener('click', function(e) {
+      var target = e && e.target;
+      var btn = target && target.closest ? target.closest('[data-act]') : null;
       if (!btn) return;
-      const act = btn.dataset.act;
+      var act = btn.dataset.act;
       if (act === 'close') close();
       if (act === 'save') { try { saveCb && saveCb(selector, close); } catch (e) { console.warn('[toc] saveCb error:', e); } }
     });
     document.documentElement.appendChild(wrap);
     try {
-      focusRaf = requestAnimationFrame(() => {
+      focusRaf = requestAnimationFrame(function() {
         focusRaf = null;
         if (!wrap || !wrap.isConnected) return;
         try { btnSave.focus({ preventScroll: true }); } catch (_) {}
       });
     } catch (_) {}
-    return { close };
+    return { close: close };
   }
 
   function createElementPicker(onPicked, onCancel) {
     if (!document.body) {
       console.warn('[toc] DOM not ready, cannot start element picker');
       onCancel && onCancel();
-      return { cleanup: () => {} };
+      return { cleanup: function() {} };
     }
 
-    let highlight = document.createElement('div');
-    highlight.style.cssText = `position:fixed;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:${CFG.MAX_Z_INDEX};left:0;top:0;width:0;height:0;`;
+    var highlight = document.createElement('div');
+    highlight.style.cssText = 'position:fixed;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:' + CFG.MAX_Z_INDEX + ';left:0;top:0;width:0;height:0;';
     document.documentElement.appendChild(highlight);
 
-    const prevCursor = document.body.style.cursor;
+    var prevCursor = document.body.style.cursor;
     document.body.style.cursor = 'crosshair';
 
     function getElementNode(node) {
@@ -143,20 +139,20 @@
       if (!highlight) return;
       if (!el || typeof el.getBoundingClientRect !== 'function') return;
       try {
-        const r = el.getBoundingClientRect();
-        const left = r.left;
-        const top = r.top;
-        highlight.style.left = `${left}px`;
-        highlight.style.top = `${top}px`;
-        highlight.style.width = `${Math.max(0, r.width)}px`;
-        highlight.style.height = `${Math.max(0, r.height)}px`;
+        var r = el.getBoundingClientRect();
+        var left = r.left;
+        var top = r.top;
+        highlight.style.left = left + 'px';
+        highlight.style.top = top + 'px';
+        highlight.style.width = Math.max(0, r.width) + 'px';
+        highlight.style.height = Math.max(0, r.height) + 'px';
       } catch (_) {}
     }
 
-    let moveRaf = null;
-    let pendingMove = null;
-    let finished = false;
-    const cancelPick = () => {
+    var moveRaf = null;
+    var pendingMove = null;
+    var finished = false;
+    var cancelPick = function() {
       if (finished) return;
       finished = true;
       try {
@@ -173,7 +169,7 @@
 
     function processMove(e) {
       if (finished) return;
-      let el = getElementNode(e.target);
+      var el = getElementNode(e.target);
       if (isUiElement(el)) {
         try {
           el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
@@ -189,8 +185,8 @@
       if (finished) return;
       pendingMove = e;
       if (moveRaf) return;
-      moveRaf = requestAnimationFrame(() => {
-        const evt = pendingMove;
+      moveRaf = requestAnimationFrame(function() {
+        var evt = pendingMove;
         pendingMove = null;
         moveRaf = null;
         if (!finished && evt) processMove(evt);
@@ -202,7 +198,7 @@
       try { e.stopPropagation(); } catch (_) {}
       try { e.stopImmediatePropagation(); } catch (_) {}
       if (finished) return;
-      let el = getElementNode(e.target);
+      var el = getElementNode(e.target);
       if (isUiElement(el)) {
         try {
           el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
@@ -231,7 +227,7 @@
 
     document.addEventListener('mousemove', move, true);
     document.addEventListener('click', click, true);
-    const onCtx = (e) => {
+    var onCtx = function(e) {
       try { e.preventDefault(); } catch (_) {}
       try { e.stopPropagation(); } catch (_) {}
       try { e.stopImmediatePropagation(); } catch (_) {}
@@ -240,10 +236,10 @@
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', key, true);
 
-    const onPageHide = () => cancelPick();
+    var onPageHide = function() { cancelPick(); };
     try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
 
-    let timeoutId = setTimeout(() => cancelPick(), CFG.PICKER_TIMEOUT_MS);
+    var timeoutId = setTimeout(function() { cancelPick(); }, CFG.PICKER_TIMEOUT_MS);
 
     function cleanup() {
       finished = true;
@@ -258,7 +254,7 @@
       }
       pendingMove = null;
       if (timeoutId) { try { clearTimeout(timeoutId); } catch (_) {} timeoutId = null; }
-      const h = highlight;
+      var h = highlight;
       highlight = null;
       try {
         if (h) {
@@ -272,10 +268,10 @@
       } catch (_) {}
     }
 
-    return { cleanup };
+    return { cleanup: cleanup };
   }
 
-  window.TOC_UI = window.TOC_UI || {};
-  window.TOC_UI.showPickerResult = showPickerResult;
-  window.TOC_UI.createElementPicker = createElementPicker;
-})();
+  var api = { showPickerResult: showPickerResult, createElementPicker: createElementPicker };
+  try { window.TOC_UI = window.TOC_UI || {}; window.TOC_UI.showPickerResult = showPickerResult; window.TOC_UI.createElementPicker = createElementPicker; } catch (_) {}
+  return api;
+});

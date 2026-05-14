@@ -1,36 +1,37 @@
-(() => {
-  if (globalThis.NAV_LOCK) return;
-  const { uiConst } = globalThis.TOC_UTILS || {};
+define('nav-lock', ['toc-constants'], function(C) {
+  'use strict';
 
-  let _locked = false;
-  let _setAt = 0;
-  let _failsafeTimer = null;
-  let _unlockTimer = null;
-  let _onUnlockCallbacks = [];
+  var uiConst = C.uiConst;
 
-  const FAILSAFE_MS = uiConst ? uiConst('NAV_LOCK_FAILSAFE_MS', 3000) : 3000;
+  var _locked = false;
+  var _setAt = 0;
+  var _failsafeTimer = null;
+  var _unlockTimer = null;
+  var _onUnlockCallbacks = [];
 
-  const clearFailsafe = () => {
+  var FAILSAFE_MS = uiConst ? uiConst('NAV_LOCK_FAILSAFE_MS', 3000) : 3000;
+
+  var clearFailsafe = function() {
     if (_failsafeTimer != null) {
       clearTimeout(_failsafeTimer);
       _failsafeTimer = null;
     }
   };
 
-  const armFailsafe = () => {
+  var armFailsafe = function() {
     clearFailsafe();
-    _failsafeTimer = setTimeout(() => {
+    _failsafeTimer = setTimeout(function() {
       if (_locked) {
         _locked = false;
         _setAt = 0;
-        const cbs = _onUnlockCallbacks.slice();
+        var cbs = _onUnlockCallbacks.slice();
         _onUnlockCallbacks = [];
-        cbs.forEach(cb => { try { cb(); } catch {} });
+        cbs.forEach(function(cb) { try { cb(); } catch (_) {} });
       }
     }, FAILSAFE_MS);
   };
 
-  const lock = (durationMs) => {
+  var lock = function(durationMs) {
     _locked = true;
     _setAt = Date.now();
     clearFailsafe();
@@ -38,40 +39,42 @@
 
     if (durationMs && durationMs > 0) {
       if (_unlockTimer != null) clearTimeout(_unlockTimer);
-      _unlockTimer = setTimeout(() => {
+      _unlockTimer = setTimeout(function() {
         unlock();
       }, durationMs);
     }
   };
 
-  const unlock = () => {
-    const wasLocked = _locked;
+  var unlock = function() {
+    var wasLocked = _locked;
     _locked = false;
     _setAt = 0;
     if (_unlockTimer != null) { clearTimeout(_unlockTimer); _unlockTimer = null; }
     clearFailsafe();
 
     if (wasLocked) {
-      const cbs = _onUnlockCallbacks.slice();
+      var cbs = _onUnlockCallbacks.slice();
       _onUnlockCallbacks = [];
-      cbs.forEach(cb => { try { cb(); } catch {} });
+      cbs.forEach(function(cb) { try { cb(); } catch (_) {} });
     }
   };
 
-  const isLocked = () => _locked;
+  var isLocked = function() { return _locked; };
 
-  const onUnlock = (callback) => {
+  var onUnlock = function(callback) {
     if (!_locked) {
-      try { callback(); } catch {}
+      try { callback(); } catch (_) {}
       return;
     }
     _onUnlockCallbacks.push(callback);
   };
 
-  const destroy = () => {
+  var destroy = function() {
     unlock();
     _onUnlockCallbacks = [];
   };
 
-  globalThis.NAV_LOCK = { lock, unlock, isLocked, onUnlock, destroy };
-})();
+  var api = { lock: lock, unlock: unlock, isLocked: isLocked, onUnlock: onUnlock, destroy: destroy };
+  try { globalThis.NAV_LOCK = api; } catch (_) {}
+  return api;
+});
