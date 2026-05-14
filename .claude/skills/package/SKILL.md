@@ -106,7 +106,7 @@ Review the changes and determine if README updates are needed:
 
 Commit all documentation updates and the version bump together:
 ```bash
-git add manifest.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE.md
+git add manifest.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE.md src/README.md
 git commit -m "chore: bump version to X.Y.Z"
 ```
 

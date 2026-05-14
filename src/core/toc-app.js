@@ -37,9 +37,7 @@ import { on } from './event-bus.js';
     return {
       PANEL_WIDTH: get('PANEL_WIDTH', 280),
       PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
-      BUTTON_OFFSET: get('BUTTON_OFFSET', 20),
       DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
-      NAV_LOCK_FAILSAFE_MS: get('NAV_LOCK_FAILSAFE_MS', 3000),
       REBUILD_MAX_LOOPS: get('REBUILD_MAX_LOOPS', 10),
       REBUILD_COOLDOWN_MS: get('REBUILD_COOLDOWN_MS', 5000),
     };
@@ -591,8 +589,6 @@ export function initForConfig(cfg) {
       }
     }
 
-    var isRebuildingFn = function() { return isRebuilding; };
-
     var destroy = function() {
       destroyed = true;
       generation++;
@@ -621,12 +617,6 @@ export function initForConfig(cfg) {
         }
       } catch (_) {}
       pickerInstance = null;
-      try {
-        var TOC_APP = window.TOC_APP;
-        if (TOC_APP.rebuild === rebuild) TOC_APP.rebuild = null;
-        if (TOC_APP.isRebuilding === isRebuildingFn) TOC_APP.isRebuilding = null;
-      } catch (_) {}
-
       // Clear event handler
       _activeRebuild = null;
     };
@@ -636,10 +626,6 @@ export function initForConfig(cfg) {
         mutationObserver = createRebuildScheduler(rebuild);
         mutationObserver.start(cfg);
       }
-
-      var TOC_APP = window.TOC_APP || (window.TOC_APP = {});
-      TOC_APP.rebuild = rebuild;
-      TOC_APP.isRebuilding = isRebuildingFn;
 
       return {
         rebuild: rebuild,
@@ -652,7 +638,3 @@ export function initForConfig(cfg) {
       throw e;
     }
   }
-
-var api = { initForConfig: initForConfig };
-try { window.TOC_APP = window.TOC_APP || {}; window.TOC_APP.initForConfig = initForConfig; } catch (_) {}
-export default api;

@@ -39,9 +39,7 @@ import { initForConfig } from './core/toc-app.js';
   var appInstance = null;
   var currentEnabled = false;
   var desiredEnabled = false;
-  var transitionId = 0;
-  var transitionChain = Promise.resolve();
-  var transitionQueueId = 0;
+  var enabledTransition = Promise.resolve();
   var startInFlight = null;
   var disposed = false;
   var listenersAttached = false;
@@ -73,9 +71,7 @@ import { initForConfig } from './core/toc-app.js';
     disposed = true;
 
     // Cancel queued transitions and in-flight startup.
-    try { transitionId++; } catch (_) {}
-    try { transitionQueueId++; } catch (_) {}
-    transitionChain = Promise.resolve();
+    enabledTransition = Promise.resolve();
     startInFlight = null;
 
     // Remove listeners first to prevent re-entry during teardown.
@@ -281,14 +277,7 @@ import { initForConfig } from './core/toc-app.js';
     } catch (_) {}
   }
 
-  function enqueueEnabledTransition(nextEnabled, opts) {
-    opts = opts || {};
-    if (disposed) return Promise.resolve();
-    var want = !!nextEnabled;
-    var myId = ++transitionId;
-    var myQueueId = ++transitionQueueId;
-    var next = transitionChain.then(async function() {
-      if (myId !== transitionId) return;
+  async function applyEnabledState(want, opts) {
       if (want === currentEnabled) {
         // Even when the enabled state doesn't change, callers may request an expand.
         if (want) {
@@ -306,23 +295,20 @@ import { initForConfig } from './core/toc-app.js';
 
       await ensureStarted();
       await applyExpandState(opts);
-    });
-    var safe = next.catch(function(e) {
-      console.warn(msg('logPrefix') + ' enabled transition failed:', e);
-    });
-    transitionChain = safe;
-    safe.finally(function() {
-      if (transitionQueueId === myQueueId) {
-        transitionChain = Promise.resolve();
-      }
-    });
-    return safe;
   }
 
   function requestEnabled(enabled, opts) {
     if (disposed) return Promise.resolve();
     desiredEnabled = !!enabled;
-    return enqueueEnabledTransition(desiredEnabled, opts);
+    enabledTransition = enabledTransition
+      .catch(function() {})
+      .then(function() {
+        return applyEnabledState(desiredEnabled, opts || {});
+      })
+      .catch(function(e) {
+        console.warn(msg('logPrefix') + ' enabled transition failed:', e);
+      });
+    return enabledTransition;
   }
 
   async function main() {

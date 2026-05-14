@@ -9,7 +9,7 @@
 内容脚本源码使用 ES Modules 组织，并在构建时通过 esbuild 打包为单个 IIFE：
 - **源码**: `src/content.js` 作为入口，直接 import `utils/toc-utils.js` 和 `core/toc-app.js`，其余模块通过依赖树传递引入
 - **产物**: `dist/build/src/content.js` 是 Chrome MV3 实际动态注入的 bundle
-- **兼容**: 仅保留 `window.TOC_APP` 的少量调试入口和 `window.__TOC_ASSISTANT_CLEANUP__` 清理钩子，不再依赖全局模块命名空间
+- **兼容**: 仅保留 `window.__TOC_ASSISTANT_CLEANUP__` 清理钩子，不再依赖全局模块命名空间
 
 ## 📁 文件结构与代码统计
 
@@ -19,9 +19,8 @@ src/
 ├── background.js               # MV3 service worker (758行) - 图标状态、站点开关、动态注入
 ├── content.css                 # 样式文件 (895行) - 包含防御性CSS保护、CSS自定义属性主题、动画
 ├── README.md                   # 项目文档
-├── shared/                     # background 与内容脚本共享/对应的存储原语
-│   ├── storage-primitives.js       # (63行) importScripts 格式，设置 globalThis.__STORAGE_PRIMITIVES
-│   └── storage-primitives-esm.js   # (53行) ESM 格式，供内容脚本 bundle 使用
+├── shared/                     # background 与内容脚本共享的存储原语
+│   └── storage-primitives.js   # ESM 源码；构建时另产出 background 可 importScripts 的 IIFE
 ├── utils/                      # 工具模块 (1,546行)
 │   ├── constants.js            # (76行)  STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
 │   ├── core-utils.js           # (218行) 通用工具：消息、校验、焦点管理、JSON解析
@@ -52,7 +51,7 @@ src/
 
 ## 🔧 模块加载机制
 
-源码模块不再按运行时顺序逐个注入。`build.js` 使用 esbuild 从 `src/content.js` 静态追踪 ESM 依赖，打包成 `dist/build/src/content.js`。`src/background.js` 通过 `getContentScriptFiles()` 检测源文件是否包含 `import` 语句，选择注入 bundle 或源文件。
+源码模块不再按运行时顺序逐个注入。`build.js` 使用 esbuild 从 `src/content.js` 静态追踪 ESM 依赖，打包成 `dist/build/src/content.js`。扩展应加载 `dist/build`，`src/background.js` 只注入这一个内容脚本 bundle。
 
 ## 🌐 全局命名空间设计
 
@@ -61,8 +60,6 @@ src/
 保留的兼容/调试入口：
 - `window.__TOC_ASSISTANT_LOADED__`：重注入防护标志
 - `window.__TOC_ASSISTANT_CLEANUP__`：重注入或扩展 reload 时清理当前实例
-- `window.TOC_APP.initForConfig`：调试入口，等同 ESM 导出的 `initForConfig`
-- `window.TOC_APP.rebuild` / `window.TOC_APP.isRebuilding`：当前面板实例的调试辅助
 - `globalThis.__STORAGE_PRIMITIVES`：仅 background service worker 可用
 
 ## 🏗️ 架构设计原则
@@ -104,7 +101,7 @@ if (isExtensionContextInvalidated()) {
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
 - `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
 - `getBadgePosMap()` / `saveBadgePosMap()`: 徽标位置
-- 使用 `storage-primitives-esm.js` 的 `serializedWrite` 保证写入顺序
+- 使用 `shared/storage-primitives.js` 的 `serializedWrite` 保证写入顺序
 
 **dom-utils.js** (191行) — DOM操作
 - `collectBySelector()`: 执行 CSS/XPath 选择器
@@ -241,7 +238,6 @@ if (isExtensionContextInvalidated()) {
 - 无自动化测试框架，需手动加载扩展测试
 - 控制台日志分级输出
 - 错误边界和降级处理
-- `window.TOC_APP` 可在控制台调试
 
 ### 代码质量
 - 统一的代码风格

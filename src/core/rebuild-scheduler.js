@@ -249,5 +249,3 @@ export function createRebuildScheduler(onRebuild) {
 
     return handle;
   }
-
-export default { createRebuildScheduler: createRebuildScheduler };

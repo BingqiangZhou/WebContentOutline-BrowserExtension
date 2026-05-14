@@ -31,11 +31,6 @@ function copyFile(src, dest) {
   fs.copyFileSync(src, dest);
 }
 
-function writeFile(dest, text) {
-  fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.writeFileSync(dest, text);
-}
-
 function copyRecursive(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
   const entries = fs.readdirSync(src, { withFileTypes: true });
@@ -58,6 +53,23 @@ async function buildContentScript() {
     platform: 'browser',
     target: ['chrome116'],
     outfile: path.join(DIST_DIR, 'src', 'content.js'),
+    logLevel: 'silent',
+    legalComments: 'none'
+  });
+}
+
+async function buildStoragePrimitives() {
+  await esbuild.build({
+    entryPoints: [path.join(SRC_DIR, 'shared', 'storage-primitives.js')],
+    bundle: true,
+    format: 'iife',
+    globalName: '__TOC_STORAGE_PRIMITIVES_BUNDLE',
+    platform: 'browser',
+    target: ['chrome116'],
+    outfile: path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js'),
+    footer: {
+      js: 'globalThis.__STORAGE_PRIMITIVES = __TOC_STORAGE_PRIMITIVES_BUNDLE;'
+    },
     logLevel: 'silent',
     legalComments: 'none'
   });
@@ -91,8 +103,9 @@ async function main() {
 
   try {
     await buildContentScript();
+    await buildStoragePrimitives();
   } catch (e) {
-    console.error('  BUNDLE ERROR: src/content.js');
+    console.error('  BUNDLE ERROR');
     console.error(e && e.errors ? e.errors : e);
     process.exit(1);
   }
@@ -100,19 +113,13 @@ async function main() {
   if (!validateFile(path.join(DIST_DIR, 'src', 'content.js'))) {
     process.exit(1);
   }
+  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js'))) {
+    process.exit(1);
+  }
 
   copyFile(path.join(ROOT_DIR, 'manifest.json'), path.join(DIST_DIR, 'manifest.json'));
-  const backgroundSource = fs.readFileSync(path.join(SRC_DIR, 'background.js'), 'utf8')
-    .replace(
-      "const CONTENT_SCRIPT_DEV_BUNDLE = 'dist/build/src/content.js';",
-      "const CONTENT_SCRIPT_DEV_BUNDLE = 'src/content.js';"
-    );
-  writeFile(path.join(DIST_DIR, 'src', 'background.js'), backgroundSource);
+  copyFile(path.join(SRC_DIR, 'background.js'), path.join(DIST_DIR, 'src', 'background.js'));
   copyFile(path.join(SRC_DIR, 'content.css'), path.join(DIST_DIR, 'src', 'content.css'));
-  copyFile(
-    path.join(SRC_DIR, 'shared', 'storage-primitives.js'),
-    path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js')
-  );
 
   const localesDir = path.join(ROOT_DIR, '_locales');
   if (fs.existsSync(localesDir)) {

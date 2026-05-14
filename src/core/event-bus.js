@@ -17,5 +17,3 @@ export function emit(event) {
     listeners[event].forEach(function(fn) { fn.apply(null, args); });
   }
 }
-
-export default { on: on, off: off, emit: emit };

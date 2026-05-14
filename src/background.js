@@ -17,8 +17,7 @@ function originFromUrl(url) {
   }
 }
 
-const CONTENT_SCRIPT_BUNDLE = 'src/content.js';
-const CONTENT_SCRIPT_DEV_BUNDLE = 'dist/build/src/content.js';
+const CONTENT_SCRIPTS = ['src/content.js'];
 
 const CONTENT_CSS = ['src/content.css'];
 const SESSION_KEYS = {
@@ -390,27 +389,6 @@ async function setInjectionBadge(tabId, failed) {
   }
 }
 
-let resolvedContentScriptFiles = null;
-async function getContentScriptFiles() {
-  if (resolvedContentScriptFiles) return resolvedContentScriptFiles;
-  try {
-    const res = await fetch(chrome.runtime.getURL(CONTENT_SCRIPT_BUNDLE), { cache: 'no-store' });
-    const text = res && res.ok ? await res.text() : '';
-    if (/^\s*import\s/m.test(text)) {
-      const devRes = await fetch(chrome.runtime.getURL(CONTENT_SCRIPT_DEV_BUNDLE), { cache: 'no-store' });
-      if (devRes && devRes.ok) {
-        resolvedContentScriptFiles = [CONTENT_SCRIPT_DEV_BUNDLE];
-        return resolvedContentScriptFiles;
-      }
-      console.warn('[toc] source content script is unbundled; run npm run build or load dist/build as the extension root');
-    }
-  } catch (e) {
-    console.warn('[toc] content script resolution failed:', e);
-  }
-  resolvedContentScriptFiles = [CONTENT_SCRIPT_BUNDLE];
-  return resolvedContentScriptFiles;
-}
-
 async function injectIntoTab(tabId) {
   // First, inject CSS before JS to ensure styles are available
   let cssInserted = false;
@@ -440,15 +418,13 @@ async function injectIntoTab(tabId) {
 
   // Fast path: inject all JS files in one call (keeps current file-based structure).
   try {
-    const contentScripts = await getContentScriptFiles();
-    if (contentScripts.length) {
-      await chrome.scripting.executeScript({ target: { tabId }, files: contentScripts });
+    if (CONTENT_SCRIPTS.length) {
+      await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS });
     }
   } catch (e) {
     console.warn('[toc] injectIntoTab failed (js bundle):', e, { tabId });
     // Fallback: inject sequentially so we can surface the exact failing file.
-    const contentScripts = await getContentScriptFiles();
-    for (const file of contentScripts) {
+    for (const file of CONTENT_SCRIPTS) {
       try {
         await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
       } catch (seqErr) {

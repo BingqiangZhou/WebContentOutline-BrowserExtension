@@ -9,6 +9,13 @@ import {
 import { uiConst } from '../utils/constants.js';
 import { createDragController } from '../utils/drag-helper.js';
 import * as NL from '../core/nav-lock.js';
+import {
+  createTimerBag,
+  createWindowListenerAdder,
+  clearChildren,
+  setFixedPosition,
+  clampPanelPosition
+} from './floating-panel-helpers.js';
 
   var CFG = (function() {
     var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
@@ -44,45 +51,21 @@ export function renderFloatingPanel(opts) {
     var panel = document.createElement('div');
     var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var listenerSignal = listenersController ? listenersController.signal : null;
-    var addWindowListener = function(type, handler, options) {
-      var capture = (typeof options === 'boolean') ? options : !!(options && options.capture);
-      var attached = false;
-      try {
-        if (listenerSignal) {
-          window.addEventListener(type, handler, { ...(options || {}), signal: listenerSignal });
-          attached = true;
-        }
-      } catch (_) {}
-      if (!attached) {
-        window.addEventListener(type, handler, options);
-      }
-      return function() {
-        try { window.removeEventListener(type, handler, capture); } catch (_) {}
-      };
-    };
+    var addWindowListener = createWindowListenerAdder(listenerSignal);
 
     var resolveShown = null;
     var whenShown = new Promise(function(resolve) { resolveShown = resolve; });
 
     // Unified timer management for better cleanup and resource management
-    var timers = {
-      unlock: null,
-      scrollStop: null,
-      pendingRebuildRecheck: null,
-      clearUserSelected: null,
-      expandAnim: null,
-      persist: null,
-      removal: null
-    };
-
-    var clearAllTimers = function() {
-      Object.keys(timers).forEach(function(key) {
-        if (timers[key]) {
-          clearTimeout(timers[key]);
-          timers[key] = null;
-        }
-      });
-    };
+    var timers = createTimerBag([
+      'unlock',
+      'scrollStop',
+      'pendingRebuildRecheck',
+      'clearUserSelected',
+      'expandAnim',
+      'persist',
+      'removal'
+    ]);
 
     var intersectionObserver = null;
     var showRaf = null;
@@ -155,10 +138,9 @@ export function renderFloatingPanel(opts) {
         var nextRefY = refY * ratioH;
         var nextLeft = nextLeftEdge;
         var nextTop = rect.top + (nextRefY - refY);
-        var maxLeft = vw - pw - CFG.DRAG_MARGIN_PX;
-        var maxTop = vh - ph - CFG.DRAG_MARGIN_PX;
-        var left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, nextLeft));
-        var top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, nextTop));
+        var constrained = clampPanelPosition(nextLeft, nextTop, pw, ph, CFG.DRAG_MARGIN_PX);
+        var left = constrained.left;
+        var top = constrained.top;
 
         var persistBtnX = null;
         var persistBtnY = null;
@@ -168,10 +150,7 @@ export function renderFloatingPanel(opts) {
         }
 
         // === WRITE PHASE: all style writes together ===
-        panel.style.setProperty('left', left + 'px', 'important');
-        panel.style.setProperty('top', top + 'px', 'important');
-        panel.style.setProperty('right', 'auto', 'important');
-        panel.style.setProperty('bottom', 'auto', 'important');
+        setFixedPosition(panel, left, top);
 
         lastViewportW = vw;
         lastViewportH = vh;
@@ -385,9 +364,7 @@ export function renderFloatingPanel(opts) {
     var currentTocMeta = tocMeta || null;
 
     var renderListItems = function() {
-      while (list.firstChild) {
-        try { list.removeChild(list.firstChild); } catch (_) { break; }
-      }
+      clearChildren(list);
 
       if (currentTocMeta && currentTocMeta.truncated) {
         var note = document.createElement('div');
@@ -688,16 +665,8 @@ export function renderFloatingPanel(opts) {
 
         var pw = panel.offsetWidth || CFG.PANEL_WIDTH;
         var ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
-        var maxLeft = window.innerWidth - pw - CFG.DRAG_MARGIN_PX;
-        var maxTop = window.innerHeight - ph - CFG.DRAG_MARGIN_PX;
-
-        left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, left));
-        top = Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, top));
-
-        panel.style.setProperty('left', left + 'px', 'important');
-        panel.style.setProperty('top', top + 'px', 'important');
-        panel.style.setProperty('right', 'auto', 'important');
-        panel.style.setProperty('bottom', 'auto', 'important');
+        var pos = clampPanelPosition(left, top, pw, ph, CFG.DRAG_MARGIN_PX);
+        setFixedPosition(panel, pos.left, pos.top);
       },
       onEnd: function(drag) {
         panel.style.cursor = '';
@@ -774,7 +743,7 @@ export function renderFloatingPanel(opts) {
       try { removePickerEndListener && removePickerEndListener(); } catch (_) {}
       try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
-      clearAllTimers();
+      timers.clearAll();
       try {
         if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
       } catch (_) {}
@@ -884,5 +853,3 @@ export function renderFloatingPanel(opts) {
       updateItems
     };
   }
-
-export default { renderFloatingPanel: renderFloatingPanel };

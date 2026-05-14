@@ -83,9 +83,3 @@ export function showToast(text, opts) {
       return { close: function() {} };
     }
   }
-
-var api = {
-    ensureToastContainer: ensureToastContainer,
-    showToast: showToast
-  };
-export default api;

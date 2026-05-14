@@ -256,17 +256,21 @@
 
 ### 架构设计
 
-**模块化设计**：23 个模块文件，使用 `define()`/`require()` 依赖注入（定义在 `src/background.js` 的 CONTENT_SCRIPTS 数组中）
-- Layer 0: `loader.js` - 模块注册系统
-- Layer 1: `utils/constants.js`, `utils/core-utils.js`, `utils/toast.js` - 基础工具
-- Layer 2: `shared/storage-primitives.js`, `utils/storage.js`, `utils/toc-utils.js`, `utils/badge-position.js`, `utils/dom-utils.js` - 存储与 DOM 工具
-- Layer 3: `utils/drag-helper.js`, `utils/css-selector.js`, `utils/focus-trap.js`, `utils/toc-builder.js` - 工具模块
-- Layer 4: `core/nav-lock.js` - 导航锁定模块
-- Layer 5: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI 组件
-- Layer 6: `core/config-manager.js`, `core/url-monitor.js`, `core/dom-watcher.js`, `core/rebuild-scheduler.js`, `core/toc-app.js` - 核心逻辑
-- Layer 7: `content.js` - 入口文件
+**ES Modules + esbuild**：源码使用标准 ESM `import`/`export`。构建时 esbuild 将内容脚本依赖树打包为单个 IIFE，无需运行时模块加载或加载顺序管理。
 
-**模块系统**：模块使用 `define(name, deps, factory)` 进行依赖注入，通过事件机制通信（替代循环依赖）
+**内容脚本依赖图**：
+```
+src/content.js（入口）
+  ├── utils/toc-utils.js（工具模块聚合重导出）
+  └── core/toc-app.js（编排器）
+        ├── ui/ 组件（折叠徽标、元素拾取器、浮动面板）
+        ├── core/config-manager.js → event-bus.js, focus-trap.js
+        └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
+```
+
+**后台脚本**：使用 `importScripts('shared/storage-primitives.js')`（MV3 service worker 不支持 ESM），通过 `globalThis.__STORAGE_PRIMITIVES` 访问共享工具。
+
+**共享存储原语**：同一逻辑的两个版本 — `storage-primitives.js`（用于 `importScripts`）和 `storage-primitives-esm.js`（用于内容脚本 bundle）。
 
 ### 关键算法
 
@@ -276,7 +280,7 @@
 - **防抖重建**：MutationObserver + 动态防抖（500ms–1s）避免频繁更新
 - **选择器生成**：优先使用 class 选择器，回退到路径选择器
 - **导航锁定**：用户点击时锁定 IntersectionObserver，防止跳动
-- **导航锁故障保护**：卡死时超时自动解锁（默认3秒）
+- **导航锁故障保护**：卡死时超时自动解锁（默认8秒）
 - **动画帧管理**：调度和清理 requestAnimationFrame 回调
 - **存储配额处理**：配额超出时自动修剪旧数据
 - **配置变更重试**：失败时重试配置变更并验证结果
@@ -371,10 +375,10 @@
 ## 🔧 开发指南
 
 ### 构建与打包
-本项目采用纯原生 JavaScript 开发，无需编译工具。`build.js` 脚本负责验证和打包：
-- 直接编辑文件即可，无需编译
-- 运行 `node build.js` 验证语法并创建分发包
-- 构建脚本将运行时文件复制到 `dist/build/`，并创建 `dist/packages/v{版本号}.zip`
+源码使用 ES Modules，构建时通过 esbuild 打包：
+- 直接编辑文件即可 — esbuild 在构建时解析 ESM 导入
+- 运行 `node build.js` 使用 esbuild 打包、验证语法并创建分发包
+- 构建脚本生成 `dist/build/src/content.js`（IIFE bundle）并创建 `dist/packages/v{版本号}.zip`
 
 ### 调试方法
 1. **后台页面调试**：在 `edge://extensions/` 页面点击"Service Worker"查看后台日志
@@ -383,9 +387,9 @@
 
 ### 添加新功能
 1. 在对应模块目录创建新文件（`utils/`、`ui/`、`core/`、`shared/`）
-2. 更新 `src/background.js` 中 `CONTENT_SCRIPTS` 数组的加载顺序（保持依赖顺序）
-3. 通过全局命名空间暴露 API（`window.MODULE_NAME`）
-4. 在依赖模块中添加依赖检查
+2. 使用 `export` 导出模块的公共 API
+3. 在需要使用的模块中通过 `import` 引入（esbuild 在构建时自动解析）
+4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
 
 详细的技术文档请查看 [`CLAUDE.md`](CLAUDE.md)。
 

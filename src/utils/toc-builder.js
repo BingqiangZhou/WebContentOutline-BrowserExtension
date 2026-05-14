@@ -130,10 +130,3 @@ export function buildTocItems(cfg, extraSelectors) {
 
       return buildTocItemsFromSelectors(combined, cfg);
     }
-
-var api = {
-      buildTocItems: buildTocItems,
-      buildTocItemsFromSelectors: buildTocItemsFromSelectors
-    };
-
-export default api;

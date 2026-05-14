@@ -338,6 +338,3 @@ export async function updateConfigFromStorage(cfg) {
       console.warn(msg('logReadConfigFailed'), e);
     }
   }
-
-var api = { siteConfig: siteConfig, saveSelector: saveSelector, updateConfigFromStorage: updateConfigFromStorage };
-export default api;

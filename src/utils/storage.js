@@ -10,7 +10,7 @@ import {
   serializedWrite,
   isQuotaExceededError,
   pruneObjectToLimit
-} from '../shared/storage-primitives-esm.js';
+} from '../shared/storage-primitives.js';
 import { showToast } from './toast.js';
 
   var __storageErrorOnce = new Map();
@@ -390,23 +390,3 @@ export function getBadgePosMap() {
 export function saveBadgePosMap(map) {
     return setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
   }
-
-var api = {
-    trackOnce: trackOnce,
-    notifyStorageWriteError: notifyStorageWriteError,
-    normalizeSelectorEntry: normalizeSelectorEntry,
-    normalizeTocConfigs: normalizeTocConfigs,
-    validateStorageValue: validateStorageValue,
-    normalizeStorageValue: normalizeStorageValue,
-    getStorage: getStorage,
-    setStorage: setStorage,
-    getConfigs: getConfigs,
-    saveConfigs: saveConfigs,
-    getEnabledMap: getEnabledMap,
-    saveEnabledMap: saveEnabledMap,
-    getPanelStateMap: getPanelStateMap,
-    savePanelStateMap: savePanelStateMap,
-    getBadgePosMap: getBadgePosMap,
-    saveBadgePosMap: saveBadgePosMap
-  };
-export default api;

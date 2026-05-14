@@ -192,5 +192,3 @@ export function createUrlMonitor(opts) {
       invalidate: invalidate
     };
   }
-
-export default { createUrlMonitor: createUrlMonitor };

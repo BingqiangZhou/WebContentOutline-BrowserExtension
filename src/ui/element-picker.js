@@ -268,5 +268,3 @@ export function createElementPicker(onPicked, onCancel) {
 
     return { cleanup: cleanup };
   }
-
-export default { showPickerResult: showPickerResult, createElementPicker: createElementPicker };

@@ -2,7 +2,7 @@
 
 import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';
 import { uiConst } from './constants.js';
-import { serializedWrite, pruneObjectToLimit } from '../shared/storage-primitives-esm.js';
+import { serializedWrite, pruneObjectToLimit } from '../shared/storage-primitives.js';
 import { isSafeXPathExpression, originFromUrl } from './core-utils.js';
 
     /**
@@ -174,18 +174,3 @@ export function cleanupOwnedElements(selectorFallback) {
         });
       } catch (_) {}
     }
-
-var api = {
-      originFromUrl: originFromUrl,
-      matchWildcard: matchWildcard,
-      findMatchingConfig: findMatchingConfig,
-      getSiteEnabledByOrigin: getSiteEnabledByOrigin,
-      getPanelExpandedByOrigin: getPanelExpandedByOrigin,
-      setPanelExpandedByOrigin: setPanelExpandedByOrigin,
-      collectBySelector: collectBySelector,
-      uniqueInDocumentOrder: uniqueInDocumentOrder,
-      scrollToElement: scrollToElement,
-      cleanupOwnedElements: cleanupOwnedElements
-    };
-
-export default api;

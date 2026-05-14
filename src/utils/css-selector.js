@@ -48,5 +48,3 @@ export function cssPathFor(el) {
   }
   return path.join(' > ');
 }
-
-export default { buildClassSelector: buildClassSelector, cssPathFor: cssPathFor };

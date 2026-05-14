@@ -25,7 +25,6 @@ export var UI_CONSTANTS = {
   PANEL_HEIGHT: 400,
   BADGE_WIDTH: 80,
   BADGE_HEIGHT: 32,
-  BUTTON_OFFSET: 20,
   DRAG_THRESHOLD_PX: 3,
   UNLOCK_AFTER_MS: 1000,
   SCROLL_STOP_MS: 500,
@@ -34,7 +33,6 @@ export var UI_CONSTANTS = {
   PICKER_TIMEOUT_MS: 20000,
   EXPAND_ANIM_MS: 300,
   MUTATION_DEBOUNCE_MS: 500,
-  MUTATION_UNLOCK_POLL_MS: 200,
 
   // Polling & URL monitoring timing
   POLL_INTERVAL_MS: 3000,
@@ -72,5 +70,3 @@ export function uiConst(name, fallback) {
     return fallback;
   }
 }
-
-export default { STORAGE_KEYS: STORAGE_KEYS, UI_CONSTANTS: UI_CONSTANTS, uiConst: uiConst };

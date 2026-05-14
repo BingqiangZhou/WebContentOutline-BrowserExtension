@@ -74,5 +74,3 @@ import { uiConst } from '../utils/constants.js';
   };
 
 export { lock, unlock, isLocked, onUnlock, destroy };
-
-export default { lock: lock, unlock: unlock, isLocked: isLocked, onUnlock: onUnlock, destroy: destroy };

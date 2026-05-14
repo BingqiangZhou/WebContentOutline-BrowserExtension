@@ -158,5 +158,3 @@ export function createDomWatcher(onMutation) {
       invalidate: invalidate
     };
   }
-
-export default { createDomWatcher: createDomWatcher };

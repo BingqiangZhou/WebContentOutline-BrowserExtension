@@ -262,5 +262,3 @@ export function renderCollapsedBadge(side, onExpand, centerPos) {
       }
     };
   }
-
-export default { renderCollapsedBadge: renderCollapsedBadge };

@@ -201,18 +201,3 @@ export function originFromUrl(url) {
       }
     }
   }
-
-var api = {
-    isExtensionContextInvalidated: isExtensionContextInvalidated,
-    msg: msg,
-    isPlainObject: isPlainObject,
-    isContextInvalidatedError: isContextInvalidatedError,
-    getFocusableWithin: getFocusableWithin,
-    safeJsonParse: safeJsonParse,
-    getFiniteNumber: getFiniteNumber,
-    isSafeXPathExpression: isSafeXPathExpression,
-    isValidCssSelector: isValidCssSelector,
-    validateSelectorExpression: validateSelectorExpression,
-    originFromUrl: originFromUrl
-  };
-export default api;

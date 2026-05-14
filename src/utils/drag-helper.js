@@ -163,9 +163,3 @@ export function createDragController(options) {
         isActive: function() { return state.active; }
       };
     }
-
-var api = {
-      createDragController: createDragController
-    };
-
-export default api;

@@ -3,7 +3,7 @@
 import { getBadgePosMap, saveBadgePosMap } from './storage.js';
 import { uiConst } from './constants.js';
 import { getFiniteNumber } from './core-utils.js';
-import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/storage-primitives-esm.js';
+import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/storage-primitives.js';
 
 export function resolveBadgePosForViewport(pos) {
       try {
@@ -118,11 +118,3 @@ export function setBadgePosByHost(host, pos) {
         });
       });
     }
-
-var api = {
-      getBadgePosByHost: getBadgePosByHost,
-      setBadgePosByHost: setBadgePosByHost,
-      resolveBadgePosForViewport: resolveBadgePosForViewport
-    };
-
-export default api;

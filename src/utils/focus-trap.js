@@ -45,5 +45,3 @@ export function createFocusTrap(container, opts) {
     try { container.removeEventListener('keydown', handleKeydown); } catch (_) {}
   };
 }
-
-export default { createFocusTrap: createFocusTrap };
