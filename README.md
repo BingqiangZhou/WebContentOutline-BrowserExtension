@@ -224,12 +224,12 @@ For complex page structures, you can use XPath:
 │   │   ├── toc-builder.js     # TOC building logic
 │   │   └── drag-helper.js     # Pointer-event drag controller
 │   ├── shared/                # Shared between contexts
-│   │   ├── storage-primitives.js     # Shared storage utilities (importScripts format)
-│   │   └── storage-primitives-esm.js # ESM version for content script bundle
+│   │   └── storage-primitives.js     # Storage utilities (ESM source; build produces IIFE for background)
 │   ├── ui/                    # UI components
 │   │   ├── collapsed-badge.js # Collapsed TOC button
 │   │   ├── element-picker.js  # Element picker
-│   │   └── floating-panel.js  # Floating panel
+│   │   ├── floating-panel.js  # Floating panel
+│   │   └── floating-panel-helpers.js # Extracted panel helpers
 │   └── core/                  # Core logic
 │       ├── nav-lock.js        # Navigation lock module
 │       ├── config-manager.js  # Configuration management
@@ -268,9 +268,9 @@ src/content.js (entry)
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
 
-**Background Script**: Uses `importScripts('shared/storage-primitives.js')` (MV3 service workers cannot use ESM). Accesses shared utilities via `globalThis.__STORAGE_PRIMITIVES`.
+**Background Script**: Uses `importScripts()` to load the IIFE bundle of `storage-primitives.js` produced by the build (MV3 service workers cannot use ESM).
 
-**Shared Storage Primitives**: Two versions of the same logic — `storage-primitives.js` (for `importScripts`) and `storage-primitives-esm.js` (for content script bundle).
+**Shared Storage Primitives**: `storage-primitives.js` is ESM source; the build produces a separate IIFE bundle for the background service worker.
 
 ### Key Algorithms
 

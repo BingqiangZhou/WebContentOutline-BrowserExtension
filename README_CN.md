@@ -224,12 +224,12 @@
 │   │   ├── toc-builder.js     # TOC 构建逻辑
 │   │   └── drag-helper.js     # Pointer Events 拖拽控制器
 │   ├── shared/                # 跨上下文共享模块
-│   │   ├── storage-primitives.js     # 共享存储工具（importScripts 格式）
-│   │   └── storage-primitives-esm.js # ESM 版本，供内容脚本 bundle 使用
+│   │   └── storage-primitives.js     # 存储工具（ESM 源码；构建时产出 background 可 importScripts 的 IIFE）
 │   ├── ui/                    # UI 组件
 │   │   ├── collapsed-badge.js # 折叠按钮
 │   │   ├── element-picker.js  # 元素拾取器
-│   │   └── floating-panel.js  # 浮动面板
+│   │   ├── floating-panel.js  # 浮动面板
+│   │   └── floating-panel-helpers.js # 提取的面板辅助函数
 │   └── core/                  # 核心逻辑
 │       ├── nav-lock.js        # 导航锁定模块
 │       ├── config-manager.js  # 配置管理
@@ -268,9 +268,9 @@ src/content.js（入口）
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
 
-**后台脚本**：使用 `importScripts('shared/storage-primitives.js')`（MV3 service worker 不支持 ESM），通过 `globalThis.__STORAGE_PRIMITIVES` 访问共享工具。
+**后台脚本**：通过 `importScripts()` 加载构建产出的 `storage-primitives.js` IIFE bundle（MV3 service worker 不支持 ESM）。
 
-**共享存储原语**：同一逻辑的两个版本 — `storage-primitives.js`（用于 `importScripts`）和 `storage-primitives-esm.js`（用于内容脚本 bundle）。
+**共享存储原语**：`storage-primitives.js` 是 ESM 源码；构建时产出单独的 IIFE bundle 供后台 service worker 使用。
 
 ### 关键算法
 

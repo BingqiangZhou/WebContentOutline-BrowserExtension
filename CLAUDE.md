@@ -38,7 +38,7 @@ No automated test framework. Manual testing required by loading the extension an
 
 Content script modules use **ES Modules** (`import`/`export`). At build time, esbuild bundles the entire dependency tree starting from `src/content.js` into a single IIFE at `dist/build/src/content.js`. There is no runtime module loading or load-order concern.
 
-The background service worker cannot use ESM (MV3 limitation). It uses `importScripts('shared/storage-primitives.js')` and accesses shared utilities via `globalThis.__STORAGE_PRIMITIVES`.
+The background service worker cannot use ESM (MV3 limitation). The build produces a separate IIFE bundle of `shared/storage-primitives.js` for `importScripts()` in the service worker.
 
 ### Dependency Graph
 
@@ -47,19 +47,20 @@ src/content.js (entry point)
   ├── utils/toc-utils.js (barrel re-export)
   │     ├── constants.js, core-utils.js, toast.js
   │     ├── storage.js, badge-position.js, dom-utils.js
-  │     └── (storage.js → shared/storage-primitives-esm.js)
+  │     └── (storage.js → shared/storage-primitives.js)
   └── core/toc-app.js (orchestrator)
         ├── utils/toc-builder.js → dom-utils.js
         ├── ui/collapsed-badge.js, ui/element-picker.js, ui/floating-panel.js
+        │     └── (floating-panel.js → ui/floating-panel-helpers.js)
         ├── core/config-manager.js → event-bus.js, focus-trap.js
         ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
         └── core/nav-lock.js
 ```
 
-Background script (separate context):
+Background script (separate context, uses IIFE bundle produced by build):
 ```
 src/background.js
-  └── importScripts → shared/storage-primitives.js (globalThis.__STORAGE_PRIMITIVES)
+  └── importScripts → shared/storage-primitives.js (IIFE bundle)
 ```
 
 ### Window Globals
@@ -70,12 +71,10 @@ Only a few window globals remain for compatibility/debugging:
 |--------|---------|
 | `window.__TOC_ASSISTANT_LOADED__` | Reinjection guard (prevents double-initialization) |
 | `window.__TOC_ASSISTANT_CLEANUP__` | Disposal hook for dev reload/reinjection |
-| `window.TOC_APP` | Debug access: `initForConfig`, `rebuild`, `isRebuilding` |
-| `globalThis.__STORAGE_PRIMITIVES` | Background service worker only (not available in content scripts) |
 
 ### Entry Points
 
-**`src/background.js`** - Service worker (758 lines)
+**`src/background.js`** - Service worker
 - Uses `importScripts('shared/storage-primitives.js')` for shared storage utilities
 - Manages per-site enable/disable state in `chrome.storage.local` → `tocSiteEnabledMap`
 - Updates extension icon (enabled=blue, disabled=gray)
@@ -83,7 +82,7 @@ Only a few window globals remain for compatibility/debugging:
 - Cross-tab synchronization for same origin
 - Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`
 
-**`src/content.js`** - Content script entry (469 lines)
+**`src/content.js`** - Content script entry
 - Checks site enable state on load
 - Imports `initForConfig` from `core/toc-app.js` via ESM
 - Sets up reinjection guard and cleanup hooks
@@ -97,13 +96,13 @@ Only a few window globals remain for compatibility/debugging:
 - Dynamic icon switching based on state
 - Message broadcast to all tabs of same origin
 
-**2. Configuration Management (`core/config-manager.js`, 343 lines)**
+**2. Configuration Management (`core/config-manager.js`)**
 - Storage: `chrome.storage.local` → key: `tocConfigs`
 - Per-site URL pattern matching (wildcards supported)
 - Selector management (CSS/XPath)
 - Emits `toc:config-changed` via event bus when configs update
 
-**3. TOC Building Pipeline (`utils/toc-builder.js`, 139 lines)**
+**3. TOC Building Pipeline (`utils/toc-builder.js`)**
 ```
 Selectors (CSS/XPath)
   → collectBySelector() → DOM Elements
@@ -112,7 +111,7 @@ Selectors (CSS/XPath)
   → Map to TOC items {id, el, text}
 ```
 
-**4. UI State Management (`core/toc-app.js`, 658 lines)**
+**4. UI State Management (`core/toc-app.js`)**
 - Uses nav-lock via ESM import for navigation locking
 - Active item restoration after rebuild
 - Pending rebuild queue (processes after navigation unlock)
@@ -120,11 +119,11 @@ Selectors (CSS/XPath)
 
 **5. Dynamic Content Updates**
 Split into three focused modules:
-- `core/dom-watcher.js` (162 lines) — MutationObserver-based DOM change detection
-- `core/url-monitor.js` (196 lines) — URL change detection via History API + polling
-- `core/rebuild-scheduler.js` (253 lines) — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
+- `core/dom-watcher.js` — MutationObserver-based DOM change detection
+- `core/url-monitor.js` — URL change detection via History API + polling
+- `core/rebuild-scheduler.js` — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
 
-**6. Event Bus (`core/event-bus.js`, 21 lines)**
+**6. Event Bus (`core/event-bus.js`)**
 - Lightweight pub/sub: `on(event, fn)`, `off(event, fn)`, `emit(event, ...args)`
 - Currently used for `toc:config-changed` event (config-manager → toc-app)
 
@@ -171,7 +170,7 @@ Split into three focused modules:
 
 ## CSS Architecture (`src/content.css`)
 
-- **895 lines** of defensive CSS
+- Defensive CSS with CSS custom properties for light/dark theming
 - Uses CSS custom properties for light/dark theming
 - Global reset: `.toc-floating, .toc-floating * { all: unset !important; }`
 - All styles use `!important` to prevent host page interference
@@ -200,7 +199,7 @@ Split into three focused modules:
 - `default_locale`: "en" - i18n support
 - Content script is a single bundled IIFE, injected dynamically via `chrome.scripting.executeScript`
 - Background script uses `importScripts()` (MV3 service workers cannot use ESM)
-- Shared storage primitives exist in two formats: `.js` (for `importScripts`) and `-esm.js` (for content script bundle)
+- `shared/storage-primitives.js` is ESM source; build produces a separate IIFE bundle for the background service worker
 
 ## Common Modification Patterns
 
@@ -214,9 +213,9 @@ Split into three focused modules:
 Edit `utils/toc-builder.js` - handles selector execution, filtering, and item mapping
 
 ### Modifying UI components
-- Floating panel: `ui/floating-panel.js` (888 lines, main TOC rendering, IntersectionObserver)
-- Collapsed badge: `ui/collapsed-badge.js` (266 lines, draggable button)
-- Element picker: `ui/element-picker.js` (272 lines, hover highlighting, click selection)
+- Floating panel: `ui/floating-panel.js` (main TOC rendering, IntersectionObserver) + `ui/floating-panel-helpers.js` (extracted helpers)
+- Collapsed badge: `ui/collapsed-badge.js` (draggable button)
+- Element picker: `ui/element-picker.js` (hover highlighting, click selection)
 
 ### Adding new storage keys
 Use `chrome.storage.local` - follow existing patterns in `utils/storage.js` for storage wrappers. Add the key name to `STORAGE_KEYS` in `utils/constants.js`.
