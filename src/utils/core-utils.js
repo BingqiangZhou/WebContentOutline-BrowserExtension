@@ -200,6 +200,18 @@ define('core-utils', ['toc-constants'], function(C) {
     }
   }
 
+  function originFromUrl(url) {
+    try {
+      return new URL(url).origin;
+    } catch (e) {
+      try {
+        return location.origin;
+      } catch (_) {
+        return '';
+      }
+    }
+  }
+
   var api = {
     isExtensionContextInvalidated: isExtensionContextInvalidated,
     msg: msg,
@@ -210,7 +222,8 @@ define('core-utils', ['toc-constants'], function(C) {
     getFiniteNumber: getFiniteNumber,
     isSafeXPathExpression: isSafeXPathExpression,
     isValidCssSelector: isValidCssSelector,
-    validateSelectorExpression: validateSelectorExpression
+    validateSelectorExpression: validateSelectorExpression,
+    originFromUrl: originFromUrl
   };
   // Backward compat
   try {

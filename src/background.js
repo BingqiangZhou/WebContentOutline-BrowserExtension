@@ -8,7 +8,7 @@ const BG_STORAGE_KEYS = {
   SITE_ENABLE_MAP: 'tocSiteEnabledMap'
 };
 
-// Helper: get origin from URL
+// Duplicated from core-utils.js (service worker cannot use define/require module system)
 function originFromUrl(url) {
   try {
     return new URL(url).origin;

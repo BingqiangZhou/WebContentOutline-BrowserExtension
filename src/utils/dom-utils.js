@@ -11,6 +11,7 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
     var touchObjectKey = storagePrimitives.touchObjectKey;
     var pruneObjectToLimit = storagePrimitives.pruneObjectToLimit;
     var isSafeXPathExpression = coreUtils.isSafeXPathExpression;
+    var originFromUrl = coreUtils.originFromUrl;
 
     // --- Module-private cache for panel expanded state ---
     var __panelStateCache = null;
@@ -26,22 +27,6 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
           }
         });
       } catch (_) {}
-    }
-
-    /**
-     * Get origin string from a URL
-     * @param {string} url
-     */
-    function originFromUrl(url) {
-      try {
-        return new URL(url).origin;
-      } catch (e) {
-        try {
-          return location.origin;
-        } catch (_) {
-          return '';
-        }
-      }
     }
 
     /**
