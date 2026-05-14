@@ -10,7 +10,7 @@
 A web table of contents generator that automatically creates interactive floating TOC for any website to enhance reading experience.
 
 <p align="left">
-  <img src="dist/descriptions/ChatGPT_Desc_screenshots1280x800_EN.png" alt="Web TOC Assistant Screenshot" width="800"/>
+  <img src="docs/descriptions/ChatGPT_Desc_screenshots1280x800_EN.png" alt="Web TOC Assistant Screenshot" width="800"/>
 </p>
 
 ## ✨ Key Features
@@ -195,6 +195,8 @@ For complex page structures, you can use XPath:
 
 ```
 ├── manifest.json              # Manifest V3 configuration
+├── build.js                   # Build & packaging script
+├── package.json               # Node.js metadata
 ├── icons/                     # Extension icons
 │   ├── png/                   # PNG icons (16/32/48/128)
 │   │   ├── toc-enabled-*.png  # Enabled state icons
@@ -206,25 +208,40 @@ For complex page structures, you can use XPath:
 │   └── zh_CN/
 │       └── messages.json      # Chinese translation
 ├── src/
+│   ├── loader.js              # Module loader (define/require)
 │   ├── background.js          # Background service worker
 │   ├── content.js             # Content script entry
 │   ├── content.css            # Content script styles
-│   ├── utils.js               # Utility functions
-│   ├── README.md              # Technical documentation
 │   ├── utils/                 # Utility modules
-│   │   ├── css-selector.js   # CSS selector generation
-│   │   ├── toc-builder.js    # TOC building logic
-│   │   └── drag-helper.js    # Pointer-event drag controller
+│   │   ├── constants.js       # Storage keys, UI constants
+│   │   ├── core-utils.js      # Type checks, i18n, validation
+│   │   ├── toast.js           # Toast notifications
+│   │   ├── storage.js         # Storage I/O and normalization
+│   │   ├── toc-utils.js       # Aggregate re-exports for convenience
+│   │   ├── badge-position.js  # Badge position persistence
+│   │   ├── dom-utils.js       # DOM ops, URL matching, site state
+│   │   ├── css-selector.js    # CSS selector generation
+│   │   ├── focus-trap.js      # Focus trap utility
+│   │   ├── toc-builder.js     # TOC building logic
+│   │   └── drag-helper.js     # Pointer-event drag controller
+│   ├── shared/                # Shared between contexts
+│   │   └── storage-primitives.js  # Shared storage utilities
 │   ├── ui/                    # UI components
-│   │   ├── collapsed-TOC button.js    # Collapsed button
-│   │   ├── element-picker.js     # Element picker
-│   │   └── floating-panel.js     # Floating panel
+│   │   ├── collapsed-badge.js # Collapsed TOC button
+│   │   ├── element-picker.js  # Element picker
+│   │   └── floating-panel.js  # Floating panel
 │   └── core/                  # Core logic
-│       ├── config-manager.js     # Configuration management
-│       ├── mutation-observer.js  # Page change observer
-│       └── toc-app.js            # Main application logic
+│       ├── nav-lock.js        # Navigation lock module
+│       ├── config-manager.js  # Configuration management
+│       ├── dom-watcher.js     # MutationObserver wrapper
+│       ├── url-monitor.js     # URL/hash change monitor
+│       ├── rebuild-scheduler.js # Rebuild scheduling & coordination
+│       └── toc-app.js         # Main application logic
+├── docs/                      # Documentation assets
+│   ├── PRIVACY_POLICY.md      # Privacy policy
+│   └── descriptions/          # Screenshots & store descriptions
 ├── CLAUDE.md                  # Claude Code development guide
-└── README_EN.md               # Chinese version (中文版)
+└── README_CN.md               # Chinese version (中文版)
 ```
 
 ### Core Technologies
@@ -238,30 +255,27 @@ For complex page structures, you can use XPath:
 
 ### Architecture
 
-**Modular Design**: 11 module files loaded in dependency order
-- Layer 1: `utils.js` - Base utilities
-- Layer 2: `utils/css-selector.js`, `utils/toc-builder.js`, `utils/drag-helper.js` - Utility modules
-- Layer 3: `ui/collapsed-TOC button.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI components
-- Layer 4: `core/config-manager.js`, `core/mutation-observer.js`, `core/toc-app.js` - Core logic
-- Layer 5: `content.js` - Entry point
+**Modular Design**: 23 module files using `define()`/`require()` dependency injection (defined in `src/background.js` CONTENT_SCRIPTS array)
+- Layer 0: `loader.js` - Module registration system
+- Layer 1: `utils/constants.js`, `utils/core-utils.js`, `utils/toast.js` - Base utilities
+- Layer 2: `shared/storage-primitives.js`, `utils/storage.js`, `utils/toc-utils.js`, `utils/badge-position.js`, `utils/dom-utils.js` - Storage & DOM utilities
+- Layer 3: `utils/drag-helper.js`, `utils/css-selector.js`, `utils/focus-trap.js`, `utils/toc-builder.js` - Utility modules
+- Layer 4: `core/nav-lock.js` - Navigation lock module
+- Layer 5: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI components
+- Layer 6: `core/config-manager.js`, `core/url-monitor.js`, `core/dom-watcher.js`, `core/rebuild-scheduler.js`, `core/toc-app.js` - Core logic
+- Layer 7: `content.js` - Entry point
 
-**Global Namespace**: All modules expose APIs via `window` object
-- `window.TOC_UTILS` - Base utilities
-- `window.CSS_SELECTOR` - Selector generation
-- `window.TOC_BUILDER` - TOC building
-- `window.TOC_UI` - UI components
-- `window.CONFIG_MANAGER` - Configuration management
-- `window.MUTATION_OBSERVER` - DOM observation
-- `window.TOC_APP` - Main application
+**Module System**: Modules use `define(name, deps, factory)` for dependency injection with event-based communication (replaces circular dependencies)
 
 ### Key Algorithms
 
-- **Element Deduplication**: Uses `compareDocumentPosition` to maintain DOM order
+- **Element Deduplication**: Set-based O(n) dedup preserving first-occurrence order
+- **Tiered Visibility Filtering**: Three-phase check — cheap DOM checks first, then style/geometry, then parent clipping — with short-circuit at item limit
 - **Hidden Element Filtering**: Checks `display:none`, `visibility:hidden`, `opacity:0`, zero dimensions
-- **Debounced Rebuild**: MutationObserver + 500ms debounce to avoid frequent updates
+- **Debounced Rebuild**: MutationObserver + dynamic debounce (500ms–1s) to avoid frequent updates
 - **Selector Generation**: Prioritizes class selector, falls back to path selector
 - **Navigation Lock**: Locks IntersectionObserver during user clicks to prevent jumping
-- **Navigation Lock Failsafe**: Auto-unlocks after timeout (8s default) if stuck
+- **Navigation Lock Failsafe**: Auto-unlocks after timeout (3s default) if stuck
 - **Animation Frame Management**: Schedules and cleans up requestAnimationFrame callbacks
 - **Storage Quota Handling**: Auto-prunes old data when quota exceeded
 - **Config Mutation Retry**: Retries failed config mutations with verification
@@ -355,11 +369,11 @@ Site configuration is stored in `chrome.storage.local`:
 
 ## 🔧 Development Guide
 
-### No Build System
-This project uses pure vanilla JavaScript with no build tools:
-- Edit files directly
-- Reload extension after modifying `manifest.json`
-- Refresh page after modifying content scripts to see changes
+### Build & Packaging
+This project uses pure vanilla JavaScript with no build tools for development. A `build.js` script handles validation and packaging:
+- Edit files directly - no compilation needed
+- Run `node build.js` to validate syntax and create distributable zip
+- The build script copies runtime files to `dist/build/` and creates `dist/packages/v{version}.zip`
 
 ### Debugging
 1. **Background Page**: Click "Service Worker" at `edge://extensions/` to view background logs
@@ -367,12 +381,12 @@ This project uses pure vanilla JavaScript with no build tools:
 3. **Storage View**: View `chrome.storage.local` in DevTools > Application > Storage
 
 ### Adding New Features
-1. Create new file in appropriate module directory
-2. Update load order in `manifest.json`
-3. Expose API via global namespace
-4. Import in dependent modules
+1. Create new file in appropriate module directory (`utils/`, `ui/`, `core/`, `shared/`)
+2. Update load order in `src/background.js` `CONTENT_SCRIPTS` array (maintain dependency order)
+3. Expose API via global namespace (`window.MODULE_NAME`)
+4. Add dependency checks in consuming modules
 
-For detailed technical documentation, see [`src/README.md`](src/README.md) and [`CLAUDE.md`](CLAUDE.md).
+For detailed technical documentation, see [`CLAUDE.md`](CLAUDE.md).
 
 ## 🤝 Contributing
 

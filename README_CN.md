@@ -10,7 +10,7 @@
 一个网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
 
 <p align="left">
-  <img src="dist/descriptions/ChatGPT_Desc_screenshots1280x800_CN.png" alt="网页目录助手截图" width="800"/>
+  <img src="docs/descriptions/ChatGPT_Desc_screenshots1280x800_CN.png" alt="网页目录助手截图" width="800"/>
 </p>
 
 ## ✨ 核心功能
@@ -205,26 +205,43 @@
 │   │   └── messages.json      # 英文翻译
 │   └── zh_CN/
 │       └── messages.json      # 中文翻译
+├── build.js                   # 构建和打包脚本
+├── package.json               # Node.js 元数据
 ├── src/
+│   ├── loader.js              # 模块加载器（define/require）
 │   ├── background.js          # 后台服务工作者
 │   ├── content.js             # 内容脚本入口
 │   ├── content.css            # 内容脚本样式
-│   ├── utils.js               # 基础工具函数
-│   ├── README.md              # 技术文档
 │   ├── utils/                 # 工具模块
-│   │   ├── css-selector.js   # CSS 选择器生成
-│   │   ├── toc-builder.js    # TOC 构建逻辑
-│   │   └── drag-helper.js    # Pointer Events 拖拽控制器
+│   │   ├── constants.js       # 存储键名、UI 常量
+│   │   ├── core-utils.js      # 类型检查、国际化、验证
+│   │   ├── toast.js           # Toast 通知
+│   │   ├── storage.js         # 存储 I/O 和标准化
+│   │   ├── toc-utils.js       # 聚合重导出，方便引用
+│   │   ├── badge-position.js  # 按钮位置持久化
+│   │   ├── dom-utils.js       # DOM 操作、URL 匹配、站点状态
+│   │   ├── css-selector.js    # CSS 选择器生成
+│   │   ├── focus-trap.js      # 焦点陷阱工具
+│   │   ├── toc-builder.js     # TOC 构建逻辑
+│   │   └── drag-helper.js     # Pointer Events 拖拽控制器
+│   ├── shared/                # 跨上下文共享模块
+│   │   └── storage-primitives.js  # 共享存储工具函数
 │   ├── ui/                    # UI 组件
-│   │   ├── collapsed-badge.js    # 折叠按钮
-│   │   ├── element-picker.js     # 元素拾取器
-│   │   └── floating-panel.js     # 浮动面板
+│   │   ├── collapsed-badge.js # 折叠按钮
+│   │   ├── element-picker.js  # 元素拾取器
+│   │   └── floating-panel.js  # 浮动面板
 │   └── core/                  # 核心逻辑
-│       ├── config-manager.js     # 配置管理
-│       ├── mutation-observer.js  # 页面监听
-│       └── toc-app.js            # 主应用逻辑
+│       ├── nav-lock.js        # 导航锁定模块
+│       ├── config-manager.js  # 配置管理
+│       ├── dom-watcher.js     # MutationObserver 封装
+│       ├── url-monitor.js     # URL/hash 变更监控
+│       ├── rebuild-scheduler.js # 重建调度与协调
+│       └── toc-app.js         # 主应用逻辑
+├── docs/                      # 文档资源
+│   ├── PRIVACY_POLICY.md      # 隐私政策
+│   └── descriptions/          # 截图与应用商店描述
 ├── CLAUDE.md                  # Claude Code 开发指南
-└── README_EN.md               # 英文版
+└── README.md                  # 英文版
 ```
 
 ### 核心技术
@@ -238,30 +255,27 @@
 
 ### 架构设计
 
-**模块化设计**：11 个模块文件，按依赖顺序加载
-- Layer 1: `utils.js` - 基础工具
-- Layer 2: `utils/css-selector.js`, `utils/toc-builder.js`, `utils/drag-helper.js` - 工具模块
-- Layer 3: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI 组件
-- Layer 4: `core/config-manager.js`, `core/mutation-observer.js`, `core/toc-app.js` - 核心逻辑
-- Layer 5: `content.js` - 入口文件
+**模块化设计**：23 个模块文件，使用 `define()`/`require()` 依赖注入（定义在 `src/background.js` 的 CONTENT_SCRIPTS 数组中）
+- Layer 0: `loader.js` - 模块注册系统
+- Layer 1: `utils/constants.js`, `utils/core-utils.js`, `utils/toast.js` - 基础工具
+- Layer 2: `shared/storage-primitives.js`, `utils/storage.js`, `utils/toc-utils.js`, `utils/badge-position.js`, `utils/dom-utils.js` - 存储与 DOM 工具
+- Layer 3: `utils/drag-helper.js`, `utils/css-selector.js`, `utils/focus-trap.js`, `utils/toc-builder.js` - 工具模块
+- Layer 4: `core/nav-lock.js` - 导航锁定模块
+- Layer 5: `ui/collapsed-badge.js`, `ui/element-picker.js`, `ui/floating-panel.js` - UI 组件
+- Layer 6: `core/config-manager.js`, `core/url-monitor.js`, `core/dom-watcher.js`, `core/rebuild-scheduler.js`, `core/toc-app.js` - 核心逻辑
+- Layer 7: `content.js` - 入口文件
 
-**全局命名空间**：所有模块通过 `window` 对象暴露 API
-- `window.TOC_UTILS` - 基础工具
-- `window.CSS_SELECTOR` - 选择器生成
-- `window.TOC_BUILDER` - TOC 构建
-- `window.TOC_UI` - UI 组件
-- `window.CONFIG_MANAGER` - 配置管理
-- `window.MUTATION_OBSERVER` - DOM 监听
-- `window.TOC_APP` - 主应用
+**模块系统**：模块使用 `define(name, deps, factory)` 进行依赖注入，通过事件机制通信（替代循环依赖）
 
 ### 关键算法
 
-- **元素去重排序**：使用 `compareDocumentPosition` 保持 DOM 顺序
+- **元素去重**：基于 Set 的 O(n) 去重，保持首次出现顺序
+- **分层可见性过滤**：三阶段检查 — 先做轻量 DOM 检查，再读样式/几何信息，最后检查父元素裁剪 — 达到条目上限时提前终止
 - **隐藏元素过滤**：检测 `display:none`、`visibility:hidden`、`opacity:0`、零尺寸等
-- **防抖重建**：MutationObserver + 500ms 防抖避免频繁更新
+- **防抖重建**：MutationObserver + 动态防抖（500ms–1s）避免频繁更新
 - **选择器生成**：优先使用 class 选择器，回退到路径选择器
 - **导航锁定**：用户点击时锁定 IntersectionObserver，防止跳动
-- **导航锁故障保护**：卡死时超时自动解锁（默认8秒）
+- **导航锁故障保护**：卡死时超时自动解锁（默认3秒）
 - **动画帧管理**：调度和清理 requestAnimationFrame 回调
 - **存储配额处理**：配额超出时自动修剪旧数据
 - **配置变更重试**：失败时重试配置变更并验证结果
@@ -355,11 +369,11 @@
 
 ## 🔧 开发指南
 
-### 无构建系统
-本项目采用纯原生 JavaScript，无需构建工具：
-- 直接编辑文件即可
-- 修改 `manifest.json` 后需重新加载扩展
-- 修改内容脚本后刷新页面即可看到效果
+### 构建与打包
+本项目采用纯原生 JavaScript 开发，无需编译工具。`build.js` 脚本负责验证和打包：
+- 直接编辑文件即可，无需编译
+- 运行 `node build.js` 验证语法并创建分发包
+- 构建脚本将运行时文件复制到 `dist/build/`，并创建 `dist/packages/v{版本号}.zip`
 
 ### 调试方法
 1. **后台页面调试**：在 `edge://extensions/` 页面点击"Service Worker"查看后台日志
@@ -367,12 +381,12 @@
 3. **存储查看**：在开发者工具的 Application > Storage 中查看 `chrome.storage.local`
 
 ### 添加新功能
-1. 在对应模块目录创建新文件
-2. 更新 `manifest.json` 中的加载顺序
-3. 通过全局命名空间暴露 API
-4. 在依赖模块中引入使用
+1. 在对应模块目录创建新文件（`utils/`、`ui/`、`core/`、`shared/`）
+2. 更新 `src/background.js` 中 `CONTENT_SCRIPTS` 数组的加载顺序（保持依赖顺序）
+3. 通过全局命名空间暴露 API（`window.MODULE_NAME`）
+4. 在依赖模块中添加依赖检查
 
-详细的技术文档请查看 [`src/README.md`](src/README.md) 和 [`CLAUDE.md`](CLAUDE.md)。
+详细的技术文档请查看 [`CLAUDE.md`](CLAUDE.md)。
 
 ## 🤝 贡献指南
 
