@@ -206,8 +206,14 @@
     const SCROLL_LISTENER_OPTS = { passive: true };
     const removeResizeListener = addWindowListener('resize', onResize, RESIZE_LISTENER_OPTS);
 
-    const unlockLater = () => {
+    const unlockLater = (scrollDistance) => {
       if (timers.unlock) clearTimeout(timers.unlock);
+      const MIN_UNLOCK_MS = 500;
+      const MAX_UNLOCK_MS = CFG.UNLOCK_AFTER_MS;
+      const DISTANCE_THRESHOLD = 1000;
+      const ratio = Math.min(1, (scrollDistance || 0) / DISTANCE_THRESHOLD);
+      const duration = Math.round(MIN_UNLOCK_MS + ratio * (MAX_UNLOCK_MS - MIN_UNLOCK_MS));
+
       timers.unlock = setTimeout(() => {
         timers.unlock = null;
         setNavLock(false);
@@ -235,7 +241,7 @@
           });
           userSelectedItem = null;
         }, CFG.CLEAR_USER_SELECTED_DELAY_MS);
-      }, CFG.UNLOCK_AFTER_MS);
+      }, duration);
     };
 
     const onScroll = () => {
@@ -433,6 +439,14 @@
       node.classList.add('active');
       try { node.setAttribute('aria-current', 'location'); } catch (_) {}
       try { node.tabIndex = 0; } catch (_) {}
+
+      // Compute approximate scroll distance for dynamic lock duration
+      let scrollDistance = 0;
+      try {
+        const elRect = item.el.getBoundingClientRect();
+        scrollDistance = Math.abs(elRect.top);
+      } catch (_) {}
+
       try {
         const { scrollToElement } = window.TOC_UTILS || {};
         if (scrollToElement) {
@@ -445,7 +459,7 @@
           try { item.el.scrollIntoView(true); } catch (_3) {}
         }
       }
-      unlockLater();
+      unlockLater(scrollDistance);
     };
 
     const teardownIntersectionObserver = () => {
