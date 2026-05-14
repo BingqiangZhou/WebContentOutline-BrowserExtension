@@ -1,16 +1,14 @@
 // Shared storage primitives for both background service worker and content scripts.
 // Loaded via importScripts in background, injected as content script elsewhere.
 // Creates globalThis.__STORAGE_PRIMITIVES — completely self-contained, no external dependencies.
-(() => {
-  if (globalThis.__STORAGE_PRIMITIVES) return;
-
-  const __writeQueues = {};
+define('storage-primitives', [], function() {
+  var __writeQueues = {};
 
   function serializedWrite(key, asyncFn) {
-    const prev = __writeQueues[key] || Promise.resolve();
-    const run = () => asyncFn();
-    const next = prev.then(run, run);
-    __writeQueues[key] = next.catch(() => {});
+    var prev = __writeQueues[key] || Promise.resolve();
+    var run = function() { return asyncFn(); };
+    var next = prev.then(run, run);
+    __writeQueues[key] = next.catch(function() {});
     return next;
   }
 
@@ -18,7 +16,7 @@
     try {
       if (!err) return false;
       if (err.name === 'QuotaExceededError') return true;
-      const text = String(err && (err.message || err.toString && err.toString() || err) || '');
+      var text = String(err && (err.message || err.toString && err.toString() || err) || '');
       return /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
     } catch (_) {
       return false;
@@ -38,11 +36,11 @@
   function pruneObjectToLimit(map, maxKeys) {
     try {
       if (!map || typeof map !== 'object') return map;
-      const limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
-      const keys = Object.keys(map);
+      var limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
+      var keys = Object.keys(map);
       if (keys.length <= limit) return map;
-      const removeCount = keys.length - limit;
-      for (let i = 0; i < removeCount; i++) {
+      var removeCount = keys.length - limit;
+      for (var i = 0; i < removeCount; i++) {
         try { delete map[keys[i]]; } catch (_) {}
       }
       return map;
@@ -51,7 +49,12 @@
     }
   }
 
-  globalThis.__STORAGE_PRIMITIVES = {
-    serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit
+  var api = {
+    serializedWrite: serializedWrite,
+    isQuotaExceededError: isQuotaExceededError,
+    touchObjectKey: touchObjectKey,
+    pruneObjectToLimit: pruneObjectToLimit
   };
-})();
+  try { globalThis.__STORAGE_PRIMITIVES = api; } catch (_) {}
+  return api;
+});

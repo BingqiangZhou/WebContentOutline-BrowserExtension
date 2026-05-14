@@ -1,21 +1,18 @@
-(() => {
-  const ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : self);
-  if (ROOT.TOC_UTILS) return;
-
+define('toc-constants', [], function() {
  /**
   * Storage keys
   */
-  const STORAGE_KEYS = {
-    TOC_CONFIGS: 'tocConfigs',
-    SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-    PANEL_STATE_MAP: 'tocPanelExpandedMap',
-    BADGE_POS_MAP: 'tocBadgePosMap'
-  };
+ var STORAGE_KEYS = {
+   TOC_CONFIGS: 'tocConfigs',
+   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+   PANEL_STATE_MAP: 'tocPanelExpandedMap',
+   BADGE_POS_MAP: 'tocBadgePosMap'
+ };
 
  /**
   * UI constants shared across modules.
   */
-  const UI_CONSTANTS = {
+ var UI_CONSTANTS = {
    // Builder
    TOC_TEXT_MAX_LEN: 200,
    TOC_MAX_ITEMS: 400,
@@ -40,31 +37,31 @@
    MUTATION_DEBOUNCE_MS: 500,
    MUTATION_UNLOCK_POLL_MS: 200,
 
-    // Polling & URL monitoring timing
-    POLL_INTERVAL_MS: 3000,
-    POLL_INTERVAL_THROTTLED_MS: 10000,
-    URL_CHANGE_DEDUP_MS: 500,
-    NAV_LOCK_FAILSAFE_MS: 3000,
-    REBUILD_COOLDOWN_MS: 5000,
+   // Polling & URL monitoring timing
+   POLL_INTERVAL_MS: 3000,
+   POLL_INTERVAL_THROTTLED_MS: 10000,
+   URL_CHANGE_DEDUP_MS: 500,
+   NAV_LOCK_FAILSAFE_MS: 3000,
+   REBUILD_COOLDOWN_MS: 5000,
 
-    CSS_SELECTOR_MAX_LENGTH: 2000,
-    XPATH_MAX_LENGTH: 2000,
-    MAX_Z_INDEX: 2147483647,
-    TOAST_DURATION_MS: 3000,
-    DRAG_MARGIN_PX: 4,
+   CSS_SELECTOR_MAX_LENGTH: 2000,
+   XPATH_MAX_LENGTH: 2000,
+   MAX_Z_INDEX: 2147483647,
+   TOAST_DURATION_MS: 3000,
+   DRAG_MARGIN_PX: 4,
 
-    // Storage limits (best-effort quota management)
-     STORAGE_MAX_SITES: 200,
-     STORAGE_MAX_SELECTORS_PER_SITE: 50,
-     STORAGE_MAX_MAP_KEYS: 400,
-     STORAGE_ERROR_ONCE_MAX_KEYS: 200
-   };
+   // Storage limits (best-effort quota management)
+   STORAGE_MAX_SITES: 200,
+   STORAGE_MAX_SELECTORS_PER_SITE: 50,
+   STORAGE_MAX_MAP_KEYS: 400,
+   STORAGE_ERROR_ONCE_MAX_KEYS: 200
+ };
 
  function uiConst(name, fallback) {
    try {
      if (!name) return fallback;
-     const hasOwn = Object.prototype.hasOwnProperty.call(UI_CONSTANTS, name);
-     const value = hasOwn ? UI_CONSTANTS[name] : undefined;
+     var hasOwn = Object.prototype.hasOwnProperty.call(UI_CONSTANTS, name);
+     var value = hasOwn ? UI_CONSTANTS[name] : undefined;
      if (typeof fallback === 'number') {
        return Number.isFinite(value) ? value : fallback;
      }
@@ -74,9 +71,11 @@
    }
  }
 
-  ROOT.TOC_UTILS = {
-    STORAGE_KEYS,
-    UI_CONSTANTS,
-    uiConst
-  };
-})();
+ var api = { STORAGE_KEYS: STORAGE_KEYS, UI_CONSTANTS: UI_CONSTANTS, uiConst: uiConst };
+ // Backward compat
+ try {
+   var ROOT = typeof globalThis !== 'undefined' ? globalThis : (typeof window !== 'undefined' ? window : self);
+   if (!ROOT.TOC_UTILS) ROOT.TOC_UTILS = api;
+ } catch (_) {}
+ return api;
+});
