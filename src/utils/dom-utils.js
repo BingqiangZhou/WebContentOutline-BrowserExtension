@@ -225,7 +225,7 @@ define('dom-utils', ['toc-storage', 'core-utils', 'storage-primitives', 'toc-con
     }
 
     /**
-     * Deduplicate elements preserving DOM order
+     * Deduplicate elements preserving first-occurrence order
      * @param {Element[]} list
      */
     function uniqueInDocumentOrder(list) {
