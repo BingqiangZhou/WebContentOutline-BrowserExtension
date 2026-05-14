@@ -113,46 +113,9 @@
     let configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = () => { configDirty = true; };
 
-    let navLock = false;
-    let navLockSetAt = 0;
-    let navLockFailsafeTimer = null;
-    const clearNavLockFailsafe = () => {
-      if (navLockFailsafeTimer == null) return;
-      try { clearTimeout(navLockFailsafeTimer); } catch (_) {}
-      navLockFailsafeTimer = null;
-    };
-    const armNavLockFailsafe = () => {
-      clearNavLockFailsafe();
-      const ms = (Number.isFinite(CFG.NAV_LOCK_FAILSAFE_MS) && CFG.NAV_LOCK_FAILSAFE_MS > 0) ? CFG.NAV_LOCK_FAILSAFE_MS : 0;
-      if (!ms) return;
-      try {
-        navLockFailsafeTimer = setTimeout(() => {
-          navLockFailsafeTimer = null;
-          if (destroyed) return;
-          if (!navLock) return;
-          const waitedMs = navLockSetAt ? (Date.now() - navLockSetAt) : ms;
-          console.warn('[toc] nav lock stuck; forcing unlock after', waitedMs, 'ms');
-          try {
-            navLock = false;
-            navLockSetAt = 0;
-          } catch (_) {}
-          try { items.forEach(it => { it._userSelected = false; }); } catch (_) {}
-        }, ms);
-      } catch (_) {
-        navLockFailsafeTimer = null;
-      }
-    };
-    const getNavLock = () => navLock;
-    const setNavLock = (v) => {
-      navLock = !!v;
-      if (navLock) {
-        navLockSetAt = Date.now();
-        armNavLockFailsafe();
-      } else {
-        navLockSetAt = 0;
-        clearNavLockFailsafe();
-      }
-    };
+    const NL = globalThis.NAV_LOCK;
+    const getNavLock = () => NL.isLocked();
+    const setNavLock = (v) => v ? NL.lock() : NL.unlock();
     const cancelActiveRestore = () => {
       if (typeof activeRestoreTimeout !== 'number') return;
       try { cancelAnimationFrame(activeRestoreTimeout); } catch (_) {}
@@ -612,7 +575,7 @@
       rebuildInFlight = null;
       rebuildQueued = false;
       clearRebuildTimers();
-      clearNavLockFailsafe();
+      NL.destroy();
       if (failureCooldownTimer) {
         try { clearTimeout(failureCooldownTimer); } catch (_) {}
         failureCooldownTimer = null;
