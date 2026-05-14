@@ -15,7 +15,12 @@ function originFromUrl(url) {
 }
 
 const CONTENT_SCRIPTS = [
-  'src/utils.js',
+  'src/utils/constants.js',
+  'src/utils/core-utils.js',
+  'src/utils/toast.js',
+  'src/utils/storage.js',
+  'src/utils/badge-position.js',
+  'src/utils/dom-utils.js',
   'src/utils/drag-helper.js',
   'src/utils/css-selector.js',
   'src/utils/toc-builder.js',
