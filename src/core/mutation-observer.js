@@ -31,7 +31,7 @@
     ];
     const OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
     let debounceTimer = null;
-    let pendingRebuild = 0;
+    let hasPendingRebuild = false;
     let unlockTimer = null;
     let unlockPollStartTs = 0;
     let unlockWarned = false;
@@ -85,7 +85,7 @@
           : !!(e && e.message && e.message.includes('Extension context invalidated'));
         if (invalidated) {
           isExtensionContextValid = false;
-          pendingRebuild = 0;
+          hasPendingRebuild = false;
           stopTimers();
           try { observerRef && observerRef.disconnect && observerRef.disconnect(); } catch (_) {}
           observerRef = null;
@@ -98,13 +98,13 @@
 
     const scheduleRetry = () => {
       if (!isExtensionContextValid) return;
-      if (pendingRebuild <= 0) return;
+      if (!hasPendingRebuild) return;
       if (retryTimer) return;
       const ms = (Number.isFinite(CFG.REBUILD_RETRY_MS) && CFG.REBUILD_RETRY_MS > 0) ? CFG.REBUILD_RETRY_MS : 1000;
       retryTimer = setTimeout(() => {
         retryTimer = null;
         if (!isExtensionContextValid) return;
-        if (pendingRebuild <= 0) return;
+        if (!hasPendingRebuild) return;
         attemptRebuild();
       }, ms);
     };
@@ -112,34 +112,34 @@
     const attemptRebuild = () => {
       if (!isExtensionContextValid) return Promise.resolve(false);
       if (rebuildInFlight) {
-        pendingRebuild++;
+        hasPendingRebuild = true;
         return rebuildInFlight;
       }
       if (getNavLock()) {
-        pendingRebuild++;
+        hasPendingRebuild = true;
         waitForUnlock();
         return Promise.resolve(false);
       }
-      if (pendingRebuild <= 0) return Promise.resolve(true);
+      if (!hasPendingRebuild) return Promise.resolve(true);
 
       rebuildInFlight = (async () => {
-        pendingRebuild = Math.max(0, pendingRebuild - 1);
+        hasPendingRebuild = false;
         const ok = await safeRebuild();
         if (!ok && isExtensionContextValid) {
-          pendingRebuild++;
+          hasPendingRebuild = true;
           scheduleRetry();
         }
         return !!ok;
       })().finally(() => {
         rebuildInFlight = null;
         if (!isExtensionContextValid) return;
-        if (pendingRebuild <= 0) return;
+        if (!hasPendingRebuild) return;
         if (postFlightTimer) return;
         try {
           postFlightTimer = setTimeout(() => {
             postFlightTimer = null;
             if (!isExtensionContextValid) return;
-            if (pendingRebuild <= 0) return;
+            if (!hasPendingRebuild) return;
             attemptRebuild();
           }, 0);
         } catch (_) {
@@ -160,7 +160,7 @@
         if (!getNavLock()) {
           unlockPollStartTs = 0;
           unlockWarned = false;
-          if (pendingRebuild > 0) {
+          if (hasPendingRebuild) {
             attemptRebuild();
           }
           return;
@@ -198,7 +198,7 @@
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         debounceTimer = null;
-        pendingRebuild++;
+        hasPendingRebuild = true;
         attemptRebuild();
       }, dynamicDebounce);
     }
@@ -209,6 +209,13 @@
           const t = m.target;
           if (t && t.nodeType === 1 && t.closest) {
             if (t.closest('.toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
+              continue;
+            }
+          }
+          // Filter characterData: ignore text changes inside extension-owned elements
+          if (m.type === 'characterData' && t && t.nodeType === 3 && t.parentElement) {
+            const parent = t.parentElement;
+            if (parent.closest && parent.closest('.toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
               continue;
             }
           }
@@ -223,13 +230,16 @@
             return true;
           }
         }
+        if (m.type === 'characterData') {
+          return true;
+        }
       }
       return false;
     }
 
     function start(cfg) {
       stopTimers();
-      pendingRebuild = 0;
+      hasPendingRebuild = false;
       consecutiveMutations = 0;
       lastMutationTime = 0;
       disconnectObserver();
@@ -237,7 +247,7 @@
       if (typeof MutationObserver !== 'undefined') {
         const resolveObserveRoot = () => {
           try {
-            return document.body || document.documentElement;
+            return document.documentElement || document.body;
           } catch (_) {
             return document.documentElement;
           }
@@ -255,7 +265,7 @@
         const root = (() => {
           const r = resolveObserveRoot();
           if (r && r.nodeType === Node.ELEMENT_NODE) return r;
-          return document.body || document.documentElement || null;
+          return document.documentElement || document.body || null;
         })();
 
         if (!root) {
@@ -274,7 +284,7 @@
           observer.observe(root, {
             childList: true,
             subtree: true,
-            characterData: false,
+            characterData: true,
             attributes: true,
             attributeFilter: OBSERVED_ATTRIBUTES
           });
@@ -300,14 +310,14 @@
               stopTimers();
             }
           },
-          getPendingRebuild: () => pendingRebuild > 0,
+          getPendingRebuild: () => hasPendingRebuild,
           setPendingRebuild: (val) => {
             if (val) {
-              pendingRebuild++;
+              hasPendingRebuild = true;
             } else {
-              pendingRebuild = 0;
+              hasPendingRebuild = false;
             }
-            if (pendingRebuild <= 0) {
+            if (!hasPendingRebuild) {
               if (retryTimer) {
                 try { clearTimeout(retryTimer); } catch (_) {}
                 retryTimer = null;
