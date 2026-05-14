@@ -102,6 +102,48 @@
 }
 
 .toc-overlay {
+  /* Overlay is outside .toc-floating DOM tree — needs own variable scope */
+  --toc-bg-panel: #fff;
+  --toc-bg-header: #f6f7f9;
+  --toc-bg-overlay: #fff;
+  --toc-bg-toast: #fff;
+  --toc-bg-input: #fff;
+  --toc-bg-list: #fff;
+  --toc-bg-hover: rgba(0,0,0,0.06);
+  --toc-bg-hover-strong: rgba(0,0,0,0.1);
+  --toc-bg-close-hover: rgba(0,0,0,0.06);
+  --toc-bg-btn-primary: #2f6feb;
+  --toc-bg-btn-primary-hover: #2a63d4;
+  --toc-bg-btn-danger: #b42318;
+  --toc-bg-btn-danger-hover: #9e1f15;
+  --toc-bg-delete: rgba(255, 255, 255, 0.9);
+  --toc-bg-delete-hover: rgba(180, 35, 24, 0.15);
+  --toc-bg-delete-active: rgba(180, 35, 24, 0.25);
+  --toc-bg-selector-hover: rgba(0,0,0,0.04);
+  --toc-bg-notice: #fff3cd;
+  --toc-text-primary: #222;
+  --toc-text-secondary: #333;
+  --toc-text-muted: #777;
+  --toc-text-btn: #333;
+  --toc-text-btn-hover: #333;
+  --toc-text-badge: #fff;
+  --toc-text-count: #555;
+  --toc-text-selector: #333;
+  --toc-text-delete: #999;
+  --toc-text-delete-hover: #b42318;
+  --toc-border: rgba(0,0,0,0.1);
+  --toc-border-light: rgba(0,0,0,0.06);
+  --toc-border-input: rgba(0,0,0,0.15);
+  --toc-border-list: rgba(0,0,0,0.08);
+  --toc-border-toast: rgba(0,0,0,0.12);
+  --toc-shadow-panel: 0 8px 24px rgba(0,0,0,0.15);
+  --toc-shadow-delete: 0 1px 3px rgba(0,0,0,0.15);
+  --toc-focus-ring: rgba(47, 111, 235, 0.85);
+  --toc-notice-text: #856404;
+  --toc-notice-border: #ffc107;
+  --toc-link: #2f6feb;
+  --toc-link-hover: #1a5cc7;
+
   display: block !important;
   position: fixed !important;
   bottom: 20px !important;
@@ -806,5 +848,48 @@
     --toc-bg-badge: #2f6feb;
     --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.4);
     --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.5);
+  }
+  /* Overlay is outside .toc-floating DOM tree - needs own variable scope */
+  .toc-overlay {
+    --toc-bg-panel: #1e1e1e;
+    --toc-bg-header: #2d2d2d;
+    --toc-bg-overlay: #1e1e1e;
+    --toc-bg-toast: #1e1e1e;
+    --toc-bg-input: #2d2d2d;
+    --toc-bg-list: #2d2d2d;
+    --toc-bg-hover: rgba(255,255,255,0.1);
+    --toc-bg-hover-strong: rgba(255,255,255,0.15);
+    --toc-bg-close-hover: rgba(255,255,255,0.08);
+    --toc-bg-btn-primary: #2f6feb;
+    --toc-bg-btn-primary-hover: #4a7fd4;
+    --toc-bg-btn-danger: #d32f2f;
+    --toc-bg-btn-danger-hover: #ef5350;
+    --toc-bg-delete: rgba(45, 45, 45, 0.9);
+    --toc-bg-delete-hover: rgba(255, 82, 82, 0.25);
+    --toc-bg-delete-active: rgba(255, 82, 82, 0.25);
+    --toc-bg-selector-hover: rgba(255,255,255,0.08);
+    --toc-bg-notice: #3d3a1d;
+    --toc-text-primary: #e0e0e0;
+    --toc-text-secondary: #c0c0c0;
+    --toc-text-muted: #9e9e9e;
+    --toc-text-btn: #c0c0c0;
+    --toc-text-btn-hover: #e0e0e0;
+    --toc-text-badge: #fff;
+    --toc-text-count: #aaa;
+    --toc-text-selector: #e0e0e0;
+    --toc-text-delete: #888;
+    --toc-text-delete-hover: #ff5252;
+    --toc-border: rgba(255,255,255,0.1);
+    --toc-border-light: rgba(255,255,255,0.06);
+    --toc-border-input: rgba(255,255,255,0.15);
+    --toc-border-list: rgba(255,255,255,0.08);
+    --toc-border-toast: rgba(255,255,255,0.12);
+    --toc-shadow-panel: 0 8px 24px rgba(0,0,0,0.4);
+    --toc-shadow-delete: 0 1px 3px rgba(0,0,0,0.3);
+    --toc-focus-ring: rgba(47, 111, 235, 0.85);
+    --toc-notice-text: #f0d060;
+    --toc-notice-border: #856c00;
+    --toc-link: #64b5f6;
+    --toc-link-hover: #90caf9;
   }
 }
