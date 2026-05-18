@@ -9,14 +9,27 @@ You are tasked with packaging the browser extension as a distributable zip file.
 
 ## Arguments
 
-The skill accepts a version number as an argument (e.g., `0.7.0`). If provided, update `manifest.json` to this version before proceeding. If not provided, use the version currently in `manifest.json`.
+The skill accepts a version number as an argument (e.g., `0.7.0`). If provided, update version files to this version before proceeding. If not provided, use the version currently in `manifest.json`.
 
 ## Step 1: Update Version
 
-If a version argument was provided:
-1. Update `"version"` in `manifest.json` to the specified version
+If a version argument was provided, update **all three** version files to keep them in sync:
+1. `"version"` in `manifest.json`
+2. `"version"` in `package.json`
+3. `"version"` and `"packages[''].version"` in `package-lock.json`
 
-## Step 2: Analyze Changes
+## Step 2: Merge to Main
+
+If not already on `main`:
+```bash
+git checkout main
+git merge <current-branch>
+git branch -d <current-branch>
+```
+
+All subsequent steps must be performed on `main`.
+
+## Step 3: Analyze Changes
 
 1. Find the previous version tag:
    ```bash
@@ -38,7 +51,7 @@ If a version argument was provided:
    - **🐛 修复 / Fixed**: Bug fixes
    - **⚡ 技术改进 / Technical Improvements**: Refactoring, performance, internal changes
 
-## Step 3: Update CHANGELOG.md and CHANGELOG_CN.md
+## Step 4: Update CHANGELOG.md and CHANGELOG_CN.md
 
 The changelog is split into two separate files by language. Update both:
 
@@ -82,7 +95,7 @@ The changelog is split into two separate files by language. Update both:
 4. Only include sections that have entries. If there are no bug fixes, omit the "Fixed" section entirely.
 5. Each file contains content in its own language only — no bilingual mixing.
 
-## Step 4: Update README.md and README_CN.md
+## Step 5: Update README.md and README_CN.md
 
 Review the changes and determine if README updates are needed:
 
@@ -102,39 +115,41 @@ Review the changes and determine if README updates are needed:
 
 4. Also update `CLAUDE.md` if architecture, module structure, or storage schema has changed.
 
-## Step 5: Commit Changes
+## Step 6: Commit Changes
 
 Commit all documentation updates and the version bump together:
 ```bash
-git add manifest.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE.md src/README.md
-git commit -m "chore: bump version to X.Y.Z"
+git add manifest.json package.json package-lock.json CHANGELOG.md CHANGELOG_CN.md README.md README_CN.md CLAUDE.md
+git commit -m "docs: update CHANGELOG for vX.Y.Z"
 ```
 
-## Step 6: Build and Package
+## Step 7: Build and Package
 
 Run the build script. It validates all source files, copies runtime files to `dist/build/`, and creates the zip package:
 ```bash
-node build.js
+npm run build
 ```
 
 If validation fails, stop and fix the errors before proceeding.
 
 The build script produces `dist/packages/v${VERSION}.zip` from the clean `dist/build/` directory. No manual zip commands needed.
 
-## Step 7: Tag and Push
+## Step 8: Tag and Push
 
 ```bash
-# Create and push git tag
+# Create and push annotated git tag
 git tag -a "v${VERSION}" -m "Release v${VERSION}"
 git push origin main "v${VERSION}"
 echo "Git tag v${VERSION} created and pushed to remote"
 ```
 
-## Step 8: Verification
+**GitHub Actions will automatically create the GitHub Release and upload the zip asset** when it detects the new tag. Do NOT manually create the release via `gh` CLI or other tools.
+
+## Step 9: Verification
 
 After creating the zip, verify:
 1. The zip file exists at the expected path
-2. The file name matches the version format (e.g., `v0.7.0.zip`)
+2. The file name matches the version format (e.g., `v0.8.1.zip`)
 3. Report the file size of the created zip
 4. The git tag was created and pushed to remote successfully (check with `git ls-remote --tags origin`)
 5. The zip does NOT contain development files (build.js, package.json, .claude/, etc.)

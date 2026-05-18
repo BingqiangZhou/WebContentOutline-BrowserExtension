@@ -120,7 +120,7 @@ Selectors (CSS/XPath)
 **5. Dynamic Content Updates**
 Split into three focused modules:
 - `core/dom-watcher.js` — MutationObserver-based DOM change detection
-- `core/url-monitor.js` — URL change detection via History API + polling
+- `core/url-monitor.js` — URL change detection via custom events (from `page-url-hook.js`) + polling fallback
 - `core/rebuild-scheduler.js` — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
 
 **6. Event Bus (`core/event-bus.js`)**
@@ -189,7 +189,7 @@ Split into three focused modules:
 **Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 8 seconds as a safety fallback.
 
 **Rebuild scheduling** (`core/rebuild-scheduler.js`):
-- Dynamic debounce: `DEBOUNCE_MS * 1.3^consecutiveMutations`, capped at 1000ms
+- Dynamic debounce: `DEBOUNCE_MS * 1.3^consecutiveMutations`, capped at 1800ms
 - Circuit breaker: pauses after 5 consecutive failures
 
 ## Manifest V3 Specifics
