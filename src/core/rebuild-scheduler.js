@@ -7,8 +7,8 @@ import { uiConst } from '../utils/constants.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
 
   // Timing constants
-  var DEBOUNCE_MS = uiConst('MUTATION_DEBOUNCE_MS', 500);
-  var MAX_DYNAMIC_DEBOUNCE_MS = 1000;
+  var DEBOUNCE_MS = uiConst('MUTATION_DEBOUNCE_MS', 400);
+  var MAX_DYNAMIC_DEBOUNCE_MS = 1800;
   var REBUILD_RETRY_MS = 1000;
   var MUTATION_UNLOCK_POLL_MAX_MS = 30000;
 

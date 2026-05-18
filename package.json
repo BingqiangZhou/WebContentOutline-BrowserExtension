@@ -1,6 +1,6 @@
 {
   "name": "web-toc-assistant",
-  "version": "0.7.1",
+  "version": "0.8.1",
   "private": true,
   "scripts": {
     "build": "node build.js"

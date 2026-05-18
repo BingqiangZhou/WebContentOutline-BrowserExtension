@@ -20,6 +20,7 @@ function originFromUrl(url) {
 const CONTENT_SCRIPTS = ['src/content.js'];
 
 const CONTENT_CSS = ['src/content.css'];
+const MAIN_WORLD_SCRIPTS = ['src/page-url-hook.js'];
 const SESSION_KEYS = {
   INJECTED_TABS: 'tocInjectedTabs',
   PENDING_INTENTS: 'tocPendingIntents'
@@ -405,6 +406,18 @@ async function injectIntoTab(tabId) {
   } catch (e) {
     console.warn('[toc] injectIntoTab failed (css):', e, { tabId });
     return { ok: false, step: 'css', error: e };
+  }
+
+  if (MAIN_WORLD_SCRIPTS.length) {
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        files: MAIN_WORLD_SCRIPTS,
+        world: 'MAIN'
+      });
+    } catch (e) {
+      console.warn('[toc] injectIntoTab failed (main world hook):', e, { tabId });
+    }
   }
 
   const removeCssOnFailure = async () => {

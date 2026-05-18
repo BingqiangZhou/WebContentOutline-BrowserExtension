@@ -186,11 +186,13 @@ export async function siteConfig(cfg) {
       actions.className = 'toc-overlay-actions';
 
       var btnClear = document.createElement('button');
+      btnClear.type = 'button';
       btnClear.className = 'toc-btn toc-btn-danger';
       btnClear.dataset.act = 'clear';
       btnClear.textContent = msg('buttonClearConfig');
 
       var btnClose = document.createElement('button');
+      btnClose.type = 'button';
       btnClose.className = 'toc-btn';
       btnClose.dataset.act = 'close';
       btnClose.textContent = msg('buttonClose');

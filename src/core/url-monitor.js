@@ -17,12 +17,11 @@ export function createUrlMonitor(opts) {
     var getLastRebuildTime = (opts && opts.getLastRebuildTime) || function() { return 0; };
 
     // State
-    var originalPushState = null;
-    var originalReplaceState = null;
     var lastKnownUrl = '';
     var urlChangeTimer = null;
     var popstateHandler = null;
     var hashchangeHandler = null;
+    var pageUrlChangeHandler = null;
 
     // Polling fallback state
     var pollTimer = null;
@@ -119,39 +118,20 @@ export function createUrlMonitor(opts) {
       teardownUrlHooks();
 
       try {
-        originalPushState = history.pushState;
-        originalReplaceState = history.replaceState;
         lastKnownUrl = location.href;
-
-        history.pushState = function wrappedPushState() {
-          var result = originalPushState.apply(this, arguments);
-          try { onUrlChange(); } catch (_) {}
-          return result;
-        };
-        history.replaceState = function wrappedReplaceState() {
-          var result = originalReplaceState.apply(this, arguments);
-          try { onUrlChange(); } catch (_) {}
-          return result;
-        };
 
         popstateHandler = function() { try { onUrlChange(); } catch (_) {} };
         hashchangeHandler = function() { try { onUrlChange(); } catch (_) {} };
+        pageUrlChangeHandler = function() { try { onUrlChange(); } catch (_) {} };
         window.addEventListener('popstate', popstateHandler);
         window.addEventListener('hashchange', hashchangeHandler);
+        window.addEventListener('toc:urlchange', pageUrlChangeHandler);
       } catch (e) {
         console.warn('[toc] failed to set up URL change monitoring:', e);
       }
     }
 
     function teardownUrlHooks() {
-      if (originalPushState !== null) {
-        try { history.pushState = originalPushState; } catch (_) {}
-        originalPushState = null;
-      }
-      if (originalReplaceState !== null) {
-        try { history.replaceState = originalReplaceState; } catch (_) {}
-        originalReplaceState = null;
-      }
       if (popstateHandler) {
         try { window.removeEventListener('popstate', popstateHandler); } catch (_) {}
         popstateHandler = null;
@@ -159,6 +139,10 @@ export function createUrlMonitor(opts) {
       if (hashchangeHandler) {
         try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
         hashchangeHandler = null;
+      }
+      if (pageUrlChangeHandler) {
+        try { window.removeEventListener('toc:urlchange', pageUrlChangeHandler); } catch (_) {}
+        pageUrlChangeHandler = null;
       }
       if (urlChangeTimer) {
         clearTimeout(urlChangeTimer);

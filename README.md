@@ -67,10 +67,11 @@ A web table of contents generator that automatically creates interactive floatin
 #### Method 2: Load Unpacked Extension (Developer Mode)
 
 1. Download project files to your local machine
-2. Open Chrome browser and navigate to `chrome://extensions/` or Edge browser to `edge://extensions/`
-3. Enable "Developer Mode"
-4. Click "Load unpacked" and select the project folder
-5. Visit any webpage to start using
+2. Run `npm run build` from the project root
+3. Open Chrome browser and navigate to `chrome://extensions/` or Edge browser to `edge://extensions/`
+4. Enable "Developer Mode"
+5. Click "Load unpacked" and select the `dist/build` folder
+6. Visit any webpage to start using
 
 ### Basic Operations
 
@@ -377,8 +378,9 @@ Site configuration is stored in `chrome.storage.local`:
 ### Build & Packaging
 Source code uses ES Modules, bundled with esbuild at build time:
 - Edit files directly — esbuild resolves ESM imports at build time
-- Run `node build.js` to bundle with esbuild, validate syntax, and create distributable zip
+- Run `npm run build` to bundle with esbuild, validate syntax, and create a distributable zip
 - The build script produces `dist/build/src/content.js` (bundled IIFE) and creates `dist/packages/v{version}.zip`
+- Load `dist/build` in Developer Mode. The project root contains ESM source files and is not a runnable unpacked extension directory.
 
 ### Debugging
 1. **Background Page**: Click "Service Worker" at `edge://extensions/` to view background logs

@@ -82,6 +82,7 @@ async function main() {
   for (const file of [
     path.join(ROOT_DIR, 'build.js'),
     path.join(SRC_DIR, 'background.js'),
+    path.join(SRC_DIR, 'page-url-hook.js'),
     path.join(SRC_DIR, 'shared', 'storage-primitives.js')
   ]) {
     if (!validateFile(file)) errors++;
@@ -119,6 +120,7 @@ async function main() {
 
   copyFile(path.join(ROOT_DIR, 'manifest.json'), path.join(DIST_DIR, 'manifest.json'));
   copyFile(path.join(SRC_DIR, 'background.js'), path.join(DIST_DIR, 'src', 'background.js'));
+  copyFile(path.join(SRC_DIR, 'page-url-hook.js'), path.join(DIST_DIR, 'src', 'page-url-hook.js'));
   copyFile(path.join(SRC_DIR, 'content.css'), path.join(DIST_DIR, 'src', 'content.css'));
 
   const localesDir = path.join(ROOT_DIR, '_locales');
@@ -140,6 +142,7 @@ async function main() {
 
   const zipFile = path.join(packagesDir, `v${manifest.version}.zip`);
   try {
+    if (fs.existsSync(zipFile)) fs.rmSync(zipFile);
     execSync(`cd "${DIST_DIR}" && zip -r "${zipFile}" .`, { stdio: 'pipe' });
     const stats = fs.statSync(zipFile);
     const kb = (stats.size / 1024).toFixed(1);

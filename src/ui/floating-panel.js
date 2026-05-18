@@ -286,6 +286,7 @@ export function renderFloatingPanel(opts) {
     panel.setAttribute('aria-labelledby', titleSpan.id);
 
     var btnCollapse = document.createElement('button');
+    btnCollapse.type = 'button';
     btnCollapse.className = 'toc-btn';
     btnCollapse.textContent = msg('buttonCollapse');
     btnCollapse.title = msg('buttonCollapseTitle');
@@ -304,6 +305,7 @@ export function renderFloatingPanel(opts) {
     actionsLeft.className = 'toc-actions-left';
 
     var btnPick = document.createElement('button');
+    btnPick.type = 'button';
     btnPick.className = 'toc-btn';
     btnPick.textContent = msg('buttonPickElement');
     btnPick.title = msg('buttonPickElementTitle');
@@ -313,6 +315,7 @@ export function renderFloatingPanel(opts) {
     btnPick.addEventListener('click', onBtnPickClick);
 
     var btnManage = document.createElement('button');
+    btnManage.type = 'button';
     btnManage.className = 'toc-btn';
     btnManage.textContent = msg('buttonSiteConfig');
     btnManage.title = msg('buttonSiteConfigTitle');
@@ -324,6 +327,7 @@ export function renderFloatingPanel(opts) {
     actionsRight.className = 'toc-actions-right';
 
     var btnRefresh = document.createElement('button');
+    btnRefresh.type = 'button';
     btnRefresh.className = 'toc-btn';
     btnRefresh.textContent = msg('buttonRefresh');
     btnRefresh.title = msg('buttonRefreshTitle');

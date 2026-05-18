@@ -14,19 +14,19 @@ Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that a
 
 ## Installation and Development
 
-**Build & packaging**: Run `node build.js` to bundle with esbuild, validate syntax, and create a distributable zip. Development mode auto-detects unbundled source files.
+**Build & packaging**: Run `npm run build` to bundle with esbuild, validate syntax, and create a distributable zip. Load `dist/build` in Developer Mode; the project root contains ESM source files and is not a runnable unpacked extension directory.
 
 ### Loading the extension
 1. Open Edge/Chrome: `edge://extensions/` or `chrome://extensions/`
 2. Enable Developer Mode
-3. Click "Load unpacked" and select the project folder
+3. Run `npm run build`
+4. Click "Load unpacked" and select the `dist/build` folder
 
 ### Making changes
 - Edit files directly — esbuild resolves ESM imports at build time
-- For bundled testing: run `node build.js`, then load from `dist/build/`
-- For dev: load from project root — background.js auto-detects unbundled source
+- For testing: run `npm run build`, then load from `dist/build/`
 - Changes to `manifest.json`: reload the extension
-- Changes to content scripts: refresh the page (or rebuild if using bundled mode)
+- Changes to content scripts: rebuild and refresh the page
 - Changes to `background.js`: reload the extension
 
 ### Testing
@@ -224,9 +224,9 @@ Use `chrome.storage.local` - follow existing patterns in `utils/storage.js` for 
 Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPanelExpandedMap` for UI state
 
 ### Building and packaging
-Run `node build.js` to:
+Run `npm run build` to:
 1. Bundle `src/content.js` with esbuild into `dist/build/src/content.js` (IIFE format)
-2. Copy runtime files to `dist/build/` (background.js, content.css, manifest.json, icons, locales, storage-primitives.js)
+2. Copy runtime files to `dist/build/` (background.js, page-url-hook.js, content.css, manifest.json, icons, locales, storage-primitives.js)
 3. Package into `dist/packages/v{version}.zip`
 
 ## Working Documents

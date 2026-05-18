@@ -67,10 +67,11 @@
 #### 方法二：加载已解压的扩展程序（开发者模式）
 
 1. 下载项目文件到本地
-2. 打开 Chrome 浏览器访问 `chrome://extensions/` 或 Edge 浏览器访问 `edge://extensions/`
-3. 开启"开发人员模式"（Developer Mode）
-4. 点击"加载已解压的扩展程序"（Load unpacked），选择项目文件夹
-5. 安装完成后访问任意网页即可使用
+2. 在项目根目录运行 `npm run build`
+3. 打开 Chrome 浏览器访问 `chrome://extensions/` 或 Edge 浏览器访问 `edge://extensions/`
+4. 开启"开发人员模式"（Developer Mode）
+5. 点击"加载已解压的扩展程序"（Load unpacked），选择 `dist/build` 文件夹
+6. 安装完成后访问任意网页即可使用
 
 ### 基本操作
 
@@ -377,8 +378,9 @@ src/content.js（入口）
 ### 构建与打包
 源码使用 ES Modules，构建时通过 esbuild 打包：
 - 直接编辑文件即可 — esbuild 在构建时解析 ESM 导入
-- 运行 `node build.js` 使用 esbuild 打包、验证语法并创建分发包
+- 运行 `npm run build` 使用 esbuild 打包、验证语法并创建分发包
 - 构建脚本生成 `dist/build/src/content.js`（IIFE bundle）并创建 `dist/packages/v{版本号}.zip`
+- 开发者模式请加载 `dist/build`。项目根目录包含 ESM 源码文件，不是可直接运行的已解压扩展目录。
 
 ### 调试方法
 1. **后台页面调试**：在 `edge://extensions/` 页面点击"Service Worker"查看后台日志

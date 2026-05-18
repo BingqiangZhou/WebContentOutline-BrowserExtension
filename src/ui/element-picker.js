@@ -46,12 +46,14 @@ export function showPickerResult(selector, saveCb) {
     actions.className = 'toc-overlay-actions';
 
     var btnSave = document.createElement('button');
+    btnSave.type = 'button';
     btnSave.className = 'toc-btn toc-btn-primary';
     btnSave.dataset.act = 'save';
     btnSave.textContent = msg('buttonSaveAsConfig');
     btnSave.setAttribute('aria-label', msg('buttonSaveAsConfig'));
 
     var btnClose = document.createElement('button');
+    btnClose.type = 'button';
     btnClose.className = 'toc-btn';
     btnClose.dataset.act = 'close';
     btnClose.textContent = msg('buttonClose');
