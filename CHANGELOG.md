@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#080---2026-05-15)
+[Table of Contents](#table-of-contents) • [Latest](#081---2026-05-18)
 
 ---
 
 ## Table of Contents
 
+- [0.8.1](#081---2026-05-18) - 2026-05-18
 - [0.8.0](#080---2026-05-15) - 2026-05-15
 - [0.7.1](#071---2026-05-07) - 2026-05-07
 - [0.7.0](#070---2026-05-07) - 2026-05-07
@@ -26,6 +27,28 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [0.8.1] - 2026-05-18
+
+### 🚀 Added
+- **MAIN world script for SPA navigation safety**
+  - New `page-url-hook.js` injected into page's MAIN world to wrap `history.pushState`/`replaceState`
+  - Dispatches custom `toc:urlchange` events for URL monitoring, avoiding direct History API monkey-patching from content script
+
+### 🔧 Changed
+- **URL monitor uses custom events** instead of directly wrapping History API methods
+  - No longer overwrites `history.pushState`/`history.replaceState` from the content script context
+  - Safe on sites like ChatGPT that heavily modify the History API
+- **Mutation debounce tuning**: DEBOUNCE_MS 500→400ms, MAX_DYNAMIC_DEBOUNCE_MS 1000→1800ms for faster initial response and better burst handling
+- **Build script** now copies `page-url-hook.js` to dist and removes existing zip before packaging
+
+### 🐛 Fixed
+- **Button type safety**: All dynamically created `<button>` elements now explicitly set `type="button"` to prevent unintended form submission
+
+### ⚡ Technical Improvements
+- **Navigation safety test suite**: Added Node.js tests in `checks/navigation-safety.test.mjs` covering URL monitor, page hook, button types, and rebuild timing
 
 ---
 
