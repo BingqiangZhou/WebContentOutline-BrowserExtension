@@ -30,6 +30,7 @@ A web table of contents generator that automatically creates interactive floatin
 
 ### 📍 Flexible UI Interaction
 - **Edge Dock**: Compact settings and TOC icons attached to the left or right edge
+- **Live Outline Preview**: Collapsed TOC bars reflect heading levels and highlight the current reading position
 - **Hover Preview**: Hover to peek at the TOC, click to keep it open, or tap to toggle on touch devices
 - **Vertical Dragging**: Drag the dock up and down with mouse, touch, or stylus
 - **Position Memory**: Remembers dock side and vertical position per domain and constrains the dock after window resize
@@ -188,7 +189,8 @@ For complex page structures, you can use XPath:
 
 **Effect**:
 - Hover previews the TOC without changing saved expanded state
-- Clicking the TOC icon pins the panel open until it is collapsed
+- The collapsed outline preview shows up to 12 nearby headings; deeper headings use shorter indented bars
+- Clicking the outline preview pins the title-free TOC card open until it is collapsed
 - Quick settings expose refresh, element picker, site configuration, and edge switching
 
 ## 🛠️ Technical Implementation

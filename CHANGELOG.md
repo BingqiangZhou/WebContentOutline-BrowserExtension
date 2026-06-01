@@ -34,19 +34,22 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ### 🚀 Added
 - **Edge Dock TOC toolbar**
-  - Replaces the collapsed floating badge with edge-attached settings and TOC icons
+  - Replaces the collapsed floating badge with an edge-attached sparkle settings icon and live miniature outline
+  - Uses heading-level width and indentation for up to 12 nearby outline bars, with current-position highlighting
   - Supports desktop hover preview, click-to-pin behavior, and touch click toggling
   - Adds quick settings for refresh, element picking, site configuration, and left/right edge switching
 
 ### 🔧 Changed
 - **TOC panel is now a lightweight docked card**
-  - Keeps title, collapse control, navigation list, highlighting, and incremental updates
+  - Removes visible title chrome and uses a title-free outline card with hierarchy-aware indentation
+  - Keeps navigation, highlighting, accessibility labels, and incremental updates
   - Removes free panel dragging; the dock moves vertically with safe viewport margins
 - **Existing position storage remains compatible**
   - Reuses `tocBadgePosMap` for dock side and vertical anchor persistence
 
 ### ⚡ Technical Improvements
-- **Edge Dock tests** cover hover delay, pinned state, touch activation, viewport clamping, cleanup isolation, and nested panel removal
+- **Active item tracking** now stays alive while the outline card is closed, keeping the collapsed preview synchronized during scrolling
+- **Edge Dock tests** cover heading levels, live preview windowing, hover delay, pinned state, touch activation, viewport clamping, cleanup isolation, and nested panel removal
 
 ---
 

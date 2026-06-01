@@ -140,6 +140,8 @@ if (isExtensionContextInvalidated()) {
 
 **edge-dock.js** — 吸附式工具条
 - 固定吸附页面左侧或右侧，整体仅上下拖动
+- 收起态显示最多 12 条实时目录横线，按标题层级缩进并高亮当前阅读位置
+- 设置入口使用四格闪光图标
 - 桌面端 hover 临时预览，点击锁定展开
 - 触屏设备点击切换展开状态
 - 快捷设置入口：刷新、拾取元素、站点配置、侧边切换
@@ -153,12 +155,16 @@ if (isExtensionContextInvalidated()) {
 
 **floating-panel.js** — 轻量目录卡片
 - 目录列表渲染和交互
-- IntersectionObserver 自动高亮
+- 无标题栏卡片，按标题层级缩进
 - 用户选择锁定机制
 - 挂载到 Edge Dock 并向页面内侧展开
 - 错误处理
 
 ### 核心逻辑层 (1,711行)
+
+**active-item-tracker.js** — 当前阅读位置跟踪
+- 在卡片展开或收起时持续观察目录元素
+- 将统一 activeIndex 同步给缩略横线和展开列表
 
 **toc-app.js** (658行) — 主应用协调器
 - 组件生命周期管理（`initForConfig` 返回 `{ rebuild, collapse, expand, destroy }`）

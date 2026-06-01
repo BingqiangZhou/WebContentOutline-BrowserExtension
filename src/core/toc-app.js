@@ -6,6 +6,7 @@ import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
 import { siteConfig, saveSelector, updateConfigFromStorage } from './config-manager.js';
 import { createRebuildScheduler } from './rebuild-scheduler.js';
+import { createActiveItemTracker } from './active-item-tracker.js';
 import {
   msg,
   showToast,
@@ -71,9 +72,10 @@ export function initForConfig(cfg) {
     var tocMeta = buildResult.meta;
     var dockInstance = null;
     var panelInstance = null;
+    var activeTracker = null;
+    var activeIndex = -1;
     var mutationObserver = null;
     var pickerInstance = null;
-    var activeRestoreTimeout = null;
     var rebuildInFlight = null;
     var rebuildQueued = false;
     var consecutiveRebuildFailures = 0;
@@ -83,103 +85,43 @@ export function initForConfig(cfg) {
     cfg.__markConfigDirty = function() { configDirty = true; };
 
     var getNavLock = function() { return NL.isLocked(); };
-    var setNavLock = function(v) { if (v) NL.lock(); else NL.unlock(); };
-    var cancelActiveRestore = function() {
-      if (typeof activeRestoreTimeout !== 'number') return;
-      cancelAnimationFrame(activeRestoreTimeout);
-      activeRestoreTimeout = null;
-    };
 
     var clearRebuildFlag = function() {
       clearRebuildTimers();
       isRebuilding = false;
     };
 
-    var armRebuildFailsafe = function() {
-      clearRebuildTimers();
-      try {
-        rebuildClearTimer = setTimeout(function() { isRebuilding = false; rebuildClearTimer = null; }, 1500);
-      } catch (_) {
-        rebuildClearTimer = null;
-      }
-    };
-
     var isContentIdentical = function(prevItems, nextItems) {
       if (!prevItems || !nextItems) return false;
       if (prevItems.length !== nextItems.length || prevItems.length === 0) return false;
       for (var i = 0; i < prevItems.length; i++) {
-        if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) {
+        if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el || prevItems[i].level !== nextItems[i].level) {
           return false;
         }
       }
       return true;
     };
 
-    var getActiveSnapshot = function() {
-      if (!panelInstance || items.length === 0) return null;
-      var currentActiveItem = items.find(function(item) {
-        if (!item || !item._node) return false;
-        try {
-          return item._node.classList && item._node.classList.contains('active');
-        } catch (_) {
-          return false;
-        }
-      });
-      var activeItemIndex = currentActiveItem ? items.indexOf(currentActiveItem) : -1;
-      return { currentActiveItem: currentActiveItem, activeItemIndex: activeItemIndex, wasLocked: getNavLock() };
+    var findMatchingActiveIndex = function(nextItems, previousItem, fallbackIndex) {
+      if (!nextItems || !nextItems.length || !previousItem) return -1;
+      var byElement = nextItems.findIndex(function(item) { return item.el === previousItem.el; });
+      if (byElement >= 0) return byElement;
+      var byText = nextItems.findIndex(function(item) { return item.text === previousItem.text; });
+      if (byText >= 0) return byText;
+      return fallbackIndex >= 0 && fallbackIndex < nextItems.length ? fallbackIndex : -1;
     };
 
-    var restoreActiveSnapshot = function(snapshot) {
-      // Always cancel any pending restoration rAF from a previous rebuild.
-      cancelActiveRestore();
-      if (!snapshot || !snapshot.currentActiveItem || items.length === 0) {
-        // Clear rebuild flag even if no restore happens
-        clearRebuildFlag();
-        return;
-      }
+    var syncActiveIndex = function(nextIndex) {
+      activeIndex = Number.isFinite(nextIndex) && nextIndex >= 0 && nextIndex < items.length ? nextIndex : -1;
+      try { if (dockInstance && dockInstance.setActiveIndex) dockInstance.setActiveIndex(activeIndex); } catch (_) {}
+      try { if (panelInstance && panelInstance.setActiveIndex) panelInstance.setActiveIndex(activeIndex); } catch (_) {}
+    };
 
-      items.forEach(function(item) {
-        if (item._node) {
-          item._node.classList.remove('active');
-          item._userSelected = false;
-        }
-      });
-
-      var matchingItem = null;
-      if (snapshot.activeItemIndex >= 0 && snapshot.activeItemIndex < items.length) {
-        matchingItem = items[snapshot.activeItemIndex];
-      }
-      if (!matchingItem && snapshot.currentActiveItem.el) {
-        matchingItem = items.find(function(item) { return item.el === snapshot.currentActiveItem.el; });
-      }
-      if (!matchingItem) {
-        matchingItem = items.find(function(item) { return item.text === snapshot.currentActiveItem.text; });
-      }
-      if (!matchingItem && snapshot.activeItemIndex >= 0 && snapshot.activeItemIndex < items.length) {
-        matchingItem = items[snapshot.activeItemIndex];
-      }
-
-      if (matchingItem && matchingItem._node) {
-        var restoreActive = function() {
-          try {
-            if (matchingItem._node && document.contains(matchingItem._node)) {
-              matchingItem._node.classList.add('active');
-              if (snapshot.wasLocked) {
-                matchingItem._userSelected = true;
-                setNavLock(true);
-              }
-            }
-          } catch (_) {}
-          activeRestoreTimeout = null;
-          // Clear rebuild flag directly — do not use clearRebuildFlag here
-          // because it would cancel the failsafe timer that the finally block armed.
-          isRebuilding = false;
-        };
-        activeRestoreTimeout = requestAnimationFrame(restoreActive);
-      } else {
-        // No matching item found, clear flag
-        clearRebuildFlag();
-      }
+    var syncItemViews = function(previousItem, previousIndex) {
+      var nextActiveIndex = findMatchingActiveIndex(items, previousItem, previousIndex);
+      try { if (dockInstance && dockInstance.setItems) dockInstance.setItems(items); } catch (_) {}
+      try { if (activeTracker && activeTracker.setItems) activeTracker.setItems(items); } catch (_) {}
+      syncActiveIndex(nextActiveIndex);
     };
 
     var rebuildOnce = async function() {
@@ -247,6 +189,8 @@ export function initForConfig(cfg) {
         if (destroyed || generation !== myGen) { clearRebuildFlag(); return; }
 
         var prevItems = items;
+        var previousActiveIndex = activeIndex;
+        var previousActiveItem = items[activeIndex] || null;
         var buildResult = buildNow();
         var newItems = buildResult.items;
         var newMeta = buildResult.meta;
@@ -255,6 +199,7 @@ export function initForConfig(cfg) {
         if (!panelInstance) {
           items = newItems;
           tocMeta = newMeta;
+          syncItemViews(previousActiveItem, previousActiveIndex);
           consecutiveRebuildFailures = 0;
           clearRebuildFlag();
           return;
@@ -281,9 +226,6 @@ export function initForConfig(cfg) {
           return;
         }
 
-        var activeSnapshot = getActiveSnapshot();
-        cancelActiveRestore();
-
         items = newItems;
         tocMeta = newMeta;
         var incrementalDone = false;
@@ -302,12 +244,12 @@ export function initForConfig(cfg) {
           renderPanelCard();
         }
 
-        restoreActiveSnapshot(activeSnapshot);
+        syncItemViews(previousActiveItem, previousActiveIndex);
         consecutiveRebuildFailures = 0;
       } catch (e) {
         if (isContextInvalidatedError && isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
-          try { setNavLock(false); } catch (_) {}
+          try { NL.unlock(); } catch (_) {}
           try {
             items.forEach(function(it) { it._userSelected = false; });
           } catch (_) {}
@@ -321,12 +263,7 @@ export function initForConfig(cfg) {
         console.warn('[toc] rebuild failed:', e);
         consecutiveRebuildFailures++;
       } finally {
-        // If a restore is pending, arm a failsafe timer. Otherwise clear immediately.
-        if (typeof activeRestoreTimeout === 'number') {
-          armRebuildFailsafe();
-        } else {
-          clearRebuildFlag();
-        }
+        clearRebuildFlag();
       }
     };
 
@@ -430,7 +367,8 @@ export function initForConfig(cfg) {
         setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
         mountTarget: dockInstance.getPanelHost(),
         tocMeta: tocMeta,
-        getIsRebuilding: function() { return isRebuilding; }
+        activeIndex: activeIndex,
+        onNavigate: function(_item, index) { syncActiveIndex(index); },
       });
       return panelInstance;
     }
@@ -491,8 +429,9 @@ export function initForConfig(cfg) {
       }
       consecutiveRebuildFailures = 0;
       isRebuilding = false;
-      cancelActiveRestore();
       removePanelCard();
+      try { if (activeTracker && activeTracker.destroy) activeTracker.destroy(); } catch (_) {}
+      activeTracker = null;
       try { if (dockInstance) dockInstance.destroy(); } catch (_) {}
       dockInstance = null;
       try { if (mutationObserver && mutationObserver.disconnect) mutationObserver.disconnect(); } catch (_) {}
@@ -516,6 +455,7 @@ export function initForConfig(cfg) {
         dockInstance = renderEdgeDock({
           side: side,
           initialMode: 'collapsed',
+          items: items,
           onModeChange: onDockModeChange,
           onRefresh: rebuild,
           onPick: startPick,
@@ -527,6 +467,15 @@ export function initForConfig(cfg) {
           }
         });
       }
+      if (createActiveItemTracker) {
+        activeTracker = createActiveItemTracker({
+          items: items,
+          onChange: function(_item, index) {
+            if (!isRebuilding && !getNavLock()) syncActiveIndex(index);
+          }
+        });
+      }
+      syncActiveIndex(activeIndex);
 
       return {
         rebuild: rebuild,

@@ -16,6 +16,11 @@ import { uiConst } from './constants.js';
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
 
+export function getTocItemLevel(el) {
+      var match = el && /^H([1-6])$/.exec(el.tagName || '');
+      return match ? parseInt(match[1], 10) : 2;
+    }
+
 export function buildTocItemsFromSelectors(selectors, cfg) {
       var elements = [];
       var list = Array.isArray(selectors) ? selectors : [];
@@ -103,7 +108,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
         }
         if (clipped) continue;
 
-        items.push({ id: 'toc-item-' + items.length, el: el, text: text });
+        items.push({ id: 'toc-item-' + items.length, el: el, text: text, level: getTocItemLevel(el) });
         if (items.length >= TOC_MAX_ITEMS) {
           truncated = true;
           break;

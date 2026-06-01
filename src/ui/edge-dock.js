@@ -31,6 +31,28 @@ export function resolveDockSide(pos, viewportWidth, fallbackSide) {
   return fallbackSide === 'left' ? 'left' : 'right';
 }
 
+export function getPreviewLineMetrics(level) {
+  var metrics = [
+    { width: 30, inset: 0 },
+    { width: 26, inset: 2 },
+    { width: 22, inset: 4 },
+    { width: 18, inset: 6 },
+    { width: 15, inset: 8 },
+    { width: 12, inset: 10 }
+  ];
+  var safeLevel = Math.max(1, Math.min(6, Number(level) || 2));
+  return metrics[safeLevel - 1];
+}
+
+export function selectPreviewItems(items, activeIndex, limit) {
+  var list = Array.isArray(items) ? items : [];
+  var size = Math.max(1, limit || 12);
+  if (list.length <= size) return list.slice();
+  var safeIndex = Number.isFinite(activeIndex) && activeIndex >= 0 ? activeIndex : 0;
+  var start = Math.max(0, Math.min(list.length - size, safeIndex - Math.floor(size / 2)));
+  return list.slice(start, start + size);
+}
+
 export function createDockStateController(options) {
   options = options || {};
   var mode = normalizeMode(options.initialMode);
@@ -119,6 +141,32 @@ function createSvgIcon(paths) {
   return svg;
 }
 
+function createSettingsIcon() {
+  var svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+
+  [
+    ['3.5', '4.5'], ['11.5', '4.5'], ['3.5', '12.5'], ['11.5', '12.5']
+  ].forEach(function(point) {
+    var tile = document.createElementNS(SVG_NS, 'rect');
+    tile.setAttribute('class', 'toc-edge-dock-settings-tile');
+    tile.setAttribute('x', point[0]);
+    tile.setAttribute('y', point[1]);
+    tile.setAttribute('width', '5');
+    tile.setAttribute('height', '5');
+    tile.setAttribute('rx', '1');
+    svg.appendChild(tile);
+  });
+
+  var sparkle = document.createElementNS(SVG_NS, 'path');
+  sparkle.setAttribute('class', 'toc-edge-dock-settings-sparkle');
+  sparkle.setAttribute('d', 'M18 2.5c.35 2.15 1.35 3.15 3.5 3.5-2.15.35-3.15 1.35-3.5 3.5-.35-2.15-1.35-3.15-3.5-3.5 2.15-.35 3.15-1.35 3.5-3.5Z');
+  svg.appendChild(sparkle);
+  return svg;
+}
+
 function createButton(className, titleKey, fallbackText, iconPaths) {
   var button = document.createElement('button');
   button.type = 'button';
@@ -126,7 +174,7 @@ function createButton(className, titleKey, fallbackText, iconPaths) {
   var title = msg(titleKey);
   button.title = (title && title !== titleKey) ? title : fallbackText;
   button.setAttribute('aria-label', button.title);
-  button.appendChild(createSvgIcon(iconPaths));
+  button.appendChild(createSvgIcon(iconPaths || []));
   return button;
 }
 
@@ -140,6 +188,8 @@ export function renderEdgeDock(options) {
   var suppressClick = false;
   var persistTimer = null;
   var resizeRaf = null;
+  var dockItems = Array.isArray(options.items) ? options.items : [];
+  var activeIndex = -1;
 
   var root = document.createElement('aside');
   root.className = 'toc-edge-dock toc-edge-dock-' + side;
@@ -164,8 +214,9 @@ export function renderEdgeDock(options) {
     'toc-edge-dock-button toc-edge-dock-settings',
     'dockSettingsTitle',
     'TOC settings',
-    ['M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z', 'M19.4 15a1.8 1.8 0 0 0 .36 1.98l.06.06-2.12 2.12-.06-.06a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.04 1.65V20.5h-3v-.11a1.8 1.8 0 0 0-1.04-1.65 1.8 1.8 0 0 0-1.98.36l-.06.06-2.12-2.12.06-.06A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.04H2.5v-3h.45A1.8 1.8 0 0 0 4.6 9a1.8 1.8 0 0 0-.36-1.98l-.06-.06 2.12-2.12.06.06A1.8 1.8 0 0 0 8.34 5.26 1.8 1.8 0 0 0 9.38 3.6V3.5h3v.11a1.8 1.8 0 0 0 1.04 1.65 1.8 1.8 0 0 0 1.98-.36l.06-.06 2.12 2.12-.06.06A1.8 1.8 0 0 0 17.16 9a1.8 1.8 0 0 0 1.65 1.04h.69v3h-.69A1.8 1.8 0 0 0 17.16 15Z']
+    []
   );
+  settingsButton.replaceChildren(createSettingsIcon());
   settingsButton.setAttribute('aria-haspopup', 'menu');
   settingsButton.setAttribute('aria-expanded', 'false');
 
@@ -173,10 +224,30 @@ export function renderEdgeDock(options) {
     'toc-edge-dock-button toc-edge-dock-toc',
     'badgeTitle',
     'Expand TOC',
-    ['M5 6h14', 'M5 12h14', 'M5 18h14']
+    []
   );
+  var preview = document.createElement('span');
+  preview.className = 'toc-edge-dock-preview';
+  preview.setAttribute('aria-hidden', 'true');
+  tocButton.replaceChildren(preview);
   tocButton.setAttribute('aria-controls', panelHost.id);
   tocButton.setAttribute('aria-expanded', 'false');
+
+  function renderPreview() {
+    while (preview.firstChild) preview.removeChild(preview.firstChild);
+    selectPreviewItems(dockItems, activeIndex, 12).forEach(function(item) {
+      var index = dockItems.indexOf(item);
+      var metrics = getPreviewLineMetrics(item && item.level);
+      var line = document.createElement('span');
+      line.className = 'toc-edge-dock-preview-line';
+      if (index === activeIndex) line.classList.add('toc-edge-dock-preview-line-active');
+      line.dataset.level = String(Math.max(1, Math.min(6, Number(item && item.level) || 2)));
+      line.style.setProperty('width', metrics.width + 'px', 'important');
+      line.style.setProperty('margin-left', metrics.inset + 'px', 'important');
+      preview.appendChild(line);
+    });
+  }
+  renderPreview();
 
   toolbar.appendChild(settingsButton);
   toolbar.appendChild(tocButton);
@@ -422,6 +493,15 @@ export function renderEdgeDock(options) {
     getPanelHost: function() { return panelHost; },
     getSide: function() { return side; },
     pin: function() { closeMenu(); controller.pin(); },
+    setActiveIndex: function(nextIndex) {
+      activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
+      renderPreview();
+    },
+    setItems: function(nextItems) {
+      dockItems = Array.isArray(nextItems) ? nextItems : [];
+      if (activeIndex >= dockItems.length) activeIndex = -1;
+      renderPreview();
+    },
     setSide: function(nextSide) { updateSide(nextSide, true); }
   };
 }

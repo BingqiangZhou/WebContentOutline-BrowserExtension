@@ -20,7 +20,6 @@ import {
       SCROLL_STOP_MS: get('SCROLL_STOP_MS', 500),
       EXPAND_ANIM_MS: get('EXPAND_ANIM_MS', 300),
       PENDING_REBUILD_RECHECK_MS: get('PENDING_REBUILD_RECHECK_MS', 100),
-      CLEAR_USER_SELECTED_DELAY_MS: get('CLEAR_USER_SELECTED_DELAY_MS', 200),
     };
   })();
 
@@ -34,7 +33,8 @@ export function renderFloatingPanel(opts) {
     var setPendingRebuild = opts.setPendingRebuild;
     var tocMeta = opts.tocMeta;
     var skipAnimation = opts.skipAnimation;
-    var getIsRebuilding = opts.getIsRebuilding || function() { return false; };
+    var activeIndex = opts.activeIndex;
+    var onNavigate = opts.onNavigate;
 
     // Remove any existing panel to prevent duplicates
     if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner]');
@@ -52,23 +52,16 @@ export function renderFloatingPanel(opts) {
       'unlock',
       'scrollStop',
       'pendingRebuildRecheck',
-      'clearUserSelected',
       'expandAnim',
       'removal'
     ]);
 
-    var intersectionObserver = null;
     var showRaf = null;
-    var observeRaf = null;
-    var ioRaf = null; // RAF for IntersectionObserver throttling
-    var pendingIoEntries = [];
     var removalObserver = null;
     var cleanedUp = false;
-    var userSelectedItem = null;
     var onPanelKeydown = null;
     var onListClick = null;
     var onListKeydown = null;
-    var onBtnCollapseClick = null;
 
     panel.style.setProperty('visibility', 'hidden', 'important');
     var SCROLL_LISTENER_OPTS = { passive: true };
@@ -100,14 +93,6 @@ export function renderFloatingPanel(opts) {
           }, CFG.PENDING_REBUILD_RECHECK_MS);
         }
 
-        if (timers.clearUserSelected) clearTimeout(timers.clearUserSelected);
-        timers.clearUserSelected = setTimeout(function() {
-          timers.clearUserSelected = null;
-          items.forEach(function(it) {
-            it._userSelected = false;
-          });
-          userSelectedItem = null;
-        }, CFG.CLEAR_USER_SELECTED_DELAY_MS);
       }, duration);
     };
 
@@ -127,26 +112,13 @@ export function renderFloatingPanel(opts) {
       if (timers.unlock) { clearTimeout(timers.unlock); timers.unlock = null; }
       if (timers.scrollStop) { clearTimeout(timers.scrollStop); timers.scrollStop = null; }
       if (timers.pendingRebuildRecheck) { clearTimeout(timers.pendingRebuildRecheck); timers.pendingRebuildRecheck = null; }
-      if (timers.clearUserSelected) { clearTimeout(timers.clearUserSelected); timers.clearUserSelected = null; }
-      if (intersectionObserver) {
-        intersectionObserver.disconnect();
-        intersectionObserver = null;
-      }
-      if (observeRaf != null) {
-        cancelAnimationFrame(observeRaf);
-        observeRaf = null;
-      }
-      if (ioRaf != null) {
-        cancelAnimationFrame(ioRaf);
-        ioRaf = null;
-      }
-      pendingIoEntries = [];
     };
 
     panel.className = 'toc-floating toc-floating-docked toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
     panel.setAttribute('data-toc-owner', 'web-toc-assistant');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
+    panel.setAttribute('aria-label', msg('tocTitle'));
     onPanelKeydown = function(e) {
       if (!e) return;
       if (e.key === 'Escape') {
@@ -155,33 +127,6 @@ export function renderFloatingPanel(opts) {
       }
     };
     panel.addEventListener('keydown', onPanelKeydown, true);
-
-    var header = document.createElement('div');
-    header.className = 'toc-header';
-
-    var headerRow = document.createElement('div');
-    headerRow.className = 'toc-header-row';
-
-    var titleSpan = document.createElement('span');
-    titleSpan.className = 'toc-title';
-    titleSpan.textContent = msg('tocTitle');
-    titleSpan.id = 'toc-panel-title-' + Math.random().toString(36).slice(2);
-    panel.setAttribute('aria-labelledby', titleSpan.id);
-
-    var btnCollapse = document.createElement('button');
-    btnCollapse.type = 'button';
-    btnCollapse.className = 'toc-btn';
-    btnCollapse.textContent = msg('buttonCollapse');
-    btnCollapse.title = msg('buttonCollapseTitle');
-    btnCollapse.setAttribute('aria-label', msg('buttonCollapseTitle') || msg('buttonCollapse'));
-    btnCollapse.setAttribute('data-role', 'collapse');
-    onBtnCollapseClick = function() { try { onCollapse && onCollapse(); } catch (_) {} };
-    btnCollapse.addEventListener('click', onBtnCollapseClick);
-
-    headerRow.appendChild(titleSpan);
-    headerRow.appendChild(btnCollapse);
-
-    header.appendChild(headerRow);
 
     var list = document.createElement('div');
     list.className = 'toc-list';
@@ -221,37 +166,43 @@ export function renderFloatingPanel(opts) {
     };
 
     var renderItemButtons = function() {
-      items.forEach(function(item) { item._userSelected = false; });
-      userSelectedItem = null;
       items.forEach(function(item, index) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'toc-item';
         btn.setAttribute('role', 'menuitem');
-        btn.tabIndex = index === 0 ? 0 : -1;
+        btn.tabIndex = index === activeIndex || (activeIndex < 0 && index === 0) ? 0 : -1;
         btn.textContent = item.text;
         btn.dataset.index = String(index);
+        btn.dataset.level = String(item.level || 2);
+        if (index === activeIndex) {
+          btn.classList.add('active');
+          btn.setAttribute('aria-current', 'location');
+        }
         item._node = btn;
         list.appendChild(btn);
       });
     };
 
-    var handleItemClick = function(item, node, e) {
+    var setActiveIndex = function(nextIndex) {
+      activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
+      items.forEach(function(item, index) {
+        if (!item._node) return;
+        var isActive = index === activeIndex;
+        item._node.classList.toggle('active', isActive);
+        try {
+          if (isActive) item._node.setAttribute('aria-current', 'location');
+          else item._node.removeAttribute('aria-current');
+          item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
+        } catch (_) {}
+      });
+    };
+
+    var handleItemClick = function(item, node, index, e) {
       if (e && e.preventDefault) e.preventDefault();
       NL.lock();
-      items.forEach(function(it) {
-        it._userSelected = false;
-        if (it._node) {
-          it._node.classList.remove('active');
-          try { it._node.removeAttribute('aria-current'); } catch (_) {}
-          try { it._node.tabIndex = -1; } catch (_) {}
-        }
-      });
-      item._userSelected = true;
-      userSelectedItem = item;
-      node.classList.add('active');
-      try { node.setAttribute('aria-current', 'location'); } catch (_) {}
-      try { node.tabIndex = 0; } catch (_) {}
+      setActiveIndex(index);
+      try { onNavigate && onNavigate(item, index); } catch (_) {}
 
       // Compute approximate scroll distance for dynamic lock duration
       var scrollDistance = 0;
@@ -274,134 +225,6 @@ export function renderFloatingPanel(opts) {
       unlockLater(scrollDistance);
     };
 
-    var teardownIntersectionObserver = function() {
-      if (intersectionObserver) {
-        try { intersectionObserver.disconnect(); } catch (_) {}
-        intersectionObserver = null;
-      }
-      if (observeRaf != null) {
-        cancelAnimationFrame(observeRaf);
-        observeRaf = null;
-      }
-      if (ioRaf != null) {
-        cancelAnimationFrame(ioRaf);
-        ioRaf = null;
-      }
-    };
-
-    var setupIntersectionObserver = function() {
-      teardownIntersectionObserver();
-      if (!items.length || !('IntersectionObserver' in window)) return;
-
-      var map = new Map();
-      var topByEl = new Map();
-      items.forEach(function(it) { if (it.el) map.set(it.el, it); });
-      var active;
-      var intersecting = new Set();
-
-      var clearAllActive = function() {
-        items.forEach(function(item) {
-          if (item._node) {
-            item._node.classList.remove('active');
-            try { item._node.removeAttribute('aria-current'); } catch (_) {}
-            try { item._node.tabIndex = -1; } catch (_) {}
-          }
-        });
-        active = null;
-        userSelectedItem = null;
-      };
-
-      var processIntersections = function(entries) {
-        if (cleanedUp) return;
-        if (!panel || !panel.isConnected) {
-          try { intersectionObserver && intersectionObserver.disconnect(); } catch (_) {}
-          intersectionObserver = null;
-          return;
-        }
-        if (NL.isLocked()) return;
-        if (getIsRebuilding()) return;
-
-        var _sel = userSelectedItem;
-        if (_sel) {
-          clearAllActive();
-          if (_sel._node && !_sel._node.classList.contains('active')) {
-            _sel._node.classList.add('active');
-            try { _sel._node.setAttribute('aria-current', 'location'); } catch (_) {}
-            active = _sel;
-          }
-          return;
-        }
-
-        entries.forEach(function(entry) {
-          try {
-            if (entry && entry.target && !document.contains(entry.target)) {
-              intersectionObserver && intersectionObserver.unobserve && intersectionObserver.unobserve(entry.target);
-              var it = map.get(entry.target);
-              if (it) { intersecting.delete(it); try { topByEl.delete(it.el); } catch (_) {} }
-              return;
-            }
-          } catch (_) {}
-          var it = map.get(entry.target);
-          if (!it || !it._node) return;
-          if (entry.isIntersecting) {
-            intersecting.add(it);
-            try {
-              if (entry.boundingClientRect && Number.isFinite(entry.boundingClientRect.top)) {
-                topByEl.set(it.el, entry.boundingClientRect.top);
-              }
-            } catch (_) {}
-          } else {
-            intersecting.delete(it);
-            try { topByEl.delete(it.el); } catch (_) {}
-          }
-        });
-
-        var visibleItems = Array.from(intersecting).filter(function(it) { return it.el && document.contains(it.el); });
-        visibleItems.sort(function(a, b) {
-          var ta = topByEl.has(a.el) ? topByEl.get(a.el) : 0;
-          var tb = topByEl.has(b.el) ? topByEl.get(b.el) : 0;
-          return ta - tb;
-        });
-
-        if (visibleItems.length > 0) {
-          var newActive = visibleItems[0];
-          if (active !== newActive) {
-            clearAllActive();
-            newActive._node.classList.add('active');
-            try { newActive._node.setAttribute('aria-current', 'location'); } catch (_) {}
-            active = newActive;
-          }
-        }
-      };
-
-      intersectionObserver = new IntersectionObserver(function(entries) {
-        if (cleanedUp) return;
-        if (pendingIoEntries) {
-          for (var i = 0; i < entries.length; i++) pendingIoEntries.push(entries[i]);
-        }
-        if (ioRaf) return;
-        ioRaf = requestAnimationFrame(function() {
-          ioRaf = null;
-          if (cleanedUp) return;
-          var batch = pendingIoEntries;
-          pendingIoEntries = [];
-          processIntersections(batch);
-        });
-      }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
-
-      observeRaf = requestAnimationFrame(function() {
-        observeRaf = null;
-        if (cleanedUp) return;
-        if (!panel || !panel.isConnected) return;
-        if (!intersectionObserver) return;
-        items.forEach(function(it) {
-          if (it.el && document.contains(it.el)) {
-            intersectionObserver.observe(it.el);
-          }
-        });
-      });
-    };
-
     renderListItems();
     if (items.length > 0) {
       renderItemButtons();
@@ -414,7 +237,7 @@ export function renderFloatingPanel(opts) {
       var idx = parseInt(node.dataset.index, 10);
       var item = items[idx];
       if (!item) return;
-      handleItemClick(item, node, e);
+      handleItemClick(item, node, idx, e);
     };
     list.addEventListener('click', onListClick);
 
@@ -446,11 +269,9 @@ export function renderFloatingPanel(opts) {
       var item = items[idx];
       if (!item) return;
       e.preventDefault();
-      handleItemClick(item, node, e);
+      handleItemClick(item, node, idx, e);
     };
     list.addEventListener('keydown', onListKeydown);
-
-    panel.appendChild(header);
 
     panel.appendChild(list);
     (mountTarget || document.documentElement).appendChild(panel);
@@ -499,8 +320,6 @@ export function renderFloatingPanel(opts) {
       try { if (onListKeydown) list.removeEventListener('keydown', onListKeydown); } catch (_) {}
       onListClick = null;
       onListKeydown = null;
-      try { if (onBtnCollapseClick) btnCollapse.removeEventListener('click', onBtnCollapseClick); } catch (_) {}
-      onBtnCollapseClick = null;
       try { if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true); } catch (_) {}
       onPanelKeydown = null;
       try { resolveShown && resolveShown(); } catch (_) {}
@@ -557,8 +376,6 @@ export function renderFloatingPanel(opts) {
 
     panel.remove = function() { cleanup({ removedExternally: false }); };
 
-    setupIntersectionObserver();
-
     var updateItems = function(newItems, newTocMeta) {
       if (cleanedUp) return false;
       if (!panel || !panel.isConnected) return false;
@@ -592,14 +409,12 @@ export function renderFloatingPanel(opts) {
         renderItemButtons();
       }
 
-      // Teardown and recreate IntersectionObserver for new item elements
-      setupIntersectionObserver();
-
       return true;
     };
 
     return {
       remove() { panel.remove(); },
+      setActiveIndex,
       whenShown,
       updateItems
     };

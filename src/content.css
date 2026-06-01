@@ -188,6 +188,80 @@
   stroke-width: 1.8 !important;
 }
 
+.toc-edge-dock-settings-tile {
+  fill: none !important;
+}
+
+.toc-edge-dock-settings-sparkle {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+.toc-edge-dock-toc {
+  height: auto !important;
+  min-height: 236px !important;
+  padding: 12px 6px !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.toc-edge-dock-toc:hover,
+.toc-edge-dock-toc[aria-expanded="true"] {
+  background: transparent !important;
+}
+
+.toc-edge-dock-preview {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 11px !important;
+  width: 36px !important;
+}
+
+.toc-edge-dock-preview-line {
+  display: block !important;
+  height: 3px !important;
+  border-radius: 999px !important;
+  background: #d6d6d6 !important;
+  transition: background-color 0.15s ease !important;
+}
+
+.toc-edge-dock-preview-line[data-level="1"] {
+  width: 30px !important;
+  margin-left: 0 !important;
+}
+
+.toc-edge-dock-preview-line[data-level="2"] {
+  width: 26px !important;
+  margin-left: 2px !important;
+}
+
+.toc-edge-dock-preview-line[data-level="3"] {
+  width: 22px !important;
+  margin-left: 4px !important;
+}
+
+.toc-edge-dock-preview-line[data-level="4"] {
+  width: 18px !important;
+  margin-left: 6px !important;
+}
+
+.toc-edge-dock-preview-line[data-level="5"] {
+  width: 15px !important;
+  margin-left: 8px !important;
+}
+
+.toc-edge-dock-preview-line[data-level="6"] {
+  width: 12px !important;
+  margin-left: 10px !important;
+}
+
+.toc-edge-dock-preview-line-active {
+  background: #202124 !important;
+}
+
 .toc-edge-dock-panel-host,
 .toc-edge-dock-menu {
   position: absolute !important;
@@ -242,19 +316,22 @@
 }
 
 .toc-floating.toc-floating-docked {
+  --toc-bg-hover-item: rgba(0, 0, 0, 0.045);
+  --toc-bg-active-item: rgba(0, 0, 0, 0.075);
+  --toc-bg-hover-item-strong: rgba(0, 0, 0, 0.1);
+  --toc-text-item-active: #202124;
+  --toc-text-item-hover: #202124;
+
   position: relative !important;
   top: auto !important;
   right: auto !important;
   bottom: auto !important;
   left: auto !important;
-  width: 300px !important;
+  width: 320px !important;
   max-height: 70vh !important;
-  border-radius: 14px !important;
-}
-
-.toc-floating-docked .toc-header {
-  cursor: default !important;
-  padding: 9px 11px !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
 }
 
 .toc-overlay {
@@ -570,71 +647,6 @@
   opacity: 1 !important;
 }
 
-.toc-header {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  padding: 8px 10px !important;
-  gap: 6px !important;
-  background: var(--toc-bg-header) !important;
-  border-bottom: 1px solid var(--toc-border-light) !important;
-  cursor: grab !important;
-}
-
-.toc-header-row {
-  display: flex !important;
-  justify-content: space-between !important;
-  align-items: center !important;
-  gap: 8px !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Swap title and collapse button positions so TOC title is always closer to screen center */
-.toc-floating-left .toc-header-row {
-  flex-direction: row-reverse !important;
-}
-
-/* Right panel keeps default order: [TOC 标题] [收起按钮] */
-
-.toc-title {
-  font-weight: 600 !important;
-  font-size: 14px !important;
-  color: var(--toc-text-primary) !important;
-  flex-shrink: 0 !important;
-}
-
-.toc-actions {
-  display: flex !important;
-  gap: 0px !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  position: relative !important;
-  z-index: auto !important;
-  flex-wrap: nowrap !important;
-  flex-direction: row !important;
-}
-
-.toc-actions-left {
-  display: flex !important;
-  gap: 0px !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-}
-
-.toc-actions-right {
-  display: flex !important;
-  gap: 0px !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  margin-left: auto !important;
-}
-
 .toc-btn {
   appearance: none !important;
   -webkit-appearance: none !important;
@@ -768,6 +780,30 @@
   transition: background-color 0.15s ease !important;
   outline: none !important;
   box-sizing: border-box !important;
+}
+
+.toc-item[data-level="1"] {
+  padding-left: 8px !important;
+}
+
+.toc-item[data-level="2"] {
+  padding-left: 18px !important;
+}
+
+.toc-item[data-level="3"] {
+  padding-left: 28px !important;
+}
+
+.toc-item[data-level="4"] {
+  padding-left: 38px !important;
+}
+
+.toc-item[data-level="5"] {
+  padding-left: 48px !important;
+}
+
+.toc-item[data-level="6"] {
+  padding-left: 58px !important;
 }
 
 .toc-item:hover {
@@ -962,6 +998,12 @@
     --toc-menu-hover: rgba(255, 255, 255, 0.1);
     --toc-border: rgba(255,255,255,0.1);
   }
+  .toc-edge-dock-preview-line {
+    background: rgba(255, 255, 255, 0.28) !important;
+  }
+  .toc-edge-dock-preview-line-active {
+    background: rgba(255, 255, 255, 0.88) !important;
+  }
   .toc-floating {
     --toc-bg-panel: #1e1e1e;
     --toc-bg-header: #2d2d2d;
@@ -1013,6 +1055,14 @@
     --toc-notice-border: #856c00;
     --toc-link: #64b5f6;
     --toc-link-hover: #90caf9;
+  }
+  .toc-floating.toc-floating-docked {
+    --toc-bg-hover-item: rgba(255, 255, 255, 0.07);
+    --toc-bg-active-item: rgba(255, 255, 255, 0.12);
+    --toc-bg-hover-item-strong: rgba(255, 255, 255, 0.16);
+    --toc-text-item-active: #f5f5f5;
+    --toc-text-item-hover: #f5f5f5;
+    border-color: rgba(255, 255, 255, 0.14) !important;
   }
   /* Badge is outside .toc-floating DOM tree - needs own variable scope */
   .toc-collapsed-badge {

@@ -213,8 +213,9 @@ Split into three focused modules:
 Edit `utils/toc-builder.js` - handles selector execution, filtering, and item mapping
 
 ### Modifying UI components
-- Floating panel: `ui/floating-panel.js` (main TOC rendering, IntersectionObserver) + `ui/floating-panel-helpers.js` (extracted helpers)
-- Edge dock: `ui/edge-dock.js` (edge toolbar, hover preview, pinned state, vertical dragging)
+- Floating panel: `ui/floating-panel.js` (title-free TOC card rendering) + `ui/floating-panel-helpers.js` (extracted helpers)
+- Edge dock: `ui/edge-dock.js` (edge toolbar, live outline preview, hover preview, pinned state, vertical dragging)
+- Active item tracker: `core/active-item-tracker.js` (shared reading-position observer for collapsed and expanded states)
 - Element picker: `ui/element-picker.js` (hover highlighting, click selection)
 
 ### Adding new storage keys
