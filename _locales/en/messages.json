@@ -55,6 +55,22 @@
     "message": "Expand TOC",
     "description": "Tooltip for the collapsed badge button"
   },
+  "dockLabel": {
+    "message": "TOC tools",
+    "description": "Accessible label for the docked TOC toolbar"
+  },
+  "dockSettingsTitle": {
+    "message": "TOC quick settings",
+    "description": "Tooltip text for the dock settings button"
+  },
+  "dockMoveToLeft": {
+    "message": "Move to left side",
+    "description": "Quick settings action for moving the dock to the left"
+  },
+  "dockMoveToRight": {
+    "message": "Move to right side",
+    "description": "Quick settings action for moving the dock to the right"
+  },
   "pickerResultTitle": {
     "message": "Selector Generated",
     "description": "Title of the picker result dialog"

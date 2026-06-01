@@ -131,7 +131,7 @@ export function createElementPicker(onPicked, onCancel) {
 
     function isUiElement(el) {
       if (!el) return false;
-      return el.closest && (el.closest('.toc-floating') || el.closest('.toc-collapsed-badge'));
+      return el.closest && (el.closest('.toc-edge-dock') || el.closest('.toc-floating') || el.closest('.toc-collapsed-badge'));
     }
 
     function box(el) {

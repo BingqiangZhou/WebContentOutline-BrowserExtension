@@ -1,7 +1,7 @@
 'use strict';
 
 import { buildTocItems } from '../utils/toc-builder.js';
-import { renderCollapsedBadge } from '../ui/collapsed-badge.js';
+import { renderEdgeDock } from '../ui/edge-dock.js';
 import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
 import { siteConfig, saveSelector, updateConfigFromStorage } from './config-manager.js';
@@ -10,8 +10,6 @@ import {
   msg,
   showToast,
   cleanupOwnedElements,
-  getBadgePosByHost,
-  setBadgePosByHost,
   setPanelExpandedByOrigin
 } from '../utils/toc-utils.js';
 import { uiConst } from '../utils/constants.js';
@@ -35,9 +33,6 @@ import { on } from './event-bus.js';
   var CFG = (function() {
     var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
     return {
-      PANEL_WIDTH: get('PANEL_WIDTH', 280),
-      PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
-      DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
       REBUILD_MAX_LOOPS: get('REBUILD_MAX_LOOPS', 10),
       REBUILD_COOLDOWN_MS: get('REBUILD_COOLDOWN_MS', 5000),
     };
@@ -47,7 +42,7 @@ export function initForConfig(cfg) {
     var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner]');
+    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner], .toc-floating[data-toc-owner]');
 
     // Per-instance rebuild flag to prevent IntersectionObserver interference
     var isRebuilding = false;
@@ -74,9 +69,8 @@ export function initForConfig(cfg) {
     var buildResult = buildNow();
     var items = buildResult.items;
     var tocMeta = buildResult.meta;
-    var badgeInstance = null;
+    var dockInstance = null;
     var panelInstance = null;
-    var panelSide = null;
     var mutationObserver = null;
     var pickerInstance = null;
     var activeRestoreTimeout = null;
@@ -94,18 +88,6 @@ export function initForConfig(cfg) {
       if (typeof activeRestoreTimeout !== 'number') return;
       cancelAnimationFrame(activeRestoreTimeout);
       activeRestoreTimeout = null;
-    };
-
-    // Helper to constrain position to screen bounds
-    var constrainPosition = function(left, top, width, height) {
-      width = width || CFG.PANEL_WIDTH;
-      height = height || CFG.PANEL_HEIGHT;
-      var maxLeft = window.innerWidth - width - CFG.DRAG_MARGIN_PX;
-      var maxTop = window.innerHeight - height - CFG.DRAG_MARGIN_PX;
-      return {
-        left: Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxLeft, left)),
-        top: Math.max(CFG.DRAG_MARGIN_PX, Math.min(maxTop, top))
-      };
     };
 
     var clearRebuildFlag = function() {
@@ -304,20 +286,9 @@ export function initForConfig(cfg) {
 
         items = newItems;
         tocMeta = newMeta;
-        var panelPos = null;
-        var rebuildSide = 'right';
-        var currentPanelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
-        if (currentPanelEl) {
-          var rect = currentPanelEl.getBoundingClientRect();
-          rebuildSide = rect.right > (window.innerWidth / 2) ? 'right' : 'left';
-          panelPos = { left: rect.left, top: rect.top };
-        }
-
-        // Use incremental update when panel exists and side hasn't changed.
-        var sideUnchanged = panelSide === rebuildSide;
         var incrementalDone = false;
 
-        if (panelInstance && panelInstance.updateItems && sideUnchanged) {
+        if (panelInstance && panelInstance.updateItems) {
           try {
             incrementalDone = panelInstance.updateItems(items, tocMeta);
           } catch (_) {
@@ -327,20 +298,8 @@ export function initForConfig(cfg) {
 
         if (!incrementalDone) {
           panelInstance.remove();
-          panelInstance = renderFloatingPanel ? renderFloatingPanel({
-            side: rebuildSide,
-            items: items,
-            onCollapse: collapse,
-            onRefresh: rebuild,
-            onPick: startPick,
-            onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
-            getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : function() { return false; },
-            setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
-            panelPos: panelPos,
-            tocMeta: tocMeta,
-            getIsRebuilding: function() { return isRebuilding; }
-          }) : null;
-          panelSide = rebuildSide;
+          panelInstance = null;
+          renderPanelCard();
         }
 
         restoreActiveSnapshot(activeSnapshot);
@@ -453,31 +412,56 @@ export function initForConfig(cfg) {
       }
     }
 
-    function collapse() {
+    function removePanelCard() {
+      if (!panelInstance) return;
+      try { panelInstance.remove(); } catch (_) {}
+      panelInstance = null;
+    }
+
+    function renderPanelCard() {
+      if (destroyed || panelInstance || !dockInstance || !renderFloatingPanel) return panelInstance;
+      var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
+      panelInstance = renderFloatingPanel({
+        side: currentSide,
+        items: items,
+        onCollapse: function() { collapse({ focus: true }); },
+        onRefresh: rebuild,
+        getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : function() { return false; },
+        setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
+        mountTarget: dockInstance.getPanelHost(),
+        tocMeta: tocMeta,
+        getIsRebuilding: function() { return isRebuilding; }
+      });
+      return panelInstance;
+    }
+
+    async function onDockModeChange(next, prev) {
       try {
-        // Get collapse button center position
-        var buttonCenter = null;
-        var collapseBtn = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"] [data-role="collapse"]');
-        if (collapseBtn) {
-          var rect = collapseBtn.getBoundingClientRect();
-          var x = rect.left + rect.width / 2;
-          var y = rect.top + rect.height / 2;
-          if (Number.isFinite(x) && Number.isFinite(y)) {
-            buttonCenter = { x: x, y: y };
-            try { if (setBadgePosByHost) setBadgePosByHost(location.host, buttonCenter); } catch (_) {}
+        if (next === 'collapsed') {
+          removePanelCard();
+          if (prev === 'pinned' && setPanelExpandedByOrigin) {
+            setPanelExpandedByOrigin(location.origin, false);
           }
+          return;
         }
 
-        if (panelInstance) {
-          panelInstance.remove();
-          panelInstance = null;
-          panelSide = null;
+        await rebuild();
+        if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
+        if (!panelInstance) renderPanelCard();
+        if (next === 'pinned' && setPanelExpandedByOrigin) {
+          setPanelExpandedByOrigin(location.origin, true);
         }
+      } catch (e) {
+        if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
+          console.debug('[toc] dock mode update failed:', e);
+        }
+      }
+    }
 
-        if (!badgeInstance && renderCollapsedBadge) {
-          badgeInstance = renderCollapsedBadge(side, expand, buttonCenter);
-        }
-        try { if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, false); } catch (_) {}
+    function collapse(opts) {
+      try {
+        if (dockInstance) dockInstance.collapse(opts || {});
+        else removePanelCard();
       } catch (e) {
         console.debug('[toc] collapse failed:', e);
       }
@@ -485,103 +469,7 @@ export function initForConfig(cfg) {
 
     async function expand() {
       try {
-        var expandSide = 'right';
-        var savedPos = null;
-        var panelPos = null;
-
-        // Prefer the live badge position if present (avoids stale storage during/after resize).
-        // Read-only: do NOT save to storage here to prevent cumulative drift from
-        // viewport changes between save and restore (e.g. scrollbar toggling).
-        try {
-          var badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
-          if (badgeEl) {
-            var r = badgeEl.getBoundingClientRect();
-            if (r && r.width > 0 && r.height > 0) {
-              var x = r.left + r.width / 2;
-              var y = r.top + r.height / 2;
-              if (Number.isFinite(x) && Number.isFinite(y)) {
-                savedPos = { x: x, y: y };
-                expandSide = x > (window.innerWidth / 2) ? 'right' : 'left';
-              }
-            }
-          }
-        } catch (_) {}
-
-        // Get saved badge center position
-        if (getBadgePosByHost) {
-          if (!savedPos || !Number.isFinite(savedPos.x) || !Number.isFinite(savedPos.y)) {
-            savedPos = await getBadgePosByHost(location.host);
-          }
-          if (savedPos && Number.isFinite(savedPos.x)) {
-            expandSide = savedPos.x > (window.innerWidth / 2) ? 'right' : 'left';
-
-            // Estimate initial panel position (will be refined after measurement)
-            var panelLeft;
-            if (expandSide === 'right') {
-              panelLeft = savedPos.x - CFG.PANEL_WIDTH;
-            } else {
-              panelLeft = savedPos.x;
-            }
-            var panelTop = Number.isFinite(savedPos.y) ? savedPos.y : 120;
-            panelPos = { left: panelLeft, top: panelTop };
-          }
-        }
-
-        // Remove badge
-        if (badgeInstance) {
-          badgeInstance.remove();
-          badgeInstance = null;
-        }
-
-        await rebuild();
-
-        if (renderFloatingPanel && !panelInstance) {
-          panelInstance = renderFloatingPanel({
-            side: expandSide,
-            items: items,
-            onCollapse: collapse,
-            onRefresh: rebuild,
-            onPick: startPick,
-            onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
-            getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : function() { return false; },
-            setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
-            panelPos: panelPos,
-            tocMeta: tocMeta,
-            skipAnimation: !!savedPos,
-            getIsRebuilding: function() { return isRebuilding; }
-          });
-          panelSide = expandSide;
-        }
-
-        // Measure collapse button in the hidden panel and align it to saved badge center
-        if (savedPos && panelInstance && panelInstance.measureCollapseButton) {
-          try {
-            var btnRect = panelInstance.measureCollapseButton();
-            if (btnRect && Number.isFinite(btnRect.left)) {
-              var btnCenterX = btnRect.left + btnRect.width / 2;
-              var btnCenterY = btnRect.top + btnRect.height / 2;
-              var offsetX = Number.isFinite(savedPos.x) ? (savedPos.x - btnCenterX) : 0;
-              var offsetY = Number.isFinite(savedPos.y) ? (savedPos.y - btnCenterY) : 0;
-
-              if (Math.abs(offsetX) > 0.5 || Math.abs(offsetY) > 0.5) {
-                var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
-                if (panelEl) {
-                  var rect = panelEl.getBoundingClientRect();
-                  var pw = panelEl.offsetWidth || CFG.PANEL_WIDTH;
-                  var ph = panelEl.offsetHeight || CFG.PANEL_HEIGHT;
-                  var constrained = constrainPosition(rect.left + offsetX, rect.top + offsetY, pw, ph);
-
-                  panelEl.style.setProperty('left', constrained.left + 'px', 'important');
-                  panelEl.style.setProperty('top', constrained.top + 'px', 'important');
-                  panelEl.style.setProperty('right', 'auto', 'important');
-                  panelEl.style.setProperty('bottom', 'auto', 'important');
-                }
-              }
-            }
-          } catch (_) {}
-        }
-
-        try { if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, true); } catch (_) {}
+        if (dockInstance) dockInstance.pin();
       } catch (e) {
         if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
           console.debug('[toc] expand failed:', e);
@@ -604,11 +492,9 @@ export function initForConfig(cfg) {
       consecutiveRebuildFailures = 0;
       isRebuilding = false;
       cancelActiveRestore();
-      try { if (badgeInstance) badgeInstance.remove(); } catch (_) {}
-      badgeInstance = null;
-      try { if (panelInstance) panelInstance.remove(); } catch (_) {}
-      panelInstance = null;
-      panelSide = null;
+      removePanelCard();
+      try { if (dockInstance) dockInstance.destroy(); } catch (_) {}
+      dockInstance = null;
       try { if (mutationObserver && mutationObserver.disconnect) mutationObserver.disconnect(); } catch (_) {}
       mutationObserver = null;
       try {
@@ -625,6 +511,21 @@ export function initForConfig(cfg) {
       if (createRebuildScheduler) {
         mutationObserver = createRebuildScheduler(rebuild);
         mutationObserver.start(cfg);
+      }
+      if (renderEdgeDock) {
+        dockInstance = renderEdgeDock({
+          side: side,
+          initialMode: 'collapsed',
+          onModeChange: onDockModeChange,
+          onRefresh: rebuild,
+          onPick: startPick,
+          onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
+          onSideChange: function(nextSide) {
+            side = nextSide;
+            cfg.side = nextSide;
+            removePanelCard();
+          }
+        });
       }
 
       return {

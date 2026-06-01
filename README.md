@@ -29,10 +29,10 @@ A web table of contents generator that automatically creates interactive floatin
 - **Automatic Exclusion**: Automatically excludes extension's own UI elements
 
 ### 📍 Flexible UI Interaction
-- **Floating Panel**: Expandable TOC panel with left/right side display support
-- **Draggable Panel**: Drag the panel header to reposition; position is automatically saved
-- **Draggable Button**: Collapsed "TOC" button supports drag positioning (mouse, touch, and stylus)
-- **Position Memory**: Remembers panel and button position per domain, synchronizes positions when collapsing/expanding, and stays stable on window resize (horizontal snaps to the anchored edge; vertical scales with viewport height)
+- **Edge Dock**: Compact settings and TOC icons attached to the left or right edge
+- **Hover Preview**: Hover to peek at the TOC, click to keep it open, or tap to toggle on touch devices
+- **Vertical Dragging**: Drag the dock up and down with mouse, touch, or stylus
+- **Position Memory**: Remembers dock side and vertical position per domain and constrains the dock after window resize
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
 ### 🔄 Navigation Experience
@@ -80,13 +80,15 @@ A web table of contents generator that automatically creates interactive floatin
 **How**: Click the "Web TOC Assistant" icon in the browser toolbar
 
 **Effect**:
-- Enabled state: Icon turns blue, "TOC" floating button appears on page
-- Disabled state: Icon turns gray, floating button disappears
+- Enabled state: Icon turns blue, the edge-docked TOC toolbar appears on page
+- Disabled state: Icon turns gray, the dock disappears
 - Sync effect: Other tabs of the same site automatically sync state
 
 #### 2. Expand TOC Panel
 
-**How**: Click the "TOC" floating button on the page
+**How**:
+- Desktop: Hover over the TOC icon for a temporary preview, or click it to keep the panel open
+- Touch devices: Tap the TOC icon to toggle the panel
 
 **Default Behavior**:
 - Automatically recognizes h1-h6 headers on the page
@@ -108,7 +110,7 @@ A web table of contents generator that automatically creates interactive floatin
 
 **Steps**:
 1. Expand the TOC panel
-2. Click "Pick Element" button
+2. Click the settings icon in the edge dock, then click "Pick Element"
 3. Move mouse over the page - target elements will be highlighted
 4. Click the element you want to identify
 5. CSS selector is auto-generated and previewed
@@ -122,29 +124,29 @@ A web table of contents generator that automatically creates interactive floatin
 
 #### 5. Manage Site Configuration
 
-**How**: Click "Manage Saves" button in the TOC panel
+**How**: Click the settings icon in the edge dock, then click "Site Configuration"
 
 **Functions**:
 - View all configurations for current site
 - Clear current site configuration
 - View URL matching rules
 
-#### 6. Adjust Button and Panel Position
+#### 6. Adjust Dock Position
 
 **How**:
-- Drag the "TOC" floating button to any position
-- Drag the panel header to any position when expanded
+- Drag either dock icon vertically
+- Use "Move to left side" or "Move to right side" in quick settings to switch edges
 
 **Effect**:
-- Button and panel remember current position (saved per domain)
+- Dock position and side are remembered per domain
 - Automatically restores on page refresh or next visit
-- Positions synchronize when collapsing/expanding
-- On window resize, horizontal position snaps to the anchored edge (left/right) and vertical position scales with viewport height
+- Keeps the dock attached to the selected edge with safe top and bottom margins
+- On window resize, the vertical position is constrained to the visible viewport
 - Uses default position if saved position is out of viewport
 
 #### 7. Refresh TOC
 
-**How**: Click "Refresh" button in the TOC panel
+**How**: Click the settings icon in the edge dock, then click "Refresh"
 
 **When to use**:
 - After dynamic page content changes
@@ -182,13 +184,12 @@ For complex page structures, you can use XPath:
 
 ### Advanced Features
 
-#### Draggable Panel
-**How**: Click and drag the panel header to reposition
+#### Edge Dock
 
 **Effect**:
-- Panel position is automatically saved per domain
-- Position syncs with TOC button position when collapsing/expanding
-- Cursor changes to indicate draggable state
+- Hover previews the TOC without changing saved expanded state
+- Clicking the TOC icon pins the panel open until it is collapsed
+- Quick settings expose refresh, element picker, site configuration, and edge switching
 
 ## 🛠️ Technical Implementation
 
@@ -227,7 +228,7 @@ For complex page structures, you can use XPath:
 │   ├── shared/                # Shared between contexts
 │   │   └── storage-primitives.js     # Storage utilities (ESM source; build produces IIFE for background)
 │   ├── ui/                    # UI components
-│   │   ├── collapsed-badge.js # Collapsed TOC button
+│   │   ├── edge-dock.js       # Edge-docked toolbar and hover/pinned state
 │   │   ├── element-picker.js  # Element picker
 │   │   ├── floating-panel.js  # Floating panel
 │   │   └── floating-panel-helpers.js # Extracted panel helpers
@@ -264,7 +265,7 @@ For complex page structures, you can use XPath:
 src/content.js (entry)
   ├── utils/toc-utils.js (barrel re-export of all utils)
   └── core/toc-app.js (orchestrator)
-        ├── ui/ components (collapsed-badge, element-picker, floating-panel)
+        ├── ui/ components (edge-dock, element-picker, floating-panel)
         ├── core/config-manager.js → event-bus.js, focus-trap.js
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
@@ -322,7 +323,7 @@ Site configuration is stored in `chrome.storage.local`:
 - `side`: Panel display position (`left` or `right`)
 - `selectors`: Selector array, supports mixing CSS and XPath
 - `collapsedDefault`: Default collapsed state
-- `tocBadgePosMap`: Badge center position per domain (includes `x`, `y`)
+- `tocBadgePosMap`: Dock anchor position per domain (legacy key retained for compatibility; includes `x`, `y`, `anchorX`)
 
 ## 🎯 Use Cases
 
@@ -355,9 +356,9 @@ Site configuration is stored in `chrome.storage.local`:
 2. Clicking TOC items locks navigation to prevent jumping
 3. Page content changes trigger re-scanning
 
-### Q: Button position wrong or missing?
+### Q: Dock position wrong or missing?
 **A:**
-1. Drag button to appropriate position, it auto-saves
+1. Drag the edge dock vertically to a suitable position; it auto-saves
 2. Uses default position if saved position is out of viewport
 3. Clearing browser cache may reset position
 

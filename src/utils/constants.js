@@ -20,6 +20,9 @@ export var UI_CONSTANTS = {
   // Badge defaults
   BADGE_DEFAULT_RIGHT_PX: 16,
   BADGE_DEFAULT_TOP_MIN_PX: 120,
+  DOCK_CLOSE_DELAY_MS: 250,
+  DOCK_SAFE_MARGIN_PX: 12,
+  DOCK_DEFAULT_HEIGHT: 104,
 
   PANEL_WIDTH: 280,
   PANEL_HEIGHT: 400,
@@ -54,7 +57,7 @@ export var UI_CONSTANTS = {
   STORAGE_ERROR_ONCE_MAX_KEYS: 200,
   WARN_ONCE_MAX_KEYS: 200,
 
-  CLEANUP_SELECTOR: '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]'
+  CLEANUP_SELECTOR: '.toc-edge-dock[data-toc-owner], .toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]'
 };
 
 export function uiConst(name, fallback) {

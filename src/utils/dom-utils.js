@@ -162,7 +162,7 @@ export function scrollToElement(el) {
     }
 
 export function cleanupOwnedElements(selectorFallback) {
-      var fallback = selectorFallback || '.toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]';
+      var fallback = selectorFallback || '.toc-edge-dock[data-toc-owner], .toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]';
       var selector = selectorFallback || uiConst('CLEANUP_SELECTOR', fallback);
       try {
         document.querySelectorAll(selector).forEach(function(el) {

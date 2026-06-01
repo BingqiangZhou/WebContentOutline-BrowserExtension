@@ -55,6 +55,22 @@
     "message": "展开目录",
     "description": "折叠按钮的提示文本"
   },
+  "dockLabel": {
+    "message": "目录工具",
+    "description": "吸附式目录工具条的无障碍标签"
+  },
+  "dockSettingsTitle": {
+    "message": "目录快捷设置",
+    "description": "工具条设置按钮的提示文本"
+  },
+  "dockMoveToLeft": {
+    "message": "移动到左侧",
+    "description": "将工具条移动到左侧的快捷操作"
+  },
+  "dockMoveToRight": {
+    "message": "移动到右侧",
+    "description": "将工具条移动到右侧的快捷操作"
+  },
   "pickerResultTitle": {
     "message": "已生成选择器",
     "description": "拾取结果对话框的标题"

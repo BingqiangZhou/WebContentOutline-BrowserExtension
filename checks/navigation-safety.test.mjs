@@ -280,7 +280,7 @@ test('extension-created buttons explicitly opt out of submit behavior', () => {
     'src/core/config-manager.js',
     'src/ui/element-picker.js',
     'src/ui/floating-panel.js',
-    'src/ui/collapsed-badge.js',
+    'src/ui/edge-dock.js',
     'src/utils/toast.js'
   ];
 

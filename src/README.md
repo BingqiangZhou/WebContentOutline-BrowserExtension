@@ -2,7 +2,7 @@
 
 ## 项目概述
 
-**网页目录助手** 是一个浏览器扩展，为网页生成可折叠的浮动目录，支持左/右侧显示与多选择器配置（CSS/XPath）。
+**网页目录助手** 是一个浏览器扩展，为网页生成可折叠的浮动目录，支持吸附式工具条、左/右侧显示与多选择器配置（CSS/XPath）。
 
 ## 重构成果
 
@@ -17,26 +17,27 @@
 src/
 ├── content.js                  # 内容脚本入口 (469行) - 应用启动、重注入清理、消息/storage listener
 ├── background.js               # MV3 service worker (758行) - 图标状态、站点开关、动态注入
-├── content.css                 # 样式文件 (895行) - 包含防御性CSS保护、CSS自定义属性主题、动画
+├── content.css                 # 样式文件 (1,062行) - 包含防御性CSS保护、CSS自定义属性主题、动画
 ├── README.md                   # 项目文档
 ├── shared/                     # background 与内容脚本共享的存储原语
 │   └── storage-primitives.js   # ESM 源码；构建时另产出 background 可 importScripts 的 IIFE
 ├── utils/                      # 工具模块 (1,546行)
-│   ├── constants.js            # (76行)  STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
+│   ├── constants.js            # (75行)  STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
 │   ├── core-utils.js           # (218行) 通用工具：消息、校验、焦点管理、JSON解析
 │   ├── toast.js                # (91行)  Toast 提示
 │   ├── storage.js              # (412行) 存储操作：getConfigs/saveConfigs 等
-│   ├── badge-position.js       # (128行) 徽标位置管理
-│   ├── dom-utils.js            # (191行) DOM操作：选择器执行、元素去重、配置匹配
+│   ├── badge-position.js       # (128行) 工具条锚点位置管理（兼容旧键名）
+│   ├── dom-utils.js            # (176行) DOM操作：选择器执行、元素去重、配置匹配
 │   ├── css-selector.js         # (52行)  CSS选择器生成算法
 │   ├── toc-builder.js          # (139行) TOC构建：选择器执行、元素过滤、项目映射
-│   ├── drag-helper.js          # (171行) 拖拽辅助
+│   ├── drag-helper.js          # (165行) 拖拽辅助
 │   ├── focus-trap.js           # (49行)  焦点陷阱
 │   └── toc-utils.js            # (19行)  barrel 重导出模块
-├── ui/                         # UI组件 (1,426行)
-│   ├── collapsed-badge.js      # (266行) 折叠状态按钮
+├── ui/                         # UI组件
+│   ├── edge-dock.js            # 吸附式工具条、hover 预览与 pinned 状态
 │   ├── element-picker.js       # (272行) 元素拾取器
-│   └── floating-panel.js       # (888行) 主浮动面板
+│   ├── floating-panel-helpers.js # 浮动面板辅助函数
+│   └── floating-panel.js       # 轻量目录卡片
 └── core/                       # 核心逻辑 (1,711行)
     ├── toc-app.js              # (658行) 主应用协调器
     ├── config-manager.js       # (343行) 配置管理
@@ -47,7 +48,7 @@ src/
     └── event-bus.js            # (21行)  事件总线
 ```
 
-总计约 6,921 行源码。
+总计约 6,639 行源码。
 
 ## 🔧 模块加载机制
 
@@ -100,7 +101,7 @@ if (isExtensionContextInvalidated()) {
 - `getConfigs()` / `saveConfigs()`: TOC 配置管理
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
 - `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
-- `getBadgePosMap()` / `saveBadgePosMap()`: 徽标位置
+- `getBadgePosMap()` / `saveBadgePosMap()`: 工具条锚点位置（兼容旧徽标数据）
 - 使用 `shared/storage-primitives.js` 的 `serializedWrite` 保证写入顺序
 
 **dom-utils.js** (191行) — DOM操作
@@ -118,7 +119,7 @@ if (isExtensionContextInvalidated()) {
 - 优先使用 class 选择器
 - 回退到路径选择器（nth-of-type）
 
-**badge-position.js** (128行) — 徽标位置管理
+**badge-position.js** (128行) — 工具条锚点位置管理
 - 按域名存储位置
 - 窗口尺寸变化时：水平贴边，竖直按高度比例缩放
 
@@ -137,12 +138,12 @@ if (isExtensionContextInvalidated()) {
 
 ### UI组件层 (1,426行)
 
-**collapsed-badge.js** (266行) — 折叠状态按钮
-- 可拖拽定位，支持位置记忆
-- 跨域名位置持久化
-- 支持左右侧位置
-- 与面板位置同步
-- 键盘交互支持
+**edge-dock.js** — 吸附式工具条
+- 固定吸附页面左侧或右侧，整体仅上下拖动
+- 桌面端 hover 临时预览，点击锁定展开
+- 触屏设备点击切换展开状态
+- 快捷设置入口：刷新、拾取元素、站点配置、侧边切换
+- 按域名持久化吸附侧边和竖直位置
 
 **element-picker.js** (272行) — 元素拾取器
 - 实时高亮悬停元素
@@ -150,12 +151,11 @@ if (isExtensionContextInvalidated()) {
 - 支持ESC取消和右键取消
 - 焦点管理
 
-**floating-panel.js** (888行) — 主浮动面板
+**floating-panel.js** — 轻量目录卡片
 - 目录列表渲染和交互
 - IntersectionObserver 自动高亮
 - 用户选择锁定机制
-- 可拖拽标题栏
-- 支持左右侧位置
+- 挂载到 Edge Dock 并向页面内侧展开
 - 错误处理
 
 ### 核心逻辑层 (1,711行)
@@ -164,7 +164,7 @@ if (isExtensionContextInvalidated()) {
 - 组件生命周期管理（`initForConfig` 返回 `{ rebuild, collapse, expand, destroy }`）
 - 状态同步和事件协调
 - 重建逻辑和优化
-- 面板/徽标位置同步
+- Edge Dock 与目录卡片状态同步
 - 导航锁故障保护（8秒超时自动解锁）
 - 动画帧管理和资源清理
 

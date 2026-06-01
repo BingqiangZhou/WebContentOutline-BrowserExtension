@@ -29,14 +29,14 @@ export function createDomWatcher(onMutation) {
         try {
           var t = m.target;
           if (t && t.nodeType === 1 && t.closest) {
-            if (t.closest('.toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
+            if (t.closest('.toc-edge-dock, .toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
               continue;
             }
           }
           // Filter characterData: ignore text changes inside extension-owned elements
           if (m.type === 'characterData' && t && t.nodeType === 3 && t.parentElement) {
             var parent = t.parentElement;
-            if (parent.closest && parent.closest('.toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
+            if (parent.closest && parent.closest('.toc-edge-dock, .toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
               continue;
             }
           }

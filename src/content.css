@@ -1,6 +1,8 @@
 /* TOC UI reset and isolation */
 .toc-floating,
 .toc-floating *,
+.toc-edge-dock,
+.toc-edge-dock *,
 .toc-collapsed-badge,
 .toc-collapsed-badge * {
   all: unset !important;
@@ -14,6 +16,7 @@
 }
 
 .toc-floating,
+.toc-edge-dock,
 .toc-overlay,
 .toc-toast-container,
 .toc-collapsed-badge {
@@ -99,6 +102,159 @@
   opacity: 1 !important;
   visibility: visible !important;
   display: block !important;
+}
+
+.toc-edge-dock {
+  --toc-z-index: 2147483647;
+  --toc-dock-bg: #fff;
+  --toc-dock-color: #ec4899;
+  --toc-dock-border: rgba(236, 72, 153, 0.25);
+  --toc-dock-hover: rgba(236, 72, 153, 0.1);
+  --toc-dock-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+  --toc-menu-bg: #fff;
+  --toc-menu-color: #334155;
+  --toc-menu-hover: #f1f5f9;
+  --toc-focus-ring: rgba(47, 111, 235, 0.85);
+
+  position: fixed !important;
+  top: 120px !important;
+  z-index: var(--toc-z-index) !important;
+  display: block !important;
+  width: 48px !important;
+  height: auto !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  color: var(--toc-dock-color) !important;
+  touch-action: none !important;
+}
+
+.toc-edge-dock-right {
+  right: 0 !important;
+  left: auto !important;
+}
+
+.toc-edge-dock-left {
+  left: 0 !important;
+  right: auto !important;
+}
+
+.toc-edge-dock-toolbar {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+  width: 48px !important;
+  cursor: grab !important;
+  user-select: none !important;
+}
+
+.toc-edge-dock-dragging {
+  cursor: grabbing !important;
+}
+
+.toc-edge-dock-button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 48px !important;
+  height: 48px !important;
+  border: 1px solid var(--toc-dock-border) !important;
+  background: var(--toc-dock-bg) !important;
+  color: var(--toc-dock-color) !important;
+  box-shadow: var(--toc-dock-shadow) !important;
+  cursor: pointer !important;
+}
+
+.toc-edge-dock-right .toc-edge-dock-button {
+  border-right: 0 !important;
+  border-radius: 16px 0 0 16px !important;
+}
+
+.toc-edge-dock-left .toc-edge-dock-button {
+  border-left: 0 !important;
+  border-radius: 0 16px 16px 0 !important;
+}
+
+.toc-edge-dock-button:hover,
+.toc-edge-dock-button[aria-expanded="true"] {
+  background: var(--toc-dock-hover) !important;
+}
+
+.toc-edge-dock-button svg {
+  width: 23px !important;
+  height: 23px !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
+  stroke-width: 1.8 !important;
+}
+
+.toc-edge-dock-panel-host,
+.toc-edge-dock-menu {
+  position: absolute !important;
+  top: 0 !important;
+}
+
+.toc-edge-dock-panel-host {
+  display: block !important;
+}
+
+.toc-edge-dock-right .toc-edge-dock-panel-host,
+.toc-edge-dock-right .toc-edge-dock-menu {
+  right: 56px !important;
+}
+
+.toc-edge-dock-left .toc-edge-dock-panel-host,
+.toc-edge-dock-left .toc-edge-dock-menu {
+  left: 56px !important;
+}
+
+.toc-edge-dock-panel-host[hidden],
+.toc-edge-dock-menu[hidden] {
+  display: none !important;
+}
+
+.toc-edge-dock-menu {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 150px !important;
+  padding: 6px !important;
+  border: 1px solid var(--toc-border, rgba(0, 0, 0, 0.1)) !important;
+  border-radius: 10px !important;
+  background: var(--toc-menu-bg) !important;
+  color: var(--toc-menu-color) !important;
+  box-shadow: var(--toc-dock-shadow) !important;
+}
+
+.toc-edge-dock-menu-item {
+  display: block !important;
+  width: 100% !important;
+  padding: 8px 10px !important;
+  border-radius: 6px !important;
+  color: inherit !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+  text-align: left !important;
+}
+
+.toc-edge-dock-menu-item:hover {
+  background: var(--toc-menu-hover) !important;
+}
+
+.toc-floating.toc-floating-docked {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  width: 300px !important;
+  max-height: 70vh !important;
+  border-radius: 14px !important;
+}
+
+.toc-floating-docked .toc-header {
+  cursor: default !important;
+  padding: 9px 11px !important;
 }
 
 .toc-overlay {
@@ -219,6 +375,8 @@
 .toc-btn:focus-visible,
 .toc-item:focus-visible,
 .toc-selector-delete:focus-visible,
+.toc-edge-dock-button:focus-visible,
+.toc-edge-dock-menu-item:focus-visible,
 .toc-collapsed-badge:focus-visible,
 .toc-toast-close:focus-visible {
   outline: 2px solid var(--toc-focus-ring, rgba(47, 111, 235, 0.85)) !important;
@@ -242,6 +400,8 @@
     transition: none !important;
   }
   .toc-collapsed-badge,
+  .toc-edge-dock-button,
+  .toc-edge-dock-menu,
   .toc-toast,
   .toc-overlay {
     transition: none !important;
@@ -791,6 +951,17 @@
    Dark Theme Support (prefers-color-scheme: dark)
    ============================================ */
 @media (prefers-color-scheme: dark) {
+  .toc-edge-dock {
+    --toc-dock-bg: #1e1e1e;
+    --toc-dock-color: #f472b6;
+    --toc-dock-border: rgba(244, 114, 182, 0.3);
+    --toc-dock-hover: rgba(244, 114, 182, 0.14);
+    --toc-dock-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --toc-menu-bg: #1e1e1e;
+    --toc-menu-color: #e2e8f0;
+    --toc-menu-hover: rgba(255, 255, 255, 0.1);
+    --toc-border: rgba(255,255,255,0.1);
+  }
   .toc-floating {
     --toc-bg-panel: #1e1e1e;
     --toc-bg-header: #2d2d2d;

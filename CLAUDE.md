@@ -50,7 +50,7 @@ src/content.js (entry point)
   │     └── (storage.js → shared/storage-primitives.js)
   └── core/toc-app.js (orchestrator)
         ├── utils/toc-builder.js → dom-utils.js
-        ├── ui/collapsed-badge.js, ui/element-picker.js, ui/floating-panel.js
+        ├── ui/edge-dock.js, ui/element-picker.js, ui/floating-panel.js
         │     └── (floating-panel.js → ui/floating-panel-helpers.js)
         ├── core/config-manager.js → event-bus.js, focus-trap.js
         ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
@@ -174,7 +174,7 @@ Split into three focused modules:
 - Uses CSS custom properties for light/dark theming
 - Global reset: `.toc-floating, .toc-floating * { all: unset !important; }`
 - All styles use `!important` to prevent host page interference
-- Components: floating panel, badge, overlay dialogs, buttons
+- Components: edge dock, floating panel, overlay dialogs, buttons
 
 ## Key Algorithms
 
@@ -214,7 +214,7 @@ Edit `utils/toc-builder.js` - handles selector execution, filtering, and item ma
 
 ### Modifying UI components
 - Floating panel: `ui/floating-panel.js` (main TOC rendering, IntersectionObserver) + `ui/floating-panel-helpers.js` (extracted helpers)
-- Collapsed badge: `ui/collapsed-badge.js` (draggable button)
+- Edge dock: `ui/edge-dock.js` (edge toolbar, hover preview, pinned state, vertical dragging)
 - Element picker: `ui/element-picker.js` (hover highlighting, click selection)
 
 ### Adding new storage keys

@@ -2,19 +2,15 @@
 
 import {
   msg,
-  setBadgePosByHost,
   scrollToElement,
   cleanupOwnedElements
 } from '../utils/toc-utils.js';
 import { uiConst } from '../utils/constants.js';
-import { createDragController } from '../utils/drag-helper.js';
 import * as NL from '../core/nav-lock.js';
 import {
   createTimerBag,
   createWindowListenerAdder,
-  clearChildren,
-  setFixedPosition,
-  clampPanelPosition
+  clearChildren
 } from './floating-panel-helpers.js';
 
   var CFG = (function() {
@@ -22,9 +18,6 @@ import {
     return {
       UNLOCK_AFTER_MS: get('UNLOCK_AFTER_MS', 1000),
       SCROLL_STOP_MS: get('SCROLL_STOP_MS', 500),
-      PANEL_WIDTH: get('PANEL_WIDTH', 280),
-      PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
-      DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
       EXPAND_ANIM_MS: get('EXPAND_ANIM_MS', 300),
       PENDING_REBUILD_RECHECK_MS: get('PENDING_REBUILD_RECHECK_MS', 100),
       CLEAR_USER_SELECTED_DELAY_MS: get('CLEAR_USER_SELECTED_DELAY_MS', 200),
@@ -36,11 +29,9 @@ export function renderFloatingPanel(opts) {
     var side = opts.side;
     var onCollapse = opts.onCollapse;
     var onRefresh = opts.onRefresh;
-    var onPick = opts.onPick;
-    var onSiteConfig = opts.onSiteConfig;
+    var mountTarget = opts.mountTarget;
     var getPendingRebuild = opts.getPendingRebuild;
     var setPendingRebuild = opts.setPendingRebuild;
-    var panelPos = opts.panelPos;
     var tocMeta = opts.tocMeta;
     var skipAnimation = opts.skipAnimation;
     var getIsRebuilding = opts.getIsRebuilding || function() { return false; };
@@ -63,7 +54,6 @@ export function renderFloatingPanel(opts) {
       'pendingRebuildRecheck',
       'clearUserSelected',
       'expandAnim',
-      'persist',
       'removal'
     ]);
 
@@ -75,120 +65,13 @@ export function renderFloatingPanel(opts) {
     var removalObserver = null;
     var cleanedUp = false;
     var userSelectedItem = null;
-    var pickerStartEvent = 'toc-picker-start';
-    var pickerEndEvent = 'toc-picker-end';
     var onPanelKeydown = null;
     var onListClick = null;
     var onListKeydown = null;
     var onBtnCollapseClick = null;
-    var onBtnPickClick = null;
-    var onBtnManageClick = null;
-    var onBtnRefreshClick = null;
 
     panel.style.setProperty('visibility', 'hidden', 'important');
-
-    // Apply saved position
-    if (panelPos && Number.isFinite(panelPos.top) && Number.isFinite(panelPos.left)) {
-      panel.style.setProperty('top', panelPos.top + 'px', 'important');
-      panel.style.setProperty('left', panelPos.left + 'px', 'important');
-      panel.style.setProperty('right', 'auto', 'important');
-      panel.style.setProperty('bottom', 'auto', 'important');
-    }
-
-    var resizeRaf = null;
-    var lastViewportW = window.innerWidth;
-    var lastViewportH = window.innerHeight;
-    var anchorX = (side === 'left') ? 'left' : 'right';
-    var pendingPersistCenter = null;
-
-    var constrainCurrentPosition = function() {
-      try {
-        if (panel.style.getPropertyValue('visibility') === 'hidden') return;
-
-        // === READ PHASE: all layout reads together ===
-        var rect = panel.getBoundingClientRect();
-        var pw = panel.offsetWidth || CFG.PANEL_WIDTH;
-        var ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
-        var vw = window.innerWidth;
-        var vh = window.innerHeight;
-        var prevW = Number.isFinite(lastViewportW) && lastViewportW > 0 ? lastViewportW : vw;
-        var prevH = Number.isFinite(lastViewportH) && lastViewportH > 0 ? lastViewportH : vh;
-
-        var refX = rect.left + pw / 2;
-        var refY = rect.top + ph / 2;
-        var collapseBtnRect = null;
-        try {
-          var collapseBtn = panel.querySelector('[data-role="collapse"]');
-          if (collapseBtn) {
-            var btnRect = collapseBtn.getBoundingClientRect();
-            if (btnRect.width > 0 && btnRect.height > 0) {
-              collapseBtnRect = btnRect;
-              refX = btnRect.left + btnRect.width / 2;
-              refY = btnRect.top + btnRect.height / 2;
-            }
-          }
-        } catch (_) {}
-
-        // === COMPUTE PHASE: pure calculation, no DOM ===
-        if (anchorX !== 'left' && anchorX !== 'right') {
-          anchorX = refX > (prevW / 2) ? 'right' : 'left';
-        }
-        var nextLeftEdge = (anchorX === 'right') ? (vw - pw - CFG.DRAG_MARGIN_PX) : CFG.DRAG_MARGIN_PX;
-        var ratioH = prevH ? (vh / prevH) : 1;
-        var nextRefY = refY * ratioH;
-        var nextLeft = nextLeftEdge;
-        var nextTop = rect.top + (nextRefY - refY);
-        var constrained = clampPanelPosition(nextLeft, nextTop, pw, ph, CFG.DRAG_MARGIN_PX);
-        var left = constrained.left;
-        var top = constrained.top;
-
-        var persistBtnX = null;
-        var persistBtnY = null;
-        if (collapseBtnRect) {
-          persistBtnX = collapseBtnRect.left + collapseBtnRect.width / 2;
-          persistBtnY = collapseBtnRect.top + collapseBtnRect.height / 2;
-        }
-
-        // === WRITE PHASE: all style writes together ===
-        setFixedPosition(panel, left, top);
-
-        lastViewportW = vw;
-        lastViewportH = vh;
-
-        if (persistBtnX !== null && Number.isFinite(persistBtnX) && Number.isFinite(persistBtnY)) {
-          pendingPersistCenter = { x: persistBtnX, y: persistBtnY, anchorX: anchorX };
-        }
-      } catch (_) {}
-    };
-
-    var onResize = function() {
-      if (cleanedUp) return;
-      if (resizeRaf) return;
-      resizeRaf = requestAnimationFrame(function() {
-        resizeRaf = null;
-        if (cleanedUp) return;
-        if (!panel || !panel.isConnected) return;
-        constrainCurrentPosition();
-        if (pendingPersistCenter && setBadgePosByHost) {
-          if (timers.persist) clearTimeout(timers.persist);
-          // Increased from 160ms to 500ms to reduce storage I/O frequency
-          timers.persist = setTimeout(function() {
-            timers.persist = null;
-            var p = pendingPersistCenter;
-            pendingPersistCenter = null;
-            try {
-              if (p && Number.isFinite(p.x) && Number.isFinite(p.y)) {
-                setBadgePosByHost(location.host, p);
-              }
-            } catch (_) {}
-          }, 500);
-        }
-      });
-    };
-
-    var RESIZE_LISTENER_OPTS = { passive: true };
     var SCROLL_LISTENER_OPTS = { passive: true };
-    var removeResizeListener = addWindowListener('resize', onResize, RESIZE_LISTENER_OPTS);
 
     var unlockLater = function(scrollDistance) {
       if (timers.unlock) clearTimeout(timers.unlock);
@@ -260,7 +143,7 @@ export function renderFloatingPanel(opts) {
       pendingIoEntries = [];
     };
 
-    panel.className = 'toc-floating toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
+    panel.className = 'toc-floating toc-floating-docked toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
     panel.setAttribute('data-toc-owner', 'web-toc-assistant');
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-modal', 'false');
@@ -298,65 +181,7 @@ export function renderFloatingPanel(opts) {
     headerRow.appendChild(titleSpan);
     headerRow.appendChild(btnCollapse);
 
-    var actions = document.createElement('div');
-    actions.className = 'toc-actions';
-
-    var actionsLeft = document.createElement('div');
-    actionsLeft.className = 'toc-actions-left';
-
-    var btnPick = document.createElement('button');
-    btnPick.type = 'button';
-    btnPick.className = 'toc-btn';
-    btnPick.textContent = msg('buttonPickElement');
-    btnPick.title = msg('buttonPickElementTitle');
-    btnPick.setAttribute('aria-label', msg('buttonPickElementTitle') || msg('buttonPickElement'));
-    btnPick.setAttribute('aria-pressed', 'false');
-    onBtnPickClick = function() { try { onPick && onPick(); } catch (_) {} };
-    btnPick.addEventListener('click', onBtnPickClick);
-
-    var btnManage = document.createElement('button');
-    btnManage.type = 'button';
-    btnManage.className = 'toc-btn';
-    btnManage.textContent = msg('buttonSiteConfig');
-    btnManage.title = msg('buttonSiteConfigTitle');
-    btnManage.setAttribute('aria-label', msg('buttonSiteConfigTitle') || msg('buttonSiteConfig'));
-    onBtnManageClick = function() { try { onSiteConfig && onSiteConfig(); } catch (_) {} };
-    btnManage.addEventListener('click', onBtnManageClick);
-
-    var actionsRight = document.createElement('div');
-    actionsRight.className = 'toc-actions-right';
-
-    var btnRefresh = document.createElement('button');
-    btnRefresh.type = 'button';
-    btnRefresh.className = 'toc-btn';
-    btnRefresh.textContent = msg('buttonRefresh');
-    btnRefresh.title = msg('buttonRefreshTitle');
-    btnRefresh.setAttribute('aria-label', msg('buttonRefreshTitle') || msg('buttonRefresh'));
-    var refreshing = false;
-    onBtnRefreshClick = function() {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        if (onRefresh) {
-          onRefresh();
-        }
-      } catch (e) {
-        console.warn('[toc] refresh failed:', e);
-      } finally {
-        refreshing = false;
-      }
-    };
-    btnRefresh.addEventListener('click', onBtnRefreshClick);
-
-    actionsLeft.appendChild(btnPick);
-    actionsLeft.appendChild(btnManage);
-    actionsRight.appendChild(btnRefresh);
-
-    actions.appendChild(actionsLeft);
-    actions.appendChild(actionsRight);
-
     header.appendChild(headerRow);
-    header.appendChild(actions);
 
     var list = document.createElement('div');
     list.className = 'toc-list';
@@ -628,7 +453,7 @@ export function renderFloatingPanel(opts) {
     panel.appendChild(header);
 
     panel.appendChild(list);
-    document.documentElement.appendChild(panel);
+    (mountTarget || document.documentElement).appendChild(panel);
 
     // Show panel — optionally skip expand animation
     showRaf = requestAnimationFrame(function() {
@@ -651,64 +476,7 @@ export function renderFloatingPanel(opts) {
       }
     });
 
-    // Make header draggable
-    var dragController = createDragController ? createDragController({
-      element: panel,
-      shouldStart: function(e) {
-        if (!e || !e.target || !e.target.closest) return false;
-        if (e.target.closest('.toc-btn, button')) return false;
-        return !!e.target.closest('.toc-header');
-      },
-      getRect: function() { return panel.getBoundingClientRect(); },
-      onStart: function() {
-        panel.style.cursor = 'grabbing';
-        panel.style.userSelect = 'none';
-      },
-      onMove: function(drag, e) {
-        var left = e.clientX - drag.offsetX;
-        var top = e.clientY - drag.offsetY;
-
-        var pw = panel.offsetWidth || CFG.PANEL_WIDTH;
-        var ph = panel.offsetHeight || CFG.PANEL_HEIGHT;
-        var pos = clampPanelPosition(left, top, pw, ph, CFG.DRAG_MARGIN_PX);
-        setFixedPosition(panel, pos.left, pos.top);
-      },
-      onEnd: function(drag) {
-        panel.style.cursor = '';
-        panel.style.userSelect = '';
-
-        if (!drag.moved) return;
-        // Save collapse button center position
-        try {
-          var collapseBtn = panel.querySelector('[data-role="collapse"]');
-          if (collapseBtn && setBadgePosByHost) {
-            var btnRect = collapseBtn.getBoundingClientRect();
-            var x = btnRect.left + btnRect.width / 2;
-            var y = btnRect.top + btnRect.height / 2;
-            if (Number.isFinite(x) && Number.isFinite(y)) {
-              anchorX = x > (window.innerWidth / 2) ? 'right' : 'left';
-              setBadgePosByHost(location.host, { x: x, y: y, anchorX: anchorX });
-            }
-          }
-        } catch (_) {}
-      }
-    }) : null;
-
     var origRemove = panel.remove.bind(panel);
-    var onPickerStart = function() {
-      btnPick.classList.add('toc-btn-active');
-      btnPick.setAttribute('aria-pressed', 'true');
-    };
-    var onPickerEnd = function() {
-      btnPick.classList.remove('toc-btn-active');
-      btnPick.setAttribute('aria-pressed', 'false');
-      if (document.activeElement === btnPick) {
-        btnPick.blur();
-      }
-    };
-
-    var removePickerStartListener = addWindowListener(pickerStartEvent, onPickerStart);
-    var removePickerEndListener = addWindowListener(pickerEndEvent, onPickerEnd);
 
     var stopRemovalWatch = function() {
       if (removalObserver) {
@@ -732,33 +500,18 @@ export function renderFloatingPanel(opts) {
       onListClick = null;
       onListKeydown = null;
       try { if (onBtnCollapseClick) btnCollapse.removeEventListener('click', onBtnCollapseClick); } catch (_) {}
-      try { if (onBtnPickClick) btnPick.removeEventListener('click', onBtnPickClick); } catch (_) {}
-      try { if (onBtnManageClick) btnManage.removeEventListener('click', onBtnManageClick); } catch (_) {}
-      try { if (onBtnRefreshClick) btnRefresh.removeEventListener('click', onBtnRefreshClick); } catch (_) {}
       onBtnCollapseClick = null;
-      onBtnPickClick = null;
-      onBtnManageClick = null;
-      onBtnRefreshClick = null;
       try { if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true); } catch (_) {}
       onPanelKeydown = null;
       try { resolveShown && resolveShown(); } catch (_) {}
-      try { removeResizeListener && removeResizeListener(); } catch (_) {}
       try { removeScrollListener && removeScrollListener(); } catch (_) {}
-      try { removePickerStartListener && removePickerStartListener(); } catch (_) {}
-      try { removePickerEndListener && removePickerEndListener(); } catch (_) {}
       try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
       timers.clearAll();
       try {
-        if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-      } catch (_) {}
-      resizeRaf = null;
-      try {
         if (showRaf != null) cancelAnimationFrame(showRaf);
       } catch (_) {}
       showRaf = null;
-      dragController && dragController.destroy && dragController.destroy();
-      dragController = null;
 
       if (!removedExternally) {
         try {
@@ -780,7 +533,7 @@ export function renderFloatingPanel(opts) {
             if (panel && panel.isConnected) return;
             cleanup({ removedExternally: true });
           });
-          removalObserver.observe(document.documentElement, { childList: true });
+          removalObserver.observe(document.documentElement, { childList: true, subtree: true });
           return;
         } catch (_) {
           removalObserver = null;
@@ -848,13 +601,6 @@ export function renderFloatingPanel(opts) {
     return {
       remove() { panel.remove(); },
       whenShown,
-      measureCollapseButton() {
-        var btn = panel.querySelector('[data-role="collapse"]');
-        if (!btn) return null;
-        var rect = btn.getBoundingClientRect();
-        if (!rect || rect.width <= 0 || rect.height <= 0) return null;
-        return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
-      },
       updateItems
     };
   }
