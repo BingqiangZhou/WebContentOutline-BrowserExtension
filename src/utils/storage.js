@@ -68,6 +68,10 @@ export function normalizeSelectorEntry(entry) {
     return result;
   }
 
+export function normalizeUiMode(mode) {
+    return mode === 'classic' ? 'classic' : 'edge-dock';
+  }
+
 export function normalizeTocConfigs(value, opts) {
     if (!opts) opts = {};
     var list = Array.isArray(value) ? value : [];
@@ -148,12 +152,14 @@ export function validateStorageValue(key, value) {
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.PANEL_STATE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.BADGE_POS_MAP) return isPlainObject(value);
+    if (key === STORAGE_KEYS.UI_MODE) return typeof value === 'string';
     return true;
   }
 
 export function normalizeStorageValue(key, value, opts) {
     if (!opts) opts = {};
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value, opts);
+    if (key === STORAGE_KEYS.UI_MODE) return normalizeUiMode(value);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       var map = isPlainObject(value) ? Object.assign({}, value) : {};
       if (key === STORAGE_KEYS.BADGE_POS_MAP) {
@@ -389,4 +395,18 @@ export function getBadgePosMap() {
    */
 export function saveBadgePosMap(map) {
     return setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
+  }
+
+  /**
+   * Get the global TOC UI mode.
+   */
+export function getUiMode() {
+    return getStorage(STORAGE_KEYS.UI_MODE, 'edge-dock');
+  }
+
+  /**
+   * Save the global TOC UI mode.
+   */
+export function saveUiMode(mode) {
+    return setStorage(STORAGE_KEYS.UI_MODE, normalizeUiMode(mode));
   }

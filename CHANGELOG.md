@@ -34,14 +34,20 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ### 🚀 Added
 - **Edge Dock TOC toolbar**
-  - Replaces the collapsed floating badge with an edge-attached sparkle settings icon and live miniature outline
+  - Replaces the collapsed floating badge with a detached circular extension list mark and live miniature outline
   - Uses heading-level width and indentation for up to 12 nearby outline bars, with current-position highlighting
-  - Supports desktop hover preview, click-to-pin behavior, and touch click toggling
+  - Lets each collapsed outline bar navigate directly without changing the panel's temporary expansion state
+  - Expands inward on desktop hover and restores the bars after pointer leave; touch devices temporarily toggle the list
   - Adds quick settings for refresh, element picking, site configuration, and left/right edge switching
+- **Global UI mode preference**
+  - Defaults to the modern Edge Dock
+  - Allows switching to the original 0.8.1 text badge and freely draggable floating panel interaction
+  - Synchronizes mode changes across open tabs through `chrome.storage.local`
 
 ### 🔧 Changed
 - **TOC panel is now a lightweight docked card**
   - Removes visible title chrome and uses a title-free outline card with hierarchy-aware indentation
+  - Attaches the inward-expanding card directly to the outline bars and animates from the same edge anchor for a ChatGPT-style hover interaction
   - Keeps navigation, highlighting, accessibility labels, and incremental updates
   - Removes free panel dragging; the dock moves vertically with safe viewport margins
 - **Existing position storage remains compatible**
@@ -49,7 +55,8 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ### ⚡ Technical Improvements
 - **Active item tracking** now stays alive while the outline card is closed, keeping the collapsed preview synchronized during scrolling
-- **Edge Dock tests** cover heading levels, live preview windowing, hover delay, pinned state, touch activation, viewport clamping, cleanup isolation, and nested panel removal
+- **Classic mode layout** restores the original 0.8.1 structured header and action groups while keeping the new global mode switch compact
+- **Edge Dock tests** cover heading levels, live preview windowing, hover delay, hover-only state, touch activation, viewport clamping, cleanup isolation, and nested panel removal
 
 ---
 

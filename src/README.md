@@ -34,7 +34,9 @@ src/
 │   ├── focus-trap.js           # (49行)  焦点陷阱
 │   └── toc-utils.js            # (19行)  barrel 重导出模块
 ├── ui/                         # UI组件
-│   ├── edge-dock.js            # 吸附式工具条、hover 预览与 pinned 状态
+│   ├── edge-dock.js            # 吸附式工具条与纯 hover 目录状态
+│   ├── classic-collapsed-badge.js # 原始 0.8.1 文字徽章交互
+│   ├── classic-floating-panel.js  # 原始 0.8.1 自由拖拽面板壳层
 │   ├── element-picker.js       # (272行) 元素拾取器
 │   ├── floating-panel-helpers.js # 浮动面板辅助函数
 │   └── floating-panel.js       # 轻量目录卡片
@@ -85,7 +87,7 @@ if (isExtensionContextInvalidated()) {
 ### 工具模块层 (1,546行)
 
 **constants.js** (76行) — 常量定义
-- `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap）
+- `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap, tocUiMode）
 - `UI_CONSTANTS`: UI 尺寸和布局常量
 - `CLEANUP_SELECTOR`: 扩展元素清理选择器
 
@@ -102,6 +104,7 @@ if (isExtensionContextInvalidated()) {
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
 - `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
 - `getBadgePosMap()` / `saveBadgePosMap()`: 工具条锚点位置（兼容旧徽标数据）
+- `getUiMode()` / `saveUiMode()`: 全局界面模式偏好，缺省为新版 Edge Dock
 - 使用 `shared/storage-primitives.js` 的 `serializedWrite` 保证写入顺序
 
 **dom-utils.js** (191行) — DOM操作
@@ -140,11 +143,12 @@ if (isExtensionContextInvalidated()) {
 
 **edge-dock.js** — 吸附式工具条
 - 固定吸附页面左侧或右侧，整体仅上下拖动
-- 收起态显示最多 12 条实时目录横线，按标题层级缩进并高亮当前阅读位置
-- 设置入口使用四格闪光图标
-- 桌面端 hover 临时预览，点击锁定展开
-- 触屏设备点击切换展开状态
+- 收起态显示最多 12 条实时目录横线，按标题层级缩进并高亮当前阅读位置；点击横线可直接导航且不改变展开状态
+- 设置入口使用独立圆形的插件列表标记
+- 桌面端 hover 横线区域后向页面内侧展开，离开横线和列表后自动恢复
+- 触屏设备点击临时切换展开状态，点击外部区域收起
 - 快捷设置入口：刷新、拾取元素、站点配置、侧边切换
+- 快捷设置支持全局切换到原始 0.8.1 经典模式
 - 按域名持久化吸附侧边和竖直位置
 
 **element-picker.js** (272行) — 元素拾取器
@@ -156,9 +160,13 @@ if (isExtensionContextInvalidated()) {
 **floating-panel.js** — 轻量目录卡片
 - 目录列表渲染和交互
 - 无标题栏卡片，按标题层级缩进
-- 用户选择锁定机制
+- 用户点击目录项时保持导航高亮锁定
 - 挂载到 Edge Dock 并向页面内侧展开
 - 错误处理
+
+**classic-collapsed-badge.js / classic-floating-panel.js** — 经典界面
+- 保留原始 0.8.1 的文字徽章、自由拖拽面板和标题操作栏
+- 从经典面板可全局切换回新版 Edge Dock
 
 ### 核心逻辑层 (1,711行)
 
@@ -171,6 +179,7 @@ if (isExtensionContextInvalidated()) {
 - 状态同步和事件协调
 - 重建逻辑和优化
 - Edge Dock 与目录卡片状态同步
+- 根据全局 `tocUiMode` 偏好在 Edge Dock 与经典界面之间即时重建
 - 导航锁故障保护（8秒超时自动解锁）
 - 动画帧管理和资源清理
 

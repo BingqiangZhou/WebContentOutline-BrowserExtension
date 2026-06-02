@@ -35,9 +35,10 @@ export function renderFloatingPanel(opts) {
     var skipAnimation = opts.skipAnimation;
     var activeIndex = opts.activeIndex;
     var onNavigate = opts.onNavigate;
+    var embedded = !!opts.embedded;
 
     // Remove any existing panel to prevent duplicates
-    if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner]');
+    if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner]');
 
     var panel = document.createElement('div');
     var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -114,11 +115,15 @@ export function renderFloatingPanel(opts) {
       if (timers.pendingRebuildRecheck) { clearTimeout(timers.pendingRebuildRecheck); timers.pendingRebuildRecheck = null; }
     };
 
-    panel.className = 'toc-floating toc-floating-docked toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
-    panel.setAttribute('data-toc-owner', 'web-toc-assistant');
-    panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-modal', 'false');
-    panel.setAttribute('aria-label', msg('tocTitle'));
+    panel.className = embedded
+      ? 'toc-floating-embedded'
+      : 'toc-floating toc-floating-docked toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
+    if (!embedded) panel.setAttribute('data-toc-owner', 'web-toc-assistant');
+    panel.setAttribute('role', embedded ? 'presentation' : 'dialog');
+    if (!embedded) {
+      panel.setAttribute('aria-modal', 'false');
+      panel.setAttribute('aria-label', msg('tocTitle'));
+    }
     onPanelKeydown = function(e) {
       if (!e) return;
       if (e.key === 'Escape') {

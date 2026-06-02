@@ -4,6 +4,9 @@ import {
   findMatchingConfig,
   getSiteEnabledByOrigin,
   getPanelExpandedByOrigin,
+  getUiMode,
+  saveUiMode,
+  normalizeUiMode,
   getBadgePosByHost,
   setBadgePosByHost,
   isContextInvalidatedError,
@@ -40,6 +43,8 @@ import { initForConfig } from './core/toc-app.js';
   var currentEnabled = false;
   var desiredEnabled = false;
   var enabledTransition = Promise.resolve();
+  var uiModeTransition = Promise.resolve();
+  var currentUiMode = 'edge-dock';
   var startInFlight = null;
   var disposed = false;
   var listenersAttached = false;
@@ -203,7 +208,12 @@ import { initForConfig } from './core/toc-app.js';
   async function startApp() {
     try {
       if (disposed) return;
-      var configs = await getConfigs();
+      var results = await Promise.all([
+        getConfigs(),
+        getUiMode ? getUiMode() : 'edge-dock'
+      ]);
+      var configs = results[0];
+      currentUiMode = normalizeUiMode ? normalizeUiMode(results[1]) : (results[1] === 'classic' ? 'classic' : 'edge-dock');
       if (disposed) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
@@ -217,7 +227,10 @@ import { initForConfig } from './core/toc-app.js';
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
-      appInstance = initForConfig(cfg);
+      appInstance = initForConfig(cfg, {
+        uiMode: currentUiMode,
+        onSwitchUiMode: requestUiMode
+      });
     } catch (err) {
       if (isContextInvalidatedError && isContextInvalidatedError(err)) {
         dispose({ reason: 'context-invalidated' });
@@ -259,6 +272,40 @@ import { initForConfig } from './core/toc-app.js';
 
     // Content script should stop reacting after app is stopped to avoid unexpected reinitialization.
     dispose({ reason: 'stopApp' });
+  }
+
+  function destroyCurrentApp() {
+    try {
+      if (appInstance && appInstance.destroy) appInstance.destroy();
+    } catch (e) {
+      console.warn(msg('logPrefix') + ' restart cleanup failed:', e);
+    }
+    appInstance = null;
+    try { if (cleanupOwnedElements) cleanupOwnedElements(); } catch (_) {}
+  }
+
+  async function applyUiMode(nextMode, opts) {
+    opts = opts || {};
+    var normalized = normalizeUiMode ? normalizeUiMode(nextMode) : (nextMode === 'classic' ? 'classic' : 'edge-dock');
+    if (normalized === currentUiMode && appInstance) return;
+    currentUiMode = normalized;
+    if (opts.persist !== false && saveUiMode) await saveUiMode(normalized);
+    if (!currentEnabled || disposed) return;
+    destroyCurrentApp();
+    startInFlight = null;
+    await ensureStarted();
+    await applyExpandState({});
+  }
+
+  function requestUiMode(nextMode, opts) {
+    if (disposed) return Promise.resolve();
+    uiModeTransition = uiModeTransition
+      .catch(function() {})
+      .then(function() { return applyUiMode(nextMode, opts || {}); })
+      .catch(function(e) {
+        console.warn(msg('logPrefix') + ' ui mode transition failed:', e);
+      });
+    return uiModeTransition;
   }
 
   async function applyExpandState(opts) {
@@ -399,9 +446,14 @@ import { initForConfig } from './core/toc-app.js';
 
     try {
       var KEY = STORAGE_KEYS && STORAGE_KEYS.SITE_ENABLE_MAP ? STORAGE_KEYS.SITE_ENABLE_MAP : 'tocSiteEnabledMap';
+      var UI_MODE_KEY = STORAGE_KEYS && STORAGE_KEYS.UI_MODE ? STORAGE_KEYS.UI_MODE : 'tocUiMode';
       storageListener = function(changes, areaName) {
         if (disposed) return;
         if (areaName !== 'local') return;
+        var uiModeChange = changes && changes[UI_MODE_KEY];
+        if (uiModeChange) {
+          requestUiMode(uiModeChange.newValue, { persist: false });
+        }
         var ch = changes && changes[KEY];
         if (!ch) return;
         try {

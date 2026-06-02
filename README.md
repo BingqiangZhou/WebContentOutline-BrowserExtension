@@ -29,11 +29,12 @@ A web table of contents generator that automatically creates interactive floatin
 - **Automatic Exclusion**: Automatically excludes extension's own UI elements
 
 ### 📍 Flexible UI Interaction
-- **Edge Dock**: Compact settings and TOC icons attached to the left or right edge
-- **Live Outline Preview**: Collapsed TOC bars reflect heading levels and highlight the current reading position
-- **Hover Preview**: Hover to peek at the TOC, click to keep it open, or tap to toggle on touch devices
+- **Edge Dock**: Detached circular settings entry plus a compact TOC preview on the left or right edge
+- **Live Outline Preview**: Collapsed TOC bars reflect heading levels, highlight the current reading position, and navigate directly when clicked
+- **Hover Preview**: Hover over the outline bars to expand the TOC inward; moving away restores the bars automatically
 - **Vertical Dragging**: Drag the dock up and down with mouse, touch, or stylus
 - **Position Memory**: Remembers dock side and vertical position per domain and constrains the dock after window resize
+- **Classic Mode**: Switch globally to the original 0.8.1 text badge and freely draggable floating panel when preferred
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
 ### 🔄 Navigation Experience
@@ -88,8 +89,9 @@ A web table of contents generator that automatically creates interactive floatin
 #### 2. Expand TOC Panel
 
 **How**:
-- Desktop: Hover over the TOC icon for a temporary preview, or click it to keep the panel open
-- Touch devices: Tap the TOC icon to toggle the panel
+- Desktop: Hover over the outline bars to expand the TOC; move away from both the bars and list to collapse it
+- Touch devices: Tap the TOC area to toggle a temporary panel, then tap outside to collapse it
+- Collapsed state: Click a horizontal outline bar to navigate directly without pinning the panel open
 
 **Default Behavior**:
 - Automatically recognizes h1-h6 headers on the page
@@ -153,6 +155,17 @@ A web table of contents generator that automatically creates interactive floatin
 - After dynamic page content changes
 - When suspecting TOC is inaccurate
 
+#### 8. Switch Interface Mode
+
+**How**:
+- Modern Edge Dock: open quick settings and click "Switch to classic mode"
+- Classic panel: click "Switch to Modern UI"
+
+**Effect**:
+- The preference is global and applies immediately across open tabs
+- Modern mode is the default
+- Classic mode keeps the original 0.8.1 text badge and freely draggable panel interaction
+
 ### Advanced Usage
 
 #### URL Matching Rules
@@ -190,8 +203,12 @@ For complex page structures, you can use XPath:
 **Effect**:
 - Hover previews the TOC without changing saved expanded state
 - The collapsed outline preview shows up to 12 nearby headings; deeper headings use shorter indented bars
-- Clicking the outline preview pins the title-free TOC card open until it is collapsed
+- Clicking a collapsed outline bar navigates directly without pinning the card open
+- Moving away from the bars and list restores the collapsed outline automatically
+- Touch devices can temporarily toggle the card and dismiss it by tapping outside
 - Quick settings expose refresh, element picker, site configuration, and edge switching
+- The detached circular settings button uses the extension's monochrome list mark
+- Quick settings can switch globally to the original 0.8.1 classic interface
 
 ## 🛠️ Technical Implementation
 
@@ -230,9 +247,11 @@ For complex page structures, you can use XPath:
 │   ├── shared/                # Shared between contexts
 │   │   └── storage-primitives.js     # Storage utilities (ESM source; build produces IIFE for background)
 │   ├── ui/                    # UI components
-│   │   ├── edge-dock.js       # Edge-docked toolbar and hover/pinned state
+│   │   ├── edge-dock.js       # Edge-docked toolbar and hover-only TOC state
+│   │   ├── classic-collapsed-badge.js # Original text badge interaction
+│   │   ├── classic-floating-panel.js  # Original freely draggable panel shell
 │   │   ├── element-picker.js  # Element picker
-│   │   ├── floating-panel.js  # Floating panel
+│   │   ├── floating-panel.js  # Shared lightweight TOC list card
 │   │   └── floating-panel-helpers.js # Extracted panel helpers
 │   └── core/                  # Core logic
 │       ├── nav-lock.js        # Navigation lock module

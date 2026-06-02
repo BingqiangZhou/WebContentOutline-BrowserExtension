@@ -17,7 +17,7 @@ var CFG = (function() {
 })();
 
 function normalizeMode(mode) {
-  return mode === 'peek' || mode === 'pinned' ? mode : 'collapsed';
+  return mode === 'peek' ? mode : 'collapsed';
 }
 
 export function clampDockTop(top, viewportHeight, dockHeight, safeMargin) {
@@ -88,16 +88,8 @@ export function createDockStateController(options) {
     return mode;
   }
 
-  function pin() {
-    return setMode('pinned');
-  }
-
-  function togglePinned() {
-    return mode === 'pinned' ? collapse() : pin();
-  }
-
   function activate() {
-    return togglePinned();
+    return mode === 'peek' ? collapse() : peek();
   }
 
   function scheduleCollapse() {
@@ -121,10 +113,8 @@ export function createDockStateController(options) {
     destroy: destroy,
     getMode: function() { return mode; },
     peek: peek,
-    pin: pin,
     scheduleCollapse: scheduleCollapse,
-    setMode: setMode,
-    togglePinned: togglePinned
+    setMode: setMode
   };
 }
 
@@ -142,29 +132,23 @@ function createSvgIcon(paths) {
 }
 
 function createSettingsIcon() {
-  var svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
+  var icon = document.createElement('span');
+  icon.className = 'toc-edge-dock-settings-icon';
+  icon.setAttribute('aria-hidden', 'true');
 
-  [
-    ['3.5', '4.5'], ['11.5', '4.5'], ['3.5', '12.5'], ['11.5', '12.5']
-  ].forEach(function(point) {
-    var tile = document.createElementNS(SVG_NS, 'rect');
-    tile.setAttribute('class', 'toc-edge-dock-settings-tile');
-    tile.setAttribute('x', point[0]);
-    tile.setAttribute('y', point[1]);
-    tile.setAttribute('width', '5');
-    tile.setAttribute('height', '5');
-    tile.setAttribute('rx', '1');
-    svg.appendChild(tile);
-  });
+  for (var i = 0; i < 3; i++) {
+    var row = document.createElement('span');
+    row.className = 'toc-edge-dock-settings-row';
+    var bullet = document.createElement('span');
+    bullet.className = 'toc-edge-dock-settings-bullet';
+    var line = document.createElement('span');
+    line.className = 'toc-edge-dock-settings-line';
+    row.appendChild(bullet);
+    row.appendChild(line);
+    icon.appendChild(row);
+  }
 
-  var sparkle = document.createElementNS(SVG_NS, 'path');
-  sparkle.setAttribute('class', 'toc-edge-dock-settings-sparkle');
-  sparkle.setAttribute('d', 'M18 2.5c.35 2.15 1.35 3.15 3.5 3.5-2.15.35-3.15 1.35-3.5 3.5-.35-2.15-1.35-3.15-3.5-3.5 2.15-.35 3.15-1.35 3.5-3.5Z');
-  svg.appendChild(sparkle);
-  return svg;
+  return icon;
 }
 
 function createButton(className, titleKey, fallbackText, iconPaths) {
@@ -188,6 +172,7 @@ export function renderEdgeDock(options) {
   var suppressClick = false;
   var persistTimer = null;
   var resizeRaf = null;
+  var menuCloseTimer = null;
   var dockItems = Array.isArray(options.items) ? options.items : [];
   var activeIndex = -1;
 
@@ -220,15 +205,15 @@ export function renderEdgeDock(options) {
   settingsButton.setAttribute('aria-haspopup', 'menu');
   settingsButton.setAttribute('aria-expanded', 'false');
 
-  var tocButton = createButton(
-    'toc-edge-dock-button toc-edge-dock-toc',
-    'badgeTitle',
-    'Expand TOC',
-    []
-  );
+  var tocButton = document.createElement('div');
+  tocButton.className = 'toc-edge-dock-button toc-edge-dock-toc';
+  tocButton.tabIndex = 0;
+  tocButton.setAttribute('role', 'group');
+  tocButton.setAttribute('aria-label', msg('badgeTitle') || 'Expand TOC');
   var preview = document.createElement('span');
   preview.className = 'toc-edge-dock-preview';
-  preview.setAttribute('aria-hidden', 'true');
+  preview.setAttribute('role', 'group');
+  preview.setAttribute('aria-label', msg('tocTitle') || 'TOC');
   tocButton.replaceChildren(preview);
   tocButton.setAttribute('aria-controls', panelHost.id);
   tocButton.setAttribute('aria-expanded', 'false');
@@ -238,8 +223,11 @@ export function renderEdgeDock(options) {
     selectPreviewItems(dockItems, activeIndex, 12).forEach(function(item) {
       var index = dockItems.indexOf(item);
       var metrics = getPreviewLineMetrics(item && item.level);
-      var line = document.createElement('span');
+      var line = document.createElement('button');
+      line.type = 'button';
       line.className = 'toc-edge-dock-preview-line';
+      line.dataset.index = String(index);
+      line.setAttribute('aria-label', item && item.text ? item.text : 'TOC item');
       if (index === activeIndex) line.classList.add('toc-edge-dock-preview-line-active');
       line.dataset.level = String(Math.max(1, Math.min(6, Number(item && item.level) || 2)));
       line.style.setProperty('width', metrics.width + 'px', 'important');
@@ -249,6 +237,20 @@ export function renderEdgeDock(options) {
   }
   renderPreview();
 
+  function navigatePreviewItem(index) {
+    var item = dockItems[index];
+    if (!item) return;
+    try { options.onNavigate && options.onNavigate(item, index); } catch (_) {}
+  }
+
+  function onPreviewClick(e) {
+    var line = e && e.target && e.target.closest ? e.target.closest('.toc-edge-dock-preview-line') : null;
+    if (!line || !preview.contains(line)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    navigatePreviewItem(parseInt(line.dataset.index, 10));
+  }
+
   toolbar.appendChild(settingsButton);
   toolbar.appendChild(tocButton);
   root.appendChild(panelHost);
@@ -257,8 +259,29 @@ export function renderEdgeDock(options) {
   document.documentElement.appendChild(root);
 
   function closeMenu() {
+    cancelMenuClose();
     quickMenu.hidden = true;
     settingsButton.setAttribute('aria-expanded', 'false');
+  }
+
+  function cancelMenuClose() {
+    if (menuCloseTimer != null) {
+      clearTimeout(menuCloseTimer);
+      menuCloseTimer = null;
+    }
+  }
+
+  function scheduleMenuClose() {
+    cancelMenuClose();
+    if (quickMenu.hidden) return;
+    menuCloseTimer = setTimeout(closeMenu, CFG.CLOSE_DELAY_MS);
+  }
+
+  function openMenu() {
+    cancelMenuClose();
+    controller.collapse();
+    quickMenu.hidden = false;
+    settingsButton.setAttribute('aria-expanded', 'true');
   }
 
   function runMenuAction(callback) {
@@ -284,6 +307,11 @@ export function renderEdgeDock(options) {
   createMenuButton('buttonSiteConfig', 'Site settings', options.onSiteConfig);
   var sideButton = createMenuButton('dockMoveToLeft', 'Move to left', function() {
     updateSide(side === 'left' ? 'right' : 'left', true);
+  });
+  createMenuButton('dockSwitchToClassic', 'Switch to classic mode', function() {
+    try {
+      options.onSwitchUiMode && options.onSwitchUiMode('classic');
+    } catch (_) {}
   });
 
   var controller = createDockStateController({
@@ -360,7 +388,15 @@ export function renderEdgeDock(options) {
 
   var dragController = createDragController ? createDragController({
     element: toolbar,
-    shouldStart: function(e) { return !!(e && e.target && e.target.closest && e.target.closest('.toc-edge-dock-button')); },
+    shouldStart: function(e) {
+      return !!(
+        e &&
+        e.target &&
+        e.target.closest &&
+        e.target.closest('.toc-edge-dock-button') &&
+        !e.target.closest('.toc-edge-dock-preview-line')
+      );
+    },
     getRect: function() { return toolbar.getBoundingClientRect(); },
     onStart: function() {
       toolbar.classList.add('toc-edge-dock-dragging');
@@ -379,11 +415,13 @@ export function renderEdgeDock(options) {
 
   function onRootPointerEnter() {
     controller.cancelCollapse();
+    cancelMenuClose();
   }
 
   function onRootPointerLeave(e) {
     if (e && e.relatedTarget && root.contains(e.relatedTarget)) return;
-    controller.scheduleCollapse();
+    if (lastPointerType !== 'touch') controller.scheduleCollapse();
+    scheduleMenuClose();
   }
 
   function onTocPointerEnter(e) {
@@ -398,23 +436,34 @@ export function renderEdgeDock(options) {
     lastPointerType = (e && e.pointerType) || 'mouse';
   }
 
+  function onSettingsPointerEnter(e) {
+    lastPointerType = (e && e.pointerType) || 'mouse';
+    if (lastPointerType !== 'touch') openMenu();
+  }
+
   function onTocClick() {
-    if (suppressClick) return;
+    if (suppressClick || lastPointerType !== 'touch') return;
     closeMenu();
-    controller.activate(lastPointerType);
+    controller.activate();
   }
 
   function onSettingsClick() {
     if (suppressClick) return;
-    controller.collapse();
-    var open = quickMenu.hidden;
-    quickMenu.hidden = !open;
-    settingsButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+    openMenu();
   }
 
   function onRootFocusIn(e) {
     controller.cancelCollapse();
-    if (e && e.target === tocButton) {
+    cancelMenuClose();
+    if (e && e.target === settingsButton) {
+      openMenu();
+    } else if (
+      e &&
+      (
+        e.target === tocButton ||
+        (e.target.closest && e.target.closest('.toc-edge-dock-preview-line'))
+      )
+    ) {
       closeMenu();
       controller.peek();
     }
@@ -423,9 +472,15 @@ export function renderEdgeDock(options) {
   function onRootFocusOut(e) {
     if (e && e.relatedTarget && root.contains(e.relatedTarget)) return;
     controller.scheduleCollapse();
+    scheduleMenuClose();
   }
 
   function onRootKeydown(e) {
+    if (e && (e.key === 'Enter' || e.key === ' ') && e.target === tocButton) {
+      e.preventDefault();
+      onTocClick();
+      return;
+    }
     if (!e || e.key !== 'Escape') return;
     if (!quickMenu.hidden) {
       closeMenu();
@@ -438,6 +493,14 @@ export function renderEdgeDock(options) {
 
   function onDocumentPointerDown(e) {
     if (!quickMenu.hidden && e && !root.contains(e.target)) closeMenu();
+    if (
+      lastPointerType === 'touch' &&
+      controller.getMode() === 'peek' &&
+      e &&
+      !root.contains(e.target)
+    ) {
+      controller.collapse();
+    }
   }
 
   function onResize() {
@@ -462,6 +525,8 @@ export function renderEdgeDock(options) {
   tocButton.addEventListener('pointerenter', onTocPointerEnter);
   tocButton.addEventListener('pointerdown', onTocPointerDown);
   tocButton.addEventListener('click', onTocClick);
+  preview.addEventListener('click', onPreviewClick);
+  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter);
   settingsButton.addEventListener('click', onSettingsClick);
   document.addEventListener('pointerdown', onDocumentPointerDown, true);
   window.addEventListener('resize', onResize, { passive: true });
@@ -472,6 +537,7 @@ export function renderEdgeDock(options) {
     controller.destroy();
     try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
     if (persistTimer) clearTimeout(persistTimer);
+    cancelMenuClose();
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
     document.removeEventListener('pointerdown', onDocumentPointerDown, true);
     window.removeEventListener('resize', onResize);
@@ -492,7 +558,7 @@ export function renderEdgeDock(options) {
     getMode: controller.getMode,
     getPanelHost: function() { return panelHost; },
     getSide: function() { return side; },
-    pin: function() { closeMenu(); controller.pin(); },
+    peek: function() { closeMenu(); controller.peek(); },
     setActiveIndex: function(nextIndex) {
       activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
       renderPreview();

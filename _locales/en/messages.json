@@ -228,5 +228,17 @@
   "warningStorageQuotaPruned": {
     "message": "Storage quota reached. Some older data was removed to save your changes.",
     "description": "Toast shown when data is pruned due to storage quota"
+  },
+  "dockSwitchToClassic": {
+    "message": "Switch to classic mode",
+    "description": "Quick settings action for switching to the classic floating TOC interface"
+  },
+  "classicSwitchToModern": {
+    "message": "Switch to Modern UI",
+    "description": "Classic panel action for switching to the modern edge dock interface"
+  },
+  "classicSwitchToModernTitle": {
+    "message": "Switch to Modern UI",
+    "description": "Tooltip for switching from the classic panel to the modern edge dock interface"
   }
 }

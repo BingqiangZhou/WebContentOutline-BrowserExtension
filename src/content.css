@@ -107,14 +107,14 @@
 .toc-edge-dock {
   --toc-z-index: 2147483647;
   --toc-dock-bg: #fff;
-  --toc-dock-color: #ec4899;
-  --toc-dock-border: rgba(236, 72, 153, 0.25);
-  --toc-dock-hover: rgba(236, 72, 153, 0.1);
-  --toc-dock-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+  --toc-dock-color: #202124;
+  --toc-dock-border: rgba(15, 23, 42, 0.08);
+  --toc-dock-hover: #f3f4f6;
+  --toc-dock-shadow: 0 5px 20px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.05);
   --toc-menu-bg: #fff;
-  --toc-menu-color: #334155;
-  --toc-menu-hover: #f1f5f9;
-  --toc-focus-ring: rgba(47, 111, 235, 0.85);
+  --toc-menu-color: #3f3f46;
+  --toc-menu-hover: #f3f4f6;
+  --toc-focus-ring: rgba(32, 33, 36, 0.7);
 
   position: fixed !important;
   top: 120px !important;
@@ -140,7 +140,7 @@
 .toc-edge-dock-toolbar {
   display: flex !important;
   flex-direction: column !important;
-  gap: 8px !important;
+  gap: 4px !important;
   width: 48px !important;
   cursor: grab !important;
   user-select: none !important;
@@ -173,6 +173,28 @@
   border-radius: 0 16px 16px 0 !important;
 }
 
+.toc-edge-dock-settings {
+  align-self: flex-end !important;
+  width: 36px !important;
+  height: 36px !important;
+  border: 1px solid var(--toc-dock-border) !important;
+  border-radius: 999px !important;
+  margin-right: 8px !important;
+}
+
+.toc-edge-dock-right .toc-edge-dock-settings {
+  border-right: 1px solid var(--toc-dock-border) !important;
+  border-radius: 999px !important;
+}
+
+.toc-edge-dock-left .toc-edge-dock-settings {
+  align-self: flex-start !important;
+  border-left: 1px solid var(--toc-dock-border) !important;
+  border-radius: 999px !important;
+  margin-left: 8px !important;
+  margin-right: 0 !important;
+}
+
 .toc-edge-dock-button:hover,
 .toc-edge-dock-button[aria-expanded="true"] {
   background: var(--toc-dock-hover) !important;
@@ -188,19 +210,42 @@
   stroke-width: 1.8 !important;
 }
 
-.toc-edge-dock-settings-tile {
-  fill: none !important;
+.toc-edge-dock-settings-icon {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  width: 18px !important;
+  height: 14px !important;
 }
 
-.toc-edge-dock-settings-sparkle {
-  fill: currentColor !important;
-  stroke: none !important;
+.toc-edge-dock-settings-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 3px !important;
+  width: 18px !important;
+  height: 3px !important;
+}
+
+.toc-edge-dock-settings-bullet {
+  display: block !important;
+  width: 3px !important;
+  height: 3px !important;
+  border-radius: 1px !important;
+  background: currentColor !important;
+}
+
+.toc-edge-dock-settings-line {
+  display: block !important;
+  width: 12px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+  background: currentColor !important;
 }
 
 .toc-edge-dock-toc {
   height: auto !important;
-  min-height: 236px !important;
-  padding: 12px 6px !important;
+  min-height: 40px !important;
+  padding: 6px !important;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -211,12 +256,17 @@
   background: transparent !important;
 }
 
+.toc-edge-dock[data-mode="peek"] .toc-edge-dock-toc {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .toc-edge-dock-preview {
   display: flex !important;
   flex-direction: column !important;
   align-items: flex-start !important;
   justify-content: center !important;
-  gap: 11px !important;
+  gap: 8px !important;
   width: 36px !important;
 }
 
@@ -226,6 +276,14 @@
   border-radius: 999px !important;
   background: #d6d6d6 !important;
   transition: background-color 0.15s ease !important;
+  cursor: pointer !important;
+}
+
+.toc-edge-dock-preview-line:hover,
+.toc-edge-dock-preview-line:focus-visible {
+  background: #8a8a8a !important;
+  outline: 2px solid var(--toc-focus-ring) !important;
+  outline-offset: 2px !important;
 }
 
 .toc-edge-dock-preview-line[data-level="1"] {
@@ -265,21 +323,29 @@
 .toc-edge-dock-panel-host,
 .toc-edge-dock-menu {
   position: absolute !important;
-  top: 0 !important;
 }
 
 .toc-edge-dock-panel-host {
+  top: 40px !important;
   display: block !important;
 }
 
-.toc-edge-dock-right .toc-edge-dock-panel-host,
-.toc-edge-dock-right .toc-edge-dock-menu {
-  right: 56px !important;
+.toc-edge-dock-right .toc-edge-dock-panel-host {
+  right: 0 !important;
 }
 
-.toc-edge-dock-left .toc-edge-dock-panel-host,
+.toc-edge-dock-left .toc-edge-dock-panel-host {
+  left: 0 !important;
+}
+
+.toc-edge-dock-right .toc-edge-dock-menu {
+  top: 0 !important;
+  right: 60px !important;
+}
+
 .toc-edge-dock-left .toc-edge-dock-menu {
-  left: 56px !important;
+  top: 0 !important;
+  left: 60px !important;
 }
 
 .toc-edge-dock-panel-host[hidden],
@@ -332,6 +398,95 @@
   border: 1px solid rgba(0, 0, 0, 0.1) !important;
   border-radius: 18px !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
+.toc-edge-dock-right .toc-floating.toc-floating-docked {
+  border-radius: 18px 0 0 18px !important;
+  transform-origin: right top !important;
+}
+
+.toc-edge-dock-left .toc-floating.toc-floating-docked {
+  border-radius: 0 18px 18px 0 !important;
+  transform-origin: left top !important;
+}
+
+.toc-floating-classic .toc-floating-embedded {
+  display: block !important;
+}
+
+.toc-header {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  padding: 8px 10px !important;
+  gap: 6px !important;
+  background: var(--toc-bg-header) !important;
+  border-bottom: 1px solid var(--toc-border-light) !important;
+  cursor: grab !important;
+}
+
+.toc-header-row {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.toc-floating-left .toc-header-row {
+  flex-direction: row-reverse !important;
+}
+
+.toc-title {
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  color: var(--toc-text-primary) !important;
+  flex-shrink: 0 !important;
+}
+
+.toc-title-group {
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  min-width: 0 !important;
+}
+
+.toc-classic-switch-mode {
+  white-space: nowrap !important;
+  color: var(--toc-text-muted) !important;
+  font-size: 12px !important;
+}
+
+.toc-actions {
+  display: flex !important;
+  gap: 0 !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative !important;
+  z-index: auto !important;
+  flex-wrap: nowrap !important;
+  flex-direction: row !important;
+}
+
+.toc-actions-left {
+  display: flex !important;
+  gap: 0px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+}
+
+.toc-actions-right {
+  display: flex !important;
+  gap: 0px !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  margin-left: auto !important;
 }
 
 .toc-overlay {
@@ -624,26 +779,22 @@
   transform-origin: left center !important;
 }
 
-/* Expand animation: slide from edge toward center */
+/* Expand animation: grow inward from the dock edge */
 .toc-floating-expand {
   transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
               opacity 0.2s ease-out !important;
 }
 
 /* Start position for expand animation */
-.toc-floating-expand.toc-floating-left {
-  transform: translateX(-30px) !important;
-  opacity: 0 !important;
-}
-
+.toc-floating-expand.toc-floating-left,
 .toc-floating-expand.toc-floating-right {
-  transform: translateX(30px) !important;
+  transform: scaleX(0.12) !important;
   opacity: 0 !important;
 }
 
 /* Final position after animation completes */
 .toc-floating-expand.toc-expanded {
-  transform: translateX(0) !important;
+  transform: scaleX(1) !important;
   opacity: 1 !important;
 }
 
@@ -988,11 +1139,11 @@
    ============================================ */
 @media (prefers-color-scheme: dark) {
   .toc-edge-dock {
-    --toc-dock-bg: #1e1e1e;
-    --toc-dock-color: #f472b6;
-    --toc-dock-border: rgba(244, 114, 182, 0.3);
-    --toc-dock-hover: rgba(244, 114, 182, 0.14);
-    --toc-dock-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --toc-dock-bg: #242424;
+    --toc-dock-color: #e5e7eb;
+    --toc-dock-border: rgba(255, 255, 255, 0.12);
+    --toc-dock-hover: #303030;
+    --toc-dock-shadow: 0 8px 24px rgba(0, 0, 0, 0.36);
     --toc-menu-bg: #1e1e1e;
     --toc-menu-color: #e2e8f0;
     --toc-menu-hover: rgba(255, 255, 255, 0.1);

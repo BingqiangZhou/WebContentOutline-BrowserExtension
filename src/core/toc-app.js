@@ -2,6 +2,8 @@
 
 import { buildTocItems } from '../utils/toc-builder.js';
 import { renderEdgeDock } from '../ui/edge-dock.js';
+import { renderClassicCollapsedBadge } from '../ui/classic-collapsed-badge.js';
+import { renderClassicFloatingPanel } from '../ui/classic-floating-panel.js';
 import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
 import { siteConfig, saveSelector, updateConfigFromStorage } from './config-manager.js';
@@ -11,6 +13,9 @@ import {
   msg,
   showToast,
   cleanupOwnedElements,
+  getBadgePosByHost,
+  setBadgePosByHost,
+  scrollToElement,
   setPanelExpandedByOrigin
 } from '../utils/toc-utils.js';
 import { uiConst } from '../utils/constants.js';
@@ -39,11 +44,14 @@ import { on } from './event-bus.js';
     };
   })();
 
-export function initForConfig(cfg) {
+export function initForConfig(cfg, options) {
+    options = options || {};
+    var uiMode = options.uiMode === 'classic' ? 'classic' : 'edge-dock';
+    var onSwitchUiMode = options.onSwitchUiMode;
     var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner], .toc-floating[data-toc-owner]');
+    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner], .toc-floating[data-toc-owner], .toc-collapsed-badge[data-toc-owner]');
 
     // Per-instance rebuild flag to prevent IntersectionObserver interference
     var isRebuilding = false;
@@ -71,6 +79,7 @@ export function initForConfig(cfg) {
     var items = buildResult.items;
     var tocMeta = buildResult.meta;
     var dockInstance = null;
+    var badgeInstance = null;
     var panelInstance = null;
     var activeTracker = null;
     var activeIndex = -1;
@@ -156,7 +165,8 @@ export function initForConfig(cfg) {
             });
             noticeEl.appendChild(refreshLinkEl);
             var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
-            if (panelEl) panelEl.insertBefore(noticeEl, panelEl.querySelector('.toc-list'));
+            var listEl = panelEl && panelEl.querySelector('.toc-list');
+            if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
           } catch (_) {}
         }
         return;
@@ -239,9 +249,19 @@ export function initForConfig(cfg) {
         }
 
         if (!incrementalDone) {
+          var preservedPanelPos = null;
+          var preservedPanelSide = null;
+          if (uiMode === 'classic') {
+            var classicPanelEl = document.querySelector('.toc-floating-classic[data-toc-owner="web-toc-assistant"]');
+            if (classicPanelEl) {
+              var classicRect = classicPanelEl.getBoundingClientRect();
+              preservedPanelPos = { left: classicRect.left, top: classicRect.top };
+              preservedPanelSide = classicRect.right > window.innerWidth / 2 ? 'right' : 'left';
+            }
+          }
           panelInstance.remove();
           panelInstance = null;
-          renderPanelCard();
+          renderPanelCard(preservedPanelPos, preservedPanelSide);
         }
 
         syncItemViews(previousActiveItem, previousActiveIndex);
@@ -355,8 +375,35 @@ export function initForConfig(cfg) {
       panelInstance = null;
     }
 
-    function renderPanelCard() {
-      if (destroyed || panelInstance || !dockInstance || !renderFloatingPanel) return panelInstance;
+    function removeClassicBadge() {
+      if (!badgeInstance) return;
+      try { badgeInstance.remove(); } catch (_) {}
+      badgeInstance = null;
+    }
+
+    function renderPanelCard(panelPos, panelSide, anchorPos) {
+      if (destroyed || panelInstance) return panelInstance;
+      if (uiMode === 'classic') {
+        if (!renderClassicFloatingPanel) return panelInstance;
+        panelInstance = renderClassicFloatingPanel({
+          side: panelSide || side,
+          items: items,
+          onCollapse: collapse,
+          onRefresh: rebuild,
+          onPick: startPick,
+          onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
+          onSwitchUiMode: onSwitchUiMode,
+          getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : function() { return false; },
+          setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
+          panelPos: panelPos,
+          anchorPos: anchorPos,
+          tocMeta: tocMeta,
+          activeIndex: activeIndex,
+          onNavigate: function(_item, index) { syncActiveIndex(index); }
+        });
+        return panelInstance;
+      }
+      if (!dockInstance || !renderFloatingPanel) return panelInstance;
       var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
       panelInstance = renderFloatingPanel({
         side: currentSide,
@@ -377,18 +424,12 @@ export function initForConfig(cfg) {
       try {
         if (next === 'collapsed') {
           removePanelCard();
-          if (prev === 'pinned' && setPanelExpandedByOrigin) {
-            setPanelExpandedByOrigin(location.origin, false);
-          }
           return;
         }
 
         await rebuild();
         if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
         if (!panelInstance) renderPanelCard();
-        if (next === 'pinned' && setPanelExpandedByOrigin) {
-          setPanelExpandedByOrigin(location.origin, true);
-        }
       } catch (e) {
         if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
           console.debug('[toc] dock mode update failed:', e);
@@ -398,6 +439,20 @@ export function initForConfig(cfg) {
 
     function collapse(opts) {
       try {
+        if (uiMode === 'classic') {
+          var buttonCenter = panelInstance && panelInstance.getCollapseCenter ? panelInstance.getCollapseCenter() : null;
+          if (buttonCenter && setBadgePosByHost) {
+            try { setBadgePosByHost(location.host, buttonCenter); } catch (_) {}
+          }
+          removePanelCard();
+          if (!badgeInstance && renderClassicCollapsedBadge) {
+            badgeInstance = renderClassicCollapsedBadge(side, expand, buttonCenter);
+          }
+          if ((!opts || opts.persist !== false) && setPanelExpandedByOrigin) {
+            setPanelExpandedByOrigin(location.origin, false);
+          }
+          return;
+        }
         if (dockInstance) dockInstance.collapse(opts || {});
         else removePanelCard();
       } catch (e) {
@@ -407,7 +462,34 @@ export function initForConfig(cfg) {
 
     async function expand() {
       try {
-        if (dockInstance) dockInstance.pin();
+        if (uiMode === 'classic') {
+          var savedPos = null;
+          var expandSide = side;
+          var badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+          if (badgeEl) {
+            var rect = badgeEl.getBoundingClientRect();
+            if (rect.width > 0 && rect.height > 0) {
+              savedPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+            }
+          }
+          if (!savedPos && getBadgePosByHost) savedPos = await getBadgePosByHost(location.host);
+          if (savedPos && Number.isFinite(savedPos.x)) {
+            expandSide = savedPos.x > window.innerWidth / 2 ? 'right' : 'left';
+          }
+          var panelPos = null;
+          if (savedPos && Number.isFinite(savedPos.x) && Number.isFinite(savedPos.y)) {
+            panelPos = {
+              left: expandSide === 'right' ? savedPos.x - 280 : savedPos.x,
+              top: savedPos.y
+            };
+          }
+          removeClassicBadge();
+          await rebuild();
+          if (!panelInstance) renderPanelCard(panelPos, expandSide, savedPos);
+          if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, true);
+          return;
+        }
+        if (dockInstance) dockInstance.peek();
       } catch (e) {
         if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
           console.debug('[toc] expand failed:', e);
@@ -430,6 +512,7 @@ export function initForConfig(cfg) {
       consecutiveRebuildFailures = 0;
       isRebuilding = false;
       removePanelCard();
+      removeClassicBadge();
       try { if (activeTracker && activeTracker.destroy) activeTracker.destroy(); } catch (_) {}
       activeTracker = null;
       try { if (dockInstance) dockInstance.destroy(); } catch (_) {}
@@ -451,7 +534,9 @@ export function initForConfig(cfg) {
         mutationObserver = createRebuildScheduler(rebuild);
         mutationObserver.start(cfg);
       }
-      if (renderEdgeDock) {
+      if (uiMode === 'classic') {
+        collapse({ persist: false });
+      } else if (renderEdgeDock) {
         dockInstance = renderEdgeDock({
           side: side,
           initialMode: 'collapsed',
@@ -460,6 +545,18 @@ export function initForConfig(cfg) {
           onRefresh: rebuild,
           onPick: startPick,
           onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
+          onSwitchUiMode: onSwitchUiMode,
+          onNavigate: function(item, index) {
+            if (!item || !item.el) return;
+            syncActiveIndex(index);
+            try { NL.lock(1000); } catch (_) {}
+            try {
+              if (scrollToElement) scrollToElement(item.el);
+              else item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (_) {
+              try { item.el.scrollIntoView(true); } catch (_2) {}
+            }
+          },
           onSideChange: function(nextSide) {
             side = nextSide;
             cfg.side = nextSide;

@@ -126,25 +126,21 @@ test('entering the dock again cancels a pending peek collapse', () => {
   assert.equal(dock.getMode(), 'peek');
 });
 
-test('pinned mode ignores hover collapse and toggles explicitly', () => {
+test('dock state controller exposes hover-only modes without pinned state', () => {
   const env = loadDockController();
   const dock = env.createDockStateController({ closeDelayMs: 250 });
 
-  dock.togglePinned();
-  dock.scheduleCollapse();
-  env.runTimers();
-  assert.equal(dock.getMode(), 'pinned');
-
-  dock.togglePinned();
-  assert.equal(dock.getMode(), 'collapsed');
+  assert.equal(dock.setMode('pinned'), 'collapsed');
+  assert.equal('pin' in dock, false);
+  assert.equal('togglePinned' in dock, false);
 });
 
-test('touch activation toggles pinned mode without relying on hover', () => {
+test('touch activation toggles temporary peek without pinned state', () => {
   const env = loadDockController();
   const dock = env.createDockStateController({ closeDelayMs: 250 });
 
   dock.activate('touch');
-  assert.equal(dock.getMode(), 'pinned');
+  assert.equal(dock.getMode(), 'peek');
   dock.activate('touch');
   assert.equal(dock.getMode(), 'collapsed');
 });
@@ -206,6 +202,7 @@ test('toc app orchestrates the edge dock instead of the collapsed badge', () => 
   assert.doesNotMatch(app, /renderCollapsedBadge/);
   assert.match(app, /getPanelHost/);
   assert.match(app, /dockInstance\.getMode\(\) === 'collapsed'/);
+  assert.match(app, /onNavigate:\s*function\(item, index\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?NL\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
 });
 
 test('floating panel mounts inside the edge dock and no longer owns dragging', () => {
@@ -240,16 +237,64 @@ test('edge dock styles and localized menu labels are present', () => {
 
   assert.match(css, /\.toc-edge-dock/);
   assert.match(css, /\.toc-edge-dock-panel-host\s*\{[^}]*display:\s*block/s);
+  assert.match(css, /\.toc-edge-dock\s*\{[^}]*--toc-dock-color:\s*#202124[^}]*--toc-dock-hover:\s*#f3f4f6/s);
+  assert.doesNotMatch(css, /#ec4899|rgba\(236,\s*72,\s*153|#f472b6|rgba\(244,\s*114,\s*182/);
+  assert.match(css, /\.toc-edge-dock-settings\s*\{[^}]*width:\s*36px[^}]*height:\s*36px[^}]*border-radius:\s*999px[^}]*margin-right:\s*8px/s);
+  assert.match(css, /\.toc-edge-dock-left \.toc-edge-dock-settings\s*\{[^}]*margin-left:\s*8px[^}]*margin-right:\s*0/s);
+  assert.match(css, /\.toc-edge-dock-settings-icon\s*\{[^}]*display:\s*flex[^}]*width:\s*18px[^}]*height:\s*14px/s);
+  assert.match(css, /\.toc-edge-dock-settings-bullet\s*\{[^}]*width:\s*3px[^}]*height:\s*3px[^}]*background:\s*currentColor/s);
+  assert.match(css, /\.toc-edge-dock-settings-line\s*\{[^}]*height:\s*2px[^}]*background:\s*currentColor/s);
+  assert.match(css, /@media \(prefers-color-scheme:\s*dark\)[\s\S]*?\.toc-edge-dock\s*\{[^}]*--toc-dock-bg:\s*#242424[^}]*--toc-dock-color:\s*#e5e7eb[^}]*--toc-dock-hover:\s*#303030/s);
+  assert.match(css, /\.toc-edge-dock-toolbar\s*\{[^}]*gap:\s*4px/s);
+  assert.doesNotMatch(css, /\.toc-edge-dock-toc\s*\{[^}]*min-height:\s*236px/s);
+  assert.match(css, /\.toc-edge-dock-toc\s*\{[^}]*min-height:\s*40px/s);
+  assert.match(css, /\.toc-edge-dock-toc\s*\{[^}]*padding:\s*6px/s);
+  assert.match(css, /\.toc-edge-dock-preview\s*\{[^}]*gap:\s*8px/s);
+  assert.match(css, /\.toc-edge-dock\[data-mode="peek"\] \.toc-edge-dock-toc\s*\{[^}]*visibility:\s*hidden[^}]*pointer-events:\s*none/s);
   assert.match(css, /\.toc-edge-dock-preview-line/);
   assert.match(css, /\.toc-edge-dock-preview-line\[data-level="6"\]/);
+  assert.match(css, /\.toc-edge-dock-panel-host\s*\{[^}]*top:\s*40px/s);
+  assert.match(css, /\.toc-edge-dock-right \.toc-edge-dock-panel-host\s*\{[^}]*right:\s*0/s);
+  assert.match(css, /\.toc-edge-dock-left \.toc-edge-dock-panel-host\s*\{[^}]*left:\s*0/s);
+  assert.match(css, /\.toc-edge-dock-right \.toc-floating\.toc-floating-docked\s*\{[^}]*border-radius:\s*18px 0 0 18px[^}]*transform-origin:\s*right top/s);
+  assert.match(css, /\.toc-edge-dock-left \.toc-floating\.toc-floating-docked\s*\{[^}]*border-radius:\s*0 18px 18px 0[^}]*transform-origin:\s*left top/s);
+  assert.match(css, /\.toc-floating-expand\.toc-floating-left,[\s\S]*?\.toc-floating-expand\.toc-floating-right\s*\{[^}]*transform:\s*scaleX\(0\.12\)[^}]*opacity:\s*0/s);
+  assert.match(css, /\.toc-floating-expand\.toc-expanded\s*\{[^}]*transform:\s*scaleX\(1\)[^}]*opacity:\s*1/s);
+  assert.match(css, /@media \(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.toc-floating-expand\s*\{[^}]*transition:\s*none/s);
   assert.match(dock, /toolbar\.setAttribute\('role', 'toolbar'\)/);
   assert.match(dock, /toc-edge-dock-preview/);
   assert.match(dock, /toc-edge-dock-preview-line/);
-  assert.match(dock, /toc-edge-dock-settings-tile/);
-  assert.match(dock, /toc-edge-dock-settings-sparkle/);
+  assert.match(dock, /toc-edge-dock-settings-bullet/);
+  assert.match(dock, /toc-edge-dock-settings-line/);
+  assert.doesNotMatch(dock, /toc-edge-dock-settings-track/);
+  assert.doesNotMatch(dock, /toc-edge-dock-settings-knob/);
+  assert.doesNotMatch(dock, /toc-edge-dock-settings-tile/);
+  assert.doesNotMatch(dock, /toc-edge-dock-settings-sparkle/);
+  assert.match(dock, /function createSettingsIcon\(\)[\s\S]*?document\.createElement\('span'\)/);
+  assert.doesNotMatch(dock, /document\.createElementNS\(SVG_NS, 'rect'\)/);
   assert.match(dock, /setItems:/);
   assert.match(dock, /setActiveIndex:/);
+  assert.match(dock, /var tocButton = document\.createElement\('div'\)/);
+  assert.match(dock, /var line = document\.createElement\('button'\)/);
+  assert.match(dock, /line\.type = 'button'/);
+  assert.match(dock, /line\.dataset\.index = String\(index\)/);
+  assert.match(dock, /function navigatePreviewItem[\s\S]*?options\.onNavigate && options\.onNavigate\(item, index\)/);
+  assert.match(dock, /function onPreviewClick[\s\S]*?e\.stopPropagation\(\)[\s\S]*?navigatePreviewItem\(parseInt\(line\.dataset\.index, 10\)\)/);
+  assert.match(dock, /preview\.addEventListener\('click', onPreviewClick\)/);
+  assert.doesNotMatch(dock, /preview\.setAttribute\('aria-hidden', 'true'\)/);
   assert.match(dock, /function onTocPointerEnter[\s\S]*?closeMenu\(\);[\s\S]*?controller\.peek\(\);/);
+  assert.match(dock, /function onTocClick\(\)[\s\S]*?lastPointerType !== 'touch'[\s\S]*?controller\.activate\(\);/);
+  assert.match(dock, /function onRootPointerLeave\(e\)[\s\S]*?lastPointerType !== 'touch'[\s\S]*?controller\.scheduleCollapse\(\);/);
+  assert.match(dock, /function onDocumentPointerDown\(e\)[\s\S]*?controller\.getMode\(\) === 'peek'[\s\S]*?controller\.collapse\(\);/);
+  assert.doesNotMatch(dock, /controller\.pin\(\)|togglePinned|mode === 'pinned'|next === 'pinned'/);
+  assert.match(dock, /function openMenu\(\)[\s\S]*?controller\.collapse\(\);[\s\S]*?quickMenu\.hidden = false;/);
+  assert.match(dock, /function onSettingsPointerEnter[\s\S]*?lastPointerType !== 'touch'[\s\S]*?openMenu\(\);/);
+  assert.match(dock, /function scheduleMenuClose\(\)[\s\S]*?setTimeout\(closeMenu, CFG\.CLOSE_DELAY_MS\)/);
+  assert.match(dock, /function onRootFocusIn[\s\S]*?e\.target === settingsButton[\s\S]*?openMenu\(\);/);
+  assert.match(dock, /function onRootFocusOut[\s\S]*?scheduleMenuClose\(\);/);
+  assert.doesNotMatch(dock, /function onSettingsClick\(\)[\s\S]*?var open = quickMenu\.hidden;/);
+  assert.match(dock, /settingsButton\.addEventListener\('pointerenter', onSettingsPointerEnter\)/);
+  assert.match(dock, /createMenuButton\('dockSwitchToClassic',\s*'Switch to classic mode',\s*function\(\) \{[\s\S]*?options\.onSwitchUiMode && options\.onSwitchUiMode\('classic'\)/);
   for (const locale of [en, zh]) {
     assert.match(locale, /"dockSettingsTitle"/);
     assert.match(locale, /"dockMoveToLeft"/);
