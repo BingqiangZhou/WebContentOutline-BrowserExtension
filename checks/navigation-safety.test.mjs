@@ -305,15 +305,15 @@ test('extension-created buttons explicitly opt out of submit behavior', () => {
   }
 });
 
-test('project versions are unified at 1.0.0', () => {
+test('project versions are unified at 1.0.1', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifest.json'), 'utf8'));
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
 
-  assert.equal(manifest.version, '1.0.0');
-  assert.equal(packageJson.version, '1.0.0');
-  assert.equal(packageLock.version, '1.0.0');
-  assert.equal(packageLock.packages[''].version, '1.0.0');
+  assert.equal(manifest.version, '1.0.1');
+  assert.equal(packageJson.version, '1.0.1');
+  assert.equal(packageLock.version, '1.0.1');
+  assert.equal(packageLock.packages[''].version, '1.0.1');
 });
 
 test('build script removes existing version zip before packaging and copies page hook', () => {
