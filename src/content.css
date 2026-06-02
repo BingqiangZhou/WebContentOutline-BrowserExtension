@@ -115,6 +115,11 @@
   --toc-menu-color: #3f3f46;
   --toc-menu-hover: #f3f4f6;
   --toc-focus-ring: rgba(32, 33, 36, 0.7);
+  --toc-preview-line: #737373;
+  --toc-preview-line-hover: #737373;
+  --toc-preview-line-active: #737373;
+  --toc-preview-ring-light: #f5f5f5;
+  --toc-preview-ring-dark: #525252;
 
   position: fixed !important;
   top: 120px !important;
@@ -175,8 +180,8 @@
 
 .toc-edge-dock-settings {
   align-self: flex-end !important;
-  width: 36px !important;
-  height: 36px !important;
+  width: 32px !important;
+  height: 32px !important;
   border: 1px solid var(--toc-dock-border) !important;
   border-radius: 999px !important;
   margin-right: 8px !important;
@@ -214,15 +219,15 @@
   display: flex !important;
   flex-direction: column !important;
   justify-content: space-between !important;
-  width: 18px !important;
-  height: 14px !important;
+  width: 14px !important;
+  height: 12px !important;
 }
 
 .toc-edge-dock-settings-row {
   display: flex !important;
   align-items: center !important;
-  gap: 3px !important;
-  width: 18px !important;
+  gap: 2px !important;
+  width: 14px !important;
   height: 3px !important;
 }
 
@@ -236,7 +241,7 @@
 
 .toc-edge-dock-settings-line {
   display: block !important;
-  width: 12px !important;
+  width: 9px !important;
   height: 2px !important;
   border-radius: 999px !important;
   background: currentColor !important;
@@ -264,7 +269,7 @@
 .toc-edge-dock-preview {
   display: flex !important;
   flex-direction: column !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   justify-content: center !important;
   gap: 8px !important;
   width: 36px !important;
@@ -274,50 +279,51 @@
   display: block !important;
   height: 3px !important;
   border-radius: 999px !important;
-  background: #d6d6d6 !important;
-  transition: background-color 0.15s ease !important;
+  background: var(--toc-preview-line) !important;
+  transition: box-shadow 0.15s ease !important;
   cursor: pointer !important;
+}
+
+.toc-edge-dock-preview-line-active {
+  background: var(--toc-preview-line-active) !important;
+  box-shadow: 0 0 0 1px var(--toc-preview-ring-light), 0 0 0 2px var(--toc-preview-ring-dark) !important;
 }
 
 .toc-edge-dock-preview-line:hover,
 .toc-edge-dock-preview-line:focus-visible {
-  background: #8a8a8a !important;
-  outline: 2px solid var(--toc-focus-ring) !important;
-  outline-offset: 2px !important;
+  background: var(--toc-preview-line-hover) !important;
+  box-shadow: 0 0 0 1px var(--toc-preview-ring-light), 0 0 0 3px var(--toc-preview-ring-dark) !important;
+  outline: none !important;
 }
 
 .toc-edge-dock-preview-line[data-level="1"] {
-  width: 30px !important;
+  width: 26px !important;
   margin-left: 0 !important;
 }
 
 .toc-edge-dock-preview-line[data-level="2"] {
-  width: 26px !important;
+  width: 23px !important;
   margin-left: 2px !important;
 }
 
 .toc-edge-dock-preview-line[data-level="3"] {
-  width: 22px !important;
+  width: 20px !important;
   margin-left: 4px !important;
 }
 
 .toc-edge-dock-preview-line[data-level="4"] {
-  width: 18px !important;
+  width: 17px !important;
   margin-left: 6px !important;
 }
 
 .toc-edge-dock-preview-line[data-level="5"] {
-  width: 15px !important;
+  width: 14px !important;
   margin-left: 8px !important;
 }
 
 .toc-edge-dock-preview-line[data-level="6"] {
-  width: 12px !important;
+  width: 11px !important;
   margin-left: 10px !important;
-}
-
-.toc-edge-dock-preview-line-active {
-  background: #202124 !important;
 }
 
 .toc-edge-dock-panel-host,
@@ -1148,12 +1154,6 @@
     --toc-menu-color: #e2e8f0;
     --toc-menu-hover: rgba(255, 255, 255, 0.1);
     --toc-border: rgba(255,255,255,0.1);
-  }
-  .toc-edge-dock-preview-line {
-    background: rgba(255, 255, 255, 0.28) !important;
-  }
-  .toc-edge-dock-preview-line-active {
-    background: rgba(255, 255, 255, 0.88) !important;
   }
   .toc-floating {
     --toc-bg-panel: #1e1e1e;

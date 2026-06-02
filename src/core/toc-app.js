@@ -471,7 +471,7 @@ export function initForConfig(cfg, options) {
       }
     }
 
-    async function expand() {
+    async function expand(opts) {
       try {
         if (uiMode === 'classic') {
           var savedPos = null;
@@ -500,7 +500,7 @@ export function initForConfig(cfg, options) {
           if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, true);
           return;
         }
-        if (dockInstance) dockInstance.peek();
+        if (dockInstance) dockInstance.peek(opts || {});
       } catch (e) {
         if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
           console.debug('[toc] expand failed:', e);

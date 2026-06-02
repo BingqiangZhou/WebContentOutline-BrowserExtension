@@ -6,6 +6,26 @@ import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 
+function relativeLuminance(hex) {
+  const channels = hex.slice(1).match(/.{2}/g).map((channel) => parseInt(channel, 16) / 255);
+  const linear = channels.map((channel) => (
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
+  ));
+  return (0.2126 * linear[0]) + (0.7152 * linear[1]) + (0.0722 * linear[2]);
+}
+
+function contrastRatio(first, second) {
+  const lighter = Math.max(relativeLuminance(first), relativeLuminance(second));
+  const darker = Math.min(relativeLuminance(first), relativeLuminance(second));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function extractCssVariable(css, variable) {
+  const match = css.match(new RegExp(`${variable}:\\s*(#[0-9a-f]{6})`, 'i'));
+  assert.ok(match, `${variable} should be defined as an opaque hex color`);
+  return match[1];
+}
+
 function loadDockController() {
   const file = path.join(repoRoot, 'src/ui/edge-dock.js');
   assert.equal(fs.existsSync(file), true, 'src/ui/edge-dock.js should exist');
@@ -126,6 +146,19 @@ test('entering the dock again cancels a pending peek collapse', () => {
   assert.equal(dock.getMode(), 'peek');
 });
 
+test('programmatic peeks can use a longer auto-collapse delay', () => {
+  const env = loadDockController();
+  const dock = env.createDockStateController({ closeDelayMs: 250 });
+
+  dock.peek();
+  dock.scheduleCollapse(1800);
+
+  assert.equal(env.timers.size, 1);
+  assert.equal([...env.timers.values()][0].delay, 1800);
+  env.runTimers();
+  assert.equal(dock.getMode(), 'collapsed');
+});
+
 test('dock state controller exposes hover-only modes without pinned state', () => {
   const env = loadDockController();
   const dock = env.createDockStateController({ closeDelayMs: 250 });
@@ -179,10 +212,10 @@ test('collapsed outline preview windows long toc lists around the active item', 
 test('collapsed outline preview maps heading levels to line width and inset', () => {
   const { getPreviewLineMetrics } = loadDockPreviewHelpers();
 
-  assert.deepEqual({ ...getPreviewLineMetrics(1) }, { width: 30, inset: 0 });
-  assert.deepEqual({ ...getPreviewLineMetrics(3) }, { width: 22, inset: 4 });
-  assert.deepEqual({ ...getPreviewLineMetrics(6) }, { width: 12, inset: 10 });
-  assert.deepEqual({ ...getPreviewLineMetrics(99) }, { width: 12, inset: 10 });
+  assert.deepEqual({ ...getPreviewLineMetrics(1) }, { width: 26, inset: 0 });
+  assert.deepEqual({ ...getPreviewLineMetrics(3) }, { width: 20, inset: 4 });
+  assert.deepEqual({ ...getPreviewLineMetrics(6) }, { width: 11, inset: 10 });
+  assert.deepEqual({ ...getPreviewLineMetrics(99) }, { width: 11, inset: 10 });
 });
 
 test('edge dock is included in cleanup, mutation filtering, and picker exclusion rules', () => {
@@ -239,17 +272,17 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(css, /\.toc-edge-dock-panel-host\s*\{[^}]*display:\s*block/s);
   assert.match(css, /\.toc-edge-dock\s*\{[^}]*--toc-dock-color:\s*#202124[^}]*--toc-dock-hover:\s*#f3f4f6/s);
   assert.doesNotMatch(css, /#ec4899|rgba\(236,\s*72,\s*153|#f472b6|rgba\(244,\s*114,\s*182/);
-  assert.match(css, /\.toc-edge-dock-settings\s*\{[^}]*width:\s*36px[^}]*height:\s*36px[^}]*border-radius:\s*999px[^}]*margin-right:\s*8px/s);
+  assert.match(css, /\.toc-edge-dock-settings\s*\{[^}]*width:\s*32px[^}]*height:\s*32px[^}]*border-radius:\s*999px[^}]*margin-right:\s*8px/s);
   assert.match(css, /\.toc-edge-dock-left \.toc-edge-dock-settings\s*\{[^}]*margin-left:\s*8px[^}]*margin-right:\s*0/s);
-  assert.match(css, /\.toc-edge-dock-settings-icon\s*\{[^}]*display:\s*flex[^}]*width:\s*18px[^}]*height:\s*14px/s);
+  assert.match(css, /\.toc-edge-dock-settings-icon\s*\{[^}]*display:\s*flex[^}]*width:\s*14px[^}]*height:\s*12px/s);
   assert.match(css, /\.toc-edge-dock-settings-bullet\s*\{[^}]*width:\s*3px[^}]*height:\s*3px[^}]*background:\s*currentColor/s);
-  assert.match(css, /\.toc-edge-dock-settings-line\s*\{[^}]*height:\s*2px[^}]*background:\s*currentColor/s);
+  assert.match(css, /\.toc-edge-dock-settings-line\s*\{[^}]*width:\s*9px[^}]*height:\s*2px[^}]*background:\s*currentColor/s);
   assert.match(css, /@media \(prefers-color-scheme:\s*dark\)[\s\S]*?\.toc-edge-dock\s*\{[^}]*--toc-dock-bg:\s*#242424[^}]*--toc-dock-color:\s*#e5e7eb[^}]*--toc-dock-hover:\s*#303030/s);
   assert.match(css, /\.toc-edge-dock-toolbar\s*\{[^}]*gap:\s*4px/s);
   assert.doesNotMatch(css, /\.toc-edge-dock-toc\s*\{[^}]*min-height:\s*236px/s);
   assert.match(css, /\.toc-edge-dock-toc\s*\{[^}]*min-height:\s*40px/s);
   assert.match(css, /\.toc-edge-dock-toc\s*\{[^}]*padding:\s*6px/s);
-  assert.match(css, /\.toc-edge-dock-preview\s*\{[^}]*gap:\s*8px/s);
+  assert.match(css, /\.toc-edge-dock-preview\s*\{[^}]*align-items:\s*center[^}]*gap:\s*8px/s);
   assert.match(css, /\.toc-edge-dock\[data-mode="peek"\] \.toc-edge-dock-toc\s*\{[^}]*visibility:\s*hidden[^}]*pointer-events:\s*none/s);
   assert.match(css, /\.toc-edge-dock-preview-line/);
   assert.match(css, /\.toc-edge-dock-preview-line\[data-level="6"\]/);
@@ -290,6 +323,8 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(dock, /function openMenu\(\)[\s\S]*?controller\.collapse\(\);[\s\S]*?quickMenu\.hidden = false;/);
   assert.match(dock, /function onSettingsPointerEnter[\s\S]*?lastPointerType !== 'touch'[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function scheduleMenuClose\(\)[\s\S]*?setTimeout\(closeMenu, CFG\.CLOSE_DELAY_MS\)/);
+  assert.match(dock, /PROGRAMMATIC_CLOSE_DELAY_MS:\s*get\('DOCK_PROGRAMMATIC_CLOSE_DELAY_MS',\s*1800\)/);
+  assert.match(dock, /peek:\s*function\(opts\)\s*\{[\s\S]*?controller\.peek\(\);[\s\S]*?opts && opts\.autoCollapse[\s\S]*?controller\.scheduleCollapse\(CFG\.PROGRAMMATIC_CLOSE_DELAY_MS\)/);
   assert.match(dock, /function onRootFocusIn[\s\S]*?e\.target === settingsButton[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function onRootFocusOut[\s\S]*?scheduleMenuClose\(\);/);
   assert.doesNotMatch(dock, /function onSettingsClick\(\)[\s\S]*?var open = quickMenu\.hidden;/);
@@ -300,4 +335,31 @@ test('edge dock styles and localized menu labels are present', () => {
     assert.match(locale, /"dockMoveToLeft"/);
     assert.match(locale, /"dockMoveToRight"/);
   }
+});
+
+test('collapsed preview colors stay visible on light and dark host pages', () => {
+  const css = fs.readFileSync(path.join(repoRoot, 'src/content.css'), 'utf8');
+  const darkTheme = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
+  const variables = [
+    '--toc-preview-line',
+    '--toc-preview-line-hover',
+    '--toc-preview-line-active'
+  ];
+
+  for (const variable of variables) {
+    const color = extractCssVariable(css, variable);
+    assert.ok(contrastRatio(color, '#ffffff') >= 3, `${variable} should contrast with light pages`);
+    assert.ok(contrastRatio(color, '#242424') >= 3, `${variable} should contrast with dark pages`);
+  }
+
+  assert.equal(extractCssVariable(css, '--toc-preview-line-hover'), extractCssVariable(css, '--toc-preview-line'));
+  assert.equal(extractCssVariable(css, '--toc-preview-line-active'), extractCssVariable(css, '--toc-preview-line'));
+  const ringLight = extractCssVariable(css, '--toc-preview-ring-light');
+  const ringDark = extractCssVariable(css, '--toc-preview-ring-dark');
+  assert.ok(contrastRatio(ringLight, '#242424') >= 6, '--toc-preview-ring-light should stand out on dark pages');
+  assert.ok(contrastRatio(ringDark, '#ffffff') >= 6, '--toc-preview-ring-dark should stand out on light pages');
+  assert.match(css, /\.toc-edge-dock-preview-line\s*\{[^}]*background:\s*var\(--toc-preview-line\)/s);
+  assert.match(css, /\.toc-edge-dock-preview-line-active\s*\{[^}]*background:\s*var\(--toc-preview-line-active\)[^}]*box-shadow:\s*0 0 0 1px var\(--toc-preview-ring-light\),\s*0 0 0 2px var\(--toc-preview-ring-dark\)/s);
+  assert.match(css, /\.toc-edge-dock-preview-line:hover,[\s\S]*?\.toc-edge-dock-preview-line:focus-visible\s*\{[^}]*background:\s*var\(--toc-preview-line-hover\)[^}]*box-shadow:\s*0 0 0 1px var\(--toc-preview-ring-light\),\s*0 0 0 3px var\(--toc-preview-ring-dark\)/s);
+  assert.doesNotMatch(darkTheme, /\.toc-edge-dock-preview-line(?:-active)?\s*\{/);
 });

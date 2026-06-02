@@ -10,6 +10,7 @@ var CFG = (function() {
   var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
   return {
     CLOSE_DELAY_MS: get('DOCK_CLOSE_DELAY_MS', 250),
+    PROGRAMMATIC_CLOSE_DELAY_MS: get('DOCK_PROGRAMMATIC_CLOSE_DELAY_MS', 1800),
     SAFE_MARGIN_PX: get('DOCK_SAFE_MARGIN_PX', 12),
     DEFAULT_TOP_MIN: get('BADGE_DEFAULT_TOP_MIN_PX', 120),
     DEFAULT_HEIGHT: get('DOCK_DEFAULT_HEIGHT', 104)
@@ -33,12 +34,12 @@ export function resolveDockSide(pos, viewportWidth, fallbackSide) {
 
 export function getPreviewLineMetrics(level) {
   var metrics = [
-    { width: 30, inset: 0 },
-    { width: 26, inset: 2 },
-    { width: 22, inset: 4 },
-    { width: 18, inset: 6 },
-    { width: 15, inset: 8 },
-    { width: 12, inset: 10 }
+    { width: 26, inset: 0 },
+    { width: 23, inset: 2 },
+    { width: 20, inset: 4 },
+    { width: 17, inset: 6 },
+    { width: 14, inset: 8 },
+    { width: 11, inset: 10 }
   ];
   var safeLevel = Math.max(1, Math.min(6, Number(level) || 2));
   return metrics[safeLevel - 1];
@@ -92,13 +93,14 @@ export function createDockStateController(options) {
     return mode === 'peek' ? collapse() : peek();
   }
 
-  function scheduleCollapse() {
+  function scheduleCollapse(delayMs) {
     cancelCollapse();
     if (destroyed || mode !== 'peek') return;
+    var finalDelayMs = Number.isFinite(delayMs) ? delayMs : closeDelayMs;
     closeTimer = setTimeout(function() {
       closeTimer = null;
       if (!destroyed && mode === 'peek') collapse();
-    }, closeDelayMs);
+    }, finalDelayMs);
   }
 
   function destroy() {
@@ -558,7 +560,11 @@ export function renderEdgeDock(options) {
     getMode: controller.getMode,
     getPanelHost: function() { return panelHost; },
     getSide: function() { return side; },
-    peek: function() { closeMenu(); controller.peek(); },
+    peek: function(opts) {
+      closeMenu();
+      controller.peek();
+      if (opts && opts.autoCollapse) controller.scheduleCollapse(CFG.PROGRAMMATIC_CLOSE_DELAY_MS);
+    },
     setActiveIndex: function(nextIndex) {
       activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
       renderPreview();

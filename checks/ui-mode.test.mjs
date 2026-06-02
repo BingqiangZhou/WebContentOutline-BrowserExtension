@@ -116,4 +116,7 @@ test('toc app and content script orchestrate the selected global ui mode', () =>
   assert.match(content, /normalizeUiMode/);
   assert.match(content, /onSwitchUiMode:\s*requestUiMode/);
   assert.match(content, /changes && changes\[UI_MODE_KEY\]/);
+  assert.match(content, /if \(opts && opts\.expandPanel\) \{[\s\S]*?appInstance\.expand\(\{\s*autoCollapse:\s*currentUiMode !== 'classic'\s*\}\)/);
+  assert.match(content, /else if \(currentUiMode !== 'classic'\) \{[\s\S]*?appInstance\.collapse\(\);[\s\S]*?\} else \{[\s\S]*?getPanelExpandedByOrigin/);
+  assert.match(app, /async function expand\(opts\)[\s\S]*?dockInstance\.peek\(opts \|\| \{\}\)/);
 });

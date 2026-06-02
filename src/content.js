@@ -312,7 +312,9 @@ import { initForConfig } from './core/toc-app.js';
     if (!appInstance) return;
     try {
       if (opts && opts.expandPanel) {
-        if (appInstance.expand) await appInstance.expand();
+        if (appInstance.expand) await appInstance.expand({ autoCollapse: currentUiMode !== 'classic' });
+      } else if (currentUiMode !== 'classic') {
+        if (appInstance.collapse) appInstance.collapse();
       } else {
         var expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
         if (expanded && appInstance.expand) {
