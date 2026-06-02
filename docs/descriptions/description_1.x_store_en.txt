@@ -1,0 +1,64 @@
+Web TOC Assistant — Generate an Interactive Outline for Long Webpages
+
+Web TOC Assistant is a lightweight browser extension that analyzes the current page locally and creates an interactive table of contents for long articles, technical documentation, tutorials, and complex webpages. It helps you understand page structure and jump to the section you need.
+
+
+★ New 1.x Interface
+
+Version 1.x uses the modern Edge Dock by default:
+
+  • Live outline preview — The collapsed dock shows nearby heading bars. Deeper headings use shorter, indented bars.
+  • Active section highlight — As you scroll, both the collapsed preview and expanded TOC track your current reading position.
+  • Hover-to-expand TOC — On desktop, hover over the outline bars to open a lightweight TOC card inward from the page edge. Move away to collapse it automatically.
+  • Direct collapsed navigation — Click an outline bar to jump to a section without opening the full card.
+  • Touch support — On touch devices, tap the TOC area to temporarily toggle the expanded card.
+  • Left or right edge — Move the dock between page edges and remember its position for each website.
+
+
+★ Quick Settings
+
+Hover over the circular settings icon to open the quick menu:
+  • Refresh TOC
+  • Pick Element
+  • Site Config
+  • Move to the opposite edge
+  • Switch to classic mode
+
+
+★ Classic Mode
+
+Prefer the original interaction? Switch back to classic mode. It keeps the blue "TOC" floating badge and the freely draggable TOC panel. The UI-mode preference is global and synchronizes across open tabs.
+
+
+★ Key Features
+
+  • Automatic TOC generation — Detects standard h1-h6 headings by default.
+  • Fast smooth navigation — Click any TOC item to scroll to the matching section.
+  • Visual element picker — Click page elements directly to create custom outline rules.
+  • CSS and XPath selectors — Adapt the TOC to websites with non-standard heading structures.
+  • Per-site preferences — Save enablement, selectors, and interface positions for each website.
+  • Dynamic content updates — Refreshes the TOC as page content changes, including single-page applications.
+  • Light and dark themes — Adapts automatically to your system theme.
+
+
+★ Great For
+
+  • API references and developer guides
+  • Long-form articles, blogs, and news features
+  • Online courses and step-by-step tutorials
+  • Research articles and complex webpages
+  • Websites that need custom outline rules
+
+
+★ Privacy and Permissions
+
+Web TOC Assistant analyzes webpage structure locally in your browser.
+  • storage — Save site settings and interface preferences
+  • tabs — Enable or disable the extension per website
+  • scripting — Inject the TOC feature into enabled webpages
+  • alarms — Support reliable background tasks
+
+The extension does not send webpage content, browsing history, or personal information to any server.
+
+
+Open Source: https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension
