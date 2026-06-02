@@ -34,7 +34,7 @@ A web table of contents generator that automatically creates interactive floatin
 - **Hover Preview**: Hover over the outline bars to expand the TOC inward; moving away restores the bars automatically
 - **Vertical Dragging**: Drag the dock up and down with mouse, touch, or stylus
 - **Position Memory**: Remembers dock side and vertical position per domain and constrains the dock after window resize
-- **Classic Mode**: Switch globally to the original 0.8.1 text badge and freely draggable floating panel when preferred
+- **Classic Mode**: Switch globally to the classic text badge and freely draggable floating panel when preferred
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
 ### 🔄 Navigation Experience
@@ -164,7 +164,7 @@ A web table of contents generator that automatically creates interactive floatin
 **Effect**:
 - The preference is global and applies immediately across open tabs
 - Modern mode is the default
-- Classic mode keeps the original 0.8.1 text badge and freely draggable panel interaction
+- Classic mode keeps the classic text badge and freely draggable panel interaction
 
 ### Advanced Usage
 
@@ -208,7 +208,7 @@ For complex page structures, you can use XPath:
 - Touch devices can temporarily toggle the card and dismiss it by tapping outside
 - Quick settings expose refresh, element picker, site configuration, and edge switching
 - The detached circular settings button uses the extension's monochrome list mark
-- Quick settings can switch globally to the original 0.8.1 classic interface
+- Quick settings can switch globally to the classic interface
 
 ## 🛠️ Technical Implementation
 

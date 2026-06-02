@@ -35,8 +35,8 @@ src/
 │   └── toc-utils.js            # (19行)  barrel 重导出模块
 ├── ui/                         # UI组件
 │   ├── edge-dock.js            # 吸附式工具条与纯 hover 目录状态
-│   ├── classic-collapsed-badge.js # 原始 0.8.1 文字徽章交互
-│   ├── classic-floating-panel.js  # 原始 0.8.1 自由拖拽面板壳层
+│   ├── classic-collapsed-badge.js # 经典文字徽章交互
+│   ├── classic-floating-panel.js  # 经典自由拖拽面板壳层
 │   ├── element-picker.js       # (272行) 元素拾取器
 │   ├── floating-panel-helpers.js # 浮动面板辅助函数
 │   └── floating-panel.js       # 轻量目录卡片
@@ -148,7 +148,7 @@ if (isExtensionContextInvalidated()) {
 - 桌面端 hover 横线区域后向页面内侧展开，离开横线和列表后自动恢复
 - 触屏设备点击临时切换展开状态，点击外部区域收起
 - 快捷设置入口：刷新、拾取元素、站点配置、侧边切换
-- 快捷设置支持全局切换到原始 0.8.1 经典模式
+- 快捷设置支持全局切换到经典模式
 - 按域名持久化吸附侧边和竖直位置
 
 **element-picker.js** (272行) — 元素拾取器
@@ -165,7 +165,7 @@ if (isExtensionContextInvalidated()) {
 - 错误处理
 
 **classic-collapsed-badge.js / classic-floating-panel.js** — 经典界面
-- 保留原始 0.8.1 的文字徽章、自由拖拽面板和标题操作栏
+- 保留经典文字徽章、自由拖拽面板和标题操作栏
 - 从经典面板可全局切换回新版 Edge Dock
 
 ### 核心逻辑层 (1,711行)

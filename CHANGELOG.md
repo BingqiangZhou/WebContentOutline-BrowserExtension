@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#081---2026-05-18)
+[Table of Contents](#table-of-contents) • [Latest](#100---2026-06-02)
 
 ---
 
 ## Table of Contents
 
+- [1.0.0](#100---2026-06-02) - 2026-06-02
 - [0.8.1](#081---2026-05-18) - 2026-05-18
 - [0.8.0](#080---2026-05-15) - 2026-05-15
 - [0.7.1](#071---2026-05-07) - 2026-05-07
@@ -30,7 +31,7 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ---
 
-## [Unreleased]
+## [1.0.0] - 2026-06-02
 
 ### 🚀 Added
 - **Edge Dock TOC toolbar**
@@ -41,7 +42,7 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
   - Adds quick settings for refresh, element picking, site configuration, and left/right edge switching
 - **Global UI mode preference**
   - Defaults to the modern Edge Dock
-  - Allows switching to the original 0.8.1 text badge and freely draggable floating panel interaction
+  - Allows switching to the classic text badge and freely draggable floating panel interaction
   - Synchronizes mode changes across open tabs through `chrome.storage.local`
 
 ### 🔧 Changed
@@ -55,7 +56,7 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ### ⚡ Technical Improvements
 - **Active item tracking** now stays alive while the outline card is closed, keeping the collapsed preview synchronized during scrolling
-- **Classic mode layout** restores the original 0.8.1 structured header and action groups while keeping the new global mode switch compact
+- **Classic mode layout** restores the classic structured header and action groups while keeping the new global mode switch compact
 - **Edge Dock tests** cover heading levels, live preview windowing, hover delay, hover-only state, touch activation, viewport clamping, cleanup isolation, and nested panel removal
 
 ---
