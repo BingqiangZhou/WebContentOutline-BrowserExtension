@@ -21,7 +21,7 @@ var CFG = (function() {
 })();
 
 export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner]');
+  if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
   var badge = document.createElement('button');
   badge.type = 'button';

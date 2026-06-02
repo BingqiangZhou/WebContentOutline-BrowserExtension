@@ -7,11 +7,27 @@ import { uiConst } from './constants.js';
     var TOC_MAX_ITEMS = (typeof uiConst === 'function') ? uiConst('TOC_MAX_ITEMS', 400) : 400;
     var TOC_MAX_CANDIDATES = (typeof uiConst === 'function') ? uiConst('TOC_MAX_CANDIDATES', 1200) : 1200;
 
-    function getTrimmedText(el) {
-      var rawText = '';
-      if (el) {
-        rawText = (el.textContent || '').trim();
+    function getBoundedRawText(el, limit) {
+      var text = '';
+      function appendNode(node) {
+        if (!node || text.length > limit) return;
+        if (node.nodeType === 3) {
+          text += node.nodeValue || '';
+          return;
+        }
+        var children = node.childNodes;
+        if (!children) return;
+        for (var i = 0; i < children.length && text.length <= limit; i++) appendNode(children[i]);
       }
+      try {
+        appendNode(el);
+        if (text) return text;
+      } catch (_) {}
+      try { return String(el && el.textContent || '').slice(0, limit + 1); } catch (_) { return ''; }
+    }
+
+    function getTrimmedText(el) {
+      var rawText = getBoundedRawText(el, TOC_TEXT_MAX_LEN * 4).trim();
       rawText = rawText.replace(/\s+/g, ' ');
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
@@ -24,13 +40,14 @@ export function getTocItemLevel(el) {
 export function buildTocItemsFromSelectors(selectors, cfg) {
       var elements = [];
       var list = Array.isArray(selectors) ? selectors : [];
-      var perSelectorLimit = Math.max(100, Math.floor(TOC_MAX_CANDIDATES / Math.max(1, list.length)));
+      var perSelectorLimit = Math.max(1, Math.floor(TOC_MAX_CANDIDATES / Math.max(1, list.length)));
 
-      for (var i = 0; i < list.length; i++) {
+      for (var i = 0; i < list.length && elements.length < TOC_MAX_CANDIDATES; i++) {
         var sel = list[i];
         try {
-          var nodes = collectBySelector(sel);
-          var limit = Math.min(nodes.length, perSelectorLimit);
+          var selectorBudget = Math.min(perSelectorLimit, TOC_MAX_CANDIDATES - elements.length);
+          var nodes = collectBySelector(sel, selectorBudget);
+          var limit = Math.min(nodes.length, selectorBudget);
           for (var k = 0; k < limit; k++) {
             elements.push(nodes[k]);
           }
@@ -48,6 +65,20 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
       }
 
       var items = [];
+      var styleCache = new Map();
+      var rectCache = new Map();
+      var getStyle = function(el) {
+        if (styleCache.has(el)) return styleCache.get(el);
+        var style = window.getComputedStyle(el);
+        styleCache.set(el, style);
+        return style;
+      };
+      var getRect = function(el) {
+        if (rectCache.has(el)) return rectCache.get(el);
+        var rect = el.getBoundingClientRect();
+        rectCache.set(el, rect);
+        return rect;
+      };
       for (var m = 0; m < candidates.length; m++) {
         var el = candidates[m];
 
@@ -59,7 +90,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
 
         // Phase 2: style + geometry checks (one layout read batch per element)
         var style;
-        try { style = window.getComputedStyle(el); } catch (_) { continue; }
+        try { style = getStyle(el); } catch (_) { continue; }
         if (!style) continue;
         if (style.display === 'none') continue;
 
@@ -76,7 +107,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
         if (Number.isFinite(opacity) && opacity <= 0) continue;
 
         var rect;
-        try { rect = el.getBoundingClientRect(); } catch (_) { continue; }
+        try { rect = getRect(el); } catch (_) { continue; }
         if (!rect || rect.width === 0 || rect.height === 0) continue;
 
         // Phase 3: parent clipping check (only for phase 2 survivors)
@@ -85,7 +116,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
         var depth = 0;
         while (parent && depth < 3) {
           var parentStyle;
-          try { parentStyle = window.getComputedStyle(parent); } catch (_) { break; }
+          try { parentStyle = getStyle(parent); } catch (_) { break; }
           if (parentStyle) {
             var overflowVal = parentStyle.overflow;
             var overflowX = parentStyle.overflowX;
@@ -95,7 +126,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
               || overflowY === 'hidden' || overflowY === 'clip';
             if (clips) {
               var parentRect;
-              try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
+              try { parentRect = getRect(parent); } catch (_) { break; }
               if (rect.right <= parentRect.left || rect.left >= parentRect.right
                   || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
                 clipped = true;

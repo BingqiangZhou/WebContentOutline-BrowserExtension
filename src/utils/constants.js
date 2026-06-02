@@ -58,7 +58,7 @@ export var UI_CONSTANTS = {
   STORAGE_ERROR_ONCE_MAX_KEYS: 200,
   WARN_ONCE_MAX_KEYS: 200,
 
-  CLEANUP_SELECTOR: '.toc-edge-dock[data-toc-owner], .toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]'
+  CLEANUP_SELECTOR: '.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-overlay[data-toc-owner="web-toc-assistant"], .toc-toast-container[data-toc-owner="web-toc-assistant"]'
 };
 
 export function uiConst(name, fallback) {

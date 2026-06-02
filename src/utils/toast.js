@@ -2,7 +2,7 @@ import { UI_CONSTANTS } from './constants.js';
 import { msg } from './core-utils.js';
 
 export function ensureToastContainer() {
-    var existing = document.querySelector('.toc-toast-container');
+    var existing = document.querySelector('.toc-toast-container[data-toc-owner="web-toc-assistant"]');
     if (existing) return existing;
     var container = document.createElement('div');
     container.className = 'toc-toast-container';

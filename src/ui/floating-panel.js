@@ -38,7 +38,7 @@ export function renderFloatingPanel(opts) {
     var embedded = !!opts.embedded;
 
     // Remove any existing panel to prevent duplicates
-    if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner]');
+    if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
     var panel = document.createElement('div');
     var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -357,7 +357,17 @@ export function renderFloatingPanel(opts) {
             if (panel && panel.isConnected) return;
             cleanup({ removedExternally: true });
           });
-          removalObserver.observe(document.documentElement, { childList: true, subtree: true });
+          var targets = [];
+          if (panel.parentNode) targets.push(panel.parentNode);
+          var ownerRoot = panel.closest && panel.closest('[data-toc-owner="web-toc-assistant"]');
+          var ownerParent = ownerRoot && ownerRoot.parentNode;
+          if (!ownerParent) ownerParent = document.documentElement;
+          if (ownerParent && targets.indexOf(ownerParent) < 0) {
+            targets.push(ownerParent);
+          }
+          targets.forEach(function(target) {
+            removalObserver.observe(target, { childList: true });
+          });
           return;
         } catch (_) {
           removalObserver = null;

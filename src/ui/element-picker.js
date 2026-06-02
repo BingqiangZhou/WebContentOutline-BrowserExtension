@@ -14,7 +14,7 @@ import { createFocusTrap } from '../utils/focus-trap.js';
 
 export function showPickerResult(selector, saveCb) {
     var prevFocus = document.activeElement;
-    var existing = document.querySelector('.toc-overlay');
+    var existing = document.querySelector('.toc-overlay[data-toc-owner="web-toc-assistant"]');
     if (existing) {
       existing.remove();
     }
@@ -131,7 +131,7 @@ export function createElementPicker(onPicked, onCancel) {
 
     function isUiElement(el) {
       if (!el) return false;
-      return el.closest && (el.closest('.toc-edge-dock') || el.closest('.toc-floating') || el.closest('.toc-collapsed-badge'));
+      return el.closest && el.closest('[data-toc-owner="web-toc-assistant"]');
     }
 
     function box(el) {

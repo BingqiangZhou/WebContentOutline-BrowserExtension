@@ -105,9 +105,22 @@ export function setBadgePosByHost(host, pos) {
         touchObjectKey(map, host, enriched);
         pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
 
-        return saveBadgePosMap(map).then(function(ok) {
-          return ok ? (map[host] || null) : null;
-        });
+        try {
+          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+            return new Promise(function(resolve) {
+              chrome.runtime.sendMessage({
+                type: 'toc:mutateUiState',
+                operation: 'set-badge-position',
+                key: host,
+                value: enriched
+              }, function(response) {
+                if (chrome.runtime.lastError) { resolve(null); return; }
+                resolve(response && response.ok ? response.value : null);
+              });
+            });
+          }
+        } catch (_) {}
+        return saveBadgePosMap(map).then(function(ok) { return ok ? (map[host] || null) : null; });
       };
 
       return serializedWrite('tocBadgePosMap', function() {

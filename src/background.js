@@ -2,13 +2,17 @@
 
 importScripts('shared/storage-primitives.js');
 importScripts('shared/config-primitives.js');
+importScripts('shared/ui-state-primitives.js');
 const { serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit } = globalThis.__STORAGE_PRIMITIVES;
 const { applyTocConfigMutation } = globalThis.__CONFIG_PRIMITIVES;
+const { applyUiStateMutation, validateUiStateMutationSource } = globalThis.__UI_STATE_PRIMITIVES;
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-  TOC_CONFIGS: 'tocConfigs'
+  TOC_CONFIGS: 'tocConfigs',
+  PANEL_STATE_MAP: 'tocPanelExpandedMap',
+  BADGE_POS_MAP: 'tocBadgePosMap'
 };
 
 // Duplicated from core-utils.js (service worker cannot use define/require module system)
@@ -136,6 +140,29 @@ async function mutateTocConfigs(mutation) {
     } catch (e) {
       const quota = isQuotaExceededError(e);
       console.warn('[toc] mutateTocConfigs failed:', e, { quota });
+      return { ok: false, reason: quota ? 'quota-exceeded' : 'storage-write-failed' };
+    }
+  });
+}
+
+async function mutateUiState(mutation) {
+  const storageKey = mutation.operation === 'set-badge-position'
+    ? BG_STORAGE_KEYS.BADGE_POS_MAP
+    : mutation.operation === 'set-panel-expanded'
+      ? BG_STORAGE_KEYS.PANEL_STATE_MAP
+      : '';
+  if (!storageKey) return { ok: false, reason: 'invalid-operation' };
+  return serializedWrite(storageKey, async () => {
+    try {
+      if (!chrome?.storage?.local) return { ok: false, reason: 'storage-unavailable' };
+      const stored = await chrome.storage.local.get([storageKey]);
+      const result = applyUiStateMutation(stored[storageKey] || {}, mutation, BG_MAX_MAP_KEYS);
+      if (!result || !result.ok) return result || { ok: false, reason: 'invalid-result' };
+      await chrome.storage.local.set({ [storageKey]: result.map });
+      return result;
+    } catch (e) {
+      const quota = isQuotaExceededError(e);
+      console.warn('[toc] mutateUiState failed:', e, { quota, storageKey });
       return { ok: false, reason: quota ? 'quota-exceeded' : 'storage-write-failed' };
     }
   });
@@ -430,9 +457,7 @@ async function setInjectionBadge(tabId, failed) {
   }
 }
 
-async function injectIntoTab(tabId) {
-  // First, inject CSS before JS to ensure styles are available
-  let cssInserted = false;
+async function insertInjectedCss(tabId) {
   try {
     if (CONTENT_CSS.length) {
       // Dynamic CSS is not automatically tied to the content-script lifecycle.
@@ -441,12 +466,22 @@ async function injectIntoTab(tabId) {
         await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
       } catch (_) {}
       await chrome.scripting.insertCSS({ target: { tabId }, files: CONTENT_CSS });
-      cssInserted = true;
+      return { ok: true, inserted: true };
     }
   } catch (e) {
-    console.warn('[toc] injectIntoTab failed (css):', e, { tabId });
     return { ok: false, step: 'css', error: e };
   }
+  return { ok: true, inserted: false };
+}
+
+async function injectIntoTab(tabId) {
+  // First, inject CSS before JS to ensure styles are available
+  const cssResult = await insertInjectedCss(tabId);
+  if (!cssResult.ok) {
+    console.warn('[toc] injectIntoTab failed (css):', cssResult.error, { tabId });
+    return cssResult;
+  }
+  const cssInserted = cssResult.inserted;
 
   if (MAIN_WORLD_SCRIPTS.length) {
     try {
@@ -491,6 +526,16 @@ async function injectIntoTab(tabId) {
   return { ok: true };
 }
 
+async function removeInjectedCss(tabId) {
+  if (!tabId) return;
+  try {
+    if (CONTENT_CSS.length) {
+      await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
+    }
+  } catch (_) {}
+  try { await setInjectedState(tabId, null); } catch (_) {}
+}
+
 async function ensureContentScript(tabId, url) {
   if (!tabId) return false;
   if (!isHttpUrl(url)) return false;
@@ -499,14 +544,22 @@ async function ensureContentScript(tabId, url) {
   if (inFlight) return await inFlight;
 
   const injectPromise = (async () => {
+    const state = await getInjectedState(tabId);
     const pingOk = await pingContentScript(tabId);
     if (pingOk) {
+      if (!state || state.url !== url) {
+        const cssResult = await insertInjectedCss(tabId);
+        if (!cssResult.ok) {
+          console.warn('[toc] ensureContentScript failed (css):', cssResult.error, { tabId });
+          await setInjectionBadge(tabId, true);
+          return false;
+        }
+      }
       await setInjectedState(tabId, { url, ts: Date.now() });
       await setInjectionBadge(tabId, false);
       return true;
     }
 
-    const state = await getInjectedState(tabId);
     if (state && state.url === url && Date.now() - state.ts < INJECTION_COOLDOWN_MS) {
       await sleep(INJECTION_PING_RETRY_MS);
       const retryOk = await pingContentScript(tabId);
@@ -555,6 +608,7 @@ async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
       } catch (e) {
         console.warn('[toc] sendMessage to tab failed:', e, { tabId: t.id, url: t.url });
       }
+      if (!enabled) await removeInjectedCss(t.id);
     }));
   } catch (e) {
     console.warn('[toc] broadcastEnabledToOrigin failed:', e, { origin, enabled });
@@ -623,6 +677,7 @@ async function handleActionClick(tab) {
     await updateIconsForOrigin(origin);
     await broadcastEnabledToOrigin(origin, false, tab.id);
     sendEnabledToTab(tab.id, false);
+    await removeInjectedCss(tab.id);
   } finally {
     actionClickInFlightByOrigin.delete(origin);
   }
@@ -793,6 +848,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         sendResponse && sendResponse(result);
       }).catch((e) => {
         console.warn('[toc] onMessage: mutateTocConfigs failed:', e);
+        sendResponse && sendResponse({ ok: false, reason: 'storage-write-failed' });
+      });
+      return true;
+    }
+    if (msg.type === 'toc:mutateUiState') {
+      if (!sender || sender.id !== chrome.runtime.id) {
+        sendResponse && sendResponse({ ok: false, reason: 'bad-sender' });
+        return;
+      }
+      const senderUrl = sender?.tab?.url || sender?.url || '';
+      const sourceValidation = validateUiStateMutationSource(msg, senderUrl);
+      if (!sourceValidation.ok) {
+        sendResponse && sendResponse(sourceValidation);
+        return;
+      }
+      mutateUiState({
+        operation: msg.operation,
+        key: msg.key,
+        value: msg.value
+      }).then((result) => {
+        sendResponse && sendResponse(result);
+      }).catch((e) => {
+        console.warn('[toc] onMessage: mutateUiState failed:', e);
         sendResponse && sendResponse({ ok: false, reason: 'storage-write-failed' });
       });
       return true;

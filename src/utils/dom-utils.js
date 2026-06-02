@@ -78,9 +78,24 @@ export function getPanelExpandedByOrigin(origin) {
     }
 
 export function setPanelExpandedByOrigin(origin, expanded) {
+      var key = origin || (typeof location !== 'undefined' ? location.origin : '');
+      if (!key) return Promise.resolve(false);
+      try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+          return new Promise(function(resolve) {
+            chrome.runtime.sendMessage({
+              type: 'toc:mutateUiState',
+              operation: 'set-panel-expanded',
+              key: key,
+              value: !!expanded
+            }, function(response) {
+              if (chrome.runtime.lastError) { resolve(false); return; }
+              resolve(!!(response && response.ok));
+            });
+          });
+        }
+      } catch (_) {}
       return serializedWrite('tocPanelExpandedMap', function() {
-        var key = origin || (typeof location !== 'undefined' ? location.origin : '');
-        if (!key) return Promise.resolve(false);
         return getPanelStateMap().then(function(map) {
           map = map || {};
           map[key] = !!expanded;
@@ -175,7 +190,7 @@ export function scrollToElement(el) {
     }
 
 export function cleanupOwnedElements(selectorFallback) {
-      var fallback = selectorFallback || '.toc-edge-dock[data-toc-owner], .toc-collapsed-badge[data-toc-owner], .toc-floating[data-toc-owner], .toc-overlay[data-toc-owner], .toc-toast-container[data-toc-owner]';
+      var fallback = selectorFallback || '.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-overlay[data-toc-owner="web-toc-assistant"], .toc-toast-container[data-toc-owner="web-toc-assistant"]';
       var selector = selectorFallback || uiConst('CLEANUP_SELECTOR', fallback);
       try {
         document.querySelectorAll(selector).forEach(function(el) {

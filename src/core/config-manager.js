@@ -43,7 +43,7 @@ import {
 export async function siteConfig(cfg) {
     try {
       var prevFocus = document.activeElement;
-      var existing = document.querySelector('.toc-overlay');
+      var existing = document.querySelector('.toc-overlay[data-toc-owner="web-toc-assistant"]');
       if (existing) {
         existing.remove();
       }

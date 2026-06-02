@@ -24,7 +24,7 @@ var CFG = (function() {
 
 export function renderClassicFloatingPanel(options) {
   options = options || {};
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner]');
+  if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
   var shell = document.createElement('div');
   shell.className = 'toc-floating toc-floating-classic toc-floating-' + (options.side === 'left' ? 'left' : 'right');

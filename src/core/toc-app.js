@@ -51,7 +51,7 @@ export function initForConfig(cfg, options) {
     var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner], .toc-floating[data-toc-owner], .toc-collapsed-badge[data-toc-owner]');
+    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
     // Per-instance rebuild flag to prevent IntersectionObserver interference
     var isRebuilding = false;
@@ -146,7 +146,7 @@ export function initForConfig(cfg, options) {
           try { mutationObserver.disconnect(); } catch (_) {}
         }
         // Show notice on existing panel if not already present
-        if (panelInstance && !document.querySelector('.toc-ctx-invalidated-notice')) {
+        if (panelInstance && !document.querySelector('[data-toc-owner="web-toc-assistant"] .toc-ctx-invalidated-notice')) {
           try {
             var noticeEl = document.createElement('div');
             noticeEl.className = 'toc-ctx-invalidated-notice';

@@ -11,7 +11,7 @@
   ];
   var OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
   var DEFAULT_HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
-  var OWNED_SELECTOR = '.toc-edge-dock, .toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container';
+  var OWNED_SELECTOR = '[data-toc-owner="web-toc-assistant"]';
 
   /**
    * Creates a MutationObserver-based DOM watcher that detects meaningful
@@ -24,6 +24,7 @@
    */
 export function createDomWatcher(onMutation, cfg) {
     var observerRef = null;
+    var observedRoot = null;
     var isContextValid = true;
 
     function isDefaultHeadingMode() {
@@ -74,7 +75,7 @@ export function createDomWatcher(onMutation, cfg) {
         }
         if (m.type === 'attributes') {
           var name = m.attributeName || '';
-          if (OBSERVED_ATTR_SET.has(name)) {
+          if (OBSERVED_ATTR_SET.has(name) && (!isDefaultHeadingMode() || touchesDefaultHeading(t, true))) {
             return true;
           }
         }
@@ -88,6 +89,7 @@ export function createDomWatcher(onMutation, cfg) {
     function disconnect() {
       var obs = observerRef;
       observerRef = null;
+      observedRoot = null;
       if (obs && typeof obs.disconnect === 'function') {
         try { obs.disconnect(); } catch (_) {}
       }
@@ -98,7 +100,19 @@ export function createDomWatcher(onMutation, cfg) {
       try {
         var root = document.documentElement || document.body;
         if (!root) return;
-        observerRef.takeRecords();
+        if (root !== observedRoot || observedRoot.isConnected === false) {
+          observerRef.disconnect();
+          observerRef.observe(root, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: OBSERVED_ATTRIBUTES
+          });
+          observedRoot = root;
+        } else {
+          observerRef.takeRecords();
+        }
       } catch (_) {
         try {
           observerRef.disconnect();
@@ -109,6 +123,7 @@ export function createDomWatcher(onMutation, cfg) {
             attributes: true,
             attributeFilter: OBSERVED_ATTRIBUTES
           });
+          observedRoot = document.documentElement || document.body;
           console.debug('[toc] reconnected MutationObserver');
         } catch (e) {
           console.warn('[toc] failed to reconnect MutationObserver:', e);
@@ -164,6 +179,7 @@ export function createDomWatcher(onMutation, cfg) {
           attributes: true,
           attributeFilter: OBSERVED_ATTRIBUTES
         });
+        observedRoot = root;
         return true;
       } catch (_) {
         observerRef = null;

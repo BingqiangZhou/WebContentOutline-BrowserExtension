@@ -224,8 +224,8 @@ test('edge dock is included in cleanup, mutation filtering, and picker exclusion
   const picker = fs.readFileSync(path.join(repoRoot, 'src/ui/element-picker.js'), 'utf8');
 
   assert.match(constants, /\.toc-edge-dock/);
-  assert.match(domWatcher, /\.toc-edge-dock/);
-  assert.match(picker, /\.toc-edge-dock/);
+  assert.match(domWatcher, /\[data-toc-owner="web-toc-assistant"\]/);
+  assert.match(picker, /\[data-toc-owner="web-toc-assistant"\]/);
 });
 
 test('toc app orchestrates the edge dock instead of the collapsed badge', () => {
@@ -242,7 +242,8 @@ test('floating panel mounts inside the edge dock and no longer owns dragging', (
   const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.js'), 'utf8');
 
   assert.match(panel, /mountTarget/);
-  assert.match(panel, /removalObserver\.observe\(document\.documentElement,\s*\{\s*childList:\s*true,\s*subtree:\s*true\s*\}\)/);
+  assert.match(panel, /removalObserver\.observe\(target,\s*\{\s*childList:\s*true\s*\}\)/);
+  assert.doesNotMatch(panel, /removalObserver\.observe\([^)]*,\s*\{\s*childList:\s*true,\s*subtree:\s*true\s*\}\)/);
   assert.doesNotMatch(panel, /createDragController/);
   assert.doesNotMatch(panel, /buttonPickElement/);
   assert.doesNotMatch(panel, /buttonSiteConfig/);

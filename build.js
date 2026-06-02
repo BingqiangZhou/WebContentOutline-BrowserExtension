@@ -92,6 +92,23 @@ async function buildConfigPrimitives() {
   });
 }
 
+async function buildUiStatePrimitives() {
+  await esbuild.build({
+    entryPoints: [path.join(SRC_DIR, 'shared', 'ui-state-primitives.js')],
+    bundle: true,
+    format: 'iife',
+    globalName: '__TOC_UI_STATE_PRIMITIVES_BUNDLE',
+    platform: 'browser',
+    target: ['chrome116'],
+    outfile: path.join(DIST_DIR, 'src', 'shared', 'ui-state-primitives.js'),
+    footer: {
+      js: 'globalThis.__UI_STATE_PRIMITIVES = __TOC_UI_STATE_PRIMITIVES_BUNDLE;'
+    },
+    logLevel: 'silent',
+    legalComments: 'none'
+  });
+}
+
 async function main() {
   console.log('Building Web TOC Assistant...\n');
 
@@ -101,7 +118,8 @@ async function main() {
     path.join(SRC_DIR, 'background.js'),
     path.join(SRC_DIR, 'page-url-hook.js'),
     path.join(SRC_DIR, 'shared', 'storage-primitives.js'),
-    path.join(SRC_DIR, 'shared', 'config-primitives.js')
+    path.join(SRC_DIR, 'shared', 'config-primitives.js'),
+    path.join(SRC_DIR, 'shared', 'ui-state-primitives.js')
   ]) {
     if (!validateFile(file)) errors++;
   }
@@ -124,6 +142,7 @@ async function main() {
     await buildContentScript();
     await buildStoragePrimitives();
     await buildConfigPrimitives();
+    await buildUiStatePrimitives();
   } catch (e) {
     console.error('  BUNDLE ERROR');
     console.error(e && e.errors ? e.errors : e);
@@ -137,6 +156,9 @@ async function main() {
     process.exit(1);
   }
   if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'config-primitives.js'))) {
+    process.exit(1);
+  }
+  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'ui-state-primitives.js'))) {
     process.exit(1);
   }
 

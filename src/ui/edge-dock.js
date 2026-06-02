@@ -166,7 +166,7 @@ function createButton(className, titleKey, fallbackText, iconPaths) {
 
 export function renderEdgeDock(options) {
   options = options || {};
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner]');
+  if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
 
   var side = options.side === 'left' ? 'left' : 'right';
   var destroyed = false;
