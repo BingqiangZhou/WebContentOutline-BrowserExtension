@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#100---2026-06-02)
+[Table of Contents](#table-of-contents) • [Latest](#101---2026-06-02)
 
 ---
 
 ## Table of Contents
 
+- [1.0.1](#101---2026-06-02) - 2026-06-02
 - [1.0.0](#100---2026-06-02) - 2026-06-02
 - [0.8.1](#081---2026-05-18) - 2026-05-18
 - [0.8.0](#080---2026-05-15) - 2026-05-15
@@ -28,6 +29,32 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.0.1] - 2026-06-02
+
+### 🔧 Changed
+- **Config writes routed through background service worker**
+  - Content script no longer writes configs directly to `chrome.storage.local`; all mutations (`add-selector`, `remove-selector`, `clear-site`) are sent as validated `toc:mutateConfig` messages to the background script
+  - Background applies mutations via the new `shared/config-primitives.js` module using `serializedWrite` for safe multi-tab concurrency
+- **Edge Dock preview visuals refined**
+  - Smaller, centered preview lines and settings icon with CSS custom properties for light/dark preview colors
+  - Active-line ring replaces solid highlight; focus ring uses `box-shadow` instead of `outline`
+- **DOM watcher is heading-aware in default mode**
+  - When no custom selectors are configured, mutations only trigger rebuilds when actual heading elements are affected, reducing unnecessary rebuilds on dynamic pages
+
+### 🐛 Fixed
+- **Badge-mode flicker on content-identical rebuilds** — Skips UI rebuild when TOC items are unchanged, preventing visual flicker during frequent DOM mutations
+- **URL monitor polling accuracy** — Uses `WeakMap`-based element identity and text-content hashing for more reliable change detection; uses throttled polling interval when MutationObserver is active
+- **`uniqueInDocumentOrder` sort correctness** — Added explicit `compareDocumentPosition`-based sort after dedup to guarantee correct DOM order for elements from mixed selectors
+- **Edge Dock peek auto-collapse timing** — Programmatic peek from panel-open now auto-collapses after 1.8 s; closing the expanded panel properly collapses the dock in modern mode
+
+### ⚡ Technical Improvements
+- New `shared/config-primitives.js` module with `applyTocConfigMutation` — normalized, validated, rate-limited config writes
+- `background.js` handles `toc:mutateConfig` messages with sender validation and per-site URL pattern verification
+- Content script listens for `tocConfigs` storage changes and triggers `refreshConfig()` for cross-tab config synchronization
+- `collectBySelector` accepts an optional `maxCandidates` parameter for controlled polling queries
 
 ---
 

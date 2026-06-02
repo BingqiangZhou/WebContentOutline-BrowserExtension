@@ -53,14 +53,15 @@ src/content.js (entry point)
         ├── ui/edge-dock.js, ui/element-picker.js, ui/floating-panel.js
         │     └── (floating-panel.js → ui/floating-panel-helpers.js)
         ├── core/config-manager.js → event-bus.js, focus-trap.js
-        ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
+        ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js → dom-utils.js, nav-lock.js
         └── core/nav-lock.js
 ```
 
 Background script (separate context, uses IIFE bundle produced by build):
 ```
 src/background.js
-  └── importScripts → shared/storage-primitives.js (IIFE bundle)
+  ├── importScripts → shared/storage-primitives.js (IIFE bundle)
+  └── importScripts → shared/config-primitives.js (IIFE bundle)
 ```
 
 ### Window Globals
@@ -76,11 +77,12 @@ Only a few window globals remain for compatibility/debugging:
 
 **`src/background.js`** - Service worker
 - Uses `importScripts('shared/storage-primitives.js')` for shared storage utilities
+- Uses `importScripts('shared/config-primitives.js')` for config mutation primitives
 - Manages per-site enable/disable state in `chrome.storage.local` → `tocSiteEnabledMap`
 - Updates extension icon (enabled=blue, disabled=gray)
 - Injects content script via `chrome.scripting.executeScript` (single bundled file)
 - Cross-tab synchronization for same origin
-- Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`
+- Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`, `toc:mutateConfig`
 
 **`src/content.js`** - Content script entry
 - Checks site enable state on load
@@ -199,7 +201,7 @@ Split into three focused modules:
 - `default_locale`: "en" - i18n support
 - Content script is a single bundled IIFE, injected dynamically via `chrome.scripting.executeScript`
 - Background script uses `importScripts()` (MV3 service workers cannot use ESM)
-- `shared/storage-primitives.js` is ESM source; build produces a separate IIFE bundle for the background service worker
+- `shared/storage-primitives.js` and `shared/config-primitives.js` are ESM source; build produces separate IIFE bundles for the background service worker
 
 ## Common Modification Patterns
 
