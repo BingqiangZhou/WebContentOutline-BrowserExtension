@@ -1,11 +1,14 @@
 // Background service worker for MV3 - per-site enable/disable, icon state, and dynamic injection
 
 importScripts('shared/storage-primitives.js');
+importScripts('shared/config-primitives.js');
 const { serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit } = globalThis.__STORAGE_PRIMITIVES;
+const { applyTocConfigMutation } = globalThis.__CONFIG_PRIMITIVES;
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
-  SITE_ENABLE_MAP: 'tocSiteEnabledMap'
+  SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+  TOC_CONFIGS: 'tocConfigs'
 };
 
 // Duplicated from core-utils.js (service worker cannot use define/require module system)
@@ -35,6 +38,8 @@ function isHttpUrl(url) {
 }
 
 const BG_MAX_MAP_KEYS = 400;
+const BG_MAX_CONFIG_SITES = 200;
+const BG_MAX_SELECTORS_PER_SITE = 50;
 
 async function processInBatches(items, fn, batchSize = 5) {
   for (let i = 0; i < items.length; i += batchSize) {
@@ -108,6 +113,41 @@ async function setEnabledByOrigin(origin, enabled) {
     });
   } finally {
     await clearPendingIntent(origin);
+  }
+}
+
+async function mutateTocConfigs(mutation) {
+  const KEY = BG_STORAGE_KEYS.TOC_CONFIGS;
+  return serializedWrite('tocConfigs', async () => {
+    try {
+      if (!chrome?.storage?.local) {
+        return { ok: false, reason: 'storage-unavailable' };
+      }
+      const stored = await chrome.storage.local.get([KEY]);
+      const result = applyTocConfigMutation(stored[KEY] || [], mutation, Date.now(), {
+        maxSites: BG_MAX_CONFIG_SITES,
+        maxSelectorsPerSite: BG_MAX_SELECTORS_PER_SITE
+      });
+      if (!result || !result.ok || !result.changed) {
+        return result || { ok: false, reason: 'invalid-result' };
+      }
+      await chrome.storage.local.set({ [KEY]: result.configs });
+      return result;
+    } catch (e) {
+      const quota = isQuotaExceededError(e);
+      console.warn('[toc] mutateTocConfigs failed:', e, { quota });
+      return { ok: false, reason: quota ? 'quota-exceeded' : 'storage-write-failed' };
+    }
+  });
+}
+
+function sitePatternFromUrl(url) {
+  try {
+    const parsed = new URL(url);
+    if (!/^https?:$/.test(parsed.protocol)) return '';
+    return `${parsed.origin}/*`;
+  } catch {
+    return '';
   }
 }
 
@@ -730,6 +770,30 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       }).catch((e) => {
         console.warn('[toc] onMessage: updateIconForTab failed:', e, { tabId });
         sendResponse && sendResponse({ ok: false });
+      });
+      return true;
+    }
+    if (msg.type === 'toc:mutateConfig') {
+      if (!sender || sender.id !== chrome.runtime.id) {
+        sendResponse && sendResponse({ ok: false, reason: 'bad-sender' });
+        return;
+      }
+      const senderUrl = sender?.tab?.url || sender?.url || '';
+      const expectedPattern = sitePatternFromUrl(senderUrl);
+      if (!expectedPattern || msg.urlPattern !== expectedPattern) {
+        sendResponse && sendResponse({ ok: false, reason: 'bad-site' });
+        return;
+      }
+      mutateTocConfigs({
+        operation: msg.operation,
+        urlPattern: msg.urlPattern,
+        selector: msg.selector,
+        side: msg.side
+      }).then((result) => {
+        sendResponse && sendResponse(result);
+      }).catch((e) => {
+        console.warn('[toc] onMessage: mutateTocConfigs failed:', e);
+        sendResponse && sendResponse({ ok: false, reason: 'storage-write-failed' });
       });
       return true;
     }

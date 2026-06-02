@@ -9,6 +9,7 @@ const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 function loadCreateUrlMonitor() {
   const file = path.join(repoRoot, 'src/core/url-monitor.js');
   const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
     .replace('export function createUrlMonitor', 'function createUrlMonitor');
 
   const listeners = new Map();
@@ -25,6 +26,12 @@ function loadCreateUrlMonitor() {
     },
     location: {
       href: 'https://chatgpt.com/c/example'
+    },
+    collectBySelector(selector) {
+      return sandbox.document.querySelectorAll(selector.expr);
+    },
+    uniqueInDocumentOrder(nodes) {
+      return Array.from(new Set(nodes));
     },
     setTimeout,
     clearTimeout,

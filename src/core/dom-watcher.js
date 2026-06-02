@@ -10,6 +10,8 @@
     'open'
   ];
   var OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
+  var DEFAULT_HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
+  var OWNED_SELECTOR = '.toc-edge-dock, .toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container';
 
   /**
    * Creates a MutationObserver-based DOM watcher that detects meaningful
@@ -17,33 +19,58 @@
    * originating from extension-owned elements.
    *
    * @param {function} onMutation - Called with no args when a meaningful DOM change is detected.
+   * @param {object} [cfg] - Active site configuration
    * @returns {object}
    */
-export function createDomWatcher(onMutation) {
+export function createDomWatcher(onMutation, cfg) {
     var observerRef = null;
     var isContextValid = true;
+
+    function isDefaultHeadingMode() {
+      return !cfg || !Array.isArray(cfg.selectors) || cfg.selectors.length === 0;
+    }
+
+    function isOwnedNode(node) {
+      try {
+        var element = node && node.nodeType === 3 ? node.parentElement : node;
+        return !!(element && element.closest && element.closest(OWNED_SELECTOR));
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function touchesDefaultHeading(node, scanDescendants) {
+      try {
+        var element = node && node.nodeType === 3 ? node.parentElement : node;
+        if (!element) return false;
+        if (element.closest && element.closest(DEFAULT_HEADING_SELECTOR)) return true;
+        return !!(scanDescendants && element.querySelector && element.querySelector(DEFAULT_HEADING_SELECTOR));
+      } catch (_) {
+        return false;
+      }
+    }
+
+    function childListTouchesDefaultHeading(mutation) {
+      if (touchesDefaultHeading(mutation.target, false)) return true;
+      var lists = [mutation.addedNodes, mutation.removedNodes];
+      for (var i = 0; i < lists.length; i++) {
+        var nodes = lists[i] || [];
+        for (var j = 0; j < nodes.length; j++) {
+          if (touchesDefaultHeading(nodes[j], true)) return true;
+        }
+      }
+      return false;
+    }
 
     function hasMeaningfulChange(mutations) {
       for (var i = 0; i < mutations.length; i++) {
         var m = mutations[i];
-        try {
-          var t = m.target;
-          if (t && t.nodeType === 1 && t.closest) {
-            if (t.closest('.toc-edge-dock, .toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
-              continue;
-            }
-          }
-          // Filter characterData: ignore text changes inside extension-owned elements
-          if (m.type === 'characterData' && t && t.nodeType === 3 && t.parentElement) {
-            var parent = t.parentElement;
-            if (parent.closest && parent.closest('.toc-edge-dock, .toc-floating, .toc-collapsed-badge, .toc-overlay, .toc-toast-container')) {
-              continue;
-            }
-          }
-        } catch (_) {}
+        var t = m.target;
+        if (isOwnedNode(t)) continue;
 
         if (m.type === 'childList') {
-          if ((m.addedNodes && m.addedNodes.length) || (m.removedNodes && m.removedNodes.length)) return true;
+          var hasNodes = (m.addedNodes && m.addedNodes.length) || (m.removedNodes && m.removedNodes.length);
+          if (hasNodes && (!isDefaultHeadingMode() || childListTouchesDefaultHeading(m))) return true;
         }
         if (m.type === 'attributes') {
           var name = m.attributeName || '';
@@ -52,7 +79,7 @@ export function createDomWatcher(onMutation) {
           }
         }
         if (m.type === 'characterData') {
-          return true;
+          if (!isDefaultHeadingMode() || touchesDefaultHeading(t, false)) return true;
         }
       }
       return false;

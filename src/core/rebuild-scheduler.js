@@ -23,7 +23,6 @@ export function createRebuildScheduler(onRebuild) {
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
     var rebuildInFlight = null;
-    var lastRebuildFromMo = 0;
 
     // Timer references
     var debounceTimer = null;
@@ -57,7 +56,6 @@ export function createRebuildScheduler(onRebuild) {
     var safeRebuild = function() {
       if (!isExtensionContextValid) return Promise.resolve(false);
       return onRebuild().then(function(ok) {
-        lastRebuildFromMo = Date.now();
         return true;
       }).catch(function(e) {
         var invalidated = isContextInvalidatedError(e);
@@ -203,7 +201,7 @@ export function createRebuildScheduler(onRebuild) {
       activeCfg = cfg || null;
 
       // Create dom-watcher
-      domWatcher = createDomWatcher(onMutation);
+      domWatcher = createDomWatcher(onMutation, cfg);
       var watcherOk = domWatcher.start();
 
       // Create url-monitor, passing dom-watcher's checkAndReconnect as callback
@@ -212,7 +210,7 @@ export function createRebuildScheduler(onRebuild) {
         checkAndReconnect: (domWatcher && typeof domWatcher.checkAndReconnect === 'function')
           ? function() { domWatcher.checkAndReconnect(); }
           : null,
-        getLastRebuildTime: function() { return lastRebuildFromMo; }
+        mutationObserverAvailable: watcherOk
       });
       urlMonitor.start(cfg, onUrlChange);
 

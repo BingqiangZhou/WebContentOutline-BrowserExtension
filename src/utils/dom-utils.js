@@ -95,15 +95,19 @@ export function setPanelExpandedByOrigin(origin, expanded) {
      * @param {{type: 'css'|'xpath', expr: string}} selector
      * @returns {Element[]}
      */
-export function collectBySelector(selector) {
+export function collectBySelector(selector, maxCandidates) {
       if (!selector || !selector.expr) return [];
+      var configuredLimit = uiConst('TOC_MAX_CANDIDATES', 1200);
+      var limitOverride = Number.isFinite(maxCandidates) && maxCandidates > 0
+        ? Math.max(1, Math.floor(maxCandidates))
+        : configuredLimit;
+      var finalLimit = Math.min(configuredLimit, limitOverride);
       if (selector.type === 'xpath') {
         if (!isSafeXPathExpression(selector.expr)) return [];
         try {
-          var limit = uiConst('TOC_MAX_CANDIDATES', 1200);
           var iterator = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
           var nodes = [];
-          for (var i = 0; i < limit; i++) {
+          for (var i = 0; i < finalLimit; i++) {
             var node = iterator.iterateNext();
             if (!node) break;
             if (node.nodeType === 1) nodes.push(node);
@@ -115,8 +119,7 @@ export function collectBySelector(selector) {
       }
       try {
         var nodeList = document.querySelectorAll(selector.expr);
-        var limit2 = uiConst('TOC_MAX_CANDIDATES', 1200);
-        var len = Math.min(nodeList.length, limit2);
+        var len = Math.min(nodeList.length, finalLimit);
         var result = new Array(len);
         for (var j = 0; j < len; j++) result[j] = nodeList[j];
         return result;
@@ -139,6 +142,16 @@ export function uniqueInDocumentOrder(list) {
           result.push(el);
         }
       }
+      result.sort(function(a, b) {
+        if (a === b || !a || !b || typeof a.compareDocumentPosition !== 'function') return 0;
+        try {
+          var pos = a.compareDocumentPosition(b);
+          if (pos & 1) return 0;
+          if (pos & 2) return 1;
+          if (pos & 4) return -1;
+        } catch (_) {}
+        return 0;
+      });
       return result;
     }
 

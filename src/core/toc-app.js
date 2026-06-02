@@ -102,7 +102,7 @@ export function initForConfig(cfg, options) {
 
     var isContentIdentical = function(prevItems, nextItems) {
       if (!prevItems || !nextItems) return false;
-      if (prevItems.length !== nextItems.length || prevItems.length === 0) return false;
+      if (prevItems.length !== nextItems.length) return false;
       for (var i = 0; i < prevItems.length; i++) {
         if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el || prevItems[i].level !== nextItems[i].level) {
           return false;
@@ -207,8 +207,13 @@ export function initForConfig(cfg, options) {
 
         // Badge mode: update in-memory items so next expand is fresh, but skip UI rebuild.
         if (!panelInstance) {
-          items = newItems;
           tocMeta = newMeta;
+          if (isContentIdentical(prevItems, newItems)) {
+            consecutiveRebuildFailures = 0;
+            clearRebuildFlag();
+            return;
+          }
+          items = newItems;
           syncItemViews(previousActiveItem, previousActiveIndex);
           consecutiveRebuildFailures = 0;
           clearRebuildFlag();
@@ -315,6 +320,12 @@ export function initForConfig(cfg, options) {
       } finally {
         rebuildInFlight = null;
       }
+    };
+
+    var refreshConfig = function() {
+      if (destroyed) return Promise.resolve(false);
+      configDirty = true;
+      return rebuild();
     };
 
     // Set up event handler for config changes
@@ -576,6 +587,7 @@ export function initForConfig(cfg, options) {
 
       return {
         rebuild: rebuild,
+        refreshConfig: refreshConfig,
         collapse: collapse,
         expand: expand,
         destroy: destroy

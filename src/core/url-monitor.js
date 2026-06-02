@@ -1,5 +1,7 @@
 'use strict';
 
+import { collectBySelector, uniqueInDocumentOrder } from '../utils/dom-utils.js';
+
   /**
    * Creates a URL change monitor that detects pushState, replaceState,
    * popstate, and hashchange events. Also provides a polling fallback
@@ -8,13 +10,13 @@
    * @param {object} opts
    * @param {function} opts.uiConst - UI constant getter
    * @param {function} [opts.checkAndReconnect] - Callback to reconnect DOM watcher
-   * @param {function} opts.getLastRebuildTime - Returns timestamp of last rebuild
+   * @param {boolean} [opts.mutationObserverAvailable] - Whether MutationObserver is active
    * @returns {object}
    */
 export function createUrlMonitor(opts) {
     var uiConst = opts && opts.uiConst;
     var checkAndReconnect = (opts && opts.checkAndReconnect) || null;
-    var getLastRebuildTime = (opts && opts.getLastRebuildTime) || function() { return 0; };
+    var mutationObserverAvailable = !opts || opts.mutationObserverAvailable !== false;
 
     // State
     var lastKnownUrl = '';
@@ -26,25 +28,55 @@ export function createUrlMonitor(opts) {
     // Polling fallback state
     var pollTimer = null;
     var lastContentSignature = null;
+    var elementIds = typeof WeakMap === 'function' ? new WeakMap() : null;
+    var nextElementId = 1;
 
     var isContextValid = true;
     var onChangeCallback = null;
 
+    function getElementId(el) {
+      if (!el || !elementIds) return 0;
+      var existing = elementIds.get(el);
+      if (existing) return existing;
+      var id = nextElementId++;
+      elementIds.set(el, id);
+      return id;
+    }
+
+    function appendToHash(hash, value) {
+      var text = String(value || '');
+      for (var i = 0; i < text.length; i++) {
+        hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
+      }
+      return hash;
+    }
+
+    function getPollingSelectors(cfg) {
+      var selectors = cfg && Array.isArray(cfg.selectors) ? cfg.selectors.filter(function(selector) {
+        return selector && (selector.type === 'css' || selector.type === 'xpath') && selector.expr;
+      }) : [];
+      return selectors.length ? selectors : [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6' }];
+    }
+
     function computeContentSignature(cfg) {
       try {
-        var selectors = cfg && cfg.selectors;
-        if (!selectors || !selectors.length) return null;
-        var exprs = selectors.map(function(s) { return s.expr; }).filter(Boolean);
-        if (!exprs.length) return null;
-        var selector = exprs.join(',');
-        var els = document.querySelectorAll(selector);
+        var selectors = getPollingSelectors(cfg);
+        var candidates = [];
+        var maxCandidates = 400;
+        for (var i = 0; i < selectors.length && candidates.length < maxCandidates; i++) {
+          var remaining = maxCandidates - candidates.length;
+          var found = collectBySelector(selectors[i], remaining);
+          for (var j = 0; j < found.length && candidates.length < maxCandidates; j++) {
+            candidates.push(found[j]);
+          }
+        }
+        var els = uniqueInDocumentOrder(candidates).slice(0, maxCandidates);
         var hash = 0;
-        var len = Math.min(els.length, 400);
-        for (var i = 0; i < len; i++) {
-          var el = els[i];
-          var text = el.textContent || '';
-          hash = ((hash << 5) - hash + text.length) | 0;
-          hash = ((hash << 5) - hash + (el.offsetTop | 0)) | 0;
+        for (var k = 0; k < els.length; k++) {
+          var el = els[k];
+          hash = appendToHash(hash, getElementId(el));
+          hash = appendToHash(hash, el.tagName || '');
+          hash = appendToHash(hash, String(el.textContent || '').slice(0, 200));
         }
         return els.length + ':' + hash;
       } catch (_) {
@@ -75,6 +107,7 @@ export function createUrlMonitor(opts) {
       stopPolling();
       var POLL_INTERVAL_MS = (typeof uiConst === 'function') ? uiConst('POLL_INTERVAL_MS', 3000) : 3000;
       var POLL_INTERVAL_THROTTLED_MS = (typeof uiConst === 'function') ? uiConst('POLL_INTERVAL_THROTTLED_MS', 10000) : 10000;
+      var activeInterval = mutationObserverAvailable ? POLL_INTERVAL_THROTTLED_MS : POLL_INTERVAL_MS;
 
       function poll() {
         if (!isContextValid || document.hidden) {
@@ -96,14 +129,9 @@ export function createUrlMonitor(opts) {
           }
         }
 
-        var timeSinceMoRebuild = Date.now() - getLastRebuildTime();
-        var isBadgeMode = !document.querySelector('.toc-floating[data-toc-owner]');
-        var interval = (timeSinceMoRebuild < POLL_INTERVAL_THROTTLED_MS || isBadgeMode)
-          ? POLL_INTERVAL_THROTTLED_MS
-          : POLL_INTERVAL_MS;
-        pollTimer = setTimeout(poll, interval);
+        pollTimer = setTimeout(poll, activeInterval);
       }
-      pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+      pollTimer = setTimeout(poll, activeInterval);
     }
 
     function stopPolling() {

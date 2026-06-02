@@ -447,12 +447,19 @@ import { initForConfig } from './core/toc-app.js';
     try {
       var KEY = STORAGE_KEYS && STORAGE_KEYS.SITE_ENABLE_MAP ? STORAGE_KEYS.SITE_ENABLE_MAP : 'tocSiteEnabledMap';
       var UI_MODE_KEY = STORAGE_KEYS && STORAGE_KEYS.UI_MODE ? STORAGE_KEYS.UI_MODE : 'tocUiMode';
+      var TOC_CONFIGS_KEY = STORAGE_KEYS && STORAGE_KEYS.TOC_CONFIGS ? STORAGE_KEYS.TOC_CONFIGS : 'tocConfigs';
       storageListener = function(changes, areaName) {
         if (disposed) return;
         if (areaName !== 'local') return;
         var uiModeChange = changes && changes[UI_MODE_KEY];
         if (uiModeChange) {
           requestUiMode(uiModeChange.newValue, { persist: false });
+        }
+        var configChange = changes && changes[TOC_CONFIGS_KEY];
+        if (configChange && currentEnabled && appInstance && appInstance.refreshConfig) {
+          Promise.resolve(appInstance.refreshConfig()).catch(function(e) {
+            console.warn(msg('logPrefix') + ' config refresh failed:', e);
+          });
         }
         var ch = changes && changes[KEY];
         if (!ch) return;

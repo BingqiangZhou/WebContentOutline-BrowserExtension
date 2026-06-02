@@ -75,6 +75,23 @@ async function buildStoragePrimitives() {
   });
 }
 
+async function buildConfigPrimitives() {
+  await esbuild.build({
+    entryPoints: [path.join(SRC_DIR, 'shared', 'config-primitives.js')],
+    bundle: true,
+    format: 'iife',
+    globalName: '__TOC_CONFIG_PRIMITIVES_BUNDLE',
+    platform: 'browser',
+    target: ['chrome116'],
+    outfile: path.join(DIST_DIR, 'src', 'shared', 'config-primitives.js'),
+    footer: {
+      js: 'globalThis.__CONFIG_PRIMITIVES = __TOC_CONFIG_PRIMITIVES_BUNDLE;'
+    },
+    logLevel: 'silent',
+    legalComments: 'none'
+  });
+}
+
 async function main() {
   console.log('Building Web TOC Assistant...\n');
 
@@ -83,7 +100,8 @@ async function main() {
     path.join(ROOT_DIR, 'build.js'),
     path.join(SRC_DIR, 'background.js'),
     path.join(SRC_DIR, 'page-url-hook.js'),
-    path.join(SRC_DIR, 'shared', 'storage-primitives.js')
+    path.join(SRC_DIR, 'shared', 'storage-primitives.js'),
+    path.join(SRC_DIR, 'shared', 'config-primitives.js')
   ]) {
     if (!validateFile(file)) errors++;
   }
@@ -105,6 +123,7 @@ async function main() {
   try {
     await buildContentScript();
     await buildStoragePrimitives();
+    await buildConfigPrimitives();
   } catch (e) {
     console.error('  BUNDLE ERROR');
     console.error(e && e.errors ? e.errors : e);
@@ -115,6 +134,9 @@ async function main() {
     process.exit(1);
   }
   if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js'))) {
+    process.exit(1);
+  }
+  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'config-primitives.js'))) {
     process.exit(1);
   }
 
