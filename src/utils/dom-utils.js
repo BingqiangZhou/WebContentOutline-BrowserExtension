@@ -3,7 +3,7 @@
 import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';
 import { uiConst } from './constants.js';
 import { serializedWrite, pruneObjectToLimit } from '../shared/storage-primitives.js';
-import { isSafeXPathExpression, originFromUrl } from './core-utils.js';
+import { isHighRiskBroadCssSelector, isSafeXPathExpression, originFromUrl } from './core-utils.js';
 
     /**
      * Simple wildcard matcher: supports * as any chars
@@ -133,6 +133,7 @@ export function collectBySelector(selector, maxCandidates) {
         }
       }
       try {
+        if (typeof isHighRiskBroadCssSelector === 'function' && isHighRiskBroadCssSelector(selector.expr)) return [];
         var nodeList = document.querySelectorAll(selector.expr);
         var len = Math.min(nodeList.length, finalLimit);
         var result = new Array(len);

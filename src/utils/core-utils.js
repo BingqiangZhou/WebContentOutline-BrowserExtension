@@ -91,7 +91,7 @@ export function isSafeXPathExpression(expr) {
     if (trimmed.length > uiConst('XPATH_MAX_LENGTH', 2000)) return false;
 
     // Avoid extremely broad document scans that are likely to be slow.
-    if (trimmed.indexOf('//*') === 0 || /^\/\/(node|text|comment)\s*\(/i.test(trimmed)) return false;
+    if (isHighRiskBroadXPathExpression(trimmed)) return false;
 
     // Disallow control characters.
     for (var i = 0; i < trimmed.length; i++) {
@@ -147,6 +147,23 @@ export function isSafeXPathExpression(expr) {
     if (forbiddenFn.test(trimmed)) return false;
 
     return true;
+  }
+
+export function isHighRiskBroadXPathExpression(expr) {
+    if (typeof expr !== 'string') return false;
+    var normalized = expr.trim().replace(/\s+/g, '').toLowerCase();
+    if (!normalized) return false;
+
+    if (normalized.indexOf('//*') === 0) return true;
+    if (normalized.indexOf('.//*') === 0) return true;
+    if (normalized.indexOf('//html//*') === 0) return true;
+    if (normalized.indexOf('//body//*') === 0) return true;
+    if (normalized.indexOf('//html/descendant::*') === 0) return true;
+    if (normalized.indexOf('//body/descendant::*') === 0) return true;
+    if (normalized.indexOf('descendant::*') === 0) return true;
+    if (/^\/\/(node|text|comment)\(/i.test(normalized)) return true;
+
+    return false;
   }
 
 export function isValidCssSelector(expr) {

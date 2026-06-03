@@ -60,6 +60,7 @@ function loadUrlMonitor(elementsByExpr = {}) {
     .replace('export function createUrlMonitor', 'function createUrlMonitor');
   const collected = [];
   const delays = [];
+  const timers = [];
   let identity = 0;
   const sandbox = {
     console,
@@ -76,8 +77,9 @@ function loadUrlMonitor(elementsByExpr = {}) {
     uniqueInDocumentOrder(nodes) {
       return Array.from(new Set(nodes));
     },
-    setTimeout(_fn, delay) {
+    setTimeout(fn, delay) {
       delays.push(delay);
+      timers.push({ fn, delay });
       return ++identity;
     },
     clearTimeout() {},
@@ -87,7 +89,7 @@ function loadUrlMonitor(elementsByExpr = {}) {
   vm.runInNewContext(`${source}\n__exports.createUrlMonitor = createUrlMonitor;`, sandbox, {
     filename: file
   });
-  return { createUrlMonitor: sandbox.__exports.createUrlMonitor, collected, delays };
+  return { createUrlMonitor: sandbox.__exports.createUrlMonitor, collected, delays, timers };
 }
 
 function loadDomWatcher() {
@@ -281,6 +283,7 @@ test('polling collects default headings, XPath, and CSS selectors through the sh
 
   const defaultMonitor = env.createUrlMonitor({ mutationObserverAvailable: true });
   defaultMonitor.start({ selectors: [] }, () => {});
+  env.timers.at(-1).fn();
   defaultMonitor.stop();
 
   const customMonitor = env.createUrlMonitor({ mutationObserverAvailable: true });
@@ -290,6 +293,7 @@ test('polling collects default headings, XPath, and CSS selectors through the sh
       { type: 'css', expr: 'article h2' }
     ]
   }, () => {});
+  env.timers.at(-1).fn();
   customMonitor.stop();
 
   assert.deepEqual(

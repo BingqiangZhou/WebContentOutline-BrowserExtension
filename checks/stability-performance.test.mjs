@@ -109,11 +109,55 @@ function loadCoreUtilsForValidation() {
   vm.runInNewContext(
     `${source}
 __exports.validateSelectorExpression = validateSelectorExpression;
+__exports.isSafeXPathExpression = isSafeXPathExpression;
 __exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,
     sandbox,
     { filename: file }
   );
   return sandbox.__exports;
+}
+
+function loadDomUtilsForCollection(options = {}) {
+  const file = path.join(repoRoot, 'src/utils/dom-utils.js');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export function /g, 'function ');
+  const calls = [];
+  const sandbox = {
+    console,
+    document: {
+      querySelectorAll(expr) {
+        calls.push({ type: 'css', expr });
+        return options.cssNodes || [];
+      },
+      evaluate(expr) {
+        calls.push({ type: 'xpath', expr });
+        const nodes = options.xpathNodes || [];
+        let index = 0;
+        return {
+          iterateNext() {
+            return nodes[index++] || null;
+          }
+        };
+      }
+    },
+    XPathResult: { ORDERED_NODE_ITERATOR_TYPE: 1 },
+    uiConst(_name, fallback) { return fallback; },
+    isSafeXPathExpression(expr) {
+      return !(/^(\/\/(?:html|body)\/\/\*|\.\/\/\*)/i.test(String(expr || '').trim()));
+    },
+    isHighRiskBroadCssSelector(expr) {
+      return ['*', 'body *', 'html *', ':root *'].includes(String(expr || '').trim().toLowerCase());
+    },
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}\n__exports.collectBySelector = collectBySelector;`,
+    sandbox,
+    { filename: file }
+  );
+  return { collectBySelector: sandbox.__exports.collectBySelector, calls };
 }
 
 function loadConfigPrimitivesForSelectors() {
@@ -140,7 +184,8 @@ function loadUrlMonitorForPolling(options = {}) {
     document: { hidden: false },
     location: { href: 'https://example.com/article' },
     window: { addEventListener() {}, removeEventListener() {} },
-    collectBySelector(_selector, limit) {
+    collectBySelector(selector, limit) {
+      timers.collected.push({ selector, limit });
       return (options.elements || []).slice(0, limit);
     },
     getBoundedText: options.getBoundedText,
@@ -152,6 +197,7 @@ function loadUrlMonitorForPolling(options = {}) {
     clearTimeout() {},
     __exports: {}
   };
+  timers.collected = [];
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}\n__exports.createUrlMonitor = createUrlMonitor;`,
@@ -337,6 +383,7 @@ test('URL polling avoids text reads with MutationObserver and uses bounded text 
     }
   });
   active.createUrlMonitor({ mutationObserverAvailable: true }).start({ selectors: [] }, () => {});
+  active.timers[0].fn();
 
   assert.equal(boundedCalls, 0);
 
@@ -348,20 +395,57 @@ test('URL polling avoids text reads with MutationObserver and uses bounded text 
     }
   });
   fallback.createUrlMonitor({ mutationObserverAvailable: false }).start({ selectors: [] }, () => {});
+  fallback.timers[0].fn();
 
   assert.equal(boundedCalls, 1);
 });
 
+test('URL monitor defers initial content signature collection until the polling interval', () => {
+  const env = loadUrlMonitorForPolling({
+    elements: [{ tagName: 'H2' }],
+    getBoundedText() {
+      throw new Error('MutationObserver polling baseline should not need text');
+    }
+  });
+  let callbacks = 0;
+  const monitor = env.createUrlMonitor({ mutationObserverAvailable: true });
+
+  monitor.start({ selectors: [{ type: 'css', expr: 'article h2' }] }, () => { callbacks++; });
+
+  assert.equal(env.timers.collected.length, 0);
+  assert.equal(env.timers[0].delay, 10000);
+
+  env.timers[0].fn();
+
+  assert.equal(env.timers.collected.length, 1);
+  assert.equal(callbacks, 0);
+  monitor.stop();
+});
+
 test('selector validation rejects high-risk broad CSS scans but keeps normal heading selectors', () => {
-  const { validateSelectorExpression, isHighRiskBroadCssSelector } = loadCoreUtilsForValidation();
+  const { validateSelectorExpression, isSafeXPathExpression, isHighRiskBroadCssSelector } = loadCoreUtilsForValidation();
 
   assert.equal(validateSelectorExpression('css', '*'), false);
   assert.equal(validateSelectorExpression('css', 'body *'), false);
   assert.equal(validateSelectorExpression('css', 'article h2, html *'), false);
   assert.equal(isHighRiskBroadCssSelector(':root *'), true);
+  assert.equal(isSafeXPathExpression('//body//*'), false);
+  assert.equal(isSafeXPathExpression('//html//*[contains(@class, "title")]'), false);
+  assert.equal(isSafeXPathExpression('.//*'), false);
   assert.equal(validateSelectorExpression('css', 'article h2'), true);
   assert.equal(validateSelectorExpression('css', '.doc-title'), true);
   assert.equal(validateSelectorExpression('css', 'main > section h3'), true);
+  assert.equal(validateSelectorExpression('xpath', '//article//h2'), true);
+});
+
+test('selector collection skips historical broad selectors before querying the page', () => {
+  const env = loadDomUtilsForCollection({ cssNodes: [{}], xpathNodes: [{ nodeType: 1 }] });
+
+  assert.deepEqual(plain(env.collectBySelector({ type: 'css', expr: 'body *' }, 20)), []);
+  assert.deepEqual(plain(env.collectBySelector({ type: 'xpath', expr: '//body//*' }, 20)), []);
+  assert.equal(env.calls.length, 0);
+  assert.equal(env.collectBySelector({ type: 'css', expr: 'article h2' }, 20).length, 1);
+  assert.equal(env.collectBySelector({ type: 'xpath', expr: '//article//h2' }, 20).length, 1);
 });
 
 test('config mutations filter broad legacy selectors and reject new broad selectors', () => {
@@ -370,6 +454,7 @@ test('config mutations filter broad legacy selectors and reject new broad select
     urlPattern: 'https://example.com/*',
     selectors: [
       { type: 'css', expr: 'body *' },
+      { type: 'xpath', expr: '//html//*' },
       { type: 'css', expr: 'article h2' }
     ]
   }];
@@ -381,6 +466,14 @@ test('config mutations filter broad legacy selectors and reject new broad select
   }, 100);
   assert.equal(rejected.ok, false);
   assert.equal(rejected.reason, 'invalid-selector');
+
+  const rejectedXpath = applyTocConfigMutation([], {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    selector: { type: 'xpath', expr: '//body//*' }
+  }, 100);
+  assert.equal(rejectedXpath.ok, false);
+  assert.equal(rejectedXpath.reason, 'invalid-selector');
 
   const cleaned = applyTocConfigMutation(legacy, {
     operation: 'add-selector',

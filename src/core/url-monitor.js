@@ -29,6 +29,7 @@ export function createUrlMonitor(opts) {
     // Polling fallback state
     var pollTimer = null;
     var lastContentSignature = null;
+    var hasContentSignature = false;
     var elementIds = typeof WeakMap === 'function' ? new WeakMap() : null;
     var nextElementId = 1;
 
@@ -131,7 +132,10 @@ export function createUrlMonitor(opts) {
         }
 
         var sig = computeContentSignature(cfg);
-        if (sig !== null && sig !== lastContentSignature) {
+        if (sig !== null && !hasContentSignature) {
+          lastContentSignature = sig;
+          hasContentSignature = true;
+        } else if (sig !== null && sig !== lastContentSignature) {
           lastContentSignature = sig;
           if (typeof onChangeCallback === 'function') {
             onChangeCallback(false); // not immediate, will go through debounce
@@ -191,7 +195,8 @@ export function createUrlMonitor(opts) {
       stop();
       isContextValid = true;
       onChangeCallback = onChange || null;
-      lastContentSignature = computeContentSignature(cfg);
+      lastContentSignature = null;
+      hasContentSignature = false;
       setupUrlHooks();
       startPolling(cfg);
     }
@@ -200,6 +205,8 @@ export function createUrlMonitor(opts) {
       teardownUrlHooks();
       stopPolling();
       onChangeCallback = null;
+      lastContentSignature = null;
+      hasContentSignature = false;
     }
 
     function invalidate() {

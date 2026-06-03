@@ -14,6 +14,7 @@ function normalizeSelector(selector) {
   var expr = String(selector.expr || '').trim();
   if (!type || !expr || expr.length > 2000) return null;
   if (type === 'css' && isHighRiskBroadCssSelector(expr)) return null;
+  if (type === 'xpath' && isHighRiskBroadXPathExpression(expr)) return null;
   return Object.assign({}, selector, { type: type, expr: expr });
 }
 
@@ -52,6 +53,22 @@ function isHighRiskBroadCssSelector(expr) {
     var normalized = String(parts[p] || '').trim().replace(/\s+/g, ' ').toLowerCase();
     if (normalized === '*' || normalized === 'html *' || normalized === 'body *' || normalized === ':root *') return true;
   }
+  return false;
+}
+
+function isHighRiskBroadXPathExpression(expr) {
+  var normalized = String(expr || '').trim().replace(/\s+/g, '').toLowerCase();
+  if (!normalized) return false;
+
+  if (normalized.indexOf('//*') === 0) return true;
+  if (normalized.indexOf('.//*') === 0) return true;
+  if (normalized.indexOf('//html//*') === 0) return true;
+  if (normalized.indexOf('//body//*') === 0) return true;
+  if (normalized.indexOf('//html/descendant::*') === 0) return true;
+  if (normalized.indexOf('//body/descendant::*') === 0) return true;
+  if (normalized.indexOf('descendant::*') === 0) return true;
+  if (/^\/\/(node|text|comment)\(/i.test(normalized)) return true;
+
   return false;
 }
 
