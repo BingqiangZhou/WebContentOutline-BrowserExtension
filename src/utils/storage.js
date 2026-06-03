@@ -106,15 +106,17 @@ export function normalizeTocConfigs(value, opts) {
       }
 
       var updatedAt = Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0;
+      var cfg = Object.assign({}, raw, {
+        urlPattern: urlPattern,
+        side: side,
+        selectors: selectors,
+        updatedAt: updatedAt
+      });
+      delete cfg.collapsedDefault;
+
       normalized.push({
         rawIndex: i,
-        cfg: Object.assign({}, raw, {
-          urlPattern: urlPattern,
-          side: side,
-          selectors: selectors,
-          collapsedDefault: !!raw.collapsedDefault,
-          updatedAt: updatedAt
-        })
+        cfg: cfg
       });
     }
 

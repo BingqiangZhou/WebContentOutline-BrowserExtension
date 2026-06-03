@@ -109,8 +109,7 @@ import { initForConfig } from './core/toc-app.js';
     return {
       urlPattern: location.protocol + '//' + location.host + '/*',
       side: 'right',
-      selectors: [],
-      collapsedDefault: false
+      selectors: []
     };
   }
 
