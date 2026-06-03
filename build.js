@@ -58,51 +58,21 @@ async function buildContentScript() {
   });
 }
 
-async function buildStoragePrimitives() {
+async function buildPrimitives() {
   await esbuild.build({
-    entryPoints: [path.join(SRC_DIR, 'shared', 'storage-primitives.js')],
+    entryPoints: [path.join(SRC_DIR, 'shared', 'primitives.js')],
     bundle: true,
     format: 'iife',
-    globalName: '__TOC_STORAGE_PRIMITIVES_BUNDLE',
+    globalName: '__TOC_PRIMITIVES_BUNDLE',
     platform: 'browser',
     target: ['chrome116'],
-    outfile: path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js'),
+    outfile: path.join(DIST_DIR, 'src', 'shared', 'primitives.js'),
     footer: {
-      js: 'globalThis.__STORAGE_PRIMITIVES = __TOC_STORAGE_PRIMITIVES_BUNDLE;'
-    },
-    logLevel: 'silent',
-    legalComments: 'none'
-  });
-}
-
-async function buildConfigPrimitives() {
-  await esbuild.build({
-    entryPoints: [path.join(SRC_DIR, 'shared', 'config-primitives.js')],
-    bundle: true,
-    format: 'iife',
-    globalName: '__TOC_CONFIG_PRIMITIVES_BUNDLE',
-    platform: 'browser',
-    target: ['chrome116'],
-    outfile: path.join(DIST_DIR, 'src', 'shared', 'config-primitives.js'),
-    footer: {
-      js: 'globalThis.__CONFIG_PRIMITIVES = __TOC_CONFIG_PRIMITIVES_BUNDLE;'
-    },
-    logLevel: 'silent',
-    legalComments: 'none'
-  });
-}
-
-async function buildUiStatePrimitives() {
-  await esbuild.build({
-    entryPoints: [path.join(SRC_DIR, 'shared', 'ui-state-primitives.js')],
-    bundle: true,
-    format: 'iife',
-    globalName: '__TOC_UI_STATE_PRIMITIVES_BUNDLE',
-    platform: 'browser',
-    target: ['chrome116'],
-    outfile: path.join(DIST_DIR, 'src', 'shared', 'ui-state-primitives.js'),
-    footer: {
-      js: 'globalThis.__UI_STATE_PRIMITIVES = __TOC_UI_STATE_PRIMITIVES_BUNDLE;'
+      js: [
+        'globalThis.__STORAGE_PRIMITIVES = __TOC_PRIMITIVES_BUNDLE;',
+        'globalThis.__CONFIG_PRIMITIVES = __TOC_PRIMITIVES_BUNDLE;',
+        'globalThis.__UI_STATE_PRIMITIVES = __TOC_PRIMITIVES_BUNDLE;'
+      ].join('\n')
     },
     logLevel: 'silent',
     legalComments: 'none'
@@ -116,10 +86,7 @@ async function main() {
   for (const file of [
     path.join(ROOT_DIR, 'build.js'),
     path.join(SRC_DIR, 'background.js'),
-    path.join(SRC_DIR, 'page-url-hook.js'),
-    path.join(SRC_DIR, 'shared', 'storage-primitives.js'),
-    path.join(SRC_DIR, 'shared', 'config-primitives.js'),
-    path.join(SRC_DIR, 'shared', 'ui-state-primitives.js')
+    path.join(SRC_DIR, 'shared', 'primitives.js')
   ]) {
     if (!validateFile(file)) errors++;
   }
@@ -140,9 +107,7 @@ async function main() {
 
   try {
     await buildContentScript();
-    await buildStoragePrimitives();
-    await buildConfigPrimitives();
-    await buildUiStatePrimitives();
+    await buildPrimitives();
   } catch (e) {
     console.error('  BUNDLE ERROR');
     console.error(e && e.errors ? e.errors : e);
@@ -152,19 +117,12 @@ async function main() {
   if (!validateFile(path.join(DIST_DIR, 'src', 'content.js'))) {
     process.exit(1);
   }
-  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'storage-primitives.js'))) {
-    process.exit(1);
-  }
-  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'config-primitives.js'))) {
-    process.exit(1);
-  }
-  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'ui-state-primitives.js'))) {
+  if (!validateFile(path.join(DIST_DIR, 'src', 'shared', 'primitives.js'))) {
     process.exit(1);
   }
 
   copyFile(path.join(ROOT_DIR, 'manifest.json'), path.join(DIST_DIR, 'manifest.json'));
   copyFile(path.join(SRC_DIR, 'background.js'), path.join(DIST_DIR, 'src', 'background.js'));
-  copyFile(path.join(SRC_DIR, 'page-url-hook.js'), path.join(DIST_DIR, 'src', 'page-url-hook.js'));
   copyFile(path.join(SRC_DIR, 'content.css'), path.join(DIST_DIR, 'src', 'content.css'));
 
   const localesDir = path.join(ROOT_DIR, '_locales');

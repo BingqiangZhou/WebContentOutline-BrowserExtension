@@ -1,5 +1,6 @@
-import { UI_CONSTANTS } from './constants.js';
 import { msg } from './core-utils.js';
+
+  var TOAST_DURATION_MS = 3000;
 
 export function ensureToastContainer() {
     var existing = document.querySelector('.toc-toast-container[data-toc-owner="web-toc-assistant"]');
@@ -22,7 +23,7 @@ export function showToast(text, opts) {
     if (!opts) opts = {};
     try {
       var type = opts.type || 'info';
-      var durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : UI_CONSTANTS.TOAST_DURATION_MS;
+      var durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : TOAST_DURATION_MS;
       var container = ensureToastContainer();
 
       var toast = document.createElement('div');

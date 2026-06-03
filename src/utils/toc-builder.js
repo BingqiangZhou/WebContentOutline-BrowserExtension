@@ -1,12 +1,11 @@
 'use strict';
 
 import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
-import { uiConst } from './constants.js';
 import { getBoundedText } from './bounded-text.js';
 
-    var TOC_TEXT_MAX_LEN = (typeof uiConst === 'function') ? uiConst('TOC_TEXT_MAX_LEN', 200) : 200;
-    var TOC_MAX_ITEMS = (typeof uiConst === 'function') ? uiConst('TOC_MAX_ITEMS', 400) : 400;
-    var TOC_MAX_CANDIDATES = (typeof uiConst === 'function') ? uiConst('TOC_MAX_CANDIDATES', 1200) : 1200;
+    var TOC_TEXT_MAX_LEN = 200;
+    var TOC_MAX_ITEMS = 400;
+    var TOC_MAX_CANDIDATES = 1200;
 
     function getTrimmedText(el) {
       var rawText = '';

@@ -5,7 +5,6 @@ import {
   scrollToElement,
   cleanupOwnedElements
 } from '../utils/toc-utils.js';
-import { uiConst } from '../utils/constants.js';
 import * as NL from '../core/nav-lock.js';
 import {
   createTimerBag,
@@ -13,15 +12,12 @@ import {
   clearChildren
 } from './floating-panel-helpers.js';
 
-  var CFG = (function() {
-    var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
-    return {
-      UNLOCK_AFTER_MS: get('UNLOCK_AFTER_MS', 1000),
-      SCROLL_STOP_MS: get('SCROLL_STOP_MS', 500),
-      EXPAND_ANIM_MS: get('EXPAND_ANIM_MS', 300),
-      PENDING_REBUILD_RECHECK_MS: get('PENDING_REBUILD_RECHECK_MS', 100),
-    };
-  })();
+  var CFG = {
+    UNLOCK_AFTER_MS: 800,
+    SCROLL_STOP_MS: 500,
+    EXPAND_ANIM_MS: 300,
+    PENDING_REBUILD_RECHECK_MS: 100,
+  };
 
 export function renderFloatingPanel(opts) {
     var items = opts.items;
@@ -65,14 +61,8 @@ export function renderFloatingPanel(opts) {
     panel.style.setProperty('visibility', 'hidden', 'important');
     var SCROLL_LISTENER_OPTS = { passive: true };
 
-    var unlockLater = function(scrollDistance) {
+    var unlockLater = function() {
       if (timers.unlock) clearTimeout(timers.unlock);
-      var MIN_UNLOCK_MS = 500;
-      var MAX_UNLOCK_MS = CFG.UNLOCK_AFTER_MS;
-      var DISTANCE_THRESHOLD = 1000;
-      var ratio = Math.min(1, (scrollDistance || 0) / DISTANCE_THRESHOLD);
-      var duration = Math.round(MIN_UNLOCK_MS + ratio * (MAX_UNLOCK_MS - MIN_UNLOCK_MS));
-
       timers.unlock = setTimeout(function() {
         timers.unlock = null;
         NL.unlock();
@@ -207,13 +197,6 @@ export function renderFloatingPanel(opts) {
       setActiveIndex(index);
       try { onNavigate && onNavigate(item, index); } catch (_) {}
 
-      // Compute approximate scroll distance for dynamic lock duration
-      var scrollDistance = 0;
-      try {
-        var elRect = item.el.getBoundingClientRect();
-        scrollDistance = Math.abs(elRect.top);
-      } catch (_) {}
-
       try {
         if (scrollToElement) {
           scrollToElement(item.el);
@@ -225,7 +208,7 @@ export function renderFloatingPanel(opts) {
           try { item.el.scrollIntoView(true); } catch (_3) {}
         }
       }
-      unlockLater(scrollDistance);
+      unlockLater();
     };
 
     renderListItems();

@@ -3,18 +3,13 @@
 import { createDomWatcher } from './dom-watcher.js';
 import { createUrlMonitor } from './url-monitor.js';
 import * as NL from './nav-lock.js';
-import { uiConst } from '../utils/constants.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
 
-  // Timing constants
-  var DEBOUNCE_MS = uiConst('MUTATION_DEBOUNCE_MS', 400);
-  var MAX_DYNAMIC_DEBOUNCE_MS = 1800;
-  var REBUILD_RETRY_MS = 1000;
-  var MUTATION_UNLOCK_POLL_MAX_MS = 30000;
+  var DEBOUNCE_MS = 400;
 
   /**
    * Creates a rebuild scheduler that coordinates DOM watching, URL monitoring,
-   * and rebuild dispatch with dynamic debouncing, burst detection, and nav-lock waiting.
+   * and rebuild dispatch with simple debouncing.
    *
    * @param {function} onRebuild - Async function called to perform a TOC rebuild.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
@@ -23,90 +18,32 @@ export function createRebuildScheduler(onRebuild) {
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
     var rebuildInFlight = null;
-
-    // Timer references
     var debounceTimer = null;
-    var unlockFailsafeTimer = null;
-    var retryTimer = null;
-    var postFlightTimer = null;
-
-    // Dynamic debounce tracking
-    var consecutiveMutations = 0;
-    var lastMutationTime = 0;
-
-    // Nav-lock wait state
-    var unlockWaitActive = false;
 
     // Sub-components
     var domWatcher = null;
     var urlMonitor = null;
     var activeCfg = null;
 
-    var stopSchedulerTimers = function() {
-      if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
-      if (unlockFailsafeTimer) { clearTimeout(unlockFailsafeTimer); unlockFailsafeTimer = null; }
-      if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-      if (postFlightTimer) { clearTimeout(postFlightTimer); postFlightTimer = null; }
-      unlockWaitActive = false;
-    };
-
-    // Forward declaration for mutual recursion
-    var attemptRebuild;
-
     var safeRebuild = function() {
       if (!isExtensionContextValid) return Promise.resolve(false);
-      return onRebuild().then(function(ok) {
+      return onRebuild().then(function() {
         return true;
       }).catch(function(e) {
-        var invalidated = isContextInvalidatedError(e);
-        if (invalidated) {
+        if (isContextInvalidatedError(e)) {
           isExtensionContextValid = false;
           hasPendingRebuild = false;
-          stopSchedulerTimers();
+          if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
           if (domWatcher) domWatcher.invalidate();
           if (urlMonitor) urlMonitor.invalidate();
           return false;
         }
-        console.warn('[toc] rebuild failed from MutationObserver:', e);
+        console.warn('[toc] rebuild failed:', e);
         return false;
       });
     };
 
-    var scheduleRetry = function() {
-      if (!isExtensionContextValid) return;
-      if (!hasPendingRebuild) return;
-      if (retryTimer) return;
-      var ms = (Number.isFinite(REBUILD_RETRY_MS) && REBUILD_RETRY_MS > 0) ? REBUILD_RETRY_MS : 1000;
-      retryTimer = setTimeout(function() {
-        retryTimer = null;
-        if (!isExtensionContextValid) return;
-        if (!hasPendingRebuild) return;
-        attemptRebuild();
-      }, ms);
-    };
-
-    var waitForUnlock = function() {
-      if (unlockWaitActive) return;
-      unlockWaitActive = true;
-
-      NL.onUnlock(function() {
-        unlockWaitActive = false;
-        if (hasPendingRebuild) {
-          attemptRebuild();
-        }
-      });
-
-      // Failsafe: if NAV_LOCK failsafe doesn't fire, force check after MUTATION_UNLOCK_POLL_MAX_MS
-      unlockFailsafeTimer = setTimeout(function() {
-        unlockFailsafeTimer = null;
-        if (unlockWaitActive) {
-          unlockWaitActive = false;
-          if (hasPendingRebuild) attemptRebuild();
-        }
-      }, MUTATION_UNLOCK_POLL_MAX_MS);
-    };
-
-    attemptRebuild = function() {
+    var attemptRebuild = function() {
       if (!isExtensionContextValid) return Promise.resolve(false);
       if (rebuildInFlight) {
         hasPendingRebuild = true;
@@ -114,37 +51,18 @@ export function createRebuildScheduler(onRebuild) {
       }
       if (NL.isLocked()) {
         hasPendingRebuild = true;
-        waitForUnlock();
         return Promise.resolve(false);
       }
       if (!hasPendingRebuild) return Promise.resolve(true);
 
-      rebuildInFlight = (function() {
-        hasPendingRebuild = false;
-        return safeRebuild().then(function(ok) {
-          if (!ok && isExtensionContextValid) {
-            hasPendingRebuild = true;
-            scheduleRetry();
-          }
-          return !!ok;
-        });
-      })().then(function(result) {
+      hasPendingRebuild = false;
+      rebuildInFlight = safeRebuild().then(function(ok) {
         rebuildInFlight = null;
-        if (!isExtensionContextValid) return result;
-        if (!hasPendingRebuild) return result;
-        if (postFlightTimer) return result;
-        try {
-          postFlightTimer = setTimeout(function() {
-            postFlightTimer = null;
-            if (!isExtensionContextValid) return;
-            if (!hasPendingRebuild) return;
-            attemptRebuild();
-          }, 0);
-        } catch (_) {
-          postFlightTimer = null;
+        if (!ok && isExtensionContextValid) {
+          hasPendingRebuild = true;
         }
-        return result;
-      }, function(err) {
+        return !!ok;
+      }, function() {
         rebuildInFlight = null;
         return false;
       });
@@ -159,27 +77,12 @@ export function createRebuildScheduler(onRebuild) {
         attemptRebuild();
         return;
       }
-      var now = Date.now();
-      var timeSinceLast = now - lastMutationTime;
-
-      if (timeSinceLast < 1000) {
-        consecutiveMutations++;
-      } else {
-        consecutiveMutations = 0;
-      }
-      lastMutationTime = now;
-
-      var dynamicDebounce = Math.min(
-        DEBOUNCE_MS * Math.pow(1.3, Math.min(consecutiveMutations, 6)),
-        MAX_DYNAMIC_DEBOUNCE_MS
-      );
-
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function() {
         debounceTimer = null;
         hasPendingRebuild = true;
         attemptRebuild();
-      }, dynamicDebounce);
+      }, DEBOUNCE_MS);
     };
 
     var onMutation = function() {
@@ -195,8 +98,6 @@ export function createRebuildScheduler(onRebuild) {
       // Stop any previous instance
       handle.disconnect();
       hasPendingRebuild = false;
-      consecutiveMutations = 0;
-      lastMutationTime = 0;
       isExtensionContextValid = true;
       activeCfg = cfg || null;
 
@@ -204,18 +105,14 @@ export function createRebuildScheduler(onRebuild) {
       domWatcher = createDomWatcher(onMutation, cfg);
       var watcherOk = domWatcher.start();
 
-      // Create url-monitor, passing dom-watcher's checkAndReconnect as callback
+      // Create url-monitor
       urlMonitor = createUrlMonitor({
-        uiConst: uiConst,
         checkAndReconnect: (domWatcher && typeof domWatcher.checkAndReconnect === 'function')
           ? function() { domWatcher.checkAndReconnect(); }
-          : null,
-        mutationObserverAvailable: watcherOk
+          : null
       });
       urlMonitor.start(cfg, onUrlChange);
 
-      // If MutationObserver failed to start, polling is the only fallback
-      // (url-monitor's polling is always running)
       return handle;
     }
 
@@ -224,7 +121,7 @@ export function createRebuildScheduler(onRebuild) {
       disconnect: function() {
         if (domWatcher) { domWatcher.stop(); domWatcher = null; }
         if (urlMonitor) { urlMonitor.stop(); urlMonitor = null; }
-        stopSchedulerTimers();
+        if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
         hasPendingRebuild = false;
         rebuildInFlight = null;
         isExtensionContextValid = false;
@@ -232,16 +129,8 @@ export function createRebuildScheduler(onRebuild) {
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
       setPendingRebuild: function(val) {
-        if (val) {
-          hasPendingRebuild = true;
-        } else {
-          hasPendingRebuild = false;
-        }
-        if (!hasPendingRebuild) {
-          if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
-          return;
-        }
-        attemptRebuild();
+        hasPendingRebuild = !!val;
+        if (hasPendingRebuild) attemptRebuild();
       }
     };
 

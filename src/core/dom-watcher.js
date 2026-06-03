@@ -17,10 +17,6 @@
    * Creates a MutationObserver-based DOM watcher that detects meaningful
    * changes in the document and invokes a callback. Ignores changes
    * originating from extension-owned elements.
-   *
-   * @param {function} onMutation - Called with no args when a meaningful DOM change is detected.
-   * @param {object} [cfg] - Active site configuration
-   * @returns {object}
    */
 export function createDomWatcher(onMutation, cfg) {
     var observerRef = null;
@@ -90,62 +86,25 @@ export function createDomWatcher(onMutation, cfg) {
       var obs = observerRef;
       observerRef = null;
       observedRoot = null;
-      if (obs && typeof obs.disconnect === 'function') {
-        try { obs.disconnect(); } catch (_) {}
-      }
+      if (obs) { try { obs.disconnect(); } catch (_) {} }
     }
 
     function checkAndReconnect() {
       if (!observerRef) return;
       try {
-        var root = document.documentElement || document.body;
-        if (!root) return;
-        if (root !== observedRoot || observedRoot.isConnected === false) {
-          observerRef.disconnect();
-          observerRef.observe(root, {
-            childList: true,
-            subtree: true,
-            characterData: true,
-            attributes: true,
-            attributeFilter: OBSERVED_ATTRIBUTES
-          });
-          observedRoot = root;
-        } else {
-          observerRef.takeRecords();
-        }
-      } catch (_) {
-        try {
-          observerRef.disconnect();
-          observerRef.observe(document.documentElement || document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true,
-            attributes: true,
-            attributeFilter: OBSERVED_ATTRIBUTES
-          });
-          observedRoot = document.documentElement || document.body;
-          console.debug('[toc] reconnected MutationObserver');
-        } catch (e) {
-          console.warn('[toc] failed to reconnect MutationObserver:', e);
-        }
-      }
+        // Drain pending mutations to keep the observer fresh
+        observerRef.takeRecords();
+      } catch (_) {}
     }
 
     function start() {
       disconnect();
       isContextValid = true;
 
-      if (typeof MutationObserver === 'undefined') {
-        return false;
-      }
+      if (typeof MutationObserver === 'undefined') return false;
 
-      var resolveObserveRoot = function() {
-        try {
-          return document.documentElement || document.body;
-        } catch (_) {
-          return document.documentElement;
-        }
-      };
+      var root = document.documentElement || document.body;
+      if (!root) return false;
 
       var observer = new MutationObserver(function(mutations) {
         if (!isContextValid) {
@@ -153,23 +112,9 @@ export function createDomWatcher(onMutation, cfg) {
           return;
         }
         if (!hasMeaningfulChange(mutations)) return;
-        if (typeof onMutation === 'function') {
-          onMutation();
-        }
+        if (typeof onMutation === 'function') onMutation();
       });
       observerRef = observer;
-
-      var root = (function() {
-        var r = resolveObserveRoot();
-        if (r && r.nodeType === Node.ELEMENT_NODE) return r;
-        return document.documentElement || document.body || null;
-      })();
-
-      if (!root) {
-        observerRef = null;
-        try { observer.disconnect(); } catch (_) {}
-        return false;
-      }
 
       try {
         observer.observe(root, {
@@ -183,7 +128,7 @@ export function createDomWatcher(onMutation, cfg) {
         return true;
       } catch (_) {
         observerRef = null;
-        try { observer.disconnect(); } catch (_) {}
+        try { observer.disconnect(); } catch (_2) {}
         return false;
       }
     }

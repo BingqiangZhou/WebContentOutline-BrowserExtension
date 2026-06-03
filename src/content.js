@@ -14,7 +14,6 @@ import {
   safeJsonParse,
   isPlainObject,
   getFiniteNumber,
-  uiConst,
   STORAGE_KEYS
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
@@ -41,11 +40,7 @@ import { initForConfig } from './core/toc-app.js';
 
   var appInstance = null;
   var currentEnabled = false;
-  var desiredEnabled = false;
-  var enabledTransition = Promise.resolve();
-  var uiModeTransition = Promise.resolve();
   var currentUiMode = 'edge-dock';
-  var startInFlight = null;
   var disposed = false;
   var listenersAttached = false;
 
@@ -56,52 +51,32 @@ import { initForConfig } from './core/toc-app.js';
     if (!listenersAttached) return;
     listenersAttached = false;
     try {
-      if (messageListener && hasChrome && chrome.runtime && chrome.runtime.onMessage && chrome.runtime.onMessage.removeListener) {
+      if (messageListener && hasChrome && chrome.runtime?.onMessage?.removeListener) {
         chrome.runtime.onMessage.removeListener(messageListener);
       }
     } catch (_) {}
     try {
-      if (storageListener && hasChrome && chrome.storage && chrome.storage.onChanged && chrome.storage.onChanged.removeListener) {
+      if (storageListener && hasChrome && chrome.storage?.onChanged?.removeListener) {
         chrome.storage.onChanged.removeListener(storageListener);
       }
     } catch (_) {}
     messageListener = null;
     storageListener = null;
-
   }
 
   function dispose(opts) {
-    opts = opts || {};
     if (disposed) return;
     disposed = true;
-
-    // Cancel queued transitions and in-flight startup.
-    enabledTransition = Promise.resolve();
-    startInFlight = null;
-
-    // Remove listeners first to prevent re-entry during teardown.
     detachListeners();
-
-    // Ensure UI/app is fully removed.
-    try {
-      if (appInstance && appInstance.destroy) {
-        appInstance.destroy();
-      }
-    } catch (_) {}
+    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
     if (cleanupOwnedElements) cleanupOwnedElements();
-
-    // Allow reinjection to reinitialize cleanly.
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = null;
-    try { delete window.__TOC_ASSISTANT_CLEANUP__; } catch (_) {}
-
-    if (opts && opts.reason) {
-      console.debug(msg('logPrefix') + ' disposed:', opts.reason);
-    }
+    if (opts?.reason) console.debug(msg('logPrefix') + ' disposed:', opts.reason);
   }
 
-  // Expose a best-effort cleanup hook (useful for dev reload / reinjection).
+  // Expose a cleanup hook for dev reload / reinjection.
   window.__TOC_ASSISTANT_CLEANUP__ = dispose;
 
   function getDefaultConfig() {
@@ -112,8 +87,6 @@ import { initForConfig } from './core/toc-app.js';
     };
   }
 
-  // Simple last-writer-wins migration of legacy badge position.
-  // The worst case is two tabs write the same value, which is harmless.
   async function migrateLegacyBadgePos() {
     try {
       if (!setBadgePosByHost) return;
@@ -122,41 +95,29 @@ import { initForConfig } from './core/toc-app.js';
       if (!raw) return;
       var parsed = safeJsonParse ? safeJsonParse(raw) : null;
       if (!isPlainObject || !isPlainObject(parsed)) return;
-      if (!Object.prototype.hasOwnProperty.call(parsed, 'left') || !Object.prototype.hasOwnProperty.call(parsed, 'top')) return;
+      if (!parsed.hasOwnProperty('left') || !parsed.hasOwnProperty('top')) return;
 
-      var left = getFiniteNumber ? getFiniteNumber(parsed.left) : (typeof parsed.left === 'number' ? parsed.left : null);
-      var top = getFiniteNumber ? getFiniteNumber(parsed.top) : (typeof parsed.top === 'number' ? parsed.top : null);
+      var left = getFiniteNumber ? getFiniteNumber(parsed.left) : null;
+      var top = getFiniteNumber ? getFiniteNumber(parsed.top) : null;
       if (left === null || top === null) return;
 
-      // Already migrated by another tab?
-      var existing = getBadgePosByHost ? await getBadgePosByHost(location.host) : null;
+      var existing = await getBadgePosByHost(location.host);
       if (existing && Number.isFinite(existing.x) && Number.isFinite(existing.y)) {
         localStorage.removeItem(legacyKey);
         return;
       }
 
-      var bw = uiConst('BADGE_WIDTH', 80);
-      var bh = uiConst('BADGE_HEIGHT', 32);
-      var x = left + bw / 2;
-      var y = top + bh / 2;
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-
-      var saved = await setBadgePosByHost(location.host, { x: x, y: y, updatedAt: Date.now() });
-      if (saved) {
-        localStorage.removeItem(legacyKey);
-      }
+      var saved = await setBadgePosByHost(location.host, { x: left + 40, y: top + 16, updatedAt: Date.now() });
+      if (saved) localStorage.removeItem(legacyKey);
     } catch (_) {}
   }
 
   async function startApp() {
     try {
       if (disposed) return;
-      var results = await Promise.all([
-        getConfigs(),
-        getUiMode ? getUiMode() : 'edge-dock'
-      ]);
+      var results = await Promise.all([getConfigs(), getUiMode ? getUiMode() : 'edge-dock']);
       var configs = results[0];
-      currentUiMode = normalizeUiMode ? normalizeUiMode(results[1]) : (results[1] === 'classic' ? 'classic' : 'edge-dock');
+      currentUiMode = normalizeUiMode ? normalizeUiMode(results[1]) : 'edge-dock';
       if (disposed) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
@@ -167,7 +128,7 @@ import { initForConfig } from './core/toc-app.js';
       }
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
-        onSwitchUiMode: requestUiMode
+        onSwitchUiMode: applyUiMode
       });
     } catch (err) {
       if (isContextInvalidatedError && isContextInvalidatedError(err)) {
@@ -178,125 +139,55 @@ import { initForConfig } from './core/toc-app.js';
     }
   }
 
-  async function ensureStarted() {
-    if (disposed) return;
-    if (appInstance) return;
-    if (startInFlight) {
-      try { await startInFlight; } catch (_) {}
-      return;
-    }
-    startInFlight = (async function() { await startApp(); })();
-    try {
-      await startInFlight;
-    } finally {
-      startInFlight = null;
-    }
-  }
-
   function stopApp() {
-    try {
-      if (appInstance && appInstance.destroy) {
-        appInstance.destroy();
-      }
-    } catch (e) {
-      console.warn(msg('logPrefix') + ' stop failed:', e);
-    }
-    appInstance = null;
-    try {
-      if (cleanupOwnedElements) cleanupOwnedElements();
-    } catch (e) {
-      console.warn(msg('logPrefix') + ' cleanup DOM failed:', e);
-    }
-
-    // Content script should stop reacting after app is stopped to avoid unexpected reinitialization.
-    dispose({ reason: 'stopApp' });
-  }
-
-  function destroyCurrentApp() {
-    try {
-      if (appInstance && appInstance.destroy) appInstance.destroy();
-    } catch (e) {
-      console.warn(msg('logPrefix') + ' restart cleanup failed:', e);
-    }
+    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
     try { if (cleanupOwnedElements) cleanupOwnedElements(); } catch (_) {}
+    dispose({ reason: 'stopApp' });
   }
 
   async function applyUiMode(nextMode, opts) {
     opts = opts || {};
-    var normalized = normalizeUiMode ? normalizeUiMode(nextMode) : (nextMode === 'classic' ? 'classic' : 'edge-dock');
+    var normalized = normalizeUiMode ? normalizeUiMode(nextMode) : 'edge-dock';
     if (normalized === currentUiMode && appInstance) return;
     currentUiMode = normalized;
     if (opts.persist !== false && saveUiMode) await saveUiMode(normalized);
     if (!currentEnabled || disposed) return;
-    destroyCurrentApp();
-    startInFlight = null;
-    await ensureStarted();
+    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
+    appInstance = null;
+    if (cleanupOwnedElements) cleanupOwnedElements();
+    await startApp();
     await applyExpandState({});
-  }
-
-  function requestUiMode(nextMode, opts) {
-    if (disposed) return Promise.resolve();
-    uiModeTransition = uiModeTransition
-      .catch(function() {})
-      .then(function() { return applyUiMode(nextMode, opts || {}); })
-      .catch(function(e) {
-        console.warn(msg('logPrefix') + ' ui mode transition failed:', e);
-      });
-    return uiModeTransition;
   }
 
   async function applyExpandState(opts) {
     if (!appInstance) return;
     try {
-      if (opts && opts.expandPanel) {
+      if (opts?.expandPanel) {
         if (appInstance.expand) await appInstance.expand({ autoCollapse: currentUiMode !== 'classic' });
       } else if (currentUiMode !== 'classic') {
         if (appInstance.collapse) appInstance.collapse();
       } else {
         var expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
-        if (expanded && appInstance.expand) {
-          await appInstance.expand();
-        } else if (appInstance.collapse) {
-          appInstance.collapse();
-        }
+        if (expanded && appInstance.expand) await appInstance.expand();
+        else if (appInstance.collapse) appInstance.collapse();
       }
     } catch (_) {}
   }
 
   async function applyEnabledState(want, opts) {
-      if (want === currentEnabled) {
-        // Even when the enabled state doesn't change, callers may request an expand.
-        if (want) {
-          await ensureStarted();
-          await applyExpandState(opts);
-        }
-        return;
+    if (want === currentEnabled) {
+      if (want) {
+        await startApp();
+        await applyExpandState(opts);
       }
-
-      currentEnabled = want;
-      if (!want) {
-        stopApp();
-        return;
-      }
-
-      await migrateLegacyBadgePos();
-      await ensureStarted();
-      await applyExpandState(opts);
-  }
-
-  function requestEnabled(enabled, opts) {
-    if (disposed) return Promise.resolve();
-    desiredEnabled = !!enabled;
-    enabledTransition = enabledTransition
-      .catch(function() {})
-      .then(function() {
-        return applyEnabledState(desiredEnabled, opts || {});
-      })
-      .catch(function(e) {
-        console.warn(msg('logPrefix') + ' enabled transition failed:', e);
-      });
-    return enabledTransition;
+      return;
+    }
+    currentEnabled = want;
+    if (!want) { stopApp(); return; }
+    await migrateLegacyBadgePos();
+    await startApp();
+    await applyExpandState(opts);
   }
 
   async function main() {
@@ -308,10 +199,9 @@ import { initForConfig } from './core/toc-app.js';
           chrome.runtime.sendMessage({ type: 'toc:ensureIcon' }, function() { void chrome.runtime.lastError; resolve(); });
         } catch (_) { resolve(); }
       });
-
       var enabled = await getSiteEnabledByOrigin();
-      if (!!enabled) {
-        await requestEnabled(true);
+      if (enabled) {
+        await applyEnabledState(true);
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
@@ -337,27 +227,20 @@ import { initForConfig } from './core/toc-app.js';
           try { sendResponse && sendResponse(payload); } catch (_) {}
         };
         try {
-          if (!msgObj || !msgObj.type) return;
-
-          // Only accept messages from this extension instance.
-          if (sender && sender.id && chrome.runtime && chrome.runtime.id && sender.id !== chrome.runtime.id) {
+          if (!msgObj?.type) return;
+          if (sender?.id && chrome.runtime?.id && sender.id !== chrome.runtime.id) {
             respondOnce({ ok: false, reason: 'bad-sender' });
             return;
           }
-
           if (msgObj.type === 'toc:ping') {
             respondOnce({ ok: !disposed });
             return;
           }
-
-          if (disposed) {
-            respondOnce({ ok: false, disposed: true });
-            return;
-          }
+          if (disposed) { respondOnce({ ok: false, disposed: true }); return; }
 
           if (msgObj.type === 'toc:openPanel') {
             Promise.resolve()
-              .then(function() { return requestEnabled(true, { expandPanel: true }); })
+              .then(function() { return applyEnabledState(true, { expandPanel: true }); })
               .then(function() { respondOnce({ ok: true }); })
               .catch(function(err) { respondOnce({ ok: false, error: String(err) }); });
             return true;
@@ -365,12 +248,9 @@ import { initForConfig } from './core/toc-app.js';
 
           if (msgObj.type !== 'toc:updateEnabled') return;
           var enabled = !!msgObj.enabled;
-          if (enabled === desiredEnabled) {
-            respondOnce({ ok: true, unchanged: true });
-            return;
-          }
+          if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
           Promise.resolve()
-            .then(function() { return requestEnabled(enabled); })
+            .then(function() { return applyEnabledState(enabled); })
             .then(function() { respondOnce({ ok: true }); })
             .catch(function(err) { respondOnce({ ok: false, error: String(err) }); });
           return true;
@@ -379,74 +259,49 @@ import { initForConfig } from './core/toc-app.js';
           if (isContextInvalidatedError && isContextInvalidatedError(err)) dispose({ reason: 'context-invalidated' });
         }
       };
-      if (hasChrome && chrome.runtime && chrome.runtime.onMessage && chrome.runtime.onMessage.addListener) {
+      if (hasChrome && chrome.runtime?.onMessage?.addListener) {
         chrome.runtime.onMessage.addListener(messageListener);
       }
     } catch (_) {}
 
     try {
-      var KEY = STORAGE_KEYS && STORAGE_KEYS.SITE_ENABLE_MAP ? STORAGE_KEYS.SITE_ENABLE_MAP : 'tocSiteEnabledMap';
-      var UI_MODE_KEY = STORAGE_KEYS && STORAGE_KEYS.UI_MODE ? STORAGE_KEYS.UI_MODE : 'tocUiMode';
-      var TOC_CONFIGS_KEY = STORAGE_KEYS && STORAGE_KEYS.TOC_CONFIGS ? STORAGE_KEYS.TOC_CONFIGS : 'tocConfigs';
+      var KEY = STORAGE_KEYS?.SITE_ENABLE_MAP || 'tocSiteEnabledMap';
+      var UI_MODE_KEY = STORAGE_KEYS?.UI_MODE || 'tocUiMode';
+      var TOC_CONFIGS_KEY = STORAGE_KEYS?.TOC_CONFIGS || 'tocConfigs';
       storageListener = function(changes, areaName) {
-        if (disposed) return;
-        if (areaName !== 'local') return;
-        var uiModeChange = changes && changes[UI_MODE_KEY];
-        if (uiModeChange) {
-          requestUiMode(uiModeChange.newValue, { persist: false });
+        if (disposed || areaName !== 'local') return;
+        var uiModeChange = changes?.[UI_MODE_KEY];
+        if (uiModeChange) applyUiMode(uiModeChange.newValue, { persist: false });
+        var configChange = changes?.[TOC_CONFIGS_KEY];
+        if (configChange && currentEnabled && appInstance?.refreshConfig) {
+          Promise.resolve(appInstance.refreshConfig()).catch(function() {});
         }
-        var configChange = changes && changes[TOC_CONFIGS_KEY];
-        if (configChange && currentEnabled && appInstance && appInstance.refreshConfig) {
-          Promise.resolve(appInstance.refreshConfig()).catch(function(e) {
-            console.warn(msg('logPrefix') + ' config refresh failed:', e);
-          });
-        }
-        var ch = changes && changes[KEY];
+        var ch = changes?.[KEY];
         if (!ch) return;
         try {
           var map = ch.newValue || {};
-          var originKey = (typeof location !== 'undefined' && typeof location.origin === 'string' && location.origin && location.origin !== 'null')
-            ? location.origin
-            : null;
+          var originKey = location?.origin && location.origin !== 'null' ? location.origin : null;
           if (!originKey) return;
           var next = !!map[originKey];
-          if (next === desiredEnabled) return;
-          requestEnabled(next);
+          if (next !== currentEnabled) applyEnabledState(next);
         } catch (e) {
-          if (isContextInvalidatedError && isContextInvalidatedError(e)) {
-            dispose({ reason: 'context-invalidated' });
-            return;
-          }
-          console.warn(msg('logPrefix') + ' storage change failed:', e);
+          if (isContextInvalidatedError?.(e)) dispose({ reason: 'context-invalidated' });
         }
       };
-      if (hasChrome && chrome.storage && chrome.storage.onChanged && chrome.storage.onChanged.addListener) {
+      if (hasChrome && chrome.storage?.onChanged?.addListener) {
         chrome.storage.onChanged.addListener(storageListener);
       }
-    } catch (e) {
-      if (isContextInvalidatedError && isContextInvalidatedError(e)) {
-        dispose({ reason: 'context-invalidated' });
-      } else {
-        console.warn(msg('logPrefix') + ' storage listener failed:', e);
-      }
-    }
+    } catch (_) {}
   }
 
   attachListeners();
 
   // Wait for DOM to be stable before initializing TOC
-  // This helps prevent layout issues on first load
   async function initWhenStable() {
-    // If DOM is not fully loaded, wait for DOMContentLoaded
     if (document.readyState === 'loading') {
       await new Promise(function(r) { document.addEventListener('DOMContentLoaded', r, { once: true }); });
     }
-
-    // Short delay to let page rendering stabilize
-    // This ensures CSS is applied and layout is computed
     await new Promise(function(r) { setTimeout(r, 50); });
-
-    // Now initialize TOC
     await main();
   }
 

@@ -1,9 +1,8 @@
 'use strict';
 
 import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';
-import { uiConst } from './constants.js';
-import { serializedWrite, pruneObjectToLimit } from '../shared/storage-primitives.js';
-import { isHighRiskBroadCssSelector, isSafeXPathExpression, originFromUrl } from './core-utils.js';
+import { serializedWrite, pruneObjectToLimit } from '../shared/primitives.js';
+import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.js';
 
     /**
      * Simple wildcard matcher: supports * as any chars
@@ -99,7 +98,7 @@ export function setPanelExpandedByOrigin(origin, expanded) {
         return getPanelStateMap().then(function(map) {
           map = map || {};
           map[key] = !!expanded;
-          pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
+          pruneObjectToLimit(map, 400);
           return savePanelStateMap(map);
         });
       });
@@ -112,7 +111,7 @@ export function setPanelExpandedByOrigin(origin, expanded) {
      */
 export function collectBySelector(selector, maxCandidates) {
       if (!selector || !selector.expr) return [];
-      var configuredLimit = uiConst('TOC_MAX_CANDIDATES', 1200);
+      var configuredLimit = 1200;
       var limitOverride = Number.isFinite(maxCandidates) && maxCandidates > 0
         ? Math.max(1, Math.floor(maxCandidates))
         : configuredLimit;
@@ -192,7 +191,7 @@ export function scrollToElement(el) {
 
 export function cleanupOwnedElements(selectorFallback) {
       var fallback = selectorFallback || '.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-overlay[data-toc-owner="web-toc-assistant"], .toc-toast-container[data-toc-owner="web-toc-assistant"]';
-      var selector = selectorFallback || uiConst('CLEANUP_SELECTOR', fallback);
+      var selector = selectorFallback || fallback;
       try {
         document.querySelectorAll(selector).forEach(function(el) {
           try {

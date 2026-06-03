@@ -1,16 +1,12 @@
 'use strict';
 
 import { msg, getFocusableWithin } from '../utils/toc-utils.js';
-import { uiConst } from '../utils/constants.js';
 import { createFocusTrap } from '../utils/focus-trap.js';
 
-  var CFG = (function() {
-    var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
-    return {
-      PICKER_TIMEOUT_MS: get('PICKER_TIMEOUT_MS', 20000),
-      MAX_Z_INDEX: get('MAX_Z_INDEX', 2147483647),
-    };
-  })();
+  var CFG = {
+    PICKER_TIMEOUT_MS: 20000,
+    MAX_Z_INDEX: 2147483647,
+  };
 
 export function showPickerResult(selector, saveCb) {
     var prevFocus = document.activeElement;

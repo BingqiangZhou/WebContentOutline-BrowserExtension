@@ -6,19 +6,15 @@ import {
   setBadgePosByHost,
   cleanupOwnedElements
 } from '../utils/toc-utils.js';
-import { uiConst } from '../utils/constants.js';
 import { createDragController } from '../utils/drag-helper.js';
 
-var CFG = (function() {
-  var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
-  return {
-    BADGE_WIDTH: get('BADGE_WIDTH', 80),
-    BADGE_HEIGHT: get('BADGE_HEIGHT', 32),
-    DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4),
-    DEFAULT_RIGHT: get('BADGE_DEFAULT_RIGHT_PX', 16),
-    DEFAULT_TOP_MIN: get('BADGE_DEFAULT_TOP_MIN_PX', 120)
-  };
-})();
+var CFG = {
+  BADGE_WIDTH: 80,
+  BADGE_HEIGHT: 32,
+  DRAG_MARGIN_PX: 4,
+  DEFAULT_RIGHT: 16,
+  DEFAULT_TOP_MIN: 120
+};
 
 export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
   if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');

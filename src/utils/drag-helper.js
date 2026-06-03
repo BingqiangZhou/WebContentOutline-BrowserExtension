@@ -1,7 +1,5 @@
 'use strict';
 
-import { uiConst } from './constants.js';
-
 export function createDragController(options) {
       var element = options && options.element;
       var shouldStart = options && options.shouldStart;
@@ -11,8 +9,7 @@ export function createDragController(options) {
       var onEnd = options && options.onEnd;
       var thresholdPx = options && options.thresholdPx;
 
-      var defaultThreshold = (typeof uiConst === 'function') ? uiConst('DRAG_THRESHOLD_PX', 3) : 3;
-      var threshold = Number.isFinite(thresholdPx) ? thresholdPx : defaultThreshold;
+      var threshold = Number.isFinite(thresholdPx) ? thresholdPx : 3;
 
       if (!element) {
         return { destroy: function() {}, isActive: function() { return false; } };

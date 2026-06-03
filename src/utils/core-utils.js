@@ -1,5 +1,3 @@
-import { uiConst } from './constants.js';
-
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
    * @returns {boolean}
@@ -68,10 +66,7 @@ export function getFocusableWithin(rootEl) {
 
 export function safeJsonParse(raw) {
     if (typeof raw !== 'string') return null;
-    if (raw.length > 20000) {
-      try { console.warn('[toc] safeJsonParse: input too large, skip parse:', raw.length); } catch (_) {}
-      return null;
-    }
+    if (raw.length > 20000) return null;
     try {
       return JSON.parse(raw);
     } catch (e) {
@@ -87,58 +82,27 @@ export function getFiniteNumber(value) {
 export function isSafeXPathExpression(expr) {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
-    if (!trimmed) return false;
-    if (trimmed.length > 2000) return false;
-
-    // Avoid extremely broad document scans that are likely to be slow.
-    if (isHighRiskBroadXPathExpression(trimmed)) return false;
-
-    // Disallow control characters.
-    if (/[\x00-\x1F\x7F]/.test(trimmed)) return false;
-
-    // Reject external document/function patterns.
-    if (/(?:^|[^A-Za-z0-9_-])(?:document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i.test(trimmed)) return false;
-
+    if (!trimmed || trimmed.length > 2000) return false;
+    // Block extremely broad document scans
+    var normalized = trimmed.replace(/\s+/g, '').toLowerCase();
+    if (normalized.indexOf('//*') === 0 || normalized.indexOf('.//*') === 0) return false;
+    // Reject external document/function patterns
+    if (/(?:^|[^A-Za-z0-9_-])(?:document|collection|unparsed-text)\s*\(/i.test(trimmed)) return false;
     return true;
-  }
-
-export function isHighRiskBroadXPathExpression(expr) {
-    if (typeof expr !== 'string') return false;
-    var normalized = expr.trim().replace(/\s+/g, '').toLowerCase();
-    if (!normalized) return false;
-
-    if (normalized.indexOf('//*') === 0) return true;
-    if (normalized.indexOf('.//*') === 0) return true;
-    if (normalized.indexOf('//html//*') === 0) return true;
-    if (normalized.indexOf('//body//*') === 0) return true;
-    if (normalized.indexOf('//html/descendant::*') === 0) return true;
-    if (normalized.indexOf('//body/descendant::*') === 0) return true;
-    if (normalized.indexOf('descendant::*') === 0) return true;
-
-    return false;
   }
 
 export function isValidCssSelector(expr) {
     if (typeof expr !== 'string') return false;
     if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
-    if (!trimmed) return false;
-    // Disallow control chars
-    if (/[\x00-\x1F\x7F]/.test(trimmed)) return false;
-    if (trimmed.length > 2000) return false;
-    if (isHighRiskBroadCssSelector(trimmed)) return false;
+    if (!trimmed || trimmed.length > 2000) return false;
+    if (isHighRiskBroadCssSelector(expr)) return false;
     try {
-      // Syntax validation without querying the page DOM.
-      var frag = document.createDocumentFragment ? document.createDocumentFragment() : null;
+      var frag = document.createDocumentFragment();
       if (frag && frag.querySelector) {
         frag.querySelector(trimmed);
         return true;
       }
-      // Fallback: use @supports selector() if available.
-      if (typeof CSS !== 'undefined' && CSS && typeof CSS.supports === 'function') {
-        if (CSS.supports('selector(' + trimmed + ')')) return true;
-      }
-      // No validation method available — trust the selector syntax.
       return true;
     } catch (_) {
       return false;
@@ -147,9 +111,6 @@ export function isValidCssSelector(expr) {
 
 export function isHighRiskBroadCssSelector(expr) {
     if (typeof expr !== 'string') return false;
-    // Check each comma-separated part for overly broad patterns.
-    // Broad patterns like *, html *, body *, :root * don't contain commas inside quotes/brackets,
-    // so a simple split is sufficient for this safety check.
     var parts = expr.split(',');
     for (var i = 0; i < parts.length; i++) {
       var normalized = String(parts[i] || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -162,7 +123,6 @@ export function validateSelectorExpression(type, expr) {
     try {
       if (type === 'xpath') return isSafeXPathExpression(expr);
       if (type === 'css') return isValidCssSelector(expr);
-      console.warn('[toc] validateSelectorExpression: unsupported selector type:', type);
       return false;
     } catch (_) {
       return false;
@@ -173,10 +133,6 @@ export function originFromUrl(url) {
     try {
       return new URL(url).origin;
     } catch (e) {
-      try {
-        return location.origin;
-      } catch (_) {
-        return '';
-      }
+      try { return location.origin; } catch (_) { return ''; }
     }
   }

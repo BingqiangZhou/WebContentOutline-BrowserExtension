@@ -1,21 +1,17 @@
 'use strict';
 
 import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements } from '../utils/toc-utils.js';
-import { uiConst } from '../utils/constants.js';
 import { createDragController } from '../utils/drag-helper.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
-var CFG = (function() {
-  var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
-  return {
-    CLOSE_DELAY_MS: get('DOCK_CLOSE_DELAY_MS', 250),
-    PROGRAMMATIC_CLOSE_DELAY_MS: get('DOCK_PROGRAMMATIC_CLOSE_DELAY_MS', 1800),
-    SAFE_MARGIN_PX: get('DOCK_SAFE_MARGIN_PX', 12),
-    DEFAULT_TOP_MIN: get('BADGE_DEFAULT_TOP_MIN_PX', 120),
-    DEFAULT_HEIGHT: get('DOCK_DEFAULT_HEIGHT', 104)
-  };
-})();
+var CFG = {
+  CLOSE_DELAY_MS: 250,
+  PROGRAMMATIC_CLOSE_DELAY_MS: 1800,
+  SAFE_MARGIN_PX: 12,
+  DEFAULT_TOP_MIN: 120,
+  DEFAULT_HEIGHT: 104
+};
 
 function normalizeMode(mode) {
   return mode === 'peek' ? mode : 'collapsed';

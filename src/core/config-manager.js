@@ -1,7 +1,6 @@
 'use strict';
 
 import { createFocusTrap } from '../utils/focus-trap.js';
-import { emit } from './event-bus.js';
 import {
   showToast,
   getConfigs,
@@ -11,8 +10,15 @@ import {
   validateSelectorExpression
 } from '../utils/toc-utils.js';
 
+  // Callback set by toc-app.js via setOnConfigChanged()
+  var _onConfigChanged = null;
+
+  export function setOnConfigChanged(fn) {
+    _onConfigChanged = typeof fn === 'function' ? fn : null;
+  }
+
   function notifyConfigChanged() {
-    if (emit) emit('toc:config-changed');
+    if (_onConfigChanged) _onConfigChanged();
   }
 
   function requestConfigMutation(mutation) {

@@ -6,7 +6,7 @@ import { renderClassicCollapsedBadge } from '../ui/classic-collapsed-badge.js';
 import { renderClassicFloatingPanel } from '../ui/classic-floating-panel.js';
 import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
-import { siteConfig, saveSelector, updateConfigFromStorage } from './config-manager.js';
+import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged } from './config-manager.js';
 import { createRebuildScheduler } from './rebuild-scheduler.js';
 import { createActiveItemTracker } from './active-item-tracker.js';
 import {
@@ -18,30 +18,20 @@ import {
   scrollToElement,
   setPanelExpandedByOrigin
 } from '../utils/toc-utils.js';
-import { uiConst } from '../utils/constants.js';
 import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
 import {
   isContextInvalidatedError,
   isExtensionContextInvalidated
 } from '../utils/core-utils.js';
 import * as NL from './nav-lock.js';
-import { on } from './event-bus.js';
 
-  // Event handler for config changes
+  // Config change callback — wired when initForConfig runs
   var _activeRebuild = null;
   try {
-    if (on) {
-      on('toc:config-changed', function() { if (_activeRebuild) _activeRebuild(); });
+    if (setOnConfigChanged) {
+      setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
     }
   } catch (_) {}
-
-  // Constants
-  var CFG = (function() {
-    var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
-    return {
-      REBUILD_COOLDOWN_MS: get('REBUILD_COOLDOWN_MS', 5000),
-    };
-  })();
 
 export function initForConfig(cfg, options) {
     options = options || {};
@@ -76,8 +66,6 @@ export function initForConfig(cfg, options) {
     var mutationObserver = null;
     var pickerInstance = null;
     var rebuildInFlight = null;
-    var consecutiveRebuildFailures = 0;
-    var failureCooldownTimer = null;
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
@@ -151,22 +139,6 @@ export function initForConfig(cfg, options) {
         return;
       }
 
-      // Circuit breaker: skip rebuild if too many consecutive failures
-      if (consecutiveRebuildFailures >= 5) {
-        if (!failureCooldownTimer) {
-          console.warn('[toc] rebuild circuit breaker active, pausing after 5 consecutive failures');
-          try {
-            failureCooldownTimer = setTimeout(function() {
-              failureCooldownTimer = null;
-              consecutiveRebuildFailures = 0;
-            }, CFG.REBUILD_COOLDOWN_MS);
-          } catch (_) {
-            consecutiveRebuildFailures = 0;
-          }
-        }
-        return false;
-      }
-
       try {
         if (configDirty && updateConfigFromStorage) {
           await updateConfigFromStorage(cfg);
@@ -182,15 +154,10 @@ export function initForConfig(cfg, options) {
         var newMeta = buildResult.meta;
 
         // Skip rebuild if content is identical
-        if (isContentIdentical(prevItems, newItems)) {
-          consecutiveRebuildFailures = 0;
-          return;
-        }
+        if (isContentIdentical(prevItems, newItems)) return;
 
         // Skip rebuild if both old and new are empty - no change needed
-        if (prevItems.length === 0 && newItems.length === 0) {
-          return;
-        }
+        if (prevItems.length === 0 && newItems.length === 0) return;
 
         items = newItems;
         tocMeta = newMeta;
@@ -198,7 +165,6 @@ export function initForConfig(cfg, options) {
         // Badge mode: update in-memory items so next expand is fresh, but skip full UI rebuild.
         if (!panelInstance) {
           syncItemViews(previousActiveItem, previousActiveIndex);
-          consecutiveRebuildFailures = 0;
           return;
         }
 
@@ -229,7 +195,6 @@ export function initForConfig(cfg, options) {
         }
 
         syncItemViews(previousActiveItem, previousActiveIndex);
-        consecutiveRebuildFailures = 0;
       } catch (e) {
         if (isContextInvalidatedError && isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
@@ -245,7 +210,6 @@ export function initForConfig(cfg, options) {
           return;
         }
         console.warn('[toc] rebuild failed:', e);
-        consecutiveRebuildFailures++;
       }
     };
 
@@ -450,11 +414,6 @@ export function initForConfig(cfg, options) {
       items = [];
       rebuildInFlight = null;
       NL.destroy();
-      if (failureCooldownTimer) {
-        clearTimeout(failureCooldownTimer);
-        failureCooldownTimer = null;
-      }
-      consecutiveRebuildFailures = 0;
       removePanelCard();
       removeClassicBadge();
       try { if (activeTracker && activeTracker.destroy) activeTracker.destroy(); } catch (_) {}

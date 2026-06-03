@@ -5,7 +5,6 @@ import {
   setBadgePosByHost,
   cleanupOwnedElements
 } from '../utils/toc-utils.js';
-import { uiConst } from '../utils/constants.js';
 import { createDragController } from '../utils/drag-helper.js';
 import { renderFloatingPanel } from './floating-panel.js';
 import {
@@ -13,14 +12,11 @@ import {
   clampPanelPosition
 } from './floating-panel-helpers.js';
 
-var CFG = (function() {
-  var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
-  return {
-    PANEL_WIDTH: get('PANEL_WIDTH', 280),
-    PANEL_HEIGHT: get('PANEL_HEIGHT', 400),
-    DRAG_MARGIN_PX: get('DRAG_MARGIN_PX', 4)
-  };
-})();
+var CFG = {
+  PANEL_WIDTH: 280,
+  PANEL_HEIGHT: 400,
+  DRAG_MARGIN_PX: 4
+};
 
 export function renderClassicFloatingPanel(options) {
   options = options || {};
