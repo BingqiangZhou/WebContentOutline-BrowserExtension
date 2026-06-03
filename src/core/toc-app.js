@@ -39,7 +39,6 @@ import { on } from './event-bus.js';
   var CFG = (function() {
     var get = function(name, fallback) { return (typeof uiConst === 'function') ? uiConst(name, fallback) : fallback; };
     return {
-      REBUILD_MAX_LOOPS: get('REBUILD_MAX_LOOPS', 10),
       REBUILD_COOLDOWN_MS: get('REBUILD_COOLDOWN_MS', 5000),
     };
   })();
@@ -53,16 +52,7 @@ export function initForConfig(cfg, options) {
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
     if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
-    // Per-instance rebuild flag to prevent IntersectionObserver interference
-    var isRebuilding = false;
-    var rebuildClearTimer = null;
     var destroyed = false;
-    var clearRebuildTimers = function() {
-      if (rebuildClearTimer != null) {
-        clearTimeout(rebuildClearTimer);
-        rebuildClearTimer = null;
-      }
-    };
 
     var buildNow = function() {
       try {
@@ -86,19 +76,12 @@ export function initForConfig(cfg, options) {
     var mutationObserver = null;
     var pickerInstance = null;
     var rebuildInFlight = null;
-    var rebuildQueued = false;
     var consecutiveRebuildFailures = 0;
-    var generation = 0;
     var failureCooldownTimer = null;
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
     var getNavLock = function() { return NL.isLocked(); };
-
-    var clearRebuildFlag = function() {
-      clearRebuildTimers();
-      isRebuilding = false;
-    };
 
     var isContentIdentical = function(prevItems, nextItems) {
       if (!prevItems || !nextItems) return false;
@@ -134,14 +117,10 @@ export function initForConfig(cfg, options) {
     };
 
     var rebuildOnce = async function() {
-      if (destroyed) {
-        isRebuilding = false;
-        return false;
-      }
+      if (destroyed) return false;
+
       // Early exit: if extension context is invalidated, stop all rebuilds
-      // and show notice once on existing panel (don't re-create panel).
       if (isExtensionContextInvalidated && isExtensionContextInvalidated()) {
-        clearRebuildFlag();
         if (mutationObserver && mutationObserver.disconnect) {
           try { mutationObserver.disconnect(); } catch (_) {}
         }
@@ -171,10 +150,11 @@ export function initForConfig(cfg, options) {
         }
         return;
       }
+
       // Circuit breaker: skip rebuild if too many consecutive failures
       if (consecutiveRebuildFailures >= 5) {
         if (!failureCooldownTimer) {
-          console.warn('[toc] rebuild circuit breaker active, pausing for 5s after 5 consecutive failures');
+          console.warn('[toc] rebuild circuit breaker active, pausing after 5 consecutive failures');
           try {
             failureCooldownTimer = setTimeout(function() {
               failureCooldownTimer = null;
@@ -184,19 +164,15 @@ export function initForConfig(cfg, options) {
             consecutiveRebuildFailures = 0;
           }
         }
-        clearRebuildFlag();
         return false;
       }
-      // Set rebuild flag to prevent IntersectionObserver interference
-      isRebuilding = true;
-      var myGen = generation;
-      try {
 
+      try {
         if (configDirty && updateConfigFromStorage) {
           await updateConfigFromStorage(cfg);
           configDirty = false;
         }
-        if (destroyed || generation !== myGen) { clearRebuildFlag(); return; }
+        if (destroyed) return;
 
         var prevItems = items;
         var previousActiveIndex = activeIndex;
@@ -205,44 +181,27 @@ export function initForConfig(cfg, options) {
         var newItems = buildResult.items;
         var newMeta = buildResult.meta;
 
-        // Badge mode: update in-memory items so next expand is fresh, but skip UI rebuild.
-        if (!panelInstance) {
-          tocMeta = newMeta;
-          if (isContentIdentical(prevItems, newItems)) {
-            consecutiveRebuildFailures = 0;
-            clearRebuildFlag();
-            return;
-          }
-          items = newItems;
-          syncItemViews(previousActiveItem, previousActiveIndex);
-          consecutiveRebuildFailures = 0;
-          clearRebuildFlag();
-          return;
-        }
-
-        if (getNavLock()) {
-          // Do NOT swap out the active panel's items while locked; existing event handlers
-          // still reference the old items array. Defer applying changes to the next rebuild.
-          // Reset flag when deferring rebuild
-          clearRebuildFlag();
-          return;
-        }
-
         // Skip rebuild if content is identical
         if (isContentIdentical(prevItems, newItems)) {
-          // Reset flag when content is identical
-          clearRebuildFlag();
+          consecutiveRebuildFailures = 0;
           return;
         }
 
         // Skip rebuild if both old and new are empty - no change needed
         if (prevItems.length === 0 && newItems.length === 0) {
-          clearRebuildFlag();
           return;
         }
 
         items = newItems;
         tocMeta = newMeta;
+
+        // Badge mode: update in-memory items so next expand is fresh, but skip full UI rebuild.
+        if (!panelInstance) {
+          syncItemViews(previousActiveItem, previousActiveIndex);
+          consecutiveRebuildFailures = 0;
+          return;
+        }
+
         var incrementalDone = false;
 
         if (panelInstance && panelInstance.updateItems) {
@@ -287,39 +246,17 @@ export function initForConfig(cfg, options) {
         }
         console.warn('[toc] rebuild failed:', e);
         consecutiveRebuildFailures++;
-      } finally {
-        clearRebuildFlag();
       }
     };
 
     var rebuild = async function() {
-      if (rebuildInFlight) {
-        rebuildQueued = true;
-        return rebuildInFlight;
-      }
-      rebuildInFlight = (async function() {
-        var loops = Number.isFinite(CFG.REBUILD_MAX_LOOPS) ? Math.max(1, Math.floor(CFG.REBUILD_MAX_LOOPS)) : 10;
-        for (var i = 0; i < loops; i++) {
-          if (destroyed) break;
-          rebuildQueued = false;
-          try {
-            await rebuildOnce();
-          } catch (e) {
-            console.warn('[toc] rebuildOnce threw:', e);
-          }
-          if (!rebuildQueued) break;
-          try { await new Promise(function(r) { setTimeout(r, 16); }); } catch (_) {}
-          if (i === loops - 1 && rebuildQueued) {
-            console.warn('[toc] rebuild loop capped; deferring remaining rebuild requests');
-            rebuildQueued = false;
-          }
-        }
-      })();
-      try {
-        return await rebuildInFlight;
-      } finally {
+      if (rebuildInFlight) return rebuildInFlight;
+      rebuildInFlight = rebuildOnce().catch(function(e) {
+        console.warn('[toc] rebuildOnce threw:', e);
+      }).finally(function() {
         rebuildInFlight = null;
-      }
+      });
+      return rebuildInFlight;
     };
 
     var refreshConfig = function() {
@@ -510,18 +447,14 @@ export function initForConfig(cfg, options) {
 
     var destroy = function() {
       destroyed = true;
-      generation++;
       items = [];
       rebuildInFlight = null;
-      rebuildQueued = false;
-      clearRebuildTimers();
       NL.destroy();
       if (failureCooldownTimer) {
         clearTimeout(failureCooldownTimer);
         failureCooldownTimer = null;
       }
       consecutiveRebuildFailures = 0;
-      isRebuilding = false;
       removePanelCard();
       removeClassicBadge();
       try { if (activeTracker && activeTracker.destroy) activeTracker.destroy(); } catch (_) {}
@@ -579,7 +512,7 @@ export function initForConfig(cfg, options) {
         activeTracker = createActiveItemTracker({
           items: items,
           onChange: function(_item, index) {
-            if (!isRebuilding && !getNavLock()) syncActiveIndex(index);
+            if (!rebuildInFlight && !getNavLock()) syncActiveIndex(index);
           }
         });
       }

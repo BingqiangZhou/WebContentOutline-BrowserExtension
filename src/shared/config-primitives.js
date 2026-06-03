@@ -19,38 +19,11 @@ function normalizeSelector(selector) {
 }
 
 function isHighRiskBroadCssSelector(expr) {
-  var parts = [];
-  var current = '';
-  var depth = 0;
-  var inSingle = false;
-  var inDouble = false;
-  for (var i = 0; i < expr.length; i++) {
-    var ch = expr[i];
-    if (!inDouble && ch === "'") {
-      inSingle = !inSingle;
-      current += ch;
-      continue;
-    }
-    if (!inSingle && ch === '"') {
-      inDouble = !inDouble;
-      current += ch;
-      continue;
-    }
-    if (!inSingle && !inDouble) {
-      if (ch === '(' || ch === '[') depth++;
-      else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-      else if (ch === ',' && depth === 0) {
-        parts.push(current);
-        current = '';
-        continue;
-      }
-    }
-    current += ch;
-  }
-  parts.push(current);
-
-  for (var p = 0; p < parts.length; p++) {
-    var normalized = String(parts[p] || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  // Simple split is sufficient: broad patterns (*, html *, body *, :root *)
+  // never contain commas inside quotes/brackets.
+  var parts = expr.split(',');
+  for (var i = 0; i < parts.length; i++) {
+    var normalized = String(parts[i] || '').trim().replace(/\s+/g, ' ').toLowerCase();
     if (normalized === '*' || normalized === 'html *' || normalized === 'body *' || normalized === ':root *') return true;
   }
   return false;
@@ -60,14 +33,12 @@ function isHighRiskBroadXPathExpression(expr) {
   var normalized = String(expr || '').trim().replace(/\s+/g, '').toLowerCase();
   if (!normalized) return false;
 
-  if (normalized.indexOf('//*') === 0) return true;
-  if (normalized.indexOf('.//*') === 0) return true;
-  if (normalized.indexOf('//html//*') === 0) return true;
-  if (normalized.indexOf('//body//*') === 0) return true;
-  if (normalized.indexOf('//html/descendant::*') === 0) return true;
-  if (normalized.indexOf('//body/descendant::*') === 0) return true;
-  if (normalized.indexOf('descendant::*') === 0) return true;
-  if (/^\/\/(node|text|comment)\(/i.test(normalized)) return true;
+  if (/^\x2F\x2F/.test(normalized) || /^\.\x2F/.test(normalized)) {
+    if (/^\x2F\x2F\s*\*/.test(normalized) || /^\.\x2F\s*\*/.test(normalized)) return true;
+  }
+  if (/^\x2F\x2F(html|body)\x2F(descendant-or-self::)?\*/.test(normalized)) return true;
+  if (/^descendant(-or-self)?::\*/.test(normalized)) return true;
+  if (/^\x2F\x2F(node|text|comment)\(/i.test(normalized)) return true;
 
   return false;
 }

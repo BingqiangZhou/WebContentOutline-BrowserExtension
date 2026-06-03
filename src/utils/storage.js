@@ -247,84 +247,19 @@ export function setStorage(key, value) {
         return storageSet(normalized).then(function() {
           return true;
         }).catch(function(e) {
-          // Silently handle context invalidated errors
           if (isContextInvalidatedError(e)) {
             return false;
           }
+          // On quota error, try again with aggressive pruning (no user confirmation needed)
           if (isQuotaExceededError(e)) {
-            try {
-              var shrunk = normalizeStorageValue(key, value, { aggressive: true });
-              var summarize = function(k, v) {
-                try {
-                  if (k === STORAGE_KEYS.TOC_CONFIGS && Array.isArray(v)) {
-                    var selectors = 0;
-                    for (var ci = 0; ci < v.length; ci++) {
-                      var c = v[ci];
-                      selectors += (c && Array.isArray(c.selectors)) ? c.selectors.length : 0;
-                    }
-                    return { kind: 'configs', sites: v.length, selectors: selectors };
-                  }
-                  if ((k === STORAGE_KEYS.SITE_ENABLE_MAP || k === STORAGE_KEYS.PANEL_STATE_MAP || k === STORAGE_KEYS.BADGE_POS_MAP) && isPlainObject(v)) {
-                    return { kind: 'map', keys: Object.keys(v).length };
-                  }
-                } catch (_) {}
-                return null;
-              };
-              var before = summarize(key, value);
-              var after = summarize(key, shrunk);
-              var shrunkConfigs = before && after && before.kind === 'configs' && after.kind === 'configs'
-                && (after.sites < before.sites || after.selectors < before.selectors);
-              var shrunkMap = before && after && before.kind === 'map' && after.kind === 'map' && (after.keys < before.keys);
-              var wouldPrune = !!(shrunkConfigs || shrunkMap);
-
-              if (wouldPrune) {
-                var confirmTextKey = 'confirmStorageQuotaPrune';
-                var confirmText = msg(confirmTextKey);
-                var fallbackText = 'Storage quota reached. To save this change, older data must be removed. Continue?';
-                var text = (confirmText && confirmText !== confirmTextKey) ? confirmText : fallbackText;
-                var canConfirm = (typeof window !== 'undefined' && window && typeof window.confirm === 'function');
-                if (!canConfirm) {
-                  notifyStorageWriteError(key, e);
-                  return false;
-                }
-                var ok = false;
-                try { ok = window.confirm(text); } catch (_) { ok = false; }
-                if (!ok) {
-                  var warnKey = 'warningStorageQuotaNotSaved';
-                  var warnText = msg(warnKey);
-                  var fallbackWarn = 'Storage quota reached. Changes were not saved.';
-                  if (typeof showToast === 'function') {
-                    showToast((warnText && warnText !== warnKey) ? warnText : fallbackWarn, { type: 'warning', durationMs: 5000 });
-                  }
-                  return false;
-                }
-              }
-              return storageSet(shrunk).then(function() {
-                try {
-                  if (wouldPrune && before && after) {
-                    var onceKey = 'pruned:' + String(key || '');
-                    var maxKeys = uiConst('STORAGE_ERROR_ONCE_MAX_KEYS', 200);
-                    if (trackOnce(onceKey, maxKeys)) {
-                      console.warn('[toc] storage quota reached, saved with pruning:', { key: key, before: before, after: after });
-                      var wKey = 'warningStorageQuotaPruned';
-                      var wText = msg(wKey);
-                      var fText = 'Storage quota reached. Some older data was removed to save your changes.';
-                      if (typeof showToast === 'function') {
-                        showToast((wText && wText !== wKey) ? wText : fText, { type: 'warning', durationMs: 5000 });
-                      }
-                    }
-                  }
-                } catch (_) {}
-                return true;
-              }).catch(function() {
-                return false;
-              });
-            } catch (_) {
+            var shrunk = normalizeStorageValue(key, value, { aggressive: true });
+            return storageSet(shrunk).then(function() {
+              console.warn('[toc] storage quota reached, saved with pruning:', { key: key });
+              return true;
+            }).catch(function() {
               return false;
-            }
+            });
           }
-          // Other errors (including context invalidated) are silently ignored.
-          // Context invalidated is expected when extension is reloaded without page refresh.
           return false;
         });
       }

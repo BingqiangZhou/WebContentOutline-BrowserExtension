@@ -29,11 +29,8 @@ const CONTENT_SCRIPTS = ['src/content.js'];
 const CONTENT_CSS = ['src/content.css'];
 const MAIN_WORLD_SCRIPTS = ['src/page-url-hook.js'];
 const SESSION_KEYS = {
-  INJECTED_TABS: 'tocInjectedTabs',
-  PENDING_INTENTS: 'tocPendingIntents'
+  INJECTED_TABS: 'tocInjectedTabs'
 };
-const INJECTION_COOLDOWN_MS = 1200;
-const INJECTION_PING_RETRY_MS = 200;
 const injectionInFlight = new Map();
 const actionClickInFlightByOrigin = new Set();
 
@@ -100,24 +97,17 @@ async function getEnabledByOrigin(origin) {
 
 async function setEnabledByOrigin(origin, enabled) {
   if (!origin) return { ok: false, enabled: false, quota: false, error: null };
-  // Write-ahead intent: survives service worker restart
-  const intent = { origin, enabled, ts: Date.now() };
-  await savePendingIntent(intent);
-  try {
-    return await serializedWrite('tocSiteEnabledMap', async () => {
-      const map = await getEnabledMap();
-      const prev = !!map[origin];
-      touchObjectKey(map, origin, !!enabled);
-      pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
-      const res = await saveEnabledMap(map);
-      if (!res || !res.ok) {
-        return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
-      }
-      return { ok: true, enabled: !!map[origin], quota: false, error: null };
-    });
-  } finally {
-    await clearPendingIntent(origin);
-  }
+  return serializedWrite('tocSiteEnabledMap', async () => {
+    const map = await getEnabledMap();
+    const prev = !!map[origin];
+    touchObjectKey(map, origin, !!enabled);
+    pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
+    const res = await saveEnabledMap(map);
+    if (!res || !res.ok) {
+      return { ok: false, enabled: prev, quota: !!(res && res.quota), error: res && res.error };
+    }
+    return { ok: true, enabled: !!map[origin], quota: false, error: null };
+  });
 }
 
 async function mutateTocConfigs(mutation) {
@@ -342,84 +332,6 @@ async function setSessionMap(key, map) {
   }
 }
 
-async function savePendingIntent(intent) {
-  try {
-    if (!intent || !intent.origin) return;
-    await serializedWrite('tocPendingIntents', async () => {
-      const map = await getSessionMap(SESSION_KEYS.PENDING_INTENTS);
-      map[intent.origin] = intent;
-      await setSessionMap(SESSION_KEYS.PENDING_INTENTS, map);
-    });
-  } catch (_) {}
-}
-
-async function clearPendingIntent(origin) {
-  try {
-    if (!origin) {
-      await chrome.storage.session.remove(['__tocPendingIntent', SESSION_KEYS.PENDING_INTENTS]);
-      return;
-    }
-    await serializedWrite('tocPendingIntents', async () => {
-      const map = await getSessionMap(SESSION_KEYS.PENDING_INTENTS);
-      if (Object.prototype.hasOwnProperty.call(map, origin)) {
-        delete map[origin];
-        await setSessionMap(SESSION_KEYS.PENDING_INTENTS, map);
-      }
-      try {
-        const legacy = await getLegacyPendingIntent();
-        if (legacy && legacy.origin === origin) {
-          await chrome.storage.session.remove('__tocPendingIntent');
-        }
-      } catch (_) {}
-    });
-  } catch (_) {}
-}
-
-async function getLegacyPendingIntent() {
-  try {
-    const result = await chrome.storage.session.get('__tocPendingIntent');
-    return result && result['__tocPendingIntent'] || null;
-  } catch (_) {
-    return null;
-  }
-}
-
-async function getPendingIntents() {
-  const intents = [];
-  try {
-    await serializedWrite('tocPendingIntents', async () => {
-      const map = await getSessionMap(SESSION_KEYS.PENDING_INTENTS);
-      const now = Date.now();
-      let changed = false;
-      for (const origin of Object.keys(map)) {
-        const intent = map[origin];
-        if (intent && intent.origin && Number.isFinite(intent.ts) && (now - intent.ts) < 60000) {
-          intents.push(intent);
-        } else {
-          delete map[origin];
-          changed = true;
-        }
-      }
-      if (changed) {
-        await setSessionMap(SESSION_KEYS.PENDING_INTENTS, map);
-      }
-    });
-  } catch (_) {}
-
-  try {
-    const legacy = await getLegacyPendingIntent();
-    if (legacy && legacy.origin && Number.isFinite(legacy.ts) && (Date.now() - legacy.ts) < 60000) {
-      if (!intents.some(intent => intent.origin === legacy.origin)) {
-        intents.push(legacy);
-      }
-    } else if (legacy) {
-      await chrome.storage.session.remove('__tocPendingIntent');
-    }
-  } catch (_) {}
-
-  return intents;
-}
-
 async function getInjectedState(tabId) {
   const map = await getSessionMap(SESSION_KEYS.INJECTED_TABS);
   return map[String(tabId)] || null;
@@ -435,10 +347,6 @@ async function setInjectedState(tabId, state) {
     }
     await setSessionMap(SESSION_KEYS.INJECTED_TABS, map);
   });
-}
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function setInjectionBadge(tabId, failed) {
@@ -483,7 +391,6 @@ async function injectIntoTab(tabId) {
     console.warn('[toc] injectIntoTab failed (css):', cssResult.error, { tabId });
     return cssResult;
   }
-  const cssInserted = cssResult.inserted;
 
   if (MAIN_WORLD_SCRIPTS.length) {
     try {
@@ -497,32 +404,17 @@ async function injectIntoTab(tabId) {
     }
   }
 
-  const removeCssOnFailure = async () => {
-    if (!cssInserted) return;
-    try {
-      await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
-    } catch (removeErr) {
-      console.warn('[toc] removeCSS failed after js error:', removeErr, { tabId });
-    }
-  };
-
-  // Fast path: inject all JS files in one call (keeps current file-based structure).
   try {
     if (CONTENT_SCRIPTS.length) {
       await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS });
     }
   } catch (e) {
-    console.warn('[toc] injectIntoTab failed (js bundle):', e, { tabId });
-    // Fallback: inject sequentially so we can surface the exact failing file.
-    for (const file of CONTENT_SCRIPTS) {
-      try {
-        await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
-      } catch (seqErr) {
-        console.warn('[toc] injectIntoTab failed (js):', seqErr, { tabId, file });
-        await removeCssOnFailure();
-        return { ok: false, step: 'js', file, error: seqErr };
-      }
-    }
+    console.warn('[toc] injectIntoTab failed (js):', e, { tabId });
+    // Best-effort CSS cleanup on failure
+    try {
+      await chrome.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS });
+    } catch (_) {}
+    return { ok: false, step: 'js', error: e };
   }
 
   return { ok: true };
@@ -546,9 +438,10 @@ async function ensureContentScript(tabId, url) {
   if (inFlight) return await inFlight;
 
   const injectPromise = (async () => {
-    const state = await getInjectedState(tabId);
     const pingOk = await pingContentScript(tabId);
     if (pingOk) {
+      // Script already running; just re-inject CSS if needed and update state
+      const state = await getInjectedState(tabId);
       if (!state || state.url !== url) {
         const cssResult = await insertInjectedCss(tabId);
         if (!cssResult.ok) {
@@ -562,16 +455,7 @@ async function ensureContentScript(tabId, url) {
       return true;
     }
 
-    if (state && state.url === url && Date.now() - state.ts < INJECTION_COOLDOWN_MS) {
-      await sleep(INJECTION_PING_RETRY_MS);
-      const retryOk = await pingContentScript(tabId);
-      if (retryOk) {
-        await setInjectedState(tabId, { url, ts: Date.now() });
-        await setInjectionBadge(tabId, false);
-        return true;
-      }
-    }
-
+    // Need fresh injection
     const result = await injectIntoTab(tabId);
     if (result.ok) {
       await setInjectedState(tabId, { url, ts: Date.now() });
@@ -735,41 +619,11 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   try { __iconUpdateState.delete(tabId); } catch (_) {}
 });
 
-// Periodic cleanup for orphaned entries using chrome.alarms (survives service worker suspension)
-try {
-  chrome.alarms.get('tocCleanup', (existing) => {
-    if (!existing) {
-      chrome.alarms.create('tocCleanup', { periodInMinutes: 5 });
-    }
-  });
-} catch (_) {}
-chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== 'tocCleanup') return;
-  chrome.tabs.query({}).then(tabs => {
-    const validTabIds = new Set(tabs.map(t => t.id));
-    for (const [tabId, state] of __iconUpdateState) {
-      if (!validTabIds.has(tabId)) {
-        __iconUpdateState.delete(tabId);
-      }
-    }
-  }).catch(() => {});
+// Clean up icon update state for closed tabs on tab removal
+chrome.tabs.onRemoved.addListener((tabId) => {
+  setInjectedState(tabId, null).catch(() => {});
+  __iconUpdateState.delete(tabId);
 });
-
-async function recoverPendingIntent() {
-  try {
-    const pendingIntents = await getPendingIntents();
-    for (const pending of pendingIntents) {
-      console.debug('[toc] recovering pending toggle intent:', pending);
-      // Clear intent BEFORE calling setEnabledByOrigin to prevent double-save
-      // on service worker kill during recovery
-      await clearPendingIntent(pending.origin);
-      const saved = await setEnabledByOrigin(pending.origin, pending.enabled);
-      const enabled = saved && saved.ok ? saved.enabled : !!pending.enabled;
-      await updateIconsForOrigin(pending.origin);
-      await broadcastEnabledToOrigin(pending.origin, enabled);
-    }
-  } catch (_) {}
-}
 
 async function processAllTabs() {
   const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
@@ -788,7 +642,6 @@ async function processAllTabs() {
 chrome.runtime.onInstalled.addListener(async () => {
   try {
     await setGlobalDefaultIconDisabled();
-    await recoverPendingIntent();
     await processAllTabs();
   } catch (e) {
     console.warn('[toc] onInstalled failed:', e);
@@ -797,7 +650,6 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(async () => {
   try {
-    await recoverPendingIntent();
     await setGlobalDefaultIconDisabled();
     await processAllTabs();
   } catch (e) {
@@ -806,7 +658,6 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 (async () => {
-  await recoverPendingIntent();
   await setGlobalDefaultIconDisabled();
 })().catch(e => console.warn('[toc] initial icon setup failed:', e));
 

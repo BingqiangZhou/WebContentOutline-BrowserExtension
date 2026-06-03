@@ -1,23 +1,18 @@
 'use strict';
 
-import { collectBySelector, uniqueInDocumentOrder } from '../utils/dom-utils.js';
-import { getBoundedText } from '../utils/bounded-text.js';
-
   /**
    * Creates a URL change monitor that detects pushState, replaceState,
-   * popstate, and hashchange events. Also provides a polling fallback
-   * that detects content changes via signature comparison.
+   * popstate, and hashchange events. Also polls URL changes as a fallback
+   * for environments where custom events are not reliably dispatched.
    *
    * @param {object} opts
    * @param {function} opts.uiConst - UI constant getter
    * @param {function} [opts.checkAndReconnect] - Callback to reconnect DOM watcher
-   * @param {boolean} [opts.mutationObserverAvailable] - Whether MutationObserver is active
    * @returns {object}
    */
 export function createUrlMonitor(opts) {
     var uiConst = opts && opts.uiConst;
     var checkAndReconnect = (opts && opts.checkAndReconnect) || null;
-    var mutationObserverAvailable = !opts || opts.mutationObserverAvailable !== false;
 
     // State
     var lastKnownUrl = '';
@@ -28,71 +23,9 @@ export function createUrlMonitor(opts) {
 
     // Polling fallback state
     var pollTimer = null;
-    var lastContentSignature = null;
-    var hasContentSignature = false;
-    var elementIds = typeof WeakMap === 'function' ? new WeakMap() : null;
-    var nextElementId = 1;
 
     var isContextValid = true;
     var onChangeCallback = null;
-
-    function getElementId(el) {
-      if (!el || !elementIds) return 0;
-      var existing = elementIds.get(el);
-      if (existing) return existing;
-      var id = nextElementId++;
-      elementIds.set(el, id);
-      return id;
-    }
-
-    function appendToHash(hash, value) {
-      var text = String(value || '');
-      for (var i = 0; i < text.length; i++) {
-        hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0;
-      }
-      return hash;
-    }
-
-    function getPollingSelectors(cfg) {
-      var selectors = cfg && Array.isArray(cfg.selectors) ? cfg.selectors.filter(function(selector) {
-        return selector && (selector.type === 'css' || selector.type === 'xpath') && selector.expr;
-      }) : [];
-      return selectors.length ? selectors : [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6' }];
-    }
-
-    function computeContentSignature(cfg) {
-      try {
-        var selectors = getPollingSelectors(cfg);
-        var candidates = [];
-        var maxCandidates = 400;
-        for (var i = 0; i < selectors.length && candidates.length < maxCandidates; i++) {
-          var remaining = maxCandidates - candidates.length;
-          var found = collectBySelector(selectors[i], remaining);
-          for (var j = 0; j < found.length && candidates.length < maxCandidates; j++) {
-            candidates.push(found[j]);
-          }
-        }
-        var els = uniqueInDocumentOrder(candidates).slice(0, maxCandidates);
-        var hash = 0;
-        for (var k = 0; k < els.length; k++) {
-          var el = els[k];
-          hash = appendToHash(hash, getElementId(el));
-          hash = appendToHash(hash, el.tagName || '');
-          if (!mutationObserverAvailable) {
-            var text = '';
-            if (typeof getBoundedText === 'function') {
-              text = getBoundedText(el, { maxChars: 200, maxNodes: 80, maxDepth: 6 });
-            } else {
-              try { text = String(el.textContent || '').slice(0, 200); } catch (_) { text = ''; }
-            }
-            hash = appendToHash(hash, text);
-          }
-        }
-        return els.length + ':' + hash;
-      } catch (_) {
-        return null;
-      }
-    }
 
     function onUrlChange() {
       if (!isContextValid) return;
@@ -113,17 +46,20 @@ export function createUrlMonitor(opts) {
       }, dedupMs);
     }
 
-    function startPolling(cfg) {
+    function startPolling() {
       stopPolling();
-      var POLL_INTERVAL_MS = (typeof uiConst === 'function') ? uiConst('POLL_INTERVAL_MS', 3000) : 3000;
-      var POLL_INTERVAL_THROTTLED_MS = (typeof uiConst === 'function') ? uiConst('POLL_INTERVAL_THROTTLED_MS', 10000) : 10000;
-      var activeInterval = mutationObserverAvailable ? POLL_INTERVAL_THROTTLED_MS : POLL_INTERVAL_MS;
+      var POLL_INTERVAL_MS = (typeof uiConst === 'function') ? uiConst('POLL_INTERVAL_THROTTLED_MS', 10000) : 10000;
 
       function poll() {
-        if (!isContextValid || document.hidden) {
-          pollTimer = setTimeout(poll, POLL_INTERVAL_THROTTLED_MS);
+        if (!isContextValid) {
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
           return;
         }
+        if (document.hidden) {
+          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+          return;
+        }
+        // Detect URL changes that may have been missed by event listeners
         if (location.href !== lastKnownUrl) {
           onUrlChange();
         }
@@ -131,20 +67,9 @@ export function createUrlMonitor(opts) {
           checkAndReconnect();
         }
 
-        var sig = computeContentSignature(cfg);
-        if (sig !== null && !hasContentSignature) {
-          lastContentSignature = sig;
-          hasContentSignature = true;
-        } else if (sig !== null && sig !== lastContentSignature) {
-          lastContentSignature = sig;
-          if (typeof onChangeCallback === 'function') {
-            onChangeCallback(false); // not immediate, will go through debounce
-          }
-        }
-
-        pollTimer = setTimeout(poll, activeInterval);
+        pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
       }
-      pollTimer = setTimeout(poll, activeInterval);
+      pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
     }
 
     function stopPolling() {
@@ -155,7 +80,6 @@ export function createUrlMonitor(opts) {
     }
 
     function setupUrlHooks() {
-      // Clean up any previous hooks
       teardownUrlHooks();
 
       try {
@@ -195,18 +119,14 @@ export function createUrlMonitor(opts) {
       stop();
       isContextValid = true;
       onChangeCallback = onChange || null;
-      lastContentSignature = null;
-      hasContentSignature = false;
       setupUrlHooks();
-      startPolling(cfg);
+      startPolling();
     }
 
     function stop() {
       teardownUrlHooks();
       stopPolling();
       onChangeCallback = null;
-      lastContentSignature = null;
-      hasContentSignature = false;
     }
 
     function invalidate() {

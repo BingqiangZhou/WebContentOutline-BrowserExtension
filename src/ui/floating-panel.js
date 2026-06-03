@@ -53,12 +53,10 @@ export function renderFloatingPanel(opts) {
       'unlock',
       'scrollStop',
       'pendingRebuildRecheck',
-      'expandAnim',
-      'removal'
+      'expandAnim'
     ]);
 
     var showRaf = null;
-    var removalObserver = null;
     var cleanedUp = false;
     var onPanelKeydown = null;
     var onListClick = null;
@@ -304,23 +302,9 @@ export function renderFloatingPanel(opts) {
 
     var origRemove = panel.remove.bind(panel);
 
-    var stopRemovalWatch = function() {
-      if (removalObserver) {
-        try { removalObserver.disconnect(); } catch (_) {}
-        removalObserver = null;
-      }
-      if (timers.removal != null) {
-        clearTimeout(timers.removal);
-        timers.removal = null;
-      }
-    };
-
-    var cleanup = function(opts) {
-      opts = opts || {};
-      var removedExternally = opts.removedExternally;
+    var cleanup = function() {
       if (cleanedUp) return;
       cleanedUp = true;
-      stopRemovalWatch();
       try { if (onListClick) list.removeEventListener('click', onListClick); } catch (_) {}
       try { if (onListKeydown) list.removeEventListener('keydown', onListKeydown); } catch (_) {}
       onListClick = null;
@@ -336,60 +320,17 @@ export function renderFloatingPanel(opts) {
         if (showRaf != null) cancelAnimationFrame(showRaf);
       } catch (_) {}
       showRaf = null;
-
-      if (!removedExternally) {
-        try {
-          if (panel && panel.isConnected) origRemove();
-        } catch (_) {}
-      }
     };
 
-    try {
-      panel.__TOC_CLEANUP__ = function() { cleanup({ removedExternally: true }); };
-    } catch (_) {}
-
-    var startRemovalWatch = function() {
-      stopRemovalWatch();
-      if (typeof MutationObserver !== 'undefined' && document && document.documentElement) {
-        try {
-          removalObserver = new MutationObserver(function() {
-            if (cleanedUp) return;
-            if (panel && panel.isConnected) return;
-            cleanup({ removedExternally: true });
-          });
-          var targets = [];
-          if (panel.parentNode) targets.push(panel.parentNode);
-          var ownerRoot = panel.closest && panel.closest('[data-toc-owner="web-toc-assistant"]');
-          var ownerParent = ownerRoot && ownerRoot.parentNode;
-          if (!ownerParent) ownerParent = document.documentElement;
-          if (ownerParent && targets.indexOf(ownerParent) < 0) {
-            targets.push(ownerParent);
-          }
-          targets.forEach(function(target) {
-            removalObserver.observe(target, { childList: true });
-          });
-          return;
-        } catch (_) {
-          removalObserver = null;
-        }
-      }
-
-      var tick = function() {
-        timers.removal = null;
-        if (cleanedUp) return;
-        if (panel && panel.isConnected) {
-          // MutationObserver isn't available; poll at a low frequency to avoid per-frame CPU use.
-          try { timers.removal = setTimeout(tick, 1000); } catch (_) {}
-          return;
-        }
-        cleanup({ removedExternally: true });
-      };
-      try { timers.removal = setTimeout(tick, 1000); } catch (_) {}
+    panel.remove = function() {
+      cleanup();
+      try {
+        if (panel && panel.isConnected) origRemove();
+      } catch (_) {}
     };
 
-    startRemovalWatch();
-
-    panel.remove = function() { cleanup({ removedExternally: false }); };
+    // Used by cleanupOwnedElements() for teardown
+    panel.__TOC_CLEANUP__ = function() { cleanup(); };
 
     var updateItems = function(newItems, newTocMeta) {
       if (cleanedUp) return false;

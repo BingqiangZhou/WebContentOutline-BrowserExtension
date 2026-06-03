@@ -45,7 +45,6 @@ import { initForConfig } from './core/toc-app.js';
   var enabledTransition = Promise.resolve();
   var uiModeTransition = Promise.resolve();
   var currentUiMode = 'edge-dock';
-  var currentConfigSignature = '';
   var startInFlight = null;
   var disposed = false;
   var listenersAttached = false;
@@ -93,8 +92,8 @@ import { initForConfig } from './core/toc-app.js';
     if (cleanupOwnedElements) cleanupOwnedElements();
 
     // Allow reinjection to reinitialize cleanly.
-    try { window.__TOC_ASSISTANT_LOADED__ = false; } catch (_) {}
-    try { window.__TOC_ASSISTANT_CLEANUP__ = null; } catch (_) {}
+    window.__TOC_ASSISTANT_LOADED__ = false;
+    window.__TOC_ASSISTANT_CLEANUP__ = null;
     try { delete window.__TOC_ASSISTANT_CLEANUP__; } catch (_) {}
 
     if (opts && opts.reason) {
@@ -103,7 +102,7 @@ import { initForConfig } from './core/toc-app.js';
   }
 
   // Expose a best-effort cleanup hook (useful for dev reload / reinjection).
-  try { window.__TOC_ASSISTANT_CLEANUP__ = dispose; } catch (_) {}
+  window.__TOC_ASSISTANT_CLEANUP__ = dispose;
 
   function getDefaultConfig() {
     return {
@@ -113,122 +112,38 @@ import { initForConfig } from './core/toc-app.js';
     };
   }
 
-  function selectorListSignature(selectors) {
-    var list = Array.isArray(selectors) ? selectors : [];
-    var parts = [];
-    for (var i = 0; i < list.length; i++) {
-      var selector = list[i] || {};
-      parts.push(String(selector.type || '') + ':' + String(selector.expr || ''));
-    }
-    return parts.join('|');
-  }
-
-  function configSignatureFor(configs) {
-    var cfg = findMatchingConfig(configs || [], location.href) || getDefaultConfig();
-    return [
-      String(cfg.urlPattern || ''),
-      cfg.side === 'left' ? 'left' : 'right',
-      selectorListSignature(cfg.selectors)
-    ].join('\n');
-  }
-
+  // Simple last-writer-wins migration of legacy badge position.
+  // The worst case is two tabs write the same value, which is harmless.
   async function migrateLegacyBadgePos() {
     try {
       if (!setBadgePosByHost) return;
       var legacyKey = 'tocBadgePos::' + location.host;
-      var lockKey = legacyKey + '::migrating';
       var raw = localStorage.getItem(legacyKey);
       if (!raw) return;
       var parsed = safeJsonParse ? safeJsonParse(raw) : null;
-      var hasOwn = function(obj, key) { return !!(obj && Object.prototype.hasOwnProperty.call(obj, key)); };
-      if (isPlainObject && isPlainObject(parsed) && hasOwn(parsed, 'left') && hasOwn(parsed, 'top')) {
-        var left = getFiniteNumber ? getFiniteNumber(parsed.left) : (typeof parsed.left === 'number' ? parsed.left : null);
-        var top = getFiniteNumber ? getFiniteNumber(parsed.top) : (typeof parsed.top === 'number' ? parsed.top : null);
-        if (left === null || top === null) return;
+      if (!isPlainObject || !isPlainObject(parsed)) return;
+      if (!Object.prototype.hasOwnProperty.call(parsed, 'left') || !Object.prototype.hasOwnProperty.call(parsed, 'top')) return;
 
-        // Best-effort cross-tab coordination to avoid two tabs migrating at the same time.
-        var token = Date.now() + ':' + Math.random().toString(36).slice(2);
-        var electedLeader = false;
-        var storageLockAcquired = false;
+      var left = getFiniteNumber ? getFiniteNumber(parsed.left) : (typeof parsed.left === 'number' ? parsed.left : null);
+      var top = getFiniteNumber ? getFiniteNumber(parsed.top) : (typeof parsed.top === 'number' ? parsed.top : null);
+      if (left === null || top === null) return;
 
-        // Prefer BroadcastChannel election when available (reduces last-writer-wins races across tabs).
-        if (typeof BroadcastChannel === 'function') {
-          var bc = null;
-          var isLeader = false;
-          var channelName = 'tocBadgePosMigrate::' + location.host;
-          var seen = new Set([token]);
-          var onMsg = function(ev) {
-            try {
-              var data = ev && ev.data;
-              if (!data || data.type !== 'claim' || !data.token) return;
-              seen.add(String(data.token));
-            } catch (_) {}
-          };
-          try {
-            bc = new BroadcastChannel(channelName);
-            bc.addEventListener('message', onMsg);
-            try { bc.postMessage({ type: 'claim', token: token }); } catch (_) {}
-            await new Promise(function(r) { setTimeout(r, 120); });
-            var leader = Array.from(seen).sort()[0];
-            isLeader = (leader === token);
-          } catch (_) {}
-          finally {
-            if (bc) {
-              try { bc.removeEventListener('message', onMsg); } catch (_) {}
-              try { bc.close(); } catch (_) {}
-            }
-          }
-          if (!isLeader) return;
-          electedLeader = true;
-        }
+      // Already migrated by another tab?
+      var existing = getBadgePosByHost ? await getBadgePosByHost(location.host) : null;
+      if (existing && Number.isFinite(existing.x) && Number.isFinite(existing.y)) {
+        localStorage.removeItem(legacyKey);
+        return;
+      }
 
-        // Fallback: localStorage lock with TTL.
-        if (!electedLeader) {
-          try {
-            var lockRaw = localStorage.getItem(lockKey);
-            var lock = safeJsonParse ? safeJsonParse(lockRaw || '') : null;
-            var lockTs = lock && typeof lock.ts === 'number' ? lock.ts : 0;
-            var stale = !lockTs || (Date.now() - lockTs) > 15000;
-            if (!stale && lock && lock.token) return;
-            localStorage.setItem(lockKey, JSON.stringify({ token: token, ts: Date.now() }));
-            var confirm = safeJsonParse ? safeJsonParse(localStorage.getItem(lockKey) || '') : null;
-            if (!confirm || confirm.token !== token) return;
-            storageLockAcquired = true;
-          } catch (_) {}
-        }
+      var bw = uiConst('BADGE_WIDTH', 80);
+      var bh = uiConst('BADGE_HEIGHT', 32);
+      var x = left + bw / 2;
+      var y = top + bh / 2;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 
-        try {
-          // Another tab may have migrated while we were electing/locking.
-          try {
-            var stillThere = localStorage.getItem(legacyKey);
-            if (!stillThere) return;
-          } catch (_) {}
-          var existing = getBadgePosByHost ? await getBadgePosByHost(location.host) : null;
-          if (existing && Number.isFinite(existing.x) && Number.isFinite(existing.y)) {
-            localStorage.removeItem(legacyKey);
-            return;
-          }
-
-          var bw = (typeof uiConst === 'function') ? uiConst('BADGE_WIDTH', 80) : 80;
-          var bh = (typeof uiConst === 'function') ? uiConst('BADGE_HEIGHT', 32) : 32;
-          var x = left + bw / 2;
-          var y = top + bh / 2;
-          if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-
-          var saved = await setBadgePosByHost(location.host, { x: x, y: y, updatedAt: Date.now() });
-          if (saved) {
-            try {
-              var after = getBadgePosByHost ? await getBadgePosByHost(location.host) : null;
-              if (after && Number.isFinite(after.x) && Number.isFinite(after.y)) {
-                localStorage.removeItem(legacyKey);
-              }
-            } catch (_) {}
-          }
-        } finally {
-          if (storageLockAcquired) {
-            try { localStorage.removeItem(lockKey); } catch (_) {}
-          }
-        }
+      var saved = await setBadgePosByHost(location.host, { x: x, y: y, updatedAt: Date.now() });
+      if (saved) {
+        localStorage.removeItem(legacyKey);
       }
     } catch (_) {}
   }
@@ -250,7 +165,6 @@ import { initForConfig } from './core/toc-app.js';
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
-      currentConfigSignature = configSignatureFor(configs);
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
         onSwitchUiMode: requestUiMode
@@ -483,13 +397,9 @@ import { initForConfig } from './core/toc-app.js';
         }
         var configChange = changes && changes[TOC_CONFIGS_KEY];
         if (configChange && currentEnabled && appInstance && appInstance.refreshConfig) {
-          var nextConfigSignature = configSignatureFor(configChange.newValue || []);
-          if (nextConfigSignature !== currentConfigSignature) {
-            currentConfigSignature = nextConfigSignature;
-            Promise.resolve(appInstance.refreshConfig()).catch(function(e) {
-              console.warn(msg('logPrefix') + ' config refresh failed:', e);
-            });
-          }
+          Promise.resolve(appInstance.refreshConfig()).catch(function(e) {
+            console.warn(msg('logPrefix') + ' config refresh failed:', e);
+          });
         }
         var ch = changes && changes[KEY];
         if (!ch) return;

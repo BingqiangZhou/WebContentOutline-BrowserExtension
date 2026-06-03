@@ -88,63 +88,16 @@ export function isSafeXPathExpression(expr) {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
     if (!trimmed) return false;
-    if (trimmed.length > uiConst('XPATH_MAX_LENGTH', 2000)) return false;
+    if (trimmed.length > 2000) return false;
 
     // Avoid extremely broad document scans that are likely to be slow.
     if (isHighRiskBroadXPathExpression(trimmed)) return false;
 
     // Disallow control characters.
-    for (var i = 0; i < trimmed.length; i++) {
-      var code = trimmed.charCodeAt(i);
-      if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
-    }
+    if (/[\x00-\x1F\x7F]/.test(trimmed)) return false;
 
-    // Basic structural checks: balanced quotes/brackets/parentheses, and avoid extreme nesting.
-    var inSingle = false;
-    var inDouble = false;
-    var parenDepth = 0;
-    var bracketDepth = 0;
-    var MAX_NESTING = 64;
-    for (var i = 0; i < trimmed.length; i++) {
-      var ch = trimmed[i];
-      if (!inDouble && ch === "'") {
-        inSingle = !inSingle;
-        continue;
-      }
-      if (!inSingle && ch === '"') {
-        inDouble = !inDouble;
-        continue;
-      }
-      if (inSingle || inDouble) continue;
-      if (ch === '(') parenDepth++;
-      if (ch === ')') parenDepth--;
-      if (ch === '[') bracketDepth++;
-      if (ch === ']') bracketDepth--;
-      if (parenDepth < 0 || bracketDepth < 0) return false;
-      if (parenDepth > MAX_NESTING || bracketDepth > MAX_NESTING) return false;
-    }
-    if (inSingle || inDouble) return false;
-    if (parenDepth !== 0 || bracketDepth !== 0) return false;
-
-    // Reject namespace prefixes (e.g. ns:div) because we evaluate without a namespace resolver.
-    // Allow axis specifiers like following-sibling::.
-    var nsInSingle = false;
-    var nsInDouble = false;
-    for (var i = 0; i < trimmed.length; i++) {
-      var ch = trimmed[i];
-      if (!nsInDouble && ch === "'") { nsInSingle = !nsInSingle; continue; }
-      if (!nsInSingle && ch === '"') { nsInDouble = !nsInDouble; continue; }
-      if (nsInSingle || nsInDouble) continue;
-      if (ch === ':') {
-        var prev = trimmed[i - 1] || '';
-        var next = trimmed[i + 1] || '';
-        if (prev !== ':' && next !== ':') return false;
-      }
-    }
-
-    // Browser XPath support is limited, but reject common external-document/function patterns anyway.
-    var forbiddenFn = /(^|[^A-Za-z0-9_-])(document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i;
-    if (forbiddenFn.test(trimmed)) return false;
+    // Reject external document/function patterns.
+    if (/(?:^|[^A-Za-z0-9_-])(?:document|doc|doc-available|collection|unparsed-text|unparsed-text-available)\s*\(/i.test(trimmed)) return false;
 
     return true;
   }
@@ -161,7 +114,6 @@ export function isHighRiskBroadXPathExpression(expr) {
     if (normalized.indexOf('//html/descendant::*') === 0) return true;
     if (normalized.indexOf('//body/descendant::*') === 0) return true;
     if (normalized.indexOf('descendant::*') === 0) return true;
-    if (/^\/\/(node|text|comment)\(/i.test(normalized)) return true;
 
     return false;
   }
@@ -172,12 +124,8 @@ export function isValidCssSelector(expr) {
     var trimmed = expr.trim();
     if (!trimmed) return false;
     // Disallow control chars
-    for (var i = 0; i < trimmed.length; i++) {
-      var code = trimmed.charCodeAt(i);
-      if ((code >= 0x0000 && code <= 0x001F) || code === 0x007F) return false;
-    }
-    var maxLen = uiConst('CSS_SELECTOR_MAX_LENGTH', 2000);
-    if (trimmed.length > maxLen) return false;
+    if (/[\x00-\x1F\x7F]/.test(trimmed)) return false;
+    if (trimmed.length > 2000) return false;
     if (isHighRiskBroadCssSelector(trimmed)) return false;
     try {
       // Syntax validation without querying the page DOM.
@@ -199,38 +147,12 @@ export function isValidCssSelector(expr) {
 
 export function isHighRiskBroadCssSelector(expr) {
     if (typeof expr !== 'string') return false;
-    var parts = [];
-    var current = '';
-    var depth = 0;
-    var inSingle = false;
-    var inDouble = false;
-    for (var i = 0; i < expr.length; i++) {
-      var ch = expr[i];
-      if (!inDouble && ch === "'") {
-        inSingle = !inSingle;
-        current += ch;
-        continue;
-      }
-      if (!inSingle && ch === '"') {
-        inDouble = !inDouble;
-        current += ch;
-        continue;
-      }
-      if (!inSingle && !inDouble) {
-        if (ch === '(' || ch === '[') depth++;
-        else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
-        else if (ch === ',' && depth === 0) {
-          parts.push(current);
-          current = '';
-          continue;
-        }
-      }
-      current += ch;
-    }
-    parts.push(current);
-
-    for (var p = 0; p < parts.length; p++) {
-      var normalized = String(parts[p] || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    // Check each comma-separated part for overly broad patterns.
+    // Broad patterns like *, html *, body *, :root * don't contain commas inside quotes/brackets,
+    // so a simple split is sufficient for this safety check.
+    var parts = expr.split(',');
+    for (var i = 0; i < parts.length; i++) {
+      var normalized = String(parts[i] || '').trim().replace(/\s+/g, ' ').toLowerCase();
       if (normalized === '*' || normalized === 'html *' || normalized === 'body *' || normalized === ':root *') return true;
     }
     return false;

@@ -11,46 +11,44 @@
 - **产物**: `dist/build/src/content.js` 是 Chrome MV3 实际动态注入的 bundle
 - **兼容**: 仅保留 `window.__TOC_ASSISTANT_CLEANUP__` 清理钩子，不再依赖全局模块命名空间
 
-## 📁 文件结构与代码统计
+## 📁 文件结构
 
 ```
 src/
-├── content.js                  # 内容脚本入口 (469行) - 应用启动、重注入清理、消息/storage listener
-├── background.js               # MV3 service worker (758行) - 图标状态、站点开关、动态注入
-├── content.css                 # 样式文件 (1,062行) - 包含防御性CSS保护、CSS自定义属性主题、动画
+├── content.js                  # 内容脚本入口 - 应用启动、重注入清理、消息/storage listener
+├── background.js               # MV3 service worker - 图标状态、站点开关、动态注入
+├── content.css                 # 样式文件 - 包含防御性CSS保护、CSS自定义属性主题、动画
 ├── README.md                   # 项目文档
 ├── shared/                     # background 与内容脚本共享的存储原语
 │   └── storage-primitives.js   # ESM 源码；构建时另产出 background 可 importScripts 的 IIFE
-├── utils/                      # 工具模块 (1,546行)
-│   ├── constants.js            # (75行)  STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
-│   ├── core-utils.js           # (218行) 通用工具：消息、校验、焦点管理、JSON解析
-│   ├── toast.js                # (91行)  Toast 提示
-│   ├── storage.js              # (412行) 存储操作：getConfigs/saveConfigs 等
-│   ├── badge-position.js       # (128行) 工具条锚点位置管理（兼容旧键名）
-│   ├── dom-utils.js            # (176行) DOM操作：选择器执行、元素去重、配置匹配
-│   ├── css-selector.js         # (52行)  CSS选择器生成算法
-│   ├── toc-builder.js          # (139行) TOC构建：选择器执行、元素过滤、项目映射
-│   ├── drag-helper.js          # (165行) 拖拽辅助
-│   ├── focus-trap.js           # (49行)  焦点陷阱
-│   └── toc-utils.js            # (19行)  barrel 重导出模块
+├── utils/                      # 工具模块
+│   ├── constants.js            # STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
+│   ├── core-utils.js           # 通用工具：消息、校验、焦点管理、JSON解析
+│   ├── toast.js                # Toast 提示
+│   ├── storage.js              # 存储操作：getConfigs/saveConfigs 等
+│   ├── badge-position.js       # 工具条锚点位置管理（兼容旧键名）
+│   ├── dom-utils.js            # DOM操作：选择器执行、元素去重、配置匹配
+│   ├── css-selector.js         # CSS选择器生成算法
+│   ├── toc-builder.js          # TOC构建：选择器执行、元素过滤、项目映射
+│   ├── drag-helper.js          # 拖拽辅助
+│   ├── focus-trap.js           # 焦点陷阱
+│   └── toc-utils.js            # barrel 重导出模块
 ├── ui/                         # UI组件
 │   ├── edge-dock.js            # 吸附式工具条与纯 hover 目录状态
 │   ├── classic-collapsed-badge.js # 经典文字徽章交互
 │   ├── classic-floating-panel.js  # 经典自由拖拽面板壳层
-│   ├── element-picker.js       # (272行) 元素拾取器
+│   ├── element-picker.js       # 元素拾取器
 │   ├── floating-panel-helpers.js # 浮动面板辅助函数
 │   └── floating-panel.js       # 轻量目录卡片
-└── core/                       # 核心逻辑 (1,711行)
-    ├── toc-app.js              # (658行) 主应用协调器
-    ├── config-manager.js       # (343行) 配置管理
-    ├── rebuild-scheduler.js    # (253行) 重建调度器
-    ├── url-monitor.js          # (196行) URL变化监测
-    ├── dom-watcher.js          # (162行) DOM变化监测
-    ├── nav-lock.js             # (78行)  导航锁
-    └── event-bus.js            # (21行)  事件总线
+└── core/                       # 核心逻辑
+    ├── toc-app.js              # 主应用协调器
+    ├── config-manager.js       # 配置管理
+    ├── rebuild-scheduler.js    # 重建调度器
+    ├── url-monitor.js          # URL变化监测
+    ├── dom-watcher.js          # DOM变化监测
+    ├── nav-lock.js             # 导航锁
+    └── event-bus.js            # 事件总线
 ```
-
-总计约 6,639 行源码。
 
 ## 🔧 模块加载机制
 
@@ -84,21 +82,21 @@ if (isExtensionContextInvalidated()) {
 
 ## 🎯 核心功能模块详解
 
-### 工具模块层 (1,546行)
+### 工具模块层
 
-**constants.js** (76行) — 常量定义
+**constants.js** — 常量定义
 - `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap, tocUiMode）
 - `UI_CONSTANTS`: UI 尺寸和布局常量
 - `CLEANUP_SELECTOR`: 扩展元素清理选择器
 
-**core-utils.js** (218行) — 通用工具
+**core-utils.js** — 通用工具
 - 扩展上下文失效检测: `isExtensionContextInvalidated()`
 - 消息封装: `msg()`
 - 焦点管理: `getFocusableWithin()`
 - JSON解析、数值校验、选择器表达式验证
 - `originFromUrl()`: URL → origin 转换
 
-**storage.js** (412行) — 存储操作
+**storage.js** — 存储操作
 - `getStorage()` / `setStorage()`: 通用存储读写
 - `getConfigs()` / `saveConfigs()`: TOC 配置管理
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
@@ -107,39 +105,39 @@ if (isExtensionContextInvalidated()) {
 - `getUiMode()` / `saveUiMode()`: 全局界面模式偏好，缺省为新版 Edge Dock
 - 使用 `shared/storage-primitives.js` 的 `serializedWrite` 保证写入顺序
 
-**dom-utils.js** (191行) — DOM操作
+**dom-utils.js** — DOM操作
 - `collectBySelector()`: 执行 CSS/XPath 选择器
 - `uniqueInDocumentOrder()`: 通过 `compareDocumentPosition` 去重
 - `findMatchingConfig()`: URL 通配符匹配
 - `getSiteEnabledByOrigin()`: 按域名查询启用状态
 
-**toc-builder.js** (139行) — TOC构建
+**toc-builder.js** — TOC构建
 - 选择器执行（CSS/XPath）
 - 元素可见性检测：计算样式、边界矩形、overflow 裁剪、offsetParent
 - 元素去重排序（compareDocumentPosition）
 
-**css-selector.js** (52行) — CSS选择器生成
+**css-selector.js** — CSS选择器生成
 - 优先使用 class 选择器
 - 回退到路径选择器（nth-of-type）
 
-**badge-position.js** (128行) — 工具条锚点位置管理
+**badge-position.js** — 工具条锚点位置管理
 - 按域名存储位置
 - 窗口尺寸变化时：水平贴边，竖直按高度比例缩放
 
-**drag-helper.js** (171行) — 拖拽辅助
+**drag-helper.js** — 拖拽辅助
 - 鼠标/触摸拖拽支持
 - 拖拽 vs 点击判定
 
-**focus-trap.js** (49行) — 焦点陷阱
+**focus-trap.js** — 焦点陷阱
 - 对话框内的 Tab 键焦点循环
 
-**toast.js** (91行) — Toast 提示
+**toast.js** — Toast 提示
 - 临时提示消息显示
 
-**toc-utils.js** (19行) — barrel 重导出
+**toc-utils.js** — barrel 重导出
 - 聚合 utils/ 下所有模块的导出
 
-### UI组件层 (1,426行)
+### UI组件层
 
 **edge-dock.js** — 吸附式工具条
 - 固定吸附页面左侧或右侧，整体仅上下拖动
@@ -151,7 +149,7 @@ if (isExtensionContextInvalidated()) {
 - 快捷设置支持全局切换到经典模式
 - 按域名持久化吸附侧边和竖直位置
 
-**element-picker.js** (272行) — 元素拾取器
+**element-picker.js** — 元素拾取器
 - 实时高亮悬停元素
 - 避免选中扩展自身UI
 - 支持ESC取消和右键取消
@@ -168,13 +166,13 @@ if (isExtensionContextInvalidated()) {
 - 保留经典文字徽章、自由拖拽面板和标题操作栏
 - 从经典面板可全局切换回新版 Edge Dock
 
-### 核心逻辑层 (1,711行)
+### 核心逻辑层
 
 **active-item-tracker.js** — 当前阅读位置跟踪
 - 在卡片展开或收起时持续观察目录元素
 - 将统一 activeIndex 同步给缩略横线和展开列表
 
-**toc-app.js** (658行) — 主应用协调器
+**toc-app.js** — 主应用协调器
 - 组件生命周期管理（`initForConfig` 返回 `{ rebuild, collapse, expand, destroy }`）
 - 状态同步和事件协调
 - 重建逻辑和优化
@@ -183,41 +181,41 @@ if (isExtensionContextInvalidated()) {
 - 导航锁故障保护（8秒超时自动解锁）
 - 动画帧管理和资源清理
 
-**config-manager.js**（约 290 行）— 配置管理
+**config-manager.js** — 配置管理
 - 站点配置的保存和读取
 - 选择器管理界面
 - 配置清空功能
 - 通过后台 `toc:mutateConfig` 串行化配置变更并验证结果
 - 通过 event-bus 发送 `toc:config-changed` 事件
 
-**rebuild-scheduler.js** (253行) — 重建调度器
+**rebuild-scheduler.js** — 重建调度器
 - 协调 dom-watcher 和 url-monitor
 - 动态防抖：`DEBOUNCE_MS * 1.3^consecutiveMutations`，上限 1000ms
 - 导航锁集成（等待解锁后重建）
 - 失败重试逻辑（1秒延迟）
 - 断路器（连续5次失败后暂停）
 
-**url-monitor.js** (196行) — URL变化监测
+**url-monitor.js** — URL变化监测
 - History API 拦截（pushState/replaceState）
 - 轮询检测 URL 变化
 - popstate 事件监听
 
-**dom-watcher.js** (162行) — DOM变化监测
+**dom-watcher.js** — DOM变化监测
 - MutationObserver 监听 DOM 变更
 - 上下文失效检测和自动断开
 
-**nav-lock.js** (78行) — 导航锁
+**nav-lock.js** — 导航锁
 - `lock(durationMs)`, `unlock()`, `isLocked()`, `onUnlock(callback)`, `destroy()`
 - 防止 IntersectionObserver 在用户点击 TOC 项时干扰
 - 自动超时解锁
 
-**event-bus.js** (21行) — 事件总线
+**event-bus.js** — 事件总线
 - `on(event, fn)`, `off(event, fn)`, `emit(event, ...args)`
 - 当前仅用于 `toc:config-changed` 事件
 
 ## 🛡️ 样式保护机制
 
-### CSS防御策略（约 1260 行样式）
+### CSS防御策略
 1. **CSS自定义属性主题**: 使用 `--toc-bg-panel` 等变量支持亮色/暗色主题
 2. **优先级保护**: 所有样式使用 `!important`
 3. **作用域重置**: 仅在 `[data-toc-owner="web-toc-assistant"]` 拥有的 UI 根节点内使用 `all: unset`
