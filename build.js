@@ -139,16 +139,18 @@ async function main() {
   console.log('\nBuild complete. Output in dist/build/');
 
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'manifest.json'), 'utf8'));
+  const version = manifest.version;
   const packagesDir = path.join(ROOT_DIR, 'dist', 'packages');
   fs.mkdirSync(packagesDir, { recursive: true });
 
-  const zipFile = path.join(packagesDir, `v${manifest.version}.zip`);
+  const zipFile = path.join(packagesDir, `v${version}.zip`);
+
   try {
     if (fs.existsSync(zipFile)) fs.rmSync(zipFile);
     execFileSync('zip', ['-r', zipFile, '.'], { stdio: 'pipe', cwd: DIST_DIR });
     const stats = fs.statSync(zipFile);
     const kb = (stats.size / 1024).toFixed(1);
-    console.log(`\nPackage created: dist/packages/v${manifest.version}.zip (${kb} KB)`);
+    console.log(`\nPackage created: dist/packages/v${version}.zip (${kb} KB)`);
   } catch (e) {
     console.error('Failed to create zip package');
     process.exit(1);
