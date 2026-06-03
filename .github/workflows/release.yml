@@ -75,6 +75,22 @@ jobs:
       - name: Build and validate
         run: node build.js
 
+      - name: Verify release build output
+        run: |
+          test -f dist/build/manifest.json || (echo "FAIL: manifest.json missing" && exit 1)
+          test -f dist/build/src/content.js || (echo "FAIL: src/content.js missing" && exit 1)
+          test -f dist/build/src/background.js || (echo "FAIL: src/background.js missing" && exit 1)
+          test -f dist/build/src/content.css || (echo "FAIL: src/content.css missing" && exit 1)
+          test -f dist/build/src/page-url-hook.js || (echo "FAIL: src/page-url-hook.js missing" && exit 1)
+          test -f dist/build/src/shared/storage-primitives.js || (echo "FAIL: storage-primitives.js missing" && exit 1)
+          test -f dist/build/src/shared/config-primitives.js || (echo "FAIL: config-primitives.js missing" && exit 1)
+          test -f dist/build/src/shared/ui-state-primitives.js || (echo "FAIL: ui-state-primitives.js missing" && exit 1)
+          grep -q '__TOC_URL_HOOK_INSTALLED__' dist/build/src/page-url-hook.js || (echo "FAIL: URL hook marker missing" && exit 1)
+          grep -q '__STORAGE_PRIMITIVES' dist/build/src/shared/storage-primitives.js || (echo "FAIL: storage primitives marker missing" && exit 1)
+          grep -q '__CONFIG_PRIMITIVES' dist/build/src/shared/config-primitives.js || (echo "FAIL: config primitives marker missing" && exit 1)
+          grep -q '__UI_STATE_PRIMITIVES' dist/build/src/shared/ui-state-primitives.js || (echo "FAIL: UI state primitives marker missing" && exit 1)
+          echo "All expected release build outputs present"
+
       - name: Get version from manifest.json
         id: get-version
         run: |

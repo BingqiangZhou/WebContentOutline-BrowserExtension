@@ -13,7 +13,46 @@ function normalizeSelector(selector) {
   var type = selector.type === 'css' || selector.type === 'xpath' ? selector.type : null;
   var expr = String(selector.expr || '').trim();
   if (!type || !expr || expr.length > 2000) return null;
+  if (type === 'css' && isHighRiskBroadCssSelector(expr)) return null;
   return Object.assign({}, selector, { type: type, expr: expr });
+}
+
+function isHighRiskBroadCssSelector(expr) {
+  var parts = [];
+  var current = '';
+  var depth = 0;
+  var inSingle = false;
+  var inDouble = false;
+  for (var i = 0; i < expr.length; i++) {
+    var ch = expr[i];
+    if (!inDouble && ch === "'") {
+      inSingle = !inSingle;
+      current += ch;
+      continue;
+    }
+    if (!inSingle && ch === '"') {
+      inDouble = !inDouble;
+      current += ch;
+      continue;
+    }
+    if (!inSingle && !inDouble) {
+      if (ch === '(' || ch === '[') depth++;
+      else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+      else if (ch === ',' && depth === 0) {
+        parts.push(current);
+        current = '';
+        continue;
+      }
+    }
+    current += ch;
+  }
+  parts.push(current);
+
+  for (var p = 0; p < parts.length; p++) {
+    var normalized = String(parts[p] || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    if (normalized === '*' || normalized === 'html *' || normalized === 'body *' || normalized === ':root *') return true;
+  }
+  return false;
 }
 
 function normalizeSelectors(selectors, maxSelectors) {

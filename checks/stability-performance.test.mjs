@@ -60,6 +60,7 @@ function loadTocBuilder() {
       requestedLimits.push(limit);
       return Array.from({ length: limit }, () => ({ isConnected: false }));
     },
+    getBoundedText() { return ''; },
     uniqueInDocumentOrder(nodes) { return nodes; },
     __exports: {}
   };
@@ -70,6 +71,129 @@ function loadTocBuilder() {
     { filename: file }
   );
   return { buildTocItemsFromSelectors: sandbox.__exports.buildTocItemsFromSelectors, requestedLimits };
+}
+
+function loadBoundedText() {
+  const file = path.join(repoRoot, 'src/utils/bounded-text.js');
+  assert.equal(fs.existsSync(file), true, 'src/utils/bounded-text.js should exist');
+  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
+  const sandbox = { console, __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}\n__exports.getBoundedText = getBoundedText;`,
+    sandbox,
+    { filename: file }
+  );
+  return sandbox.__exports.getBoundedText;
+}
+
+function loadCoreUtilsForValidation() {
+  const file = path.join(repoRoot, 'src/utils/core-utils.js');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export function /g, 'function ');
+  const sandbox = {
+    console,
+    CSS: { supports() { return true; } },
+    document: {
+      createDocumentFragment() {
+        return {
+          querySelector() {}
+        };
+      }
+    },
+    uiConst(_name, fallback) { return fallback; },
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}
+__exports.validateSelectorExpression = validateSelectorExpression;
+__exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,
+    sandbox,
+    { filename: file }
+  );
+  return sandbox.__exports;
+}
+
+function loadConfigPrimitivesForSelectors() {
+  const file = path.join(repoRoot, 'src/shared/config-primitives.js');
+  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
+  const sandbox = { console, __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}\n__exports.applyTocConfigMutation = applyTocConfigMutation;`,
+    sandbox,
+    { filename: file }
+  );
+  return sandbox.__exports.applyTocConfigMutation;
+}
+
+function loadUrlMonitorForPolling(options = {}) {
+  const file = path.join(repoRoot, 'src/core/url-monitor.js');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace('export function createUrlMonitor', 'function createUrlMonitor');
+  const timers = [];
+  const sandbox = {
+    console,
+    document: { hidden: false },
+    location: { href: 'https://example.com/article' },
+    window: { addEventListener() {}, removeEventListener() {} },
+    collectBySelector(_selector, limit) {
+      return (options.elements || []).slice(0, limit);
+    },
+    getBoundedText: options.getBoundedText,
+    uniqueInDocumentOrder(nodes) { return nodes; },
+    setTimeout(fn, delay) {
+      timers.push({ fn, delay });
+      return timers.length;
+    },
+    clearTimeout() {},
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}\n__exports.createUrlMonitor = createUrlMonitor;`,
+    sandbox,
+    { filename: file }
+  );
+  return { createUrlMonitor: sandbox.__exports.createUrlMonitor, timers };
+}
+
+function loadBadgePositionForWrites(options = {}) {
+  const file = path.join(repoRoot, 'src/utils/badge-position.js');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export function /g, 'function ');
+  const calls = [];
+  const sandbox = {
+    console,
+    Date,
+    window: { innerWidth: 1000, innerHeight: 800 },
+    chrome: options.chrome,
+    getFiniteNumber(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    },
+    getBadgePosMap: options.getBadgePosMap || (async () => ({})),
+    saveBadgePosMap: options.saveBadgePosMap || (async () => true),
+    pruneObjectToLimit() {},
+    serializedWrite(_key, fn) { return fn(); },
+    touchObjectKey(map, key, value) {
+      calls.push({ type: 'touch', key, value });
+      map[key] = value;
+    },
+    uiConst(_name, fallback) { return fallback; },
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}\n__exports.setBadgePosByHost = setBadgePosByHost;`,
+    sandbox,
+    { filename: file }
+  );
+  return { setBadgePosByHost: sandbox.__exports.setBadgePosByHost, calls };
 }
 
 function loadUiStatePrimitives() {
@@ -169,6 +293,142 @@ test('TOC builder never requests more than the global candidate budget', () => {
     env.requestedLimits.reduce((sum, limit) => sum + limit, 0) <= 1200,
     `requested ${env.requestedLimits.reduce((sum, limit) => sum + limit, 0)} candidates`
   );
+});
+
+test('bounded text helper limits characters, nodes, depth, and avoids element textContent fallback', () => {
+  const getBoundedText = loadBoundedText();
+  const textNode = (value) => ({ nodeType: 3, nodeValue: value });
+  const element = (children, textGetter) => {
+    const obj = { nodeType: 1, childNodes: children };
+    Object.defineProperty(obj, 'textContent', {
+      get() {
+        if (textGetter) return textGetter();
+        throw new Error('element textContent should not be read');
+      }
+    });
+    return obj;
+  };
+  const tree = element([
+    textNode('a'.repeat(80)),
+    textNode('b'.repeat(80)),
+    element([textNode('c'.repeat(80))]),
+    element([textNode('d'.repeat(80))])
+  ]);
+
+  assert.equal(getBoundedText(tree, { maxChars: 120, maxNodes: 20, maxDepth: 5 }).length, 120);
+  assert.equal(getBoundedText(tree, { maxChars: 400, maxNodes: 2, maxDepth: 5 }).length, 80);
+  assert.equal(getBoundedText(tree, { maxChars: 400, maxNodes: 20, maxDepth: 1 }), 'a'.repeat(80) + 'b'.repeat(80));
+  assert.equal(getBoundedText(element([], () => { throw new Error('no fallback'); }), { maxChars: 10 }), '');
+});
+
+test('URL polling avoids text reads with MutationObserver and uses bounded text without it', () => {
+  const throwingElement = {
+    tagName: 'H2',
+    get textContent() {
+      throw new Error('polling should not read textContent when MutationObserver is active');
+    }
+  };
+  let boundedCalls = 0;
+  const active = loadUrlMonitorForPolling({
+    elements: [throwingElement],
+    getBoundedText() {
+      boundedCalls++;
+      return 'Heading';
+    }
+  });
+  active.createUrlMonitor({ mutationObserverAvailable: true }).start({ selectors: [] }, () => {});
+
+  assert.equal(boundedCalls, 0);
+
+  const fallback = loadUrlMonitorForPolling({
+    elements: [throwingElement],
+    getBoundedText() {
+      boundedCalls++;
+      return 'Heading';
+    }
+  });
+  fallback.createUrlMonitor({ mutationObserverAvailable: false }).start({ selectors: [] }, () => {});
+
+  assert.equal(boundedCalls, 1);
+});
+
+test('selector validation rejects high-risk broad CSS scans but keeps normal heading selectors', () => {
+  const { validateSelectorExpression, isHighRiskBroadCssSelector } = loadCoreUtilsForValidation();
+
+  assert.equal(validateSelectorExpression('css', '*'), false);
+  assert.equal(validateSelectorExpression('css', 'body *'), false);
+  assert.equal(validateSelectorExpression('css', 'article h2, html *'), false);
+  assert.equal(isHighRiskBroadCssSelector(':root *'), true);
+  assert.equal(validateSelectorExpression('css', 'article h2'), true);
+  assert.equal(validateSelectorExpression('css', '.doc-title'), true);
+  assert.equal(validateSelectorExpression('css', 'main > section h3'), true);
+});
+
+test('config mutations filter broad legacy selectors and reject new broad selectors', () => {
+  const applyTocConfigMutation = loadConfigPrimitivesForSelectors();
+  const legacy = [{
+    urlPattern: 'https://example.com/*',
+    selectors: [
+      { type: 'css', expr: 'body *' },
+      { type: 'css', expr: 'article h2' }
+    ]
+  }];
+
+  const rejected = applyTocConfigMutation([], {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    selector: { type: 'css', expr: '*' }
+  }, 100);
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.reason, 'invalid-selector');
+
+  const cleaned = applyTocConfigMutation(legacy, {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    selector: { type: 'css', expr: '.doc-title' }
+  }, 101);
+  assert.deepEqual(plain(cleaned.configs[0].selectors.map((selector) => selector.expr)), ['.doc-title', 'article h2']);
+});
+
+test('badge position write skips local map read when background mutation is available', async () => {
+  const sent = [];
+  const { setBadgePosByHost } = loadBadgePositionForWrites({
+    chrome: {
+      runtime: {
+        lastError: null,
+        sendMessage(message, callback) {
+          sent.push(message);
+          callback({ ok: true, value: { x: 200, y: 100, anchorX: 'left' } });
+        }
+      }
+    },
+    getBadgePosMap() {
+      throw new Error('local badge map should not be read when runtime mutation is available');
+    }
+  });
+
+  const saved = await setBadgePosByHost('docs.example.com', { x: 200, y: 100 });
+
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].type, 'toc:mutateUiState');
+  assert.deepEqual(saved, { x: 200, y: 100, anchorX: 'left' });
+});
+
+test('badge position write falls back to local serialized map write without runtime mutation', async () => {
+  let savedMap = null;
+  const { setBadgePosByHost } = loadBadgePositionForWrites({
+    getBadgePosMap: async () => ({}),
+    saveBadgePosMap: async (map) => {
+      savedMap = map;
+      return true;
+    }
+  });
+
+  const saved = await setBadgePosByHost('docs.example.com', { x: 300, y: 180 });
+
+  assert.equal(Object.keys(savedMap).length, 1);
+  assert.equal(savedMap['docs.example.com'].x, 300);
+  assert.equal(saved.x, 300);
 });
 
 test('UI state mutations preserve independent position and panel entries', () => {
@@ -313,4 +573,6 @@ test('release validation runs tests and verifies shared runtime bundles', () => 
   assert.match(workflow, /dist\/build\/src\/shared\/ui-state-primitives\.js/);
   assert.match(workflow, /grep -q '__TOC_URL_HOOK_INSTALLED__'/);
   assert.match(workflow, /grep -q '__UI_STATE_PRIMITIVES'/);
+  assert.match(workflow, /release:[\s\S]*?name: Build and validate[\s\S]*?grep -q '__TOC_URL_HOOK_INSTALLED__'/);
+  assert.match(workflow, /release:[\s\S]*?name: Build and validate[\s\S]*?grep -q '__UI_STATE_PRIMITIVES'/);
 });

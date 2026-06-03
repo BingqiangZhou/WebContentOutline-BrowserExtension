@@ -2,32 +2,20 @@
 
 import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
 import { uiConst } from './constants.js';
+import { getBoundedText } from './bounded-text.js';
 
     var TOC_TEXT_MAX_LEN = (typeof uiConst === 'function') ? uiConst('TOC_TEXT_MAX_LEN', 200) : 200;
     var TOC_MAX_ITEMS = (typeof uiConst === 'function') ? uiConst('TOC_MAX_ITEMS', 400) : 400;
     var TOC_MAX_CANDIDATES = (typeof uiConst === 'function') ? uiConst('TOC_MAX_CANDIDATES', 1200) : 1200;
 
-    function getBoundedRawText(el, limit) {
-      var text = '';
-      function appendNode(node) {
-        if (!node || text.length > limit) return;
-        if (node.nodeType === 3) {
-          text += node.nodeValue || '';
-          return;
-        }
-        var children = node.childNodes;
-        if (!children) return;
-        for (var i = 0; i < children.length && text.length <= limit; i++) appendNode(children[i]);
-      }
-      try {
-        appendNode(el);
-        if (text) return text;
-      } catch (_) {}
-      try { return String(el && el.textContent || '').slice(0, limit + 1); } catch (_) { return ''; }
-    }
-
     function getTrimmedText(el) {
-      var rawText = getBoundedRawText(el, TOC_TEXT_MAX_LEN * 4).trim();
+      var rawText = '';
+      if (typeof getBoundedText === 'function') {
+        rawText = getBoundedText(el, { maxChars: TOC_TEXT_MAX_LEN * 4, maxNodes: 160, maxDepth: 8 });
+      } else {
+        try { rawText = String(el && el.textContent || '').slice(0, TOC_TEXT_MAX_LEN * 4); } catch (_) { rawText = ''; }
+      }
+      rawText = rawText.trim();
       rawText = rawText.replace(/\s+/g, ' ');
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }

@@ -1,6 +1,7 @@
 'use strict';
 
 import { collectBySelector, uniqueInDocumentOrder } from '../utils/dom-utils.js';
+import { getBoundedText } from '../utils/bounded-text.js';
 
   /**
    * Creates a URL change monitor that detects pushState, replaceState,
@@ -76,7 +77,15 @@ export function createUrlMonitor(opts) {
           var el = els[k];
           hash = appendToHash(hash, getElementId(el));
           hash = appendToHash(hash, el.tagName || '');
-          hash = appendToHash(hash, String(el.textContent || '').slice(0, 200));
+          if (!mutationObserverAvailable) {
+            var text = '';
+            if (typeof getBoundedText === 'function') {
+              text = getBoundedText(el, { maxChars: 200, maxNodes: 80, maxDepth: 6 });
+            } else {
+              try { text = String(el.textContent || '').slice(0, 200); } catch (_) { text = ''; }
+            }
+            hash = appendToHash(hash, text);
+          }
         }
         return els.length + ':' + hash;
       } catch (_) {

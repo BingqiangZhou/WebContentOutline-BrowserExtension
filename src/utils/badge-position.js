@@ -75,7 +75,7 @@ export function getBadgePosByHost(host) {
 export function setBadgePosByHost(host, pos) {
       if (!host) return Promise.resolve(null);
 
-      var enrichAndSave = function(map) {
+      var enrichPosition = function() {
         var enriched = pos;
         try {
           var x = pos && getFiniteNumber(pos.x);
@@ -100,26 +100,31 @@ export function setBadgePosByHost(host, pos) {
         } catch (_) {
           enriched = pos;
         }
+        return enriched;
+      };
 
+      var enriched = enrichPosition();
+      try {
+        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+          return new Promise(function(resolve) {
+            chrome.runtime.sendMessage({
+              type: 'toc:mutateUiState',
+              operation: 'set-badge-position',
+              key: host,
+              value: enriched
+            }, function(response) {
+              if (chrome.runtime.lastError) { resolve(null); return; }
+              resolve(response && response.ok ? response.value : null);
+            });
+          });
+        }
+      } catch (_) {}
+
+      var enrichAndSave = function(map) {
         map = map || {};
         touchObjectKey(map, host, enriched);
         pruneObjectToLimit(map, uiConst('STORAGE_MAX_MAP_KEYS', 400));
 
-        try {
-          if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-            return new Promise(function(resolve) {
-              chrome.runtime.sendMessage({
-                type: 'toc:mutateUiState',
-                operation: 'set-badge-position',
-                key: host,
-                value: enriched
-              }, function(response) {
-                if (chrome.runtime.lastError) { resolve(null); return; }
-                resolve(response && response.ok ? response.value : null);
-              });
-            });
-          }
-        } catch (_) {}
         return saveBadgePosMap(map).then(function(ok) { return ok ? (map[host] || null) : null; });
       };
 

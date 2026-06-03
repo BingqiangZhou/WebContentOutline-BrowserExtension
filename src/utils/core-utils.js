@@ -161,6 +161,7 @@ export function isValidCssSelector(expr) {
     }
     var maxLen = uiConst('CSS_SELECTOR_MAX_LENGTH', 2000);
     if (trimmed.length > maxLen) return false;
+    if (isHighRiskBroadCssSelector(trimmed)) return false;
     try {
       // Syntax validation without querying the page DOM.
       var frag = document.createDocumentFragment ? document.createDocumentFragment() : null;
@@ -177,6 +178,45 @@ export function isValidCssSelector(expr) {
     } catch (_) {
       return false;
     }
+  }
+
+export function isHighRiskBroadCssSelector(expr) {
+    if (typeof expr !== 'string') return false;
+    var parts = [];
+    var current = '';
+    var depth = 0;
+    var inSingle = false;
+    var inDouble = false;
+    for (var i = 0; i < expr.length; i++) {
+      var ch = expr[i];
+      if (!inDouble && ch === "'") {
+        inSingle = !inSingle;
+        current += ch;
+        continue;
+      }
+      if (!inSingle && ch === '"') {
+        inDouble = !inDouble;
+        current += ch;
+        continue;
+      }
+      if (!inSingle && !inDouble) {
+        if (ch === '(' || ch === '[') depth++;
+        else if (ch === ')' || ch === ']') depth = Math.max(0, depth - 1);
+        else if (ch === ',' && depth === 0) {
+          parts.push(current);
+          current = '';
+          continue;
+        }
+      }
+      current += ch;
+    }
+    parts.push(current);
+
+    for (var p = 0; p < parts.length; p++) {
+      var normalized = String(parts[p] || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      if (normalized === '*' || normalized === 'html *' || normalized === 'body *' || normalized === ':root *') return true;
+    }
+    return false;
   }
 
 export function validateSelectorExpression(type, expr) {
