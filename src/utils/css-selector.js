@@ -18,7 +18,7 @@ export function cssPathFor(el) {
   if (!el || el.nodeType !== 1) return '';
   var path = [];
   var current = el;
-  while (current && current.nodeType === 1) {
+  while (current && current.nodeType === 1 && path.length < 20) {
     var selector = current.tagName.toLowerCase();
     if (current.id) {
       selector += '#' + escapeCssIdentifier(current.id);

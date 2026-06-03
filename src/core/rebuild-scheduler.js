@@ -6,40 +6,49 @@ import * as NL from './nav-lock.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
 
   var DEBOUNCE_MS = 400;
+  var MAX_CONSECUTIVE_FAILURES = 5;
 
   /**
    * Creates a rebuild scheduler that coordinates DOM watching, URL monitoring,
-   * and rebuild dispatch with simple debouncing.
+   * and rebuild dispatch with simple debouncing and circuit breaker.
    *
    * @param {function} onRebuild - Async function called to perform a TOC rebuild.
+   * @param {object} [opts] - Options.
+   * @param {function} [opts.onConfigDirty] - Called when a URL change is detected.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-export function createRebuildScheduler(onRebuild) {
+export function createRebuildScheduler(onRebuild, opts) {
+    opts = opts || {};
+    var onConfigDirty = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
     var rebuildInFlight = null;
     var debounceTimer = null;
+    var consecutiveFailures = 0;
 
     // Sub-components
     var domWatcher = null;
     var urlMonitor = null;
-    var activeCfg = null;
 
     var safeRebuild = async function() {
       if (!isExtensionContextValid) return false;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return false;
       try {
         await onRebuild();
+        consecutiveFailures = 0;
         return true;
       } catch (e) {
         if (isContextInvalidatedError(e)) {
           isExtensionContextValid = false;
           hasPendingRebuild = false;
+          consecutiveFailures = 0;
           if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
           if (domWatcher) domWatcher.invalidate();
           if (urlMonitor) urlMonitor.invalidate();
           return false;
         }
         console.warn('[toc] rebuild failed:', e);
+        consecutiveFailures++;
         return false;
       }
     };
@@ -76,6 +85,7 @@ export function createRebuildScheduler(onRebuild) {
 
     var scheduleRebuild = function(immediate) {
       if (!isExtensionContextValid) return;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return;
       if (document.hidden) { hasPendingRebuild = true; return; }
       if (immediate) {
         hasPendingRebuild = true;
@@ -95,7 +105,7 @@ export function createRebuildScheduler(onRebuild) {
     };
 
     var onUrlChange = function(immediate) {
-      if (activeCfg && typeof activeCfg.__markConfigDirty === 'function') activeCfg.__markConfigDirty();
+      if (onConfigDirty) onConfigDirty();
       scheduleRebuild(immediate);
     };
 
@@ -104,7 +114,7 @@ export function createRebuildScheduler(onRebuild) {
       handle.disconnect();
       hasPendingRebuild = false;
       isExtensionContextValid = true;
-      activeCfg = cfg || null;
+      consecutiveFailures = 0;
 
       // Create dom-watcher
       domWatcher = createDomWatcher(onMutation, cfg);
@@ -130,7 +140,7 @@ export function createRebuildScheduler(onRebuild) {
         hasPendingRebuild = false;
         rebuildInFlight = null;
         isExtensionContextValid = false;
-        activeCfg = null;
+        consecutiveFailures = 0;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
       setPendingRebuild: function(val) {

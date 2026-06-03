@@ -9,7 +9,11 @@ function serializedWrite(key, asyncFn) {
   var prev = writeQueues[key] || Promise.resolve();
   var run = function() { return asyncFn(); };
   var next = prev.then(run, run);
-  writeQueues[key] = next.catch(function() {});
+  var stored = next.catch(function() {});
+  writeQueues[key] = stored;
+  stored.finally(function() {
+    if (writeQueues[key] === stored) delete writeQueues[key];
+  });
   return next;
 }
 

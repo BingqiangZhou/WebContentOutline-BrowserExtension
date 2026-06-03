@@ -6,7 +6,7 @@ import { renderClassicCollapsedBadge } from '../ui/classic-collapsed-badge.js';
 import { renderClassicFloatingPanel } from '../ui/classic-floating-panel.js';
 import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
-import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged } from './config-manager.js';
+import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged, clearOnConfigChanged } from './config-manager.js';
 import { createRebuildScheduler } from './rebuild-scheduler.js';
 import { createActiveItemTracker } from './active-item-tracker.js';
 import {
@@ -128,7 +128,7 @@ export function initForConfig(cfg, options) {
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
           } catch (_) {}
         }
-        return;
+        return false;
       }
 
       try {
@@ -136,7 +136,7 @@ export function initForConfig(cfg, options) {
           await updateConfigFromStorage(cfg);
           configDirty = false;
         }
-        if (destroyed) return;
+        if (destroyed) return true;
 
         var prevItems = items;
         var previousActiveIndex = activeIndex;
@@ -146,7 +146,7 @@ export function initForConfig(cfg, options) {
         var newMeta = buildResult.meta;
 
         // Skip rebuild if content is identical
-        if (isContentIdentical(prevItems, newItems)) return;
+        if (isContentIdentical(prevItems, newItems)) return true;
 
         items = newItems;
         tocMeta = newMeta;
@@ -154,7 +154,7 @@ export function initForConfig(cfg, options) {
         // Badge mode: update in-memory items so next expand is fresh, but skip full UI rebuild.
         if (!panelInstance) {
           syncItemViews(previousActiveItem, previousActiveIndex);
-          return;
+          return true;
         }
 
         var incrementalDone = false;
@@ -196,7 +196,7 @@ export function initForConfig(cfg, options) {
               mutationObserver.disconnect();
             } catch (_) {}
           }
-          return;
+          return false;
         }
         console.warn('[toc] rebuild failed:', e);
       }
@@ -417,13 +417,15 @@ export function initForConfig(cfg, options) {
         }
       } catch (_) {}
       pickerInstance = null;
+      // Clear config change callback
+      try { if (clearOnConfigChanged) clearOnConfigChanged(); } catch (_) {}
       // Clear event handler
       _activeRebuild = null;
     };
 
     try {
       if (createRebuildScheduler) {
-        mutationObserver = createRebuildScheduler(rebuild);
+        mutationObserver = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; } });
         mutationObserver.start(cfg);
       }
       if (uiMode === 'classic') {

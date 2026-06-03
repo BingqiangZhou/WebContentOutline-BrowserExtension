@@ -21,6 +21,16 @@
 export function createDomWatcher(onMutation, cfg) {
     var observerRef = null;
     var isContextValid = true;
+    var ownedRoots = new WeakSet();
+
+    function scanOwnedRoots() {
+      try {
+        var roots = document.querySelectorAll(OWNED_SELECTOR);
+        for (var i = 0; i < roots.length; i++) {
+          ownedRoots.add(roots[i]);
+        }
+      } catch (_) {}
+    }
 
     function isDefaultHeadingMode() {
       return !cfg || !Array.isArray(cfg.selectors) || cfg.selectors.length === 0;
@@ -29,7 +39,9 @@ export function createDomWatcher(onMutation, cfg) {
     function isOwnedNode(node) {
       try {
         var element = node && node.nodeType === 3 ? node.parentElement : node;
-        return !!(element && element.closest && element.closest(OWNED_SELECTOR));
+        if (!element) return false;
+        if (ownedRoots.has(element)) return true;
+        return !!(element.closest && element.closest(OWNED_SELECTOR));
       } catch (_) {
         return false;
       }
@@ -98,6 +110,8 @@ export function createDomWatcher(onMutation, cfg) {
     function start() {
       disconnect();
       isContextValid = true;
+      ownedRoots = new WeakSet();
+      scanOwnedRoots();
 
       if (typeof MutationObserver === 'undefined') return false;
 

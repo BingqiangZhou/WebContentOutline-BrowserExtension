@@ -51,36 +51,38 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         truncated = true;
       }
 
-      var items = [];
+      // Phase 1: Batch-read all geometry in a tight loop (avoids forced reflows)
+      var geoData = [];
       for (var m = 0; m < candidates.length; m++) {
         var el = candidates[m];
-
-        // Phase 1: cheap checks (no layout reads)
-        if (!el || !el.isConnected) continue;
-
-        // Phase 2: style + geometry checks (one layout read batch per element)
+        if (!el || !el.isConnected) { geoData.push(null); continue; }
         var style;
-        try { style = window.getComputedStyle(el); } catch (_) { continue; }
-        if (!style) continue;
-        if (style.display === 'none') continue;
-
+        try { style = window.getComputedStyle(el); } catch (_) { geoData.push(null); continue; }
+        if (!style || style.display === 'none') { geoData.push(null); continue; }
         var offsetParent;
-        try { offsetParent = el.offsetParent; } catch (_) { continue; }
-        if (offsetParent === null && style.position !== 'fixed') continue;
-
+        try { offsetParent = el.offsetParent; } catch (_) { geoData.push(null); continue; }
+        if (offsetParent === null && style.position !== 'fixed') { geoData.push(null); continue; }
         var ow, oh;
-        try { ow = el.offsetWidth; oh = el.offsetHeight; } catch (_) { continue; }
-        if (ow === 0 || oh === 0) continue;
-
-        if (style.visibility === 'hidden' || style.visibility === 'collapse') continue;
+        try { ow = el.offsetWidth; oh = el.offsetHeight; } catch (_) { geoData.push(null); continue; }
+        if (ow === 0 || oh === 0) { geoData.push(null); continue; }
+        if (style.visibility === 'hidden' || style.visibility === 'collapse') { geoData.push(null); continue; }
         var opacity = parseFloat(style.opacity);
-        if (Number.isFinite(opacity) && opacity <= 0) continue;
-
+        if (Number.isFinite(opacity) && opacity <= 0) { geoData.push(null); continue; }
         var rect;
-        try { rect = el.getBoundingClientRect(); } catch (_) { continue; }
-        if (!rect || rect.width === 0 || rect.height === 0) continue;
+        try { rect = el.getBoundingClientRect(); } catch (_) { geoData.push(null); continue; }
+        if (!rect || rect.width === 0 || rect.height === 0) { geoData.push(null); continue; }
+        geoData.push({ el: el, rect: rect });
+      }
 
-        // Phase 3: parent clipping check (only for phase 2 survivors)
+      // Phase 2: Filter using cached geometry — parent clipping + text extraction only for survivors
+      var items = [];
+      for (var g = 0; g < geoData.length; g++) {
+        var entry = geoData[g];
+        if (!entry) continue;
+        var el = entry.el;
+        var rect = entry.rect;
+
+        // Parent clipping check (only for survivors that passed cheap checks)
         var clipped = false;
         var parent = el.parentElement;
         var depth = 0;

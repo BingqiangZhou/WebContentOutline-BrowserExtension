@@ -48,10 +48,7 @@ export function createUrlMonitor(opts) {
       stopPolling();
 
       function poll() {
-        if (!isContextValid) {
-          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
-          return;
-        }
+        if (!isContextValid) return;
         if (document.hidden) {
           pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
           return;

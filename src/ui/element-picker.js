@@ -239,6 +239,10 @@ export function createElementPicker(onPicked, onCancel) {
 
     function cleanup() {
       finished = true;
+      // Restore cursor first, before removing listeners that might reference it
+      try {
+        if (document.body) document.body.style.cursor = prevCursor || '';
+      } catch (_) {}
       try { document.removeEventListener('mousemove', move, true); } catch (_) {}
       try { document.removeEventListener('click', click, true); } catch (_) {}
       try { document.removeEventListener('keydown', key, true); } catch (_) {}
@@ -258,9 +262,6 @@ export function createElementPicker(onPicked, onCancel) {
             h.parentNode.removeChild(h);
           }
         }
-      } catch (_) {}
-      try {
-        if (document.body) document.body.style.cursor = prevCursor || '';
       } catch (_) {}
     }
 

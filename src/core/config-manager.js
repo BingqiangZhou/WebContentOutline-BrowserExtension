@@ -17,6 +17,10 @@ import {
     _onConfigChanged = typeof fn === 'function' ? fn : null;
   }
 
+  export function clearOnConfigChanged() {
+    _onConfigChanged = null;
+  }
+
   function notifyConfigChanged() {
     if (_onConfigChanged) _onConfigChanged();
   }
@@ -239,6 +243,7 @@ export async function siteConfig(cfg) {
         });
       } catch (_) {}
     } catch (e) {
+      try { if (box && box.isConnected) box.remove(); } catch (_) {}
       console.error(msg('logClearConfigFailed'), e);
       if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
     }

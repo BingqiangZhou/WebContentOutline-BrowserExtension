@@ -94,11 +94,21 @@ export function createActiveItemTracker(options) {
   }
 
   function setItems(nextItems) {
+    var previousActiveEl = activeItem && activeItem.el;
     disconnectObserver();
     items = Array.isArray(nextItems) ? nextItems : [];
     items.forEach(function(item) {
       if (item && item.el) itemByElement.set(item.el, item);
     });
+    // Try to preserve the active item across rebuilds to avoid highlight flicker
+    if (previousActiveEl) {
+      var preserved = itemByElement.get(previousActiveEl);
+      if (preserved) {
+        activeItem = preserved;
+        observeItems();
+        return;
+      }
+    }
     activeItem = null;
     try { onChange && onChange(null, -1); } catch (_) {}
     observeItems();

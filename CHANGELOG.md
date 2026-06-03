@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#101---2026-06-02)
+[Table of Contents](#table-of-contents) • [Latest](#102---2026-06-03)
 
 ---
 
 ## Table of Contents
 
+- [1.0.2](#102---2026-06-03) - 2026-06-03
 - [1.0.1](#101---2026-06-02) - 2026-06-02
 - [1.0.0](#100---2026-06-02) - 2026-06-02
 - [0.8.1](#081---2026-05-18) - 2026-05-18
@@ -29,6 +30,30 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.0.2] - 2026-06-03
+
+### 🐛 Fixed
+- **Circuit breaker for rebuild failures** — Rebuild scheduler now stops attempting rebuilds after 5 consecutive failures, preventing infinite retry loops on broken pages
+- **Active item highlight flicker on rebuild** — Preserved active TOC item across rebuilds when the same DOM element still exists, eliminating highlight flicker during frequent DOM mutations
+- **DOM element leak in config manager** — Orphaned shadow host elements are now properly cleaned up when config initialization fails
+- **Layout thrashing during TOC building** — Replaced per-element interleaved geometry reads with a two-pass batch approach: Phase 1 reads all geometry, Phase 2 filters and extracts text only for survivors
+- **URL monitor polling after context invalidation** — Stopped rescheduling poll timers when extension context is invalidated, preventing leaked timers
+- **Element picker cursor not restored** — Fixed cursor restore order so `document.body.style.cursor` resets before listener cleanup, preventing stuck cursors
+- **CSS `transition: all` causing jank** — Replaced `transition: all` with specific property transitions on delete buttons and animations, avoiding expensive style recalculation on every frame
+- **WriteQueue memory leak** — `serializedWrite` now prunes completed queue entries via `finally()`, preventing unbounded growth of the write queue map
+- **CSS selector depth explosion** — Added depth limit of 20 to `generateCssSelector` to prevent excessively long selectors on deeply nested pages
+
+### ⚡ Technical Improvements
+- **Major refactoring: removed over-engineering** — Simplified the codebase by 2887 lines across 4 rounds of cleanup, removing dead modules (`event-bus.js`, `page-url-hook.js`, `config-primitives.js`, `storage-primitives.js`), redundant abstractions, and unused constants
+- **WeakSet for owned-node detection** — DOM watcher uses `WeakSet` for O(1) ownership checks instead of O(depth) `closest()` traversal
+- **`onConfigDirty` callback** — Replaced monkey-patched `cfg.__markConfigDirty` with an explicit callback passed through `createRebuildScheduler` options
+- **`prefers-reduced-motion` support** — Added reduced-motion media query rules for TOC items, buttons, selector items, and delete buttons
+- **`will-change` GPU hints** — Added `will-change` hints on animated elements (collapsed badge, floating panel, delete buttons) for smoother compositor-layer animations
+- **Rebuild return value semantics** — `toc-app.rebuild()` now returns `true`/`false` to distinguish successful no-ops from genuine failures, improving scheduler circuit-breaker accuracy
+- **Merged shared primitives** — Consolidated storage, config, and UI state primitives into a single `shared/primitives.js` module; build produces one IIFE bundle for the background service worker
 
 ---
 
