@@ -4,13 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#102---2026-06-03)
+[Table of Contents](#table-of-contents) • [Latest](#102---2026-06-04)
 
 ---
 
 ## Table of Contents
 
-- [1.0.2](#102---2026-06-03) - 2026-06-03
+- [1.0.2](#102---2026-06-04) - 2026-06-04
 - [1.0.1](#101---2026-06-02) - 2026-06-02
 - [1.0.0](#100---2026-06-02) - 2026-06-02
 - [0.8.1](#081---2026-05-18) - 2026-05-18
@@ -33,7 +33,7 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ---
 
-## [1.0.2] - 2026-06-03
+## [1.0.2] - 2026-06-04
 
 ### 🐛 Fixed
 - **Circuit breaker for rebuild failures** — Rebuild scheduler now stops attempting rebuilds after 5 consecutive failures, preventing infinite retry loops on broken pages
@@ -54,6 +54,14 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - **`will-change` GPU hints** — Added `will-change` hints on animated elements (collapsed badge, floating panel, delete buttons) for smoother compositor-layer animations
 - **Rebuild return value semantics** — `toc-app.rebuild()` now returns `true`/`false` to distinguish successful no-ops from genuine failures, improving scheduler circuit-breaker accuracy
 - **Merged shared primitives** — Consolidated storage, config, and UI state primitives into a single `shared/primitives.js` module; build produces one IIFE bundle for the background service worker
+- **Brand icon redesign** — Replaced all extension icons (enabled/disabled, 16/32/48/128px + SVG) with new transparent white-document design; enabled state turns black, disabled state turns gray
+- **Chrome Web Store brand assets** — Added marquee banners, small promo tiles, store screenshots, and extension intro images for both English and Chinese locales
+- **Icon generation script** — New `scripts/generate-brand-assets.mjs` for automated brand asset production and validation
+
+### 🔧 Changed
+- **Icon status indicator description** — Updated from "blue/gray" to "transparent white-document icon turns black when enabled and gray when disabled" to reflect the new icon design
+- **README project structure** — Updated directory listing to reflect module consolidation (`primitives.js` replaces `storage-primitives.js`, removed `event-bus.js`, added `docs/brand/`)
+- **Build script** — Added auto-suffix for zip filename based on git branch name
 
 ---
 
