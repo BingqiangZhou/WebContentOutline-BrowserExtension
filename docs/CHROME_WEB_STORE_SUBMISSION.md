@@ -43,7 +43,7 @@ All data is stored locally on the user's device. No data is sent to any external
 ## tabs justification *
 
 ```text
-The "tabs" permission is required to read the URL of the active tab (via chrome.tabs.get, chrome.tabs.query, and the tab.url property in event listeners). The extension uses the tab's origin (e.g., "https://example.com") as a lookup key to determine whether the user has previously enabled or disabled the TOC for that specific website. This enables two core behaviors: (1) setting the correct toolbar icon state (blue for enabled, gray for disabled) when the user switches tabs, and (2) automatically injecting the content script into tabs where the user has previously enabled the extension, without requiring a repeated manual click.
+The "tabs" permission is required to read the URL of the active tab (via chrome.tabs.get, chrome.tabs.query, and the tab.url property in event listeners). The extension uses the tab's origin (e.g., "https://example.com") as a lookup key to determine whether the user has previously enabled or disabled the TOC for that specific website. This enables two core behaviors: (1) setting the correct toolbar icon state when the user switches tabs, using the 1.0 transparent white-document mark in black for enabled sites and gray for disabled sites, and (2) automatically injecting the content script into tabs where the user has previously enabled the extension, without requiring a repeated manual click.
 ```
 
 ## scripting justification *
@@ -121,3 +121,17 @@ No. The extension makes zero outbound network requests. It does not use fetch(),
 | `tabs` | Read tab URLs to look up per-site enable/disable state and set the correct toolbar icon |
 | `scripting` | Inject the bundled content script and stylesheet into pages where the user has enabled the extension |
 | `http://*/*`, `https://*/*` | Allow injection on any website the user chooses to enable the TOC for, with automatic activation on revisits |
+
+---
+
+## Store Visual Assets
+
+Generated with `npm run assets:brand`.
+
+| Asset | Path |
+|---|---|
+| Extension icons | `icons/png/toc-{enabled,disabled}-{16,32,48,128}.png` |
+| Brand mark SVGs | `docs/brand/web-toc-assistant-mark-{enabled,disabled}.svg` |
+| Small promotional tiles | `docs/brand/chrome-web-store-small-promo-{en,zh-CN}.png` |
+| Marquee promotional tiles | `docs/brand/chrome-web-store-marquee-{en,zh-CN}.png` |
+| Screenshot cover images | `docs/brand/store-screenshot-cover-{en,zh-CN}.png` |

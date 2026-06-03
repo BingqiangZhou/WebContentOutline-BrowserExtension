@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="512" height="512" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
   <title>Web TOC Assistant enabled icon</title>
   <g id="document-outline-icon">
     <path d="M33 14H78L105 41V108C105 113.523 100.523 118 95 118H33C27.477 118 23 113.523 23 108V24C23 18.477 27.477 14 33 14Z" fill="#ffffff"/>
