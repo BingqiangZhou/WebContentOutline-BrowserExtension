@@ -296,7 +296,7 @@ src/content.js（入口）
 - **导航锁故障保护**：卡死时超时自动解锁（默认8秒）
 - **动画帧管理**：调度和清理 requestAnimationFrame 回调
 - **存储配额处理**：配额超出时自动修剪旧数据
-- **配置变更重试**：失败时重试配置变更并验证结果
+- **串行化配置写入**：在后台 service worker 中校验并串行写入选择器变更
 
 ## 📖 配置格式
 
@@ -312,8 +312,7 @@ src/content.js（入口）
         { "type": "css", "expr": "h1, h2, h3, h4, h5, h6" },
         { "type": "css", "expr": ".article-title, .section-header" },
         { "type": "xpath", "expr": "//article//h2[@class='title']" }
-      ],
-      "collapsedDefault": false
+      ]
     }
   ],
   "tocSiteEnabledMap": {
@@ -333,7 +332,6 @@ src/content.js（入口）
 - `urlPattern`：URL 匹配模式，支持 `*` 通配符
 - `side`：面板显示位置（`left` 或 `right`）
 - `selectors`：选择器数组，支持 CSS 和 XPath 混用
-- `collapsedDefault`：默认是否折叠
 - `tocBadgePosMap`：工具条吸附位置存储（保留旧键名以兼容历史数据），包含 `x`、`y`、`anchorX`
 
 ## 🎯 适用场景

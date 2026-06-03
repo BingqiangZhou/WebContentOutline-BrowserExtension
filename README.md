@@ -306,7 +306,7 @@ src/content.js (entry)
 - **Navigation Lock Failsafe**: Auto-unlocks after timeout (8s) if stuck
 - **Animation Frame Management**: Schedules and cleans up requestAnimationFrame callbacks
 - **Storage Quota Handling**: Auto-prunes old data when quota exceeded
-- **Config Mutation Retry**: Retries failed config mutations with verification
+- **Serialized Config Writes**: Applies selector changes in the background service worker with validation and serialized storage writes
 
 ## 📖 Configuration Format
 
@@ -322,8 +322,7 @@ Site configuration is stored in `chrome.storage.local`:
         { "type": "css", "expr": "h1, h2, h3, h4, h5, h6" },
         { "type": "css", "expr": ".article-title, .section-header" },
         { "type": "xpath", "expr": "//article//h2[@class='title']" }
-      ],
-      "collapsedDefault": false
+      ]
     }
   ],
   "tocSiteEnabledMap": {
@@ -343,7 +342,6 @@ Site configuration is stored in `chrome.storage.local`:
 - `urlPattern`: URL matching pattern with `*` wildcard support
 - `side`: Panel display position (`left` or `right`)
 - `selectors`: Selector array, supports mixing CSS and XPath
-- `collapsedDefault`: Default collapsed state
 - `tocBadgePosMap`: Dock anchor position per domain (legacy key retained for compatibility; includes `x`, `y`, `anchorX`)
 
 ## 🎯 Use Cases

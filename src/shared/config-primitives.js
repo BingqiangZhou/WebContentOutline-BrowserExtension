@@ -102,7 +102,6 @@ function normalizeConfigs(configs, limits) {
       urlPattern: urlPattern,
       side: raw.side === 'left' ? 'left' : 'right',
       selectors: normalizeSelectors(raw.selectors, maxSelectors),
-      collapsedDefault: !!raw.collapsedDefault,
       updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0
     });
     var previous = byPattern.get(urlPattern);
@@ -164,7 +163,6 @@ export function applyTocConfigMutation(configs, mutation, now, limits) {
     urlPattern: urlPattern,
     side: mutation.side === 'left' ? 'left' : 'right',
     selectors: [],
-    collapsedDefault: false,
     updatedAt: 0
   };
   var nextSelectors = current.selectors.filter(function(item) {

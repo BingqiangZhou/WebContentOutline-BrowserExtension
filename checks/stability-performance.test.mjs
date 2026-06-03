@@ -173,6 +173,41 @@ function loadConfigPrimitivesForSelectors() {
   return sandbox.__exports.applyTocConfigMutation;
 }
 
+function loadStorageForNormalization() {
+  const file = path.join(repoRoot, 'src/utils/storage.js');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import[\s\S]*?from .+;\n/gm, '')
+    .replace(/export function /g, 'function ');
+  const sandbox = {
+    console,
+    STORAGE_KEYS: {
+      TOC_CONFIGS: 'tocConfigs',
+      SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+      PANEL_STATE_MAP: 'tocPanelExpandedMap',
+      BADGE_POS_MAP: 'tocBadgePosMap',
+      UI_MODE: 'tocUiMode'
+    },
+    uiConst(_name, fallback) { return fallback; },
+    isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    isExtensionContextInvalidated() { return false; },
+    isContextInvalidatedError() { return false; },
+    validateSelectorExpression() { return true; },
+    msg(key) { return key; },
+    serializedWrite(_key, fn) { return fn(); },
+    isQuotaExceededError() { return false; },
+    pruneObjectToLimit(map) { return map; },
+    showToast() {},
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(
+    `${source}\n__exports.normalizeStorageValue = normalizeStorageValue;`,
+    sandbox,
+    { filename: file }
+  );
+  return sandbox.__exports.normalizeStorageValue;
+}
+
 function loadUrlMonitorForPolling(options = {}) {
   const file = path.join(repoRoot, 'src/core/url-monitor.js');
   const source = fs.readFileSync(file, 'utf8')
@@ -604,6 +639,31 @@ test('config mutations filter broad legacy selectors and reject new broad select
   assert.deepEqual(plain(cleaned.configs[0].selectors.map((selector) => selector.expr)), ['.doc-title', 'article h2']);
 });
 
+test('config normalization drops unused collapsedDefault field from new and legacy configs', () => {
+  const applyTocConfigMutation = loadConfigPrimitivesForSelectors();
+  const normalizeStorageValue = loadStorageForNormalization();
+
+  const added = applyTocConfigMutation([], {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    selector: { type: 'css', expr: 'article h2' }
+  }, 100);
+  assert.equal(added.ok, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(added.configs[0], 'collapsedDefault'), false);
+
+  const normalized = normalizeStorageValue('tocConfigs', [{
+    urlPattern: 'https://example.com/*',
+    side: 'right',
+    collapsedDefault: true,
+    selectors: [{ type: 'css', expr: 'article h2' }]
+  }]);
+  assert.equal(Object.prototype.hasOwnProperty.call(normalized[0], 'collapsedDefault'), false);
+
+  assert.doesNotMatch(read('README.md'), /collapsedDefault/);
+  assert.doesNotMatch(read('README_CN.md'), /collapsedDefault/);
+  assert.doesNotMatch(read('src/content.js'), /collapsedDefault/);
+});
+
 test('content script skips config refresh when tocConfigs change is unrelated to the current URL', async () => {
   const initial = [{
     urlPattern: 'https://docs.example.com/*',
@@ -775,6 +835,16 @@ test('background owns UI state writes and removes CSS when disabling tabs', () =
   assert.match(background, /removeInjectedCss[\s\S]*?setInjectedState\(tabId,\s*null\)/);
   assert.match(background, /if \(!state \|\| state\.url !== url\)[\s\S]*?insertInjectedCss\(tabId\)/);
   assert.match(build, /ui-state-primitives\.js/);
+});
+
+test('origin-wide background fan-out is batched instead of fully concurrent', () => {
+  const background = read('src/background.js');
+
+  assert.match(background, /async function processInBatches\(items,\s*fn,\s*batchSize = 5\)/);
+  assert.match(background, /async function updateIconsForOrigin\(origin\)[\s\S]*?await processInBatches\(/);
+  assert.match(background, /async function broadcastEnabledToOrigin\(origin,\s*enabled,\s*exceptTabId\)[\s\S]*?await processInBatches\(/);
+  assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id\)\.map\(t => queueIconUpdate/);
+  assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id && \(!exceptTabId \|\| t\.id !== exceptTabId\)\)\.map/);
 });
 
 test('extension CSS selectors are scoped to owned UI roots', () => {
