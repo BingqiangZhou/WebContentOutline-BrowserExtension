@@ -23,8 +23,11 @@
   --toc-z-index: 2147483647;
 }
 
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating {
-  /* Theme custom properties (light mode defaults) */
+/* Shared theme variables — all TOC components inherit from this block */
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating,
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay,
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-toast-container,
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge {
   --toc-bg-panel: #fff;
   --toc-bg-header: #f6f7f9;
   --toc-bg-overlay: #fff;
@@ -33,10 +36,7 @@
   --toc-bg-list: #fff;
   --toc-bg-hover: rgba(0,0,0,0.06);
   --toc-bg-hover-strong: rgba(0,0,0,0.1);
-  --toc-bg-hover-item: rgba(64, 128, 255, 0.1);
-  --toc-bg-active-item: rgba(64, 128, 255, 0.12);
-  --toc-bg-hover-item-strong: rgba(64, 128, 255, 0.15);
-  --toc-bg-badge: #2f6feb;
+  --toc-bg-close-hover: rgba(0,0,0,0.06);
   --toc-bg-btn-primary: #2f6feb;
   --toc-bg-btn-primary-hover: #2a63d4;
   --toc-bg-btn-danger: #b42318;
@@ -45,19 +45,14 @@
   --toc-bg-delete-hover: rgba(180, 35, 24, 0.15);
   --toc-bg-delete-active: rgba(180, 35, 24, 0.25);
   --toc-bg-selector-hover: rgba(0,0,0,0.04);
-  --toc-bg-close-hover: rgba(0,0,0,0.06);
   --toc-bg-notice: #fff3cd;
   --toc-text-primary: #222;
-  --toc-text-secondary: #333;
   --toc-text-muted: #777;
-  --toc-text-empty: #9e9e9e;
   --toc-text-btn: #333;
   --toc-text-btn-hover: #333;
   --toc-text-badge: #fff;
   --toc-text-count: #555;
   --toc-text-selector: #333;
-  --toc-text-item-active: #235;
-  --toc-text-item-hover: #222;
   --toc-text-delete: #999;
   --toc-text-delete-hover: #b42318;
   --toc-border: rgba(0,0,0,0.1);
@@ -65,20 +60,30 @@
   --toc-border-input: rgba(0,0,0,0.15);
   --toc-border-list: rgba(0,0,0,0.08);
   --toc-border-toast: rgba(0,0,0,0.12);
-  --toc-border-toast-info: #2f6feb;
-  --toc-border-toast-success: #1e8e3e;
-  --toc-border-toast-warning: #f29900;
-  --toc-border-toast-error: #d93025;
   --toc-shadow-panel: 0 8px 24px rgba(0,0,0,0.15);
   --toc-shadow-toast: 0 10px 28px rgba(0,0,0,0.18);
-  --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.2);
-  --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.25);
   --toc-shadow-delete: 0 1px 3px rgba(0,0,0,0.15);
   --toc-focus-ring: rgba(47, 111, 235, 0.85);
   --toc-notice-text: #856404;
   --toc-notice-border: #ffc107;
   --toc-link: #2f6feb;
   --toc-link-hover: #1a5cc7;
+}
+
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating {
+  /* Floating-panel-specific theme overrides */
+  --toc-bg-hover-item: rgba(64, 128, 255, 0.1);
+  --toc-bg-active-item: rgba(64, 128, 255, 0.12);
+  --toc-bg-hover-item-strong: rgba(64, 128, 255, 0.15);
+  --toc-bg-badge: #2f6feb;
+  --toc-text-item-active: #235;
+  --toc-text-item-hover: #222;
+  --toc-border-toast-info: #2f6feb;
+  --toc-border-toast-success: #1e8e3e;
+  --toc-border-toast-warning: #f29900;
+  --toc-border-toast-error: #d93025;
+  --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.2);
+  --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.25);
 
   position: fixed !important;
   top: 100px !important;
@@ -96,16 +101,10 @@
   line-height: 1.4 !important;
   text-align: left !important;
   direction: ltr !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  transform: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
   display: block !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock {
-  --toc-z-index: 2147483647;
   --toc-dock-bg: #fff;
   --toc-dock-color: #202124;
   --toc-dock-border: rgba(15, 23, 42, 0.08);
@@ -496,48 +495,6 @@
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay {
-  /* Overlay is outside .toc-floating DOM tree — needs own variable scope */
-  --toc-bg-panel: #fff;
-  --toc-bg-header: #f6f7f9;
-  --toc-bg-overlay: #fff;
-  --toc-bg-toast: #fff;
-  --toc-bg-input: #fff;
-  --toc-bg-list: #fff;
-  --toc-bg-hover: rgba(0,0,0,0.06);
-  --toc-bg-hover-strong: rgba(0,0,0,0.1);
-  --toc-bg-close-hover: rgba(0,0,0,0.06);
-  --toc-bg-btn-primary: #2f6feb;
-  --toc-bg-btn-primary-hover: #2a63d4;
-  --toc-bg-btn-danger: #b42318;
-  --toc-bg-btn-danger-hover: #9e1f15;
-  --toc-bg-delete: rgba(255, 255, 255, 0.9);
-  --toc-bg-delete-hover: rgba(180, 35, 24, 0.15);
-  --toc-bg-delete-active: rgba(180, 35, 24, 0.25);
-  --toc-bg-selector-hover: rgba(0,0,0,0.04);
-  --toc-bg-notice: #fff3cd;
-  --toc-text-primary: #222;
-  --toc-text-secondary: #333;
-  --toc-text-muted: #777;
-  --toc-text-btn: #333;
-  --toc-text-btn-hover: #333;
-  --toc-text-badge: #fff;
-  --toc-text-count: #555;
-  --toc-text-selector: #333;
-  --toc-text-delete: #999;
-  --toc-text-delete-hover: #b42318;
-  --toc-border: rgba(0,0,0,0.1);
-  --toc-border-light: rgba(0,0,0,0.06);
-  --toc-border-input: rgba(0,0,0,0.15);
-  --toc-border-list: rgba(0,0,0,0.08);
-  --toc-border-toast: rgba(0,0,0,0.12);
-  --toc-shadow-panel: 0 8px 24px rgba(0,0,0,0.15);
-  --toc-shadow-delete: 0 1px 3px rgba(0,0,0,0.15);
-  --toc-focus-ring: rgba(47, 111, 235, 0.85);
-  --toc-notice-text: #856404;
-  --toc-notice-border: #ffc107;
-  --toc-link: #2f6feb;
-  --toc-link-hover: #1a5cc7;
-
   display: block !important;
   position: fixed !important;
   bottom: 20px !important;
@@ -675,7 +632,6 @@
   background: var(--toc-bg-input, #fff) !important;
   color: var(--toc-text-primary, #222) !important;
   resize: vertical !important;
-  box-sizing: border-box !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay-list {
@@ -816,32 +772,13 @@
   color: var(--toc-text-btn) !important;
   font-size: 12px !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-  font-weight: normal !important;
-  text-decoration: none !important;
-  text-transform: none !important;
-  letter-spacing: normal !important;
   line-height: 1.2 !important;
-  margin: 0 !important;
-  outline: none !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
-  vertical-align: baseline !important;
-  white-space: normal !important;
-  min-width: auto !important;
-  min-height: auto !important;
-  max-height: none !important;
-  width: auto !important;
-  height: auto !important;
   max-width: 100% !important;
   display: inline-block !important;
   position: relative !important;
   word-wrap: break-word !important;
   overflow-wrap: break-word !important;
   hyphens: auto !important;
-  z-index: auto !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  transform: none !important;
   transition: background-color 0.15s ease !important;
 }
 
@@ -855,11 +792,7 @@
   color: var(--toc-text-btn-hover) !important;
 }
 
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-btn:focus {
-  background: var(--toc-bg-hover) !important;
-  color: var(--toc-text-btn-hover) !important;
-}
-
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-btn:focus,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-btn.toc-btn-active {
   background: var(--toc-bg-hover) !important;
   color: var(--toc-text-btn-hover) !important;
@@ -890,17 +823,10 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   line-height: 1.4 !important;
-  margin: 0 !important;
-  background: transparent !important;
   border: none !important;
-  box-shadow: none !important;
+  background: transparent !important;
   position: relative !important;
-  z-index: auto !important;
   display: block !important;
-  width: auto !important;
-  height: auto !important;
-  min-height: auto !important;
-  box-sizing: border-box !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item {
@@ -909,34 +835,17 @@
   border-radius: 6px !important;
   cursor: pointer !important;
   font-size: 13px !important;
-  font-weight: normal !important;
-  text-decoration: none !important;
   white-space: nowrap !important;
   text-overflow: ellipsis !important;
   overflow: hidden !important;
-  margin: 0 !important;
   border: none !important;
   background: transparent !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
   line-height: 1.4 !important;
-  letter-spacing: normal !important;
-  text-transform: none !important;
   text-align: left !important;
   position: relative !important;
-  z-index: auto !important;
   width: 100% !important;
-  height: auto !important;
-  min-width: auto !important;
-  min-height: auto !important;
   max-width: 100% !important;
-  max-height: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  transform: none !important;
   transition: background-color 0.15s ease !important;
-  outline: none !important;
-  box-sizing: border-box !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item[data-level="1"] {
@@ -963,7 +872,8 @@
   padding-left: 58px !important;
 }
 
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item:hover {
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item:hover,
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item:focus {
   background: var(--toc-bg-hover-item) !important;
   color: var(--toc-text-item-hover) !important;
   text-decoration: none !important;
@@ -973,12 +883,6 @@
   font-weight: 700 !important;
   color: var(--toc-text-item-active) !important;
   background: var(--toc-bg-active-item) !important;
-  text-decoration: none !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item:focus {
-  background: var(--toc-bg-hover-item) !important;
-  color: var(--toc-text-item-hover) !important;
   text-decoration: none !important;
 }
 
@@ -1007,53 +911,24 @@
   box-shadow: var(--toc-shadow-badge) !important;
   cursor: grab !important;
   user-select: none !important;
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
   font-size: 13px !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-  font-weight: normal !important;
   line-height: 1.2 !important;
   text-align: center !important;
-  text-decoration: none !important;
   border: none !important;
-  margin: 0 !important;
-  outline: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
   display: block !important;
-  width: auto !important;
-  height: auto !important;
-  min-width: auto !important;
-  min-height: auto !important;
-  max-width: none !important;
-  max-height: none !important;
-  transform: none !important;
   transition: transform 0.1s ease, box-shadow 0.1s ease !important;
   white-space: nowrap !important;
-  overflow: visible !important;
-  text-overflow: clip !important;
-  word-wrap: normal !important;
-  word-break: normal !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge:hover {
   transform: translateY(-1px) !important;
   box-shadow: var(--toc-shadow-badge-hover) !important;
-  color: var(--toc-text-badge) !important;
-  background: var(--toc-bg-badge) !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge:active {
   cursor: grabbing !important;
   transform: translateY(0) !important;
-  color: var(--toc-text-badge) !important;
-  background: var(--toc-bg-badge) !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge:focus {
-  color: var(--toc-text-badge) !important;
-  background: var(--toc-bg-badge) !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge.right {
@@ -1069,32 +944,12 @@
   padding: 10px !important;
   color: var(--toc-text-muted) !important;
   font-size: 13px !important;
-  font-weight: normal !important;
   line-height: 1.4 !important;
   text-align: center !important;
-  text-decoration: none !important;
-  text-transform: none !important;
-  letter-spacing: normal !important;
-  margin: 0 !important;
   border: none !important;
   background: transparent !important;
-  box-shadow: none !important;
-  text-shadow: none !important;
   position: relative !important;
-  z-index: auto !important;
   display: block !important;
-  width: auto !important;
-  height: auto !important;
-  min-width: auto !important;
-  min-height: auto !important;
-  max-width: none !important;
-  max-height: none !important;
-  opacity: 1 !important;
-  visibility: visible !important;
-  transform: none !important;
-  outline: none !important;
-  box-sizing: border-box !important;
-  white-space: normal !important;
   word-wrap: break-word !important;
   overflow-wrap: break-word !important;
 }
@@ -1113,7 +968,6 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
   line-height: 1.4 !important;
   text-align: center !important;
-  box-sizing: border-box !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-ctx-refresh-link {
@@ -1126,7 +980,6 @@
   font-size: 13px !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif !important;
   line-height: 1.4 !important;
-  box-sizing: border-box !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-ctx-refresh-link:hover {
@@ -1155,7 +1008,11 @@
     --toc-menu-hover: rgba(255, 255, 255, 0.1);
     --toc-border: rgba(255,255,255,0.1);
   }
-  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating {
+  /* Shared dark theme variables */
+  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating,
+  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay,
+  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-toast-container,
+  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge {
     --toc-bg-panel: #1e1e1e;
     --toc-bg-header: #2d2d2d;
     --toc-bg-overlay: #1e1e1e;
@@ -1164,10 +1021,7 @@
     --toc-bg-list: #2d2d2d;
     --toc-bg-hover: rgba(255,255,255,0.1);
     --toc-bg-hover-strong: rgba(255,255,255,0.15);
-    --toc-bg-hover-item: rgba(64, 128, 255, 0.15);
-    --toc-bg-active-item: rgba(64, 128, 255, 0.2);
-    --toc-bg-hover-item-strong: rgba(64, 128, 255, 0.2);
-    --toc-bg-badge: #2f6feb;
+    --toc-bg-close-hover: rgba(255,255,255,0.08);
     --toc-bg-btn-primary: #2f6feb;
     --toc-bg-btn-primary-hover: #4a7fd4;
     --toc-bg-btn-danger: #d32f2f;
@@ -1176,19 +1030,14 @@
     --toc-bg-delete-hover: rgba(255, 82, 82, 0.25);
     --toc-bg-delete-active: rgba(255, 82, 82, 0.25);
     --toc-bg-selector-hover: rgba(255,255,255,0.08);
-    --toc-bg-close-hover: rgba(255,255,255,0.08);
     --toc-bg-notice: #3d3a1d;
     --toc-text-primary: #e0e0e0;
-    --toc-text-secondary: #c0c0c0;
     --toc-text-muted: #9e9e9e;
-    --toc-text-empty: #9e9e9e;
     --toc-text-btn: #c0c0c0;
     --toc-text-btn-hover: #e0e0e0;
     --toc-text-badge: #fff;
     --toc-text-count: #aaa;
     --toc-text-selector: #e0e0e0;
-    --toc-text-item-active: #64b5f6;
-    --toc-text-item-hover: #e0e0e0;
     --toc-text-delete: #888;
     --toc-text-delete-hover: #ff5252;
     --toc-border: rgba(255,255,255,0.1);
@@ -1198,14 +1047,23 @@
     --toc-border-toast: rgba(255,255,255,0.12);
     --toc-shadow-panel: 0 8px 24px rgba(0,0,0,0.4);
     --toc-shadow-toast: 0 10px 28px rgba(0,0,0,0.5);
-    --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.4);
-    --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.5);
     --toc-shadow-delete: 0 1px 3px rgba(0,0,0,0.3);
     --toc-focus-ring: rgba(47, 111, 235, 0.85);
     --toc-notice-text: #f0d060;
     --toc-notice-border: #856c00;
     --toc-link: #64b5f6;
     --toc-link-hover: #90caf9;
+  }
+  /* Floating-panel-specific dark overrides */
+  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating {
+    --toc-bg-hover-item: rgba(64, 128, 255, 0.15);
+    --toc-bg-active-item: rgba(64, 128, 255, 0.2);
+    --toc-bg-hover-item-strong: rgba(64, 128, 255, 0.2);
+    --toc-bg-badge: #2f6feb;
+    --toc-text-item-active: #64b5f6;
+    --toc-text-item-hover: #e0e0e0;
+    --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.4);
+    --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.5);
   }
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating.toc-floating-docked {
     --toc-bg-hover-item: rgba(255, 255, 255, 0.07);
@@ -1220,48 +1078,5 @@
     --toc-bg-badge: #2f6feb;
     --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.4);
     --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.5);
-  }
-  /* Overlay is outside .toc-floating DOM tree - needs own variable scope */
-  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay {
-    --toc-bg-panel: #1e1e1e;
-    --toc-bg-header: #2d2d2d;
-    --toc-bg-overlay: #1e1e1e;
-    --toc-bg-toast: #1e1e1e;
-    --toc-bg-input: #2d2d2d;
-    --toc-bg-list: #2d2d2d;
-    --toc-bg-hover: rgba(255,255,255,0.1);
-    --toc-bg-hover-strong: rgba(255,255,255,0.15);
-    --toc-bg-close-hover: rgba(255,255,255,0.08);
-    --toc-bg-btn-primary: #2f6feb;
-    --toc-bg-btn-primary-hover: #4a7fd4;
-    --toc-bg-btn-danger: #d32f2f;
-    --toc-bg-btn-danger-hover: #ef5350;
-    --toc-bg-delete: rgba(45, 45, 45, 0.9);
-    --toc-bg-delete-hover: rgba(255, 82, 82, 0.25);
-    --toc-bg-delete-active: rgba(255, 82, 82, 0.25);
-    --toc-bg-selector-hover: rgba(255,255,255,0.08);
-    --toc-bg-notice: #3d3a1d;
-    --toc-text-primary: #e0e0e0;
-    --toc-text-secondary: #c0c0c0;
-    --toc-text-muted: #9e9e9e;
-    --toc-text-btn: #c0c0c0;
-    --toc-text-btn-hover: #e0e0e0;
-    --toc-text-badge: #fff;
-    --toc-text-count: #aaa;
-    --toc-text-selector: #e0e0e0;
-    --toc-text-delete: #888;
-    --toc-text-delete-hover: #ff5252;
-    --toc-border: rgba(255,255,255,0.1);
-    --toc-border-light: rgba(255,255,255,0.06);
-    --toc-border-input: rgba(255,255,255,0.15);
-    --toc-border-list: rgba(255,255,255,0.08);
-    --toc-border-toast: rgba(255,255,255,0.12);
-    --toc-shadow-panel: 0 8px 24px rgba(0,0,0,0.4);
-    --toc-shadow-delete: 0 1px 3px rgba(0,0,0,0.3);
-    --toc-focus-ring: rgba(47, 111, 235, 0.85);
-    --toc-notice-text: #f0d060;
-    --toc-notice-border: #856c00;
-    --toc-link: #64b5f6;
-    --toc-link-hover: #90caf9;
   }
 }

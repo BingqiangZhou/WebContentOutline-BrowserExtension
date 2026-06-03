@@ -150,40 +150,23 @@ function getIconPathMap(enabled) {
   };
 }
 
-function makeAbsoluteIconPathMap(pathMap) {
-  const out = {};
-  for (const [size, iconPath] of Object.entries(pathMap || {})) {
-    out[size] = chrome.runtime.getURL(String(iconPath).replace(/^\/+/, ''));
-  }
-  return out;
-}
-
-async function setActionIconAsync(details) {
+async function setTabIcon(tabId, enabled) {
   try {
-    await chrome.action.setIcon(details);
-    return true;
+    await chrome.action.setIcon({ tabId, path: getIconPathMap(enabled) });
   } catch (e) {
     try {
-      if (details && details.path && typeof details.path === 'object') {
-        await chrome.action.setIcon({ ...details, path: makeAbsoluteIconPathMap(details.path) });
-        return true;
+      const pathMap = getIconPathMap(enabled);
+      const absolute = {};
+      for (const [size, p] of Object.entries(pathMap)) {
+        absolute[size] = chrome.runtime.getURL(p.replace(/^\/+/, ''));
       }
-    } catch (fallbackErr) {
-      console.error('[toc] setIcon error:', fallbackErr.message || fallbackErr);
-      return false;
-    }
-    return false;
+      await chrome.action.setIcon({ tabId, path: absolute });
+    } catch (_) {}
   }
-}
-
-async function setActionTitleAsync(details) {
   try {
-    await chrome.action.setTitle(details);
-    return true;
-  } catch (e) {
-    console.warn('[toc] setTitle error:', e.message, details);
-    return false;
-  }
+    const title = chrome.i18n.getMessage(enabled ? 'titleEnabled' : 'titleDisabled') || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
+    await chrome.action.setTitle({ tabId, title });
+  } catch (_) {}
 }
 
 async function updateIconForTab(tabId, url) {
@@ -197,18 +180,16 @@ async function updateIconForTab(tabId, url) {
   }
 
   if (!finalUrl || !isHttpUrl(finalUrl)) {
-    await setActionIconAsync({ tabId, path: getIconPathMap(false) });
-    await setActionTitleAsync({ tabId, title: chrome.i18n.getMessage('titleDisabledFallback') || 'Web TOC: Disabled' });
+    try {
+      await chrome.action.setIcon({ tabId, path: getIconPathMap(false) });
+      await chrome.action.setTitle({ tabId, title: chrome.i18n.getMessage('titleDisabledFallback') || 'Web TOC: Disabled' });
+    } catch (_) {}
     return;
   }
 
   const origin = originFromUrl(finalUrl);
   const enabled = await getEnabledByOrigin(origin);
-  try {
-    await setActionIconAsync({ tabId, path: getIconPathMap(enabled) });
-    const title = chrome.i18n.getMessage(enabled ? 'titleEnabled' : 'titleDisabled') || (enabled ? 'Web TOC: Enabled' : 'Web TOC: Disabled');
-    await setActionTitleAsync({ tabId, title });
-  } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
+  try { await setTabIcon(tabId, enabled); } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
 }
 
 function pingContentScript(tabId) {
@@ -347,10 +328,6 @@ chrome.tabs.onCreated.addListener((tab) => {
   if (tab?.id) updateIconForTab(tab.id, tab.url).catch(() => {});
 });
 
-chrome.tabs.onRemoved.addListener((tabId) => {
-  // No state to clean up
-});
-
 async function processAllTabs() {
   try {
     const tabs = await chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] });
@@ -369,8 +346,8 @@ async function processAllTabs() {
 
 async function setGlobalDefaultIconDisabled() {
   try {
-    await setActionIconAsync({ path: getIconPathMap(false) });
-    await setActionTitleAsync({ title: chrome.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled' });
+    await chrome.action.setIcon({ path: getIconPathMap(false) });
+    await chrome.action.setTitle({ title: chrome.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled' });
   } catch (e) { console.warn('[toc] setGlobalDefaultIconDisabled failed:', e); }
 }
 

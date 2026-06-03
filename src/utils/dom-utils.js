@@ -9,7 +9,7 @@ import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.
      * @param {string} pattern e.g., https://example.com/articles/* or *://*.example.com/*
      * @param {string} text URL to test
      */
-export function matchWildcard(pattern, text) {
+function matchWildcard(pattern, text) {
       if (typeof pattern !== 'string' || typeof text !== 'string') return false;
       if (pattern === '*') return true;
       var parts = pattern.split('*');
@@ -111,17 +111,14 @@ export function setPanelExpandedByOrigin(origin, expanded) {
      */
 export function collectBySelector(selector, maxCandidates) {
       if (!selector || !selector.expr) return [];
-      var configuredLimit = 1200;
-      var limitOverride = Number.isFinite(maxCandidates) && maxCandidates > 0
-        ? Math.max(1, Math.floor(maxCandidates))
-        : configuredLimit;
-      var finalLimit = Math.min(configuredLimit, limitOverride);
+      var limit = 1200;
+      if (Number.isFinite(maxCandidates) && maxCandidates > 0) limit = Math.min(limit, Math.floor(maxCandidates));
       if (selector.type === 'xpath') {
         if (!isSafeXPathExpression(selector.expr)) return [];
         try {
           var iterator = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
           var nodes = [];
-          for (var i = 0; i < finalLimit; i++) {
+          for (var i = 0; i < limit; i++) {
             var node = iterator.iterateNext();
             if (!node) break;
             if (node.nodeType === 1) nodes.push(node);
@@ -134,7 +131,7 @@ export function collectBySelector(selector, maxCandidates) {
       try {
         if (typeof isHighRiskBroadCssSelector === 'function' && isHighRiskBroadCssSelector(selector.expr)) return [];
         var nodeList = document.querySelectorAll(selector.expr);
-        var len = Math.min(nodeList.length, finalLimit);
+        var len = Math.min(nodeList.length, limit);
         var result = new Array(len);
         for (var j = 0; j < len; j++) result[j] = nodeList[j];
         return result;

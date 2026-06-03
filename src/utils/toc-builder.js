@@ -19,12 +19,12 @@ import { getBoundedText } from './bounded-text.js';
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
 
-export function getTocItemLevel(el) {
+function getTocItemLevel(el) {
       var match = el && /^H([1-6])$/.exec(el.tagName || '');
       return match ? parseInt(match[1], 10) : 2;
     }
 
-export function buildTocItemsFromSelectors(selectors, cfg) {
+function buildTocItemsFromSelectors(selectors, cfg) {
       var elements = [];
       var list = Array.isArray(selectors) ? selectors : [];
       var perSelectorLimit = Math.max(1, Math.floor(TOC_MAX_CANDIDATES / Math.max(1, list.length)));
@@ -52,20 +52,6 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
       }
 
       var items = [];
-      var styleCache = new Map();
-      var rectCache = new Map();
-      var getStyle = function(el) {
-        if (styleCache.has(el)) return styleCache.get(el);
-        var style = window.getComputedStyle(el);
-        styleCache.set(el, style);
-        return style;
-      };
-      var getRect = function(el) {
-        if (rectCache.has(el)) return rectCache.get(el);
-        var rect = el.getBoundingClientRect();
-        rectCache.set(el, rect);
-        return rect;
-      };
       for (var m = 0; m < candidates.length; m++) {
         var el = candidates[m];
 
@@ -74,7 +60,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
 
         // Phase 2: style + geometry checks (one layout read batch per element)
         var style;
-        try { style = getStyle(el); } catch (_) { continue; }
+        try { style = window.getComputedStyle(el); } catch (_) { continue; }
         if (!style) continue;
         if (style.display === 'none') continue;
 
@@ -91,7 +77,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
         if (Number.isFinite(opacity) && opacity <= 0) continue;
 
         var rect;
-        try { rect = getRect(el); } catch (_) { continue; }
+        try { rect = el.getBoundingClientRect(); } catch (_) { continue; }
         if (!rect || rect.width === 0 || rect.height === 0) continue;
 
         // Phase 3: parent clipping check (only for phase 2 survivors)
@@ -100,7 +86,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
         var depth = 0;
         while (parent && depth < 3) {
           var parentStyle;
-          try { parentStyle = getStyle(parent); } catch (_) { break; }
+          try { parentStyle = window.getComputedStyle(parent); } catch (_) { break; }
           if (parentStyle) {
             var overflowVal = parentStyle.overflow;
             var overflowX = parentStyle.overflowX;
@@ -110,7 +96,7 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
               || overflowY === 'hidden' || overflowY === 'clip';
             if (clips) {
               var parentRect;
-              try { parentRect = getRect(parent); } catch (_) { break; }
+              try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
               if (rect.right <= parentRect.left || rect.left >= parentRect.right
                   || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
                 clipped = true;

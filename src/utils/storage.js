@@ -7,7 +7,7 @@ import {
 } from './core-utils.js';
 import { serializedWrite, pruneObjectToLimit } from '../shared/primitives.js';
 
-export function normalizeSelectorEntry(entry) {
+function normalizeSelectorEntry(entry) {
     if (!entry || typeof entry !== 'object') return null;
     var type = entry.type === 'css' || entry.type === 'xpath' ? entry.type : null;
     if (!type) return null;
@@ -27,7 +27,7 @@ export function normalizeUiMode(mode) {
     return mode === 'classic' ? 'classic' : 'edge-dock';
   }
 
-export function normalizeTocConfigs(value) {
+function normalizeTocConfigs(value) {
     var list = Array.isArray(value) ? value : [];
     var maxSites = 200;
     var maxSelectorsPerSite = 50;
@@ -75,23 +75,11 @@ export function validateStorageValue(key, value) {
     return true;
   }
 
-export function normalizeStorageValue(key, value) {
+function normalizeStorageValue(key, value) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value);
     if (key === STORAGE_KEYS.UI_MODE) return normalizeUiMode(value);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       var map = isPlainObject(value) ? Object.assign({}, value) : {};
-      if (key === STORAGE_KEYS.BADGE_POS_MAP) {
-        // Back-compat: older versions stored {left, top}. Current code uses badge center {x, y}.
-        var hosts = Object.keys(map);
-        for (var hi = 0; hi < hosts.length; hi++) {
-          var pos = map[hosts[hi]];
-          if (!isPlainObject(pos)) continue;
-          if (Number.isFinite(pos.x) && Number.isFinite(pos.y)) continue;
-          if (Number.isFinite(pos.left) && Number.isFinite(pos.top)) {
-            map[hosts[hi]] = Object.assign({}, pos, { x: pos.left + 40, y: pos.top + 16 });
-          }
-        }
-      }
       return pruneObjectToLimit(map, 400);
     }
     return value;
@@ -149,10 +137,6 @@ export function setStorage(key, value) {
 
 export function getConfigs() {
     return getStorage(STORAGE_KEYS.TOC_CONFIGS, []);
-  }
-
-export function saveConfigs(configs) {
-    return serializedWrite(STORAGE_KEYS.TOC_CONFIGS, function() { return setStorage(STORAGE_KEYS.TOC_CONFIGS, configs); });
   }
 
 export function getEnabledMap() {

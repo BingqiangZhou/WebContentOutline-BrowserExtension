@@ -74,8 +74,8 @@ function isHighRiskBroadCssSelector(expr) {
 function isHighRiskBroadXPathExpression(expr) {
   var normalized = String(expr || '').trim().replace(/\s+/g, '').toLowerCase();
   if (!normalized) return false;
-  if (/^\x2F\x2F\s*\*/.test(normalized) || /^\.\x2F\s*\*/.test(normalized)) return true;
-  if (/^\x2F\x2F(html|body)\x2F(descendant-or-self::)?\*/.test(normalized)) return true;
+  if (/^\/\/*\*/.test(normalized) || /^\.\/\*/.test(normalized)) return true;
+  if (/^\/\/(html|body)\/(descendant-or-self::)?\*/.test(normalized)) return true;
   if (/^descendant(-or-self)?::\*/.test(normalized)) return true;
   return false;
 }
@@ -210,10 +210,8 @@ function normalizePosition(value) {
   var y = Number(value.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   var result = { x: x, y: y };
-  ['vw', 'vh', 'marginX', 'updatedAt'].forEach(function(key) {
-    var num = Number(value[key]);
-    if (Number.isFinite(num)) result[key] = num;
-  });
+  var updatedAt = Number(value.updatedAt);
+  if (Number.isFinite(updatedAt)) result.updatedAt = updatedAt;
   if (value.anchorX === 'left' || value.anchorX === 'right') result.anchorX = value.anchorX;
   return result;
 }

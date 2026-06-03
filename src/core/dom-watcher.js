@@ -20,7 +20,6 @@
    */
 export function createDomWatcher(onMutation, cfg) {
     var observerRef = null;
-    var observedRoot = null;
     var isContextValid = true;
 
     function isDefaultHeadingMode() {
@@ -85,7 +84,6 @@ export function createDomWatcher(onMutation, cfg) {
     function disconnect() {
       var obs = observerRef;
       observerRef = null;
-      observedRoot = null;
       if (obs) { try { obs.disconnect(); } catch (_) {} }
     }
 
@@ -124,7 +122,6 @@ export function createDomWatcher(onMutation, cfg) {
           attributes: true,
           attributeFilter: OBSERVED_ATTRIBUTES
         });
-        observedRoot = root;
         return true;
       } catch (_) {
         observerRef = null;
@@ -141,7 +138,6 @@ export function createDomWatcher(onMutation, cfg) {
     return {
       start: start,
       stop: disconnect,
-      disconnect: disconnect,
       checkAndReconnect: checkAndReconnect,
       invalidate: invalidate
     };

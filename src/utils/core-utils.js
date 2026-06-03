@@ -64,21 +64,6 @@ export function getFocusableWithin(rootEl) {
     }
   }
 
-export function safeJsonParse(raw) {
-    if (typeof raw !== 'string') return null;
-    if (raw.length > 20000) return null;
-    try {
-      return JSON.parse(raw);
-    } catch (e) {
-      return null;
-    }
-  }
-
-export function getFiniteNumber(value) {
-    var num = typeof value === 'number' ? value : Number(value);
-    return Number.isFinite(num) ? num : null;
-  }
-
 export function isSafeXPathExpression(expr) {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
@@ -129,10 +114,3 @@ export function validateSelectorExpression(type, expr) {
     }
   }
 
-export function originFromUrl(url) {
-    try {
-      return new URL(url).origin;
-    } catch (e) {
-      try { return location.origin; } catch (_) { return ''; }
-    }
-  }

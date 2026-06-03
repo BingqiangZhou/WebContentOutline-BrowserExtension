@@ -6,11 +6,7 @@ import {
   cleanupOwnedElements
 } from '../utils/toc-utils.js';
 import * as NL from '../core/nav-lock.js';
-import {
-  createTimerBag,
-  createWindowListenerAdder,
-  clearChildren
-} from './floating-panel-helpers.js';
+import { clearChildren } from './floating-panel-helpers.js';
 
   var CFG = {
     UNLOCK_AFTER_MS: 800,
@@ -38,69 +34,70 @@ export function renderFloatingPanel(opts) {
 
     var panel = document.createElement('div');
     var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var listenerSignal = listenersController ? listenersController.signal : null;
-    var addWindowListener = createWindowListenerAdder(listenerSignal);
 
-    var resolveShown = null;
-    var whenShown = new Promise(function(resolve) { resolveShown = resolve; });
-
-    // Unified timer management for better cleanup and resource management
-    var timers = createTimerBag([
-      'unlock',
-      'scrollStop',
-      'pendingRebuildRecheck',
-      'expandAnim'
-    ]);
+    // Simple timer IDs for cleanup
+    var unlockTimer = null;
+    var scrollStopTimer = null;
+    var pendingRebuildTimer = null;
+    var expandAnimTimer = null;
 
     var showRaf = null;
     var cleanedUp = false;
     var onPanelKeydown = null;
     var onListClick = null;
     var onListKeydown = null;
+    var removeScrollListener = null;
 
     panel.style.setProperty('visibility', 'hidden', 'important');
     var SCROLL_LISTENER_OPTS = { passive: true };
 
     var unlockLater = function() {
-      if (timers.unlock) clearTimeout(timers.unlock);
-      timers.unlock = setTimeout(function() {
-        timers.unlock = null;
+      if (unlockTimer) clearTimeout(unlockTimer);
+      unlockTimer = setTimeout(function() {
+        unlockTimer = null;
         NL.unlock();
 
         if (getPendingRebuild && getPendingRebuild()) {
-          if (timers.pendingRebuildRecheck) clearTimeout(timers.pendingRebuildRecheck);
-          timers.pendingRebuildRecheck = setTimeout(function() {
-            timers.pendingRebuildRecheck = null;
+          if (pendingRebuildTimer) clearTimeout(pendingRebuildTimer);
+          pendingRebuildTimer = setTimeout(function() {
+            pendingRebuildTimer = null;
             if (getPendingRebuild && getPendingRebuild()) {
               setPendingRebuild && setPendingRebuild(false);
-              try {
-                onRefresh();
-              } catch (e) {
-                console.warn('[toc] refresh after unlock failed', e);
-              }
+              try { onRefresh(); } catch (e) { console.warn('[toc] refresh after unlock failed', e); }
             }
           }, CFG.PENDING_REBUILD_RECHECK_MS);
         }
-
       }, CFG.UNLOCK_AFTER_MS);
     };
 
     var onScroll = function() {
       if (!NL.isLocked()) return;
-      if (timers.scrollStop) clearTimeout(timers.scrollStop);
-      timers.scrollStop = setTimeout(function() {
-        timers.scrollStop = null;
+      if (scrollStopTimer) clearTimeout(scrollStopTimer);
+      scrollStopTimer = setTimeout(function() {
+        scrollStopTimer = null;
         NL.unlock();
       }, CFG.SCROLL_STOP_MS);
     };
 
-    var removeScrollListener = addWindowListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
+    // Set up scroll listener with AbortController if available
+    try {
+      if (listenersController) {
+        window.addEventListener('scroll', onScroll, { ...SCROLL_LISTENER_OPTS, signal: listenersController.signal });
+      } else {
+        window.addEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
+      }
+      removeScrollListener = function() {
+        try { window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false); } catch (_) {}
+      };
+    } catch (_) {
+      removeScrollListener = function() {};
+    }
 
     var cleanupLock = function() {
       try { NL.unlock(); } catch (_) {}
-      if (timers.unlock) { clearTimeout(timers.unlock); timers.unlock = null; }
-      if (timers.scrollStop) { clearTimeout(timers.scrollStop); timers.scrollStop = null; }
-      if (timers.pendingRebuildRecheck) { clearTimeout(timers.pendingRebuildRecheck); timers.pendingRebuildRecheck = null; }
+      if (unlockTimer) { clearTimeout(unlockTimer); unlockTimer = null; }
+      if (scrollStopTimer) { clearTimeout(scrollStopTimer); scrollStopTimer = null; }
+      if (pendingRebuildTimer) { clearTimeout(pendingRebuildTimer); pendingRebuildTimer = null; }
     };
 
     panel.className = embedded
@@ -269,13 +266,12 @@ export function renderFloatingPanel(opts) {
       if (!panel || !panel.isConnected) return;
       panel.style.removeProperty('visibility');
       if (skipAnimation) {
-        try { resolveShown && resolveShown(); } catch (_) {}
+        // no animation needed
       } else {
         panel.classList.add('toc-expanded');
-        try { resolveShown && resolveShown(); } catch (_) {}
-        if (timers.expandAnim) clearTimeout(timers.expandAnim);
-        timers.expandAnim = setTimeout(function() {
-          timers.expandAnim = null;
+        if (expandAnimTimer) clearTimeout(expandAnimTimer);
+        expandAnimTimer = setTimeout(function() {
+          expandAnimTimer = null;
           if (cleanedUp) return;
           if (!panel || !panel.isConnected) return;
           panel.classList.remove('toc-floating-expand', 'toc-expanded');
@@ -294,11 +290,10 @@ export function renderFloatingPanel(opts) {
       onListKeydown = null;
       try { if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true); } catch (_) {}
       onPanelKeydown = null;
-      try { resolveShown && resolveShown(); } catch (_) {}
       try { removeScrollListener && removeScrollListener(); } catch (_) {}
       try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
       cleanupLock();
-      timers.clearAll();
+      if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }
       try {
         if (showRaf != null) cancelAnimationFrame(showRaf);
       } catch (_) {}
@@ -354,7 +349,6 @@ export function renderFloatingPanel(opts) {
     return {
       remove() { panel.remove(); },
       setActiveIndex,
-      whenShown,
       updateItems
     };
   }

@@ -1,6 +1,6 @@
 'use strict';
 
-export function selectActiveItem(entries) {
+function selectActiveItem(entries) {
   var list = Array.isArray(entries) ? entries.slice() : [];
   list = list.filter(function(entry) {
     return entry && entry.item && Number.isFinite(entry.top);

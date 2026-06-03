@@ -72,12 +72,9 @@ export function initForConfig(cfg, options) {
     var getNavLock = function() { return NL.isLocked(); };
 
     var isContentIdentical = function(prevItems, nextItems) {
-      if (!prevItems || !nextItems) return false;
-      if (prevItems.length !== nextItems.length) return false;
+      if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
       for (var i = 0; i < prevItems.length; i++) {
-        if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el || prevItems[i].level !== nextItems[i].level) {
-          return false;
-        }
+        if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
       }
       return true;
     };
@@ -112,25 +109,15 @@ export function initForConfig(cfg, options) {
         if (mutationObserver && mutationObserver.disconnect) {
           try { mutationObserver.disconnect(); } catch (_) {}
         }
-        // Show notice on existing panel if not already present
+        // Show notice on existing panel
         if (panelInstance && !document.querySelector('[data-toc-owner="web-toc-assistant"] .toc-ctx-invalidated-notice')) {
           try {
             var noticeEl = document.createElement('div');
             noticeEl.className = 'toc-ctx-invalidated-notice';
             noticeEl.setAttribute('role', 'alert');
-            noticeEl.setAttribute('aria-live', 'assertive');
-            var noticeTextEl = document.createElement('span');
-            noticeTextEl.textContent = msg('ctxInvalidatedNotice') || 'Extension updated. Please refresh the page.';
-            noticeEl.appendChild(noticeTextEl);
-            var refreshLinkEl = document.createElement('a');
-            refreshLinkEl.className = 'toc-ctx-refresh-link';
-            refreshLinkEl.href = '#';
-            refreshLinkEl.textContent = msg('ctxInvalidatedRefresh') || 'Refresh';
-            refreshLinkEl.addEventListener('click', function(e) {
-              e.preventDefault();
-              try { location.reload(); } catch (_) {}
-            });
-            noticeEl.appendChild(refreshLinkEl);
+            noticeEl.innerHTML = '<span>' + (msg('ctxInvalidatedNotice') || 'Extension updated. Please refresh the page.') +
+              '</span> <a class="toc-ctx-refresh-link" href="#" onclick="event.preventDefault();location.reload()">' +
+              (msg('ctxInvalidatedRefresh') || 'Refresh') + '</a>';
             var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
             var listEl = panelEl && panelEl.querySelector('.toc-list');
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
@@ -155,9 +142,6 @@ export function initForConfig(cfg, options) {
 
         // Skip rebuild if content is identical
         if (isContentIdentical(prevItems, newItems)) return;
-
-        // Skip rebuild if both old and new are empty - no change needed
-        if (prevItems.length === 0 && newItems.length === 0) return;
 
         items = newItems;
         tocMeta = newMeta;

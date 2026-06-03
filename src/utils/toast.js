@@ -2,7 +2,7 @@ import { msg } from './core-utils.js';
 
   var TOAST_DURATION_MS = 3000;
 
-export function ensureToastContainer() {
+function ensureToastContainer() {
     var existing = document.querySelector('.toc-toast-container[data-toc-owner="web-toc-assistant"]');
     if (existing) return existing;
     var container = document.createElement('div');

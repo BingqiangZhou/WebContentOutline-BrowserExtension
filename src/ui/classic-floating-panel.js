@@ -185,7 +185,6 @@ export function renderClassicFloatingPanel(options) {
     getCollapseCenter: getCollapseCenter,
     remove: remove,
     setActiveIndex: function(index) { return panel && panel.setActiveIndex && panel.setActiveIndex(index); },
-    updateItems: function(items, tocMeta) { return panel && panel.updateItems && panel.updateItems(items, tocMeta); },
-    whenShown: panel && panel.whenShown
+    updateItems: function(items, tocMeta) { return panel && panel.updateItems && panel.updateItems(items, tocMeta); }
   };
 }

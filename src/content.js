@@ -7,13 +7,8 @@ import {
   getUiMode,
   saveUiMode,
   normalizeUiMode,
-  getBadgePosByHost,
-  setBadgePosByHost,
   isContextInvalidatedError,
   cleanupOwnedElements,
-  safeJsonParse,
-  isPlainObject,
-  getFiniteNumber,
   STORAGE_KEYS
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
@@ -85,31 +80,6 @@ import { initForConfig } from './core/toc-app.js';
       side: 'right',
       selectors: []
     };
-  }
-
-  async function migrateLegacyBadgePos() {
-    try {
-      if (!setBadgePosByHost) return;
-      var legacyKey = 'tocBadgePos::' + location.host;
-      var raw = localStorage.getItem(legacyKey);
-      if (!raw) return;
-      var parsed = safeJsonParse ? safeJsonParse(raw) : null;
-      if (!isPlainObject || !isPlainObject(parsed)) return;
-      if (!parsed.hasOwnProperty('left') || !parsed.hasOwnProperty('top')) return;
-
-      var left = getFiniteNumber ? getFiniteNumber(parsed.left) : null;
-      var top = getFiniteNumber ? getFiniteNumber(parsed.top) : null;
-      if (left === null || top === null) return;
-
-      var existing = await getBadgePosByHost(location.host);
-      if (existing && Number.isFinite(existing.x) && Number.isFinite(existing.y)) {
-        localStorage.removeItem(legacyKey);
-        return;
-      }
-
-      var saved = await setBadgePosByHost(location.host, { x: left + 40, y: top + 16, updatedAt: Date.now() });
-      if (saved) localStorage.removeItem(legacyKey);
-    } catch (_) {}
   }
 
   async function startApp() {
@@ -185,7 +155,6 @@ import { initForConfig } from './core/toc-app.js';
     }
     currentEnabled = want;
     if (!want) { stopApp(); return; }
-    await migrateLegacyBadgePos();
     await startApp();
     await applyExpandState(opts);
   }
