@@ -72,6 +72,7 @@ export function createRebuildScheduler(onRebuild) {
 
     var scheduleRebuild = function(immediate) {
       if (!isExtensionContextValid) return;
+      if (document.hidden) { hasPendingRebuild = true; return; }
       if (immediate) {
         hasPendingRebuild = true;
         attemptRebuild();
