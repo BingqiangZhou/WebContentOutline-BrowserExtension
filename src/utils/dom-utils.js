@@ -58,30 +58,28 @@ export function findMatchingConfig(configs, url) {
      * @param {string} [origin]
      * @returns {Promise<boolean>}
      */
-export function getSiteEnabledByOrigin(origin) {
-      return getEnabledMap().then(function(map) {
-        var key = origin || (typeof location !== 'undefined' ? location.origin : '');
-        return !!(key && map[key]);
-      });
+export async function getSiteEnabledByOrigin(origin) {
+      var map = await getEnabledMap();
+      var key = origin || (typeof location !== 'undefined' ? location.origin : '');
+      return !!(key && map[key]);
     }
 
-export function getPanelExpandedByOrigin(origin) {
+export async function getPanelExpandedByOrigin(origin) {
       var doRead = function(map) {
         var key = origin || (typeof location !== 'undefined' ? location.origin : '');
         return !!(key && map && map[key]);
       };
 
-      return getPanelStateMap().then(function(map) {
-        return doRead(map);
-      });
+      var map = await getPanelStateMap();
+      return doRead(map);
     }
 
-export function setPanelExpandedByOrigin(origin, expanded) {
+export async function setPanelExpandedByOrigin(origin, expanded) {
       var key = origin || (typeof location !== 'undefined' ? location.origin : '');
-      if (!key) return Promise.resolve(false);
+      if (!key) return false;
       try {
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-          return new Promise(function(resolve) {
+          return await new Promise(function(resolve) {
             chrome.runtime.sendMessage({
               type: 'toc:mutateUiState',
               operation: 'set-panel-expanded',
@@ -94,13 +92,12 @@ export function setPanelExpandedByOrigin(origin, expanded) {
           });
         }
       } catch (_) {}
-      return serializedWrite('tocPanelExpandedMap', function() {
-        return getPanelStateMap().then(function(map) {
-          map = map || {};
-          map[key] = !!expanded;
-          pruneObjectToLimit(map, 400);
-          return savePanelStateMap(map);
-        });
+      return serializedWrite('tocPanelExpandedMap', async function() {
+        var map = await getPanelStateMap();
+        map = map || {};
+        map[key] = !!expanded;
+        pruneObjectToLimit(map, 400);
+        return savePanelStateMap(map);
       });
     }
 

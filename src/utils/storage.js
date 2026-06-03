@@ -88,49 +88,51 @@ function normalizeStorageValue(key, value) {
   /**
    * Read a value from chrome.storage.local with fallback.
    */
-export function getStorage(key, fallback) {
-    if (isExtensionContextInvalidated()) return Promise.resolve(fallback);
+export async function getStorage(key, fallback) {
+    if (isExtensionContextInvalidated()) return fallback;
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
-        return chrome.storage.local.get([key]).then(function(res) {
+        try {
+          var res = await chrome.storage.local.get([key]);
           var value = res[key];
           if (value !== undefined && validateStorageValue(key, value)) {
             return normalizeStorageValue(key, value);
           }
           return fallback;
-        }).catch(function(e) {
+        } catch (e) {
           if (isContextInvalidatedError(e)) return fallback;
           return fallback;
-        });
+        }
       }
     } catch (e) {
-      if (isContextInvalidatedError(e)) return Promise.resolve(fallback);
+      if (isContextInvalidatedError(e)) return fallback;
     }
-    return Promise.resolve(fallback);
+    return fallback;
   }
 
   /**
    * Write a value to chrome.storage.local.
    */
-export function setStorage(key, value) {
-    if (isExtensionContextInvalidated()) return Promise.resolve(false);
+export async function setStorage(key, value) {
+    if (isExtensionContextInvalidated()) return false;
     var normalized = normalizeStorageValue(key, value);
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
         var obj = {};
         obj[key] = normalized;
-        return chrome.storage.local.set(obj).then(function() {
+        try {
+          await chrome.storage.local.set(obj);
           return true;
-        }).catch(function(e) {
+        } catch (e) {
           if (isContextInvalidatedError(e)) return false;
           console.warn('[toc] storage write failed:', key, e);
           return false;
-        });
+        }
       }
     } catch (e) {
-      if (isContextInvalidatedError(e)) return Promise.resolve(false);
+      if (isContextInvalidatedError(e)) return false;
     }
-    return Promise.resolve(false);
+    return false;
   }
 
   // Convenience accessors

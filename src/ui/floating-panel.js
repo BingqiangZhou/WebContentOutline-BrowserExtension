@@ -156,6 +156,7 @@ export function renderFloatingPanel(opts) {
     };
 
     var renderItemButtons = function() {
+      var frag = document.createDocumentFragment();
       items.forEach(function(item, index) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -170,8 +171,9 @@ export function renderFloatingPanel(opts) {
           btn.setAttribute('aria-current', 'location');
         }
         item._node = btn;
-        list.appendChild(btn);
+        frag.appendChild(btn);
       });
+      list.appendChild(frag);
     };
 
     var setActiveIndex = function(nextIndex) {

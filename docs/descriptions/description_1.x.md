@@ -56,7 +56,6 @@
 - `storage`：保存站点配置和界面偏好
 - `tabs`：支持按网站启用或禁用扩展
 - `scripting`：在已启用的网站中注入目录功能
-- `alarms`：支持稳定的后台任务
 
 扩展不会将网页内容、浏览记录或个人信息发送到任何服务器。
 
@@ -122,7 +121,6 @@ Web TOC Assistant analyzes webpage structure locally in your browser.
 - `storage`: Save site settings and interface preferences
 - `tabs`: Enable or disable the extension per website
 - `scripting`: Inject the TOC feature into enabled webpages
-- `alarms`: Support reliable background tasks
 
 The extension does not send webpage content, browsing history, or personal information to any server.
 

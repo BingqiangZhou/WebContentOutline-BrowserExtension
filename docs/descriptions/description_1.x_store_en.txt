@@ -56,7 +56,6 @@ Web TOC Assistant analyzes webpage structure locally in your browser.
   • storage — Save site settings and interface preferences
   • tabs — Enable or disable the extension per website
   • scripting — Inject the TOC feature into enabled webpages
-  • alarms — Support reliable background tasks
 
 The extension does not send webpage content, browsing history, or personal information to any server.
 

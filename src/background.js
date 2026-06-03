@@ -307,14 +307,17 @@ async function handleActionClick(tab) {
 
 chrome.action.onClicked.addListener(handleActionClick);
 
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  updateIconForTab(activeInfo.tabId).catch(() => {});
-  chrome.tabs.get(activeInfo.tabId).then(async (tab) => {
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
+  try {
+    await updateIconForTab(activeInfo.tabId);
+  } catch (_) {}
+  try {
+    const tab = await chrome.tabs.get(activeInfo.tabId);
     if (!tab?.id || !tab.url || !isHttpUrl(tab.url)) return;
     const origin = originFromUrl(tab.url);
     const enabled = await getEnabledByOrigin(origin);
     if (enabled) await ensureContentScript(tab.id, tab.url);
-  }).catch(() => {});
+  } catch (_) {}
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
@@ -374,7 +377,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const tabId = sender?.tab?.id;
       const url = sender?.tab?.url || sender?.url || '';
       if (!tabId || !isHttpUrl(url)) { sendResponse?.({ ok: false, reason: 'no-tab' }); return; }
-      updateIconForTab(tabId, url).then(() => sendResponse?.({ ok: true })).catch(() => sendResponse?.({ ok: false }));
+      (async () => {
+        try { await updateIconForTab(tabId, url); sendResponse?.({ ok: true }); }
+        catch (_) { sendResponse?.({ ok: false }); }
+      })();
       return true;
     }
     if (msg.type === 'toc:mutateConfig') {
@@ -382,12 +388,17 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const senderUrl = sender?.tab?.url || sender?.url || '';
       const expectedPattern = sitePatternFromUrl(senderUrl);
       if (!expectedPattern || msg.urlPattern !== expectedPattern) { sendResponse?.({ ok: false, reason: 'bad-site' }); return; }
-      mutateTocConfigs({
-        operation: msg.operation,
-        urlPattern: msg.urlPattern,
-        selector: msg.selector,
-        side: msg.side
-      }).then((result) => sendResponse?.(result)).catch(() => sendResponse?.({ ok: false, reason: 'storage-write-failed' }));
+      (async () => {
+        try {
+          const result = await mutateTocConfigs({
+            operation: msg.operation,
+            urlPattern: msg.urlPattern,
+            selector: msg.selector,
+            side: msg.side
+          });
+          sendResponse?.(result);
+        } catch (_) { sendResponse?.({ ok: false, reason: 'storage-write-failed' }); }
+      })();
       return true;
     }
     if (msg.type === 'toc:mutateUiState') {
@@ -395,11 +406,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const senderUrl = sender?.tab?.url || sender?.url || '';
       const sourceValidation = validateUiStateMutationSource(msg, senderUrl);
       if (!sourceValidation.ok) { sendResponse?.(sourceValidation); return; }
-      mutateUiState({
-        operation: msg.operation,
-        key: msg.key,
-        value: msg.value
-      }).then((result) => sendResponse?.(result)).catch(() => sendResponse?.({ ok: false, reason: 'storage-write-failed' }));
+      (async () => {
+        try {
+          const result = await mutateUiState({
+            operation: msg.operation,
+            key: msg.key,
+            value: msg.value
+          });
+          sendResponse?.(result);
+        } catch (_) { sendResponse?.({ ok: false, reason: 'storage-write-failed' }); }
+      })();
       return true;
     }
   } catch (e) {

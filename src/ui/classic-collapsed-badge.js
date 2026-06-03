@@ -55,7 +55,14 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
   if (centerPos) {
     applyPosition(centerPos);
   } else if (getBadgePosByHost) {
-    getBadgePosByHost(location.host).then(applyPosition).catch(function() { applyPosition(null); });
+    (async function() {
+      try {
+        var pos = await getBadgePosByHost(location.host);
+        applyPosition(pos);
+      } catch (_) {
+        applyPosition(null);
+      }
+    })();
   } else {
     applyPosition(null);
   }

@@ -25,11 +25,12 @@ export function createRebuildScheduler(onRebuild) {
     var urlMonitor = null;
     var activeCfg = null;
 
-    var safeRebuild = function() {
-      if (!isExtensionContextValid) return Promise.resolve(false);
-      return onRebuild().then(function() {
+    var safeRebuild = async function() {
+      if (!isExtensionContextValid) return false;
+      try {
+        await onRebuild();
         return true;
-      }).catch(function(e) {
+      } catch (e) {
         if (isContextInvalidatedError(e)) {
           isExtensionContextValid = false;
           hasPendingRebuild = false;
@@ -40,32 +41,35 @@ export function createRebuildScheduler(onRebuild) {
         }
         console.warn('[toc] rebuild failed:', e);
         return false;
-      });
+      }
     };
 
-    var attemptRebuild = function() {
-      if (!isExtensionContextValid) return Promise.resolve(false);
+    var attemptRebuild = async function() {
+      if (!isExtensionContextValid) return false;
       if (rebuildInFlight) {
         hasPendingRebuild = true;
         return rebuildInFlight;
       }
       if (NL.isLocked()) {
         hasPendingRebuild = true;
-        return Promise.resolve(false);
+        return false;
       }
-      if (!hasPendingRebuild) return Promise.resolve(true);
+      if (!hasPendingRebuild) return true;
 
       hasPendingRebuild = false;
-      rebuildInFlight = safeRebuild().then(function(ok) {
-        rebuildInFlight = null;
-        if (!ok && isExtensionContextValid) {
-          hasPendingRebuild = true;
+      rebuildInFlight = (async () => {
+        try {
+          var ok = await safeRebuild();
+          rebuildInFlight = null;
+          if (!ok && isExtensionContextValid) {
+            hasPendingRebuild = true;
+          }
+          return !!ok;
+        } catch (_) {
+          rebuildInFlight = null;
+          return false;
         }
-        return !!ok;
-      }, function() {
-        rebuildInFlight = null;
-        return false;
-      });
+      })();
 
       return rebuildInFlight;
     };

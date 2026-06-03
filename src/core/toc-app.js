@@ -116,8 +116,13 @@ export function initForConfig(cfg, options) {
             noticeEl.className = 'toc-ctx-invalidated-notice';
             noticeEl.setAttribute('role', 'alert');
             noticeEl.innerHTML = '<span>' + (msg('ctxInvalidatedNotice') || 'Extension updated. Please refresh the page.') +
-              '</span> <a class="toc-ctx-refresh-link" href="#" onclick="event.preventDefault();location.reload()">' +
+              '</span> <a class="toc-ctx-refresh-link" href="#">' +
               (msg('ctxInvalidatedRefresh') || 'Refresh') + '</a>';
+            var refreshLink = noticeEl.querySelector('.toc-ctx-refresh-link');
+            if (refreshLink) refreshLink.addEventListener('click', function(ev) {
+              try { ev.preventDefault(); } catch (_) {}
+              try { location.reload(); } catch (_) {}
+            });
             var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
             var listEl = panelEl && panelEl.querySelector('.toc-list');
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);

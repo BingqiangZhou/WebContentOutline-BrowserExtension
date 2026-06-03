@@ -4,7 +4,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const esbuild = require('esbuild');
 
 const ROOT_DIR = __dirname;
@@ -17,7 +17,7 @@ const RUNTIME_EXTENSIONS = new Set([
 
 function validateFile(filePath) {
   try {
-    execSync(`node -c "${filePath}"`, { stdio: 'pipe' });
+    execFileSync('node', ['-c', filePath], { stdio: 'pipe' });
     return true;
   } catch (e) {
     console.error(`  SYNTAX ERROR: ${filePath}`);
@@ -145,7 +145,7 @@ async function main() {
   const zipFile = path.join(packagesDir, `v${manifest.version}.zip`);
   try {
     if (fs.existsSync(zipFile)) fs.rmSync(zipFile);
-    execSync(`cd "${DIST_DIR}" && zip -r "${zipFile}" .`, { stdio: 'pipe' });
+    execFileSync('zip', ['-r', zipFile, '.'], { stdio: 'pipe', cwd: DIST_DIR });
     const stats = fs.statSync(zipFile);
     const kb = (stats.size / 1024).toFixed(1);
     console.log(`\nPackage created: dist/packages/v${manifest.version}.zip (${kb} KB)`);

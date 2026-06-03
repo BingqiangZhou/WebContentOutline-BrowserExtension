@@ -38,7 +38,7 @@ No automated test framework. Manual testing required by loading the extension an
 
 Content script modules use **ES Modules** (`import`/`export`). At build time, esbuild bundles the entire dependency tree starting from `src/content.js` into a single IIFE at `dist/build/src/content.js`. There is no runtime module loading or load-order concern.
 
-The background service worker cannot use ESM (MV3 limitation). The build produces a separate IIFE bundle of `shared/storage-primitives.js` for `importScripts()` in the service worker.
+The background service worker cannot use ESM (MV3 limitation). The build produces a separate IIFE bundle of `shared/primitives.js` for `importScripts()` in the service worker.
 
 ### Dependency Graph
 
@@ -52,7 +52,7 @@ src/content.js (entry point)
         ├── utils/toc-builder.js → dom-utils.js
         ├── ui/edge-dock.js, ui/element-picker.js, ui/floating-panel.js
         │     └── (floating-panel.js → ui/floating-panel-helpers.js)
-        ├── core/config-manager.js → event-bus.js, focus-trap.js
+        ├── core/config-manager.js → focus-trap.js
         ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js → dom-utils.js, nav-lock.js
         └── core/nav-lock.js
 ```
@@ -60,8 +60,7 @@ src/content.js (entry point)
 Background script (separate context, uses IIFE bundle produced by build):
 ```
 src/background.js
-  ├── importScripts → shared/storage-primitives.js (IIFE bundle)
-  └── importScripts → shared/config-primitives.js (IIFE bundle)
+  └── importScripts → shared/primitives.js (IIFE bundle)
 ```
 
 ### Window Globals
@@ -76,13 +75,12 @@ Only a few window globals remain for compatibility/debugging:
 ### Entry Points
 
 **`src/background.js`** - Service worker
-- Uses `importScripts('shared/storage-primitives.js')` for shared storage utilities
-- Uses `importScripts('shared/config-primitives.js')` for config mutation primitives
+- Uses `importScripts('shared/primitives.js')` for shared storage, config, and UI state mutation utilities
 - Manages per-site enable/disable state in `chrome.storage.local` → `tocSiteEnabledMap`
 - Updates extension icon (enabled=blue, disabled=gray)
 - Injects content script via `chrome.scripting.executeScript` (single bundled file)
 - Cross-tab synchronization for same origin
-- Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`, `toc:mutateConfig`
+- Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`, `toc:mutateConfig`, `toc:mutateUiState`
 
 **`src/content.js`** - Content script entry
 - Checks site enable state on load
@@ -102,7 +100,7 @@ Only a few window globals remain for compatibility/debugging:
 - Storage: `chrome.storage.local` → key: `tocConfigs`
 - Per-site URL pattern matching (wildcards supported)
 - Selector management (CSS/XPath)
-- Emits `toc:config-changed` via event bus when configs update
+- Config change notification via callback pattern (`setOnConfigChanged` / `_onConfigChanged`)
 
 **3. TOC Building Pipeline (`utils/toc-builder.js`)**
 ```
@@ -125,9 +123,9 @@ Split into three focused modules:
 - `core/url-monitor.js` — URL change detection via custom events (from `page-url-hook.js`) + polling fallback
 - `core/rebuild-scheduler.js` — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
 
-**6. Event Bus (`core/event-bus.js`)**
-- Lightweight pub/sub: `on(event, fn)`, `off(event, fn)`, `emit(event, ...args)`
-- Currently used for `toc:config-changed` event (config-manager → toc-app)
+**6. Config Change Notification**
+- Callback pattern via `setOnConfigChanged()` in `core/config-manager.js`
+- `toc-app.js` registers a callback that triggers a TOC rebuild when configs change in storage
 
 ### Storage Schema
 
@@ -196,12 +194,12 @@ Split into three focused modules:
 
 ## Manifest V3 Specifics
 
-- `permissions`: ["storage", "tabs", "scripting", "alarms"]
+- `permissions`: ["storage", "tabs", "scripting"]
 - `host_permissions`: ["http://*/*", "https://*/*"]
 - `default_locale`: "en" - i18n support
 - Content script is a single bundled IIFE, injected dynamically via `chrome.scripting.executeScript`
 - Background script uses `importScripts()` (MV3 service workers cannot use ESM)
-- `shared/storage-primitives.js` and `shared/config-primitives.js` are ESM source; build produces separate IIFE bundles for the background service worker
+- `shared/primitives.js` is ESM source; build produces an IIFE bundle for the background service worker
 
 ## Common Modification Patterns
 
@@ -229,7 +227,7 @@ Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPane
 ### Building and packaging
 Run `npm run build` to:
 1. Bundle `src/content.js` with esbuild into `dist/build/src/content.js` (IIFE format)
-2. Copy runtime files to `dist/build/` (background.js, page-url-hook.js, content.css, manifest.json, icons, locales, storage-primitives.js)
+2. Copy runtime files to `dist/build/` (background.js, page-url-hook.js, content.css, manifest.json, icons, locales, shared/primitives.js)
 3. Package into `dist/packages/v{version}.zip`
 
 ## Working Documents

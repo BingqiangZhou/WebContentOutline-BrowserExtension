@@ -364,21 +364,22 @@ export function renderEdgeDock(options) {
     try { setBadgePosByHost(location.host, { x: x, y: y, anchorX: side }); } catch (_) {}
   }
 
-  function restorePosition() {
+  async function restorePosition() {
     var fallbackTop = Math.max(CFG.DEFAULT_TOP_MIN, window.innerHeight / 4);
     setTop(fallbackTop);
     if (!getBadgePosByHost) {
       root.style.removeProperty('visibility');
       return;
     }
-    getBadgePosByHost(location.host).then(function(pos) {
+    try {
+      var pos = await getBadgePosByHost(location.host);
       if (destroyed || !root.isConnected) return;
       updateSide(resolveDockSide(pos, window.innerWidth, side), false);
       if (pos && Number.isFinite(pos.y)) setTop(pos.y - dockHeight() / 2);
       root.style.removeProperty('visibility');
-    }).catch(function() {
+    } catch (_) {
       if (!destroyed && root.isConnected) root.style.removeProperty('visibility');
-    });
+    }
   }
 
   updateSide(side, false);

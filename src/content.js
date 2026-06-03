@@ -208,20 +208,28 @@ import { initForConfig } from './core/toc-app.js';
           if (disposed) { respondOnce({ ok: false, disposed: true }); return; }
 
           if (msgObj.type === 'toc:openPanel') {
-            Promise.resolve()
-              .then(function() { return applyEnabledState(true, { expandPanel: true }); })
-              .then(function() { respondOnce({ ok: true }); })
-              .catch(function(err) { respondOnce({ ok: false, error: String(err) }); });
+            (async function() {
+              try {
+                await applyEnabledState(true, { expandPanel: true });
+                respondOnce({ ok: true });
+              } catch (err) {
+                respondOnce({ ok: false, error: String(err) });
+              }
+            })();
             return true;
           }
 
           if (msgObj.type !== 'toc:updateEnabled') return;
           var enabled = !!msgObj.enabled;
           if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
-          Promise.resolve()
-            .then(function() { return applyEnabledState(enabled); })
-            .then(function() { respondOnce({ ok: true }); })
-            .catch(function(err) { respondOnce({ ok: false, error: String(err) }); });
+          (async function() {
+            try {
+              await applyEnabledState(enabled);
+              respondOnce({ ok: true });
+            } catch (err) {
+              respondOnce({ ok: false, error: String(err) });
+            }
+          })();
           return true;
         } catch (err) {
           respondOnce({ ok: false, error: String(err) });

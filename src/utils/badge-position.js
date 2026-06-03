@@ -3,14 +3,13 @@
 import { getBadgePosMap, saveBadgePosMap } from './storage.js';
 import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/primitives.js';
 
-export function getBadgePosByHost(host) {
-  return getBadgePosMap().then(function(map) {
-    return (map && map[host]) || null;
-  });
+export async function getBadgePosByHost(host) {
+  var map = await getBadgePosMap();
+  return (map && map[host]) || null;
 }
 
-export function setBadgePosByHost(host, pos) {
-  if (!host || !pos) return Promise.resolve(null);
+export async function setBadgePosByHost(host, pos) {
+  if (!host || !pos) return null;
 
   var enriched = {
     x: Number(pos.x),
@@ -22,7 +21,7 @@ export function setBadgePosByHost(host, pos) {
   // Try background message first for cross-tab consistency
   try {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      return new Promise(function(resolve) {
+      return await new Promise(function(resolve) {
         chrome.runtime.sendMessage({
           type: 'toc:mutateUiState',
           operation: 'set-badge-position',
@@ -37,12 +36,12 @@ export function setBadgePosByHost(host, pos) {
   } catch (_) {}
 
   // Fallback: direct storage write
-  return serializedWrite('tocBadgePosMap', function() {
-    return getBadgePosMap().then(function(map) {
-      map = map || {};
-      touchObjectKey(map, host, enriched);
-      pruneObjectToLimit(map, 400);
-      return saveBadgePosMap(map).then(function(ok) { return ok ? (map[host] || null) : null; });
-    });
+  return serializedWrite('tocBadgePosMap', async function() {
+    var map = await getBadgePosMap();
+    map = map || {};
+    touchObjectKey(map, host, enriched);
+    pruneObjectToLimit(map, 400);
+    var ok = await saveBadgePosMap(map);
+    return ok ? (map[host] || null) : null;
   });
 }
