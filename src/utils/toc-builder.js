@@ -73,9 +73,6 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
         // Phase 1: cheap checks (no layout reads)
         if (!el || !el.isConnected) continue;
 
-        var text = getTrimmedText(el);
-        if (!keepEmpty && (!text || text.length === 0)) continue;
-
         // Phase 2: style + geometry checks (one layout read batch per element)
         var style;
         try { style = getStyle(el); } catch (_) { continue; }
@@ -126,6 +123,9 @@ export function buildTocItemsFromSelectors(selectors, cfg) {
           depth++;
         }
         if (clipped) continue;
+
+        var text = getTrimmedText(el);
+        if (!keepEmpty && (!text || text.length === 0)) continue;
 
         items.push({ id: 'toc-item-' + items.length, el: el, text: text, level: getTocItemLevel(el) });
         if (items.length >= TOC_MAX_ITEMS) {

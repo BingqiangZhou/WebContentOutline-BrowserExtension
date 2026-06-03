@@ -47,21 +47,27 @@ function loadDomWatcher() {
   };
 }
 
-function loadTocBuilder() {
+function loadTocBuilder(options = {}) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.js');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
   const requestedLimits = [];
+  const elements = options.elements || null;
   const sandbox = {
     console,
     uiConst(_name, fallback) { return fallback; },
     collectBySelector(_selector, limit) {
       requestedLimits.push(limit);
-      return Array.from({ length: limit }, () => ({ isConnected: false }));
+      return elements || Array.from({ length: limit }, () => ({ isConnected: false }));
     },
-    getBoundedText() { return ''; },
+    getBoundedText: options.getBoundedText || function() { return ''; },
     uniqueInDocumentOrder(nodes) { return nodes; },
+    window: {
+      getComputedStyle: options.getComputedStyle || function() {
+        return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };
+      }
+    },
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -517,6 +523,52 @@ test('TOC builder never requests more than the global candidate budget', () => {
     env.requestedLimits.reduce((sum, limit) => sum + limit, 0) <= 1200,
     `requested ${env.requestedLimits.reduce((sum, limit) => sum + limit, 0)} candidates`
   );
+});
+
+test('TOC builder filters invisible candidates before reading bounded text', () => {
+  const hidden = {
+    tagName: 'H2',
+    isConnected: true,
+    offsetParent: {},
+    offsetWidth: 120,
+    offsetHeight: 24,
+    parentElement: null,
+    getBoundingClientRect() {
+      return { top: 0, right: 120, bottom: 24, left: 0, width: 120, height: 24 };
+    }
+  };
+  const visible = {
+    tagName: 'H3',
+    isConnected: true,
+    offsetParent: {},
+    offsetWidth: 120,
+    offsetHeight: 24,
+    parentElement: null,
+    getBoundingClientRect() {
+      return { top: 30, right: 120, bottom: 54, left: 0, width: 120, height: 24 };
+    }
+  };
+  const textReads = [];
+  const env = loadTocBuilder({
+    elements: [hidden, visible],
+    getComputedStyle(el) {
+      return {
+        display: el === hidden ? 'none' : 'block',
+        position: 'static',
+        visibility: 'visible',
+        opacity: '1'
+      };
+    },
+    getBoundedText(el) {
+      textReads.push(el);
+      return el === visible ? 'Visible heading' : 'Hidden heading';
+    }
+  });
+
+  const result = env.buildTocItemsFromSelectors([{ type: 'css', expr: 'h2, h3' }], {});
+
+  assert.deepEqual(textReads, [visible]);
+  assert.deepEqual(Array.from(result.items, (item) => item.text), ['Visible heading']);
 });
 
 test('bounded text helper limits characters, nodes, depth, and avoids element textContent fallback', () => {
