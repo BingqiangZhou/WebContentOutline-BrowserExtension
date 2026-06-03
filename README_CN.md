@@ -10,7 +10,7 @@
 一个网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
 
 <p align="left">
-  <img src="docs/descriptions/ChatGPT_Desc_screenshots1280x800_CN_1.x.png" alt="网页目录助手截图" width="800"/>
+  <img src="docs/brand/store-screenshot-cover-zh-CN.png" alt="网页目录助手截图" width="800"/>
 </p>
 
 ## ✨ 核心功能
@@ -52,7 +52,7 @@
 
 ### 🌐 多站点控制
 - **按站点启用/禁用**：每个站点独立控制扩展是否生效
-- **图标状态指示**：启用=蓝色图标，禁用=灰色图标
+- **图标状态指示**：透明背景的白色文档图标在启用时变为黑色，禁用时变为灰色
 - **跨标签同步**：同一站点的多个标签页自动同步状态
 
 ## 🚀 安装使用
@@ -82,8 +82,8 @@
 **操作方式**：点击浏览器工具栏中的"网页目录助手"图标
 
 **效果**：
-- 启用状态：图标变为蓝色，页面边缘出现吸附式目录工具条
-- 禁用状态：图标变为灰色，工具条消失
+- 启用状态：透明背景的白色文档图标变为黑色，页面边缘出现吸附式目录工具条
+- 禁用状态：透明背景的白色文档图标变为灰色，工具条消失
 - 同步效果：同一站点的其他标签页会自动同步状态
 
 #### 2. 展开目录面板
@@ -211,6 +211,7 @@
 │   │   ├── toc-enabled-*.png  # 启用状态图标
 │   │   └── toc-disabled-*.png # 禁用状态图标
 │   └── svg/                   # SVG 源文件
+├── docs/brand/                # 1.0 品牌资产和 Chrome 网上应用店视觉素材
 ├── _locales/                  # 国际化文件
 │   ├── en/
 │   │   └── messages.json      # 英文翻译
@@ -235,7 +236,7 @@
 │   │   ├── toc-builder.js     # TOC 构建逻辑
 │   │   └── drag-helper.js     # Pointer Events 拖拽控制器
 │   ├── shared/                # 跨上下文共享模块
-│   │   └── storage-primitives.js     # 存储工具（ESM 源码；构建时产出 background 可 importScripts 的 IIFE）
+│   │   └── primitives.js            # 共享存储、配置和 UI 状态工具（ESM 源码；构建时产出 background 可 importScripts 的 IIFE）
 │   ├── ui/                    # UI 组件
 │   │   ├── edge-dock.js       # 吸附工具条与纯 hover 目录状态
 │   │   ├── classic-collapsed-badge.js # 原始文字徽章交互
@@ -249,7 +250,6 @@
 │       ├── dom-watcher.js     # MutationObserver 封装
 │       ├── url-monitor.js     # URL/hash 变更监控
 │       ├── rebuild-scheduler.js # 重建调度与协调
-│       ├── event-bus.js       # 轻量事件总线（发布/订阅）
 │       └── toc-app.js         # 主应用逻辑
 ├── docs/                      # 文档资源
 │   ├── PRIVACY_POLICY.md      # 隐私政策
@@ -258,13 +258,17 @@
 └── README.md                  # 英文版
 ```
 
+### 品牌资产
+
+运行 `npm run assets:brand` 可重新生成 1.0 透明背景白色文档图标和中英双语 Chrome 网上应用店视觉素材。生成内容包括工具栏/商店 PNG 图标、SVG 主标志、440×280 小宣传图、1400×560 marquee 图，以及 `docs/brand/` 下的 1280×800 截图封面。
+
 ### 核心技术
 
 - **运行环境**：Edge/Chrome 浏览器（Chromium 内核）
 - **扩展标准**：Manifest V3
 - **开发语言**：原生 JavaScript + CSS3（ES Modules，使用 esbuild 打包）
 - **存储方案**：`chrome.storage.local` API
-- **权限需求**：`storage`、`tabs`、`scripting`、`alarms`
+- **权限需求**：`storage`、`tabs`、`scripting`
 - **站点权限**：`http://*/*`、`https://*/*`
 
 ### 架构设计
@@ -277,13 +281,13 @@ src/content.js（入口）
   ├── utils/toc-utils.js（工具模块聚合重导出）
   └── core/toc-app.js（编排器）
         ├── ui/ 组件（吸附工具条、元素拾取器、浮动面板）
-        ├── core/config-manager.js → event-bus.js, focus-trap.js
+        ├── core/config-manager.js → focus-trap.js
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
 
-**后台脚本**：通过 `importScripts()` 加载构建产出的 `storage-primitives.js` IIFE bundle（MV3 service worker 不支持 ESM）。
+**后台脚本**：通过 `importScripts()` 加载构建产出的 `primitives.js` IIFE bundle（MV3 service worker 不支持 ESM）。
 
-**共享存储原语**：`storage-primitives.js` 是 ESM 源码；构建时产出单独的 IIFE bundle 供后台 service worker 使用。
+**共享原语**：`primitives.js` 是 ESM 源码；构建时产出单独的 IIFE bundle 供后台 service worker 使用。
 
 ### 关键算法
 
@@ -418,6 +422,18 @@ src/content.js（入口）
 ## 📄 开源协议
 
 本项目采用 MIT 开源协议 - 详见 [LICENSE](LICENSE) 文件。
+
+## 🗺️ 后续计划
+
+### 智能自动识别（规划中）
+
+目前目录生成依赖默认的 h1-h6 标题识别，或通过元素拾取器手动配置 CSS/XPath 选择器。后续版本计划引入智能自动识别能力：
+
+- **自动内容结构分析**：自动识别页面的主内容区域和标题结构，减少手动配置选择器的需求
+- **自适应识别**：学习常见页面布局和框架的规律，提升不同网站的识别准确率
+- **逐步淘汰手动选择器**：随着自动识别能力成熟，手动选择器列表将逐步降级为边缘场景的兜底方案，而不再是主要配置方式
+
+目标是让目录在绝大多数网站上"开箱即用"，同时保留手动自定义作为高级选项。
 
 ## 📝 更新日志
 

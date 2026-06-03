@@ -10,7 +10,7 @@
 A web table of contents generator that automatically creates interactive floating TOC for any website to enhance reading experience.
 
 <p align="left">
-  <img src="docs/descriptions/ChatGPT_Desc_screenshots1280x800_EN_1.x.png" alt="Web TOC Assistant Screenshot" width="800"/>
+  <img src="docs/brand/store-screenshot-cover-en.png" alt="Web TOC Assistant Screenshot" width="800"/>
 </p>
 
 ## ✨ Key Features
@@ -52,7 +52,7 @@ A web table of contents generator that automatically creates interactive floatin
 
 ### 🌐 Multi-site Control
 - **Per-site Enable/Disable**: Independent control for each website
-- **Icon Status Indicator**: Enabled = blue icon, Disabled = gray icon
+- **Icon Status Indicator**: The transparent white-document toolbar icon turns black when enabled and gray when disabled
 - **Cross-tab Sync**: Automatic state synchronization across tabs of the same site
 
 ## 🚀 Installation & Usage
@@ -82,8 +82,8 @@ A web table of contents generator that automatically creates interactive floatin
 **How**: Click the "Web TOC Assistant" icon in the browser toolbar
 
 **Effect**:
-- Enabled state: Icon turns blue, the edge-docked TOC toolbar appears on page
-- Disabled state: Icon turns gray, the dock disappears
+- Enabled state: The transparent white-document icon turns black, and the edge-docked TOC toolbar appears on page
+- Disabled state: The transparent white-document icon turns gray, and the dock disappears
 - Sync effect: Other tabs of the same site automatically sync state
 
 #### 2. Expand TOC Panel
@@ -223,6 +223,7 @@ For complex page structures, you can use XPath:
 │   │   ├── toc-enabled-*.png  # Enabled state icons
 │   │   └── toc-disabled-*.png # Disabled state icons
 │   └── svg/                   # SVG source files
+├── docs/brand/                # 1.0 brand assets and Chrome Web Store visuals
 ├── _locales/                  # Internationalization
 │   ├── en/
 │   │   └── messages.json      # English translation
@@ -245,7 +246,7 @@ For complex page structures, you can use XPath:
 │   │   ├── toc-builder.js     # TOC building logic
 │   │   └── drag-helper.js     # Pointer-event drag controller
 │   ├── shared/                # Shared between contexts
-│   │   └── storage-primitives.js     # Storage utilities (ESM source; build produces IIFE for background)
+│   │   └── primitives.js            # Shared storage, config, and UI state utilities (ESM source; build produces IIFE for background)
 │   ├── ui/                    # UI components
 │   │   ├── edge-dock.js       # Edge-docked toolbar and hover-only TOC state
 │   │   ├── classic-collapsed-badge.js # Original text badge interaction
@@ -259,7 +260,6 @@ For complex page structures, you can use XPath:
 │       ├── dom-watcher.js     # MutationObserver wrapper
 │       ├── url-monitor.js     # URL/hash change monitor
 │       ├── rebuild-scheduler.js # Rebuild scheduling & coordination
-│       ├── event-bus.js       # Lightweight event bus (pub/sub)
 │       └── toc-app.js         # Main application logic
 ├── docs/                      # Documentation assets
 │   ├── PRIVACY_POLICY.md      # Privacy policy
@@ -268,13 +268,17 @@ For complex page structures, you can use XPath:
 └── README_CN.md               # Chinese version (中文版)
 ```
 
+### Brand Assets
+
+Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon set and bilingual Chrome Web Store visual assets. The generated package includes toolbar/store PNG icons, master SVG marks, 440×280 small promotional tiles, 1400×560 marquee tiles, and 1280×800 screenshot cover images under `docs/brand/`.
+
 ### Core Technologies
 
 - **Runtime**: Edge/Chrome browser (Chromium-based)
 - **Extension Standard**: Manifest V3
 - **Language**: Vanilla JavaScript + CSS3 (ES Modules, bundled with esbuild)
 - **Storage**: `chrome.storage.local` API
-- **Permissions**: `storage`, `tabs`, `scripting`, `alarms`
+- **Permissions**: `storage`, `tabs`, `scripting`
 - **Host Permissions**: `http://*/*`, `https://*/*`
 
 ### Architecture
@@ -287,13 +291,13 @@ src/content.js (entry)
   ├── utils/toc-utils.js (barrel re-export of all utils)
   └── core/toc-app.js (orchestrator)
         ├── ui/ components (edge-dock, element-picker, floating-panel)
-        ├── core/config-manager.js → event-bus.js, focus-trap.js
+        ├── core/config-manager.js → focus-trap.js
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
 
-**Background Script**: Uses `importScripts()` to load the IIFE bundle of `storage-primitives.js` produced by the build (MV3 service workers cannot use ESM).
+**Background Script**: Uses `importScripts()` to load the IIFE bundle of `primitives.js` produced by the build (MV3 service workers cannot use ESM).
 
-**Shared Storage Primitives**: `storage-primitives.js` is ESM source; the build produces a separate IIFE bundle for the background service worker.
+**Shared Primitives**: `primitives.js` is ESM source; the build produces a separate IIFE bundle for the background service worker.
 
 ### Key Algorithms
 
@@ -428,6 +432,18 @@ Issues and Pull Requests are welcome!
 ## 📄 License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🗺️ Roadmap
+
+### Smart Auto-Detection (Planned)
+
+Currently, the TOC relies on default h1-h6 heading recognition or manually configured CSS/XPath selectors via the element picker. Future versions plan to introduce intelligent auto-detection capabilities:
+
+- **Automatic Content Structure Analysis**: Automatically identify the main content area and heading structure of a page, reducing the need for manual selector configuration
+- **Adaptive Recognition**: Learn from common page layouts and frameworks to improve detection accuracy across different websites
+- **Gradual Selector Deprecation**: As auto-detection matures, the manual selector list will gradually become a fallback for edge cases rather than the primary configuration method
+
+The goal is to make the TOC "just work" out of the box for the vast majority of websites, while keeping manual customization available as an advanced option.
 
 ## 📝 Changelog
 
