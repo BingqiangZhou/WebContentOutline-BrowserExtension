@@ -82,7 +82,7 @@ export function renderFloatingPanel(opts) {
           }, CFG.PENDING_REBUILD_RECHECK_MS);
         }
 
-      }, duration);
+      }, CFG.UNLOCK_AFTER_MS);
     };
 
     var onScroll = function() {
