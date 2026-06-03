@@ -305,6 +305,9 @@ async function loadContentScriptForConfigChanges(options = {}) {
   const currentUrl = options.url || 'https://docs.example.com/article';
   const current = new URL(currentUrl);
   let configs = options.configs || [];
+  const localStorageData = new Map(Object.entries(options.localStorageData || {}));
+  const localStorageOps = [];
+  const badgePositionWrites = [];
   const wildcardMatch = (pattern, url) => {
     const escaped = String(pattern || '').replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
     return new RegExp(`^${escaped}$`).test(url);
@@ -328,6 +331,20 @@ async function loadContentScriptForConfigChanges(options = {}) {
       addEventListener() {},
       documentElement: {},
       querySelector() { return null; }
+    },
+    localStorage: {
+      getItem(key) {
+        localStorageOps.push(['get', key]);
+        return localStorageData.has(key) ? localStorageData.get(key) : null;
+      },
+      setItem(key, value) {
+        localStorageOps.push(['set', key]);
+        localStorageData.set(key, String(value));
+      },
+      removeItem(key) {
+        localStorageOps.push(['remove', key]);
+        localStorageData.delete(key);
+      }
     },
     window: {},
     chrome: {
@@ -353,13 +370,16 @@ async function loadContentScriptForConfigChanges(options = {}) {
     findMatchingConfig(list, url) {
       return (Array.isArray(list) ? list : []).find((cfg) => cfg && wildcardMatch(cfg.urlPattern, url)) || null;
     },
-    getSiteEnabledByOrigin() { return Promise.resolve(true); },
+    getSiteEnabledByOrigin() { return Promise.resolve(options.enabled !== false); },
     getPanelExpandedByOrigin() { return Promise.resolve(false); },
     getUiMode() { return Promise.resolve('edge-dock'); },
     saveUiMode() { return Promise.resolve(true); },
     normalizeUiMode(mode) { return mode === 'classic' ? 'classic' : 'edge-dock'; },
     getBadgePosByHost() { return Promise.resolve(null); },
-    setBadgePosByHost() { return Promise.resolve(true); },
+    setBadgePosByHost(host, pos) {
+      badgePositionWrites.push({ host, pos });
+      return Promise.resolve(true);
+    },
     isContextInvalidatedError() { return false; },
     cleanupOwnedElements() {},
     safeJsonParse(raw) { try { return JSON.parse(raw); } catch (_) { return null; } },
@@ -395,11 +415,13 @@ async function loadContentScriptForConfigChanges(options = {}) {
     fn();
     await Promise.resolve();
   }
-  for (let i = 0; i < 20; i++) await Promise.resolve();
+  for (let i = 0; i < 80; i++) await Promise.resolve();
 
   return {
     getInitConfig: () => initConfig,
     getRefreshCalls: () => refreshCalls,
+    getLocalStorageOps: () => localStorageOps.slice(),
+    getBadgePositionWrites: () => badgePositionWrites.slice(),
     setConfigs(nextConfigs) { configs = nextConfigs; },
     emitStorageChange(newConfigs, oldConfigs = configs) {
       const listener = storageListeners[0];
@@ -662,6 +684,29 @@ test('config normalization drops unused collapsedDefault field from new and lega
   assert.doesNotMatch(read('README.md'), /collapsedDefault/);
   assert.doesNotMatch(read('README_CN.md'), /collapsedDefault/);
   assert.doesNotMatch(read('src/content.js'), /collapsedDefault/);
+});
+
+test('content script defers legacy badge migration until the site is enabled', async () => {
+  const legacyKey = 'tocBadgePos::docs.example.com';
+  const disabled = await loadContentScriptForConfigChanges({
+    enabled: false,
+    localStorageData: {
+      [legacyKey]: JSON.stringify({ left: 12, top: 34 })
+    }
+  });
+  assert.deepEqual(disabled.getLocalStorageOps(), []);
+  assert.deepEqual(disabled.getBadgePositionWrites(), []);
+  assert.equal(disabled.getInitConfig(), null);
+
+  const enabled = await loadContentScriptForConfigChanges({
+    enabled: true,
+    localStorageData: {
+      [legacyKey]: JSON.stringify({ left: 12, top: 34 })
+    }
+  });
+  assert.ok(enabled.getLocalStorageOps().some(([op, key]) => op === 'get' && key === legacyKey));
+  assert.equal(enabled.getBadgePositionWrites().length, 1);
+  assert.notEqual(enabled.getInitConfig(), null);
 });
 
 test('content script skips config refresh when tocConfigs change is unrelated to the current URL', async () => {
