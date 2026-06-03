@@ -29,7 +29,7 @@ function loadDomWatcher() {
   }
   const documentElement = { nodeType: 1, isConnected: true };
   const sandbox = {
-    console,
+    console: { ...console, debug() {} },
     Node: { ELEMENT_NODE: 1 },
     document: { documentElement },
     MutationObserver: FakeMutationObserver,
@@ -258,6 +258,127 @@ __exports.validateUiStateMutationSource = validateUiStateMutationSource;`,
   return sandbox.__exports;
 }
 
+async function loadContentScriptForConfigChanges(options = {}) {
+  const file = path.join(repoRoot, 'src/content.js');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\n/, '')
+    .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\n/, '');
+  const timers = [];
+  const storageListeners = [];
+  let refreshCalls = 0;
+  let initConfig = null;
+  const currentUrl = options.url || 'https://docs.example.com/article';
+  const current = new URL(currentUrl);
+  let configs = options.configs || [];
+  const wildcardMatch = (pattern, url) => {
+    const escaped = String(pattern || '').replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    return new RegExp(`^${escaped}$`).test(url);
+  };
+  const sandbox = {
+    console: { ...console, debug() {} },
+    Promise,
+    setTimeout(fn) {
+      timers.push(fn);
+      return timers.length;
+    },
+    clearTimeout() {},
+    location: {
+      href: current.href,
+      origin: current.origin,
+      protocol: current.protocol,
+      host: current.host
+    },
+    document: {
+      readyState: 'complete',
+      addEventListener() {},
+      documentElement: {},
+      querySelector() { return null; }
+    },
+    window: {},
+    chrome: {
+      runtime: {
+        id: 'extension-id',
+        sendMessage(_message, callback) {
+          callback && callback({ ok: true });
+        },
+        onMessage: {
+          addListener() {},
+          removeListener() {}
+        }
+      },
+      storage: {
+        onChanged: {
+          addListener(listener) { storageListeners.push(listener); },
+          removeListener() {}
+        }
+      }
+    },
+    msg(key) { return key; },
+    getConfigs() { return Promise.resolve(configs); },
+    findMatchingConfig(list, url) {
+      return (Array.isArray(list) ? list : []).find((cfg) => cfg && wildcardMatch(cfg.urlPattern, url)) || null;
+    },
+    getSiteEnabledByOrigin() { return Promise.resolve(true); },
+    getPanelExpandedByOrigin() { return Promise.resolve(false); },
+    getUiMode() { return Promise.resolve('edge-dock'); },
+    saveUiMode() { return Promise.resolve(true); },
+    normalizeUiMode(mode) { return mode === 'classic' ? 'classic' : 'edge-dock'; },
+    getBadgePosByHost() { return Promise.resolve(null); },
+    setBadgePosByHost() { return Promise.resolve(true); },
+    isContextInvalidatedError() { return false; },
+    cleanupOwnedElements() {},
+    safeJsonParse(raw) { try { return JSON.parse(raw); } catch (_) { return null; } },
+    isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    getFiniteNumber(value) {
+      const num = Number(value);
+      return Number.isFinite(num) ? num : null;
+    },
+    uiConst(_name, fallback) { return fallback; },
+    STORAGE_KEYS: {
+      SITE_ENABLE_MAP: 'tocSiteEnabledMap',
+      UI_MODE: 'tocUiMode',
+      TOC_CONFIGS: 'tocConfigs'
+    },
+    initForConfig(cfg) {
+      initConfig = cfg;
+      return {
+        refreshConfig() {
+          refreshCalls++;
+          return Promise.resolve(true);
+        },
+        collapse() {},
+        destroy() {}
+      };
+    },
+    __exports: {}
+  };
+  sandbox.window = sandbox;
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source, sandbox, { filename: file });
+  while (timers.length) {
+    const fn = timers.shift();
+    fn();
+    await Promise.resolve();
+  }
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+
+  return {
+    getInitConfig: () => initConfig,
+    getRefreshCalls: () => refreshCalls,
+    setConfigs(nextConfigs) { configs = nextConfigs; },
+    emitStorageChange(newConfigs, oldConfigs = configs) {
+      const listener = storageListeners[0];
+      assert.equal(typeof listener, 'function', 'content storage listener should be attached');
+      listener({
+        tocConfigs: {
+          oldValue: oldConfigs,
+          newValue: newConfigs
+        }
+      }, 'local');
+    }
+  };
+}
+
 function loadStoragePrimitives() {
   const file = path.join(repoRoot, 'src/shared/storage-primitives.js');
   const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
@@ -481,6 +602,34 @@ test('config mutations filter broad legacy selectors and reject new broad select
     selector: { type: 'css', expr: '.doc-title' }
   }, 101);
   assert.deepEqual(plain(cleaned.configs[0].selectors.map((selector) => selector.expr)), ['.doc-title', 'article h2']);
+});
+
+test('content script skips config refresh when tocConfigs change is unrelated to the current URL', async () => {
+  const initial = [{
+    urlPattern: 'https://docs.example.com/*',
+    selectors: [{ type: 'css', expr: 'article h2' }]
+  }];
+  const env = await loadContentScriptForConfigChanges({ configs: initial });
+  assert.equal(env.getInitConfig().urlPattern, 'https://docs.example.com/*');
+
+  env.emitStorageChange([
+    initial[0],
+    {
+      urlPattern: 'https://other.example.com/*',
+      selectors: [{ type: 'css', expr: 'main h2' }]
+    }
+  ], initial);
+  await Promise.resolve();
+
+  assert.equal(env.getRefreshCalls(), 0);
+
+  env.emitStorageChange([{
+    urlPattern: 'https://docs.example.com/*',
+    selectors: [{ type: 'css', expr: 'article h3' }]
+  }], initial);
+  await Promise.resolve();
+
+  assert.equal(env.getRefreshCalls(), 1);
 });
 
 test('badge position write skips local map read when background mutation is available', async () => {

@@ -45,6 +45,7 @@ import { initForConfig } from './core/toc-app.js';
   var enabledTransition = Promise.resolve();
   var uiModeTransition = Promise.resolve();
   var currentUiMode = 'edge-dock';
+  var currentConfigSignature = '';
   var startInFlight = null;
   var disposed = false;
   var listenersAttached = false;
@@ -103,6 +104,34 @@ import { initForConfig } from './core/toc-app.js';
 
   // Expose a best-effort cleanup hook (useful for dev reload / reinjection).
   try { window.__TOC_ASSISTANT_CLEANUP__ = dispose; } catch (_) {}
+
+  function getDefaultConfig() {
+    return {
+      urlPattern: location.protocol + '//' + location.host + '/*',
+      side: 'right',
+      selectors: [],
+      collapsedDefault: false
+    };
+  }
+
+  function selectorListSignature(selectors) {
+    var list = Array.isArray(selectors) ? selectors : [];
+    var parts = [];
+    for (var i = 0; i < list.length; i++) {
+      var selector = list[i] || {};
+      parts.push(String(selector.type || '') + ':' + String(selector.expr || ''));
+    }
+    return parts.join('|');
+  }
+
+  function configSignatureFor(configs) {
+    var cfg = findMatchingConfig(configs || [], location.href) || getDefaultConfig();
+    return [
+      String(cfg.urlPattern || ''),
+      cfg.side === 'left' ? 'left' : 'right',
+      selectorListSignature(cfg.selectors)
+    ].join('\n');
+  }
 
   async function migrateLegacyBadgePos() {
     try {
@@ -217,16 +246,12 @@ import { initForConfig } from './core/toc-app.js';
       if (disposed) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
-        cfg = {
-          urlPattern: location.protocol + '//' + location.host + '/*',
-          side: 'right',
-          selectors: [],
-          collapsedDefault: false
-        };
+        cfg = getDefaultConfig();
         console.debug(msg('logPrefix') + ' ' + msg('logNoConfigFound'));
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
+      currentConfigSignature = configSignatureFor(configs);
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
         onSwitchUiMode: requestUiMode
@@ -459,9 +484,13 @@ import { initForConfig } from './core/toc-app.js';
         }
         var configChange = changes && changes[TOC_CONFIGS_KEY];
         if (configChange && currentEnabled && appInstance && appInstance.refreshConfig) {
-          Promise.resolve(appInstance.refreshConfig()).catch(function(e) {
-            console.warn(msg('logPrefix') + ' config refresh failed:', e);
-          });
+          var nextConfigSignature = configSignatureFor(configChange.newValue || []);
+          if (nextConfigSignature !== currentConfigSignature) {
+            currentConfigSignature = nextConfigSignature;
+            Promise.resolve(appInstance.refreshConfig()).catch(function(e) {
+              console.warn(msg('logPrefix') + ' config refresh failed:', e);
+            });
+          }
         }
         var ch = changes && changes[KEY];
         if (!ch) return;
