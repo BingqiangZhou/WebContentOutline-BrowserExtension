@@ -366,6 +366,7 @@ import { initForConfig } from './core/toc-app.js';
         return;
       }
 
+      await migrateLegacyBadgePos();
       await ensureStarted();
       await applyExpandState(opts);
   }
@@ -388,7 +389,6 @@ import { initForConfig } from './core/toc-app.js';
     if (disposed) return;
     console.debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
     try {
-      await migrateLegacyBadgePos();
       await new Promise(function(resolve) {
         try {
           chrome.runtime.sendMessage({ type: 'toc:ensureIcon' }, function() { void chrome.runtime.lastError; resolve(); });

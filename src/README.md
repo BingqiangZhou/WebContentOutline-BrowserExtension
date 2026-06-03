@@ -183,11 +183,11 @@ if (isExtensionContextInvalidated()) {
 - 导航锁故障保护（8秒超时自动解锁）
 - 动画帧管理和资源清理
 
-**config-manager.js** (343行) — 配置管理
+**config-manager.js**（约 290 行）— 配置管理
 - 站点配置的保存和读取
 - 选择器管理界面
 - 配置清空功能
-- `mutateConfigsWithRetry` 配置变更验证
+- 通过后台 `toc:mutateConfig` 串行化配置变更并验证结果
 - 通过 event-bus 发送 `toc:config-changed` 事件
 
 **rebuild-scheduler.js** (253行) — 重建调度器
@@ -217,10 +217,10 @@ if (isExtensionContextInvalidated()) {
 
 ## 🛡️ 样式保护机制
 
-### CSS防御策略 (895行样式)
+### CSS防御策略（约 1260 行样式）
 1. **CSS自定义属性主题**: 使用 `--toc-bg-panel` 等变量支持亮色/暗色主题
 2. **优先级保护**: 所有样式使用 `!important`
-3. **全局重置**: `.toc-floating, .toc-floating * { all: unset !important; }`
+3. **作用域重置**: 仅在 `[data-toc-owner="web-toc-assistant"]` 拥有的 UI 根节点内使用 `all: unset`
 4. **交互保护**: 确保按钮和链接正常工作
 
 ## ⚡ 性能优化策略
@@ -250,7 +250,9 @@ if (isExtensionContextInvalidated()) {
 4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
 
 ### 调试和测试
-- 无自动化测试框架，需手动加载扩展测试
+- 自动化测试：`npm test` 运行 `checks/*.test.mjs`
+- 发布前验证：`npm run build` 与高危依赖审计
+- 手工验证仍用于扩展加载、真实网页交互和浏览器权限行为
 - 控制台日志分级输出
 - 错误边界和降级处理
 
