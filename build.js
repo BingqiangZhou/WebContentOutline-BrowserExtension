@@ -143,14 +143,25 @@ async function main() {
   const packagesDir = path.join(ROOT_DIR, 'dist', 'packages');
   fs.mkdirSync(packagesDir, { recursive: true });
 
-  const zipFile = path.join(packagesDir, `v${version}.zip`);
+  // Detect git branch to suffix zip filename for non-main builds
+  let branchSuffix = '';
+  try {
+    const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: ROOT_DIR, encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe']
+    }).trim();
+    if (branch && branch !== 'main') {
+      branchSuffix = '-' + branch.replace(/[/\\]+/g, '-');
+    }
+  } catch (_) {}
+
+  const zipFile = path.join(packagesDir, `v${version}${branchSuffix}.zip`);
 
   try {
     if (fs.existsSync(zipFile)) fs.rmSync(zipFile);
     execFileSync('zip', ['-r', zipFile, '.'], { stdio: 'pipe', cwd: DIST_DIR });
     const stats = fs.statSync(zipFile);
     const kb = (stats.size / 1024).toFixed(1);
-    console.log(`\nPackage created: dist/packages/v${version}.zip (${kb} KB)`);
+    console.log(`\nPackage created: dist/packages/v${version}${branchSuffix}.zip (${kb} KB)`);
   } catch (e) {
     console.error('Failed to create zip package');
     process.exit(1);
