@@ -38,7 +38,9 @@ jobs:
       - name: Rename package asset
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          mv "dist/packages/v${VERSION}.zip" "dist/packages/webtoc-assistant-v${VERSION}.zip"
+          SRC_ZIP=$(ls dist/packages/v${VERSION}*.zip 2>/dev/null | head -1)
+          if [ -z "$SRC_ZIP" ]; then echo "FAIL: v${VERSION}*.zip not found in dist/packages/" && ls dist/packages/ && exit 1; fi
+          mv "$SRC_ZIP" "dist/packages/webtoc-assistant-v${VERSION}.zip"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
