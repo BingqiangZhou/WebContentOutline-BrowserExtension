@@ -5,7 +5,7 @@ description: Release a new version of the extension. Handles version bump, CHANG
 
 # Release Extension
 
-You are managing the release process for the Web TOC Assistant browser extension. The full pipeline: version bump → changelog → build → commit → tag → push → GitHub Actions auto-publishes the release.
+You are managing the release process for the Web TOC Assistant browser extension. The full pipeline: commit pending changes → validate → version bump → changelog → build → tag → push → GitHub Actions auto-publishes the release.
 
 ## Arguments
 
@@ -20,10 +20,29 @@ git status --porcelain
 git log --oneline -5
 ```
 
-- If there are uncommitted changes, ask the user: "有未提交的更改，要一起提交再发布吗？"
 - Check which branch we're on. If not on `main`, ask before proceeding.
 
-## Step 2: Analyze Changes Since Last Release
+## Step 2: Commit Pending Changes
+
+If there are uncommitted changes, ask the user: "有未提交的更改，要一起提交再发布吗？"
+
+If the user confirms, commit the changes:
+```bash
+git add -A
+git commit -m "feat: <descriptive message>"
+```
+
+## Step 3: Run Tests (Validation)
+
+Validate the committed code before starting the release process:
+
+```bash
+npm test
+```
+
+If tests fail, stop and report the errors. Ask the user to fix the issues before proceeding with the release.
+
+## Step 4: Analyze Changes Since Last Release
 
 Find the previous release tag and analyze what changed:
 
@@ -47,7 +66,7 @@ Based on the scope and nature of changes, suggest a version number to the user:
 - **Minor** (1.x.0): New user-facing features or significant behavior changes
 - **Major** (x.0.0): Breaking changes
 
-## Step 3: Update Version
+## Step 5: Update Version
 
 Once the user confirms the version, update all version files:
 
@@ -55,7 +74,7 @@ Once the user confirms the version, update all version files:
 2. `"version"` in `package.json`
 3. `"version"` in `package-lock.json` (both the top-level and `packages."".version` if present)
 
-## Step 4: Update CHANGELOG.md and CHANGELOG_CN.md
+## Step 6: Update CHANGELOG.md and CHANGELOG_CN.md
 
 Both changelogs follow the same structure in their respective languages. Read the existing files first, then add a new entry at the top (after the Table of Contents section).
 
@@ -99,7 +118,7 @@ Both changelogs follow the same structure in their respective languages. Read th
 
 **Each file contains content in its own language only — no bilingual mixing.**
 
-## Step 5: Update README if Needed
+## Step 7: Update README if Needed
 
 Check if README.md / README_CN.md need updates:
 
@@ -108,7 +127,7 @@ Check if README.md / README_CN.md need updates:
 
 Also update `CLAUDE.md` if architecture, module structure, or storage schema changed.
 
-## Step 6: Build
+## Step 8: Build
 
 ```bash
 npm run build
@@ -122,7 +141,7 @@ The build script:
 
 If build fails, stop and fix errors before proceeding.
 
-## Step 7: Verify Build Output
+## Step 9: Verify Build Output
 
 Check the produced zip:
 ```bash
@@ -135,7 +154,7 @@ Verify:
 2. Contains expected files: `manifest.json`, `src/content.js`, `src/background.js`, `src/content.css`, `src/shared/primitives.js`, `_locales/`, `icons/`
 3. Does NOT contain dev files: `build.js`, `.claude/`, `node_modules/`, `.build-number`, `.gitignore`
 
-## Step 8: Commit, Tag, and Push
+## Step 10: Commit, Tag, and Push
 
 ```bash
 git add manifest.json package.json package-lock.json CHANGELOG.md CHANGELOG_CN.md
@@ -148,13 +167,13 @@ git push origin main "v${VERSION}"
 ```
 
 **GitHub Actions will automatically:**
-- Run validation and build on the tag
+- Build the extension on the tag
 - Create a GitHub Release with the zip asset
 - Include installation instructions and changelog links
 
 Do NOT manually create the release via `gh` CLI.
 
-## Step 9: Confirm
+## Step 11: Confirm
 
 Report to the user:
 1. Version released

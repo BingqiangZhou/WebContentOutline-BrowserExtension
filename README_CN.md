@@ -10,7 +10,7 @@
 一个网页目录生成器，为任意网站自动创建可交互的浮动目录，提升阅读体验。
 
 <p align="left">
-  <img src="docs/brand/store-screenshot-cover-zh-CN.png" alt="网页目录助手截图" width="800"/>
+  <img src="docs/brand/store-extension-intro-zh-CN.png" alt="网页目录助手" width="800"/>
 </p>
 
 ## ✨ 核心功能

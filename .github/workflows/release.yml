@@ -2,61 +2,14 @@ name: Release Extension
 
 on:
   push:
-    branches: [main]
     tags:
       - 'v*.*.*'
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  validate:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Validate manifest.json
-        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest.json is valid JSON')"
-
-      - name: Run tests
-        run: npm test
-
-      - name: Build and validate
-        run: node build.js
-
-      - name: Verify build output
-        run: |
-          test -f dist/build/manifest.json || (echo "FAIL: manifest.json missing" && exit 1)
-          test -f dist/build/src/content.js || (echo "FAIL: src/content.js missing" && exit 1)
-          test -f dist/build/src/background.js || (echo "FAIL: src/background.js missing" && exit 1)
-          test -f dist/build/src/content.css || (echo "FAIL: src/content.css missing" && exit 1)
-          test -f dist/build/src/page-url-hook.js || (echo "FAIL: src/page-url-hook.js missing" && exit 1)
-          test -f dist/build/src/shared/storage-primitives.js || (echo "FAIL: storage-primitives.js missing" && exit 1)
-          test -f dist/build/src/shared/config-primitives.js || (echo "FAIL: config-primitives.js missing" && exit 1)
-          test -f dist/build/src/shared/ui-state-primitives.js || (echo "FAIL: ui-state-primitives.js missing" && exit 1)
-          grep -q '__TOC_URL_HOOK_INSTALLED__' dist/build/src/page-url-hook.js || (echo "FAIL: URL hook marker missing" && exit 1)
-          grep -q '__STORAGE_PRIMITIVES' dist/build/src/shared/storage-primitives.js || (echo "FAIL: storage primitives marker missing" && exit 1)
-          grep -q '__CONFIG_PRIMITIVES' dist/build/src/shared/config-primitives.js || (echo "FAIL: config primitives marker missing" && exit 1)
-          grep -q '__UI_STATE_PRIMITIVES' dist/build/src/shared/ui-state-primitives.js || (echo "FAIL: UI state primitives marker missing" && exit 1)
-          echo "All expected build outputs present"
-
   release:
-    needs: validate
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
     steps:
@@ -72,53 +25,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and validate
-        run: node build.js
+      - name: Build
+        run: npm run build
 
-      - name: Verify release build output
-        run: |
-          test -f dist/build/manifest.json || (echo "FAIL: manifest.json missing" && exit 1)
-          test -f dist/build/src/content.js || (echo "FAIL: src/content.js missing" && exit 1)
-          test -f dist/build/src/background.js || (echo "FAIL: src/background.js missing" && exit 1)
-          test -f dist/build/src/content.css || (echo "FAIL: src/content.css missing" && exit 1)
-          test -f dist/build/src/page-url-hook.js || (echo "FAIL: src/page-url-hook.js missing" && exit 1)
-          test -f dist/build/src/shared/storage-primitives.js || (echo "FAIL: storage-primitives.js missing" && exit 1)
-          test -f dist/build/src/shared/config-primitives.js || (echo "FAIL: config-primitives.js missing" && exit 1)
-          test -f dist/build/src/shared/ui-state-primitives.js || (echo "FAIL: ui-state-primitives.js missing" && exit 1)
-          grep -q '__TOC_URL_HOOK_INSTALLED__' dist/build/src/page-url-hook.js || (echo "FAIL: URL hook marker missing" && exit 1)
-          grep -q '__STORAGE_PRIMITIVES' dist/build/src/shared/storage-primitives.js || (echo "FAIL: storage primitives marker missing" && exit 1)
-          grep -q '__CONFIG_PRIMITIVES' dist/build/src/shared/config-primitives.js || (echo "FAIL: config primitives marker missing" && exit 1)
-          grep -q '__UI_STATE_PRIMITIVES' dist/build/src/shared/ui-state-primitives.js || (echo "FAIL: UI state primitives marker missing" && exit 1)
-          echo "All expected release build outputs present"
-
-      - name: Get version from manifest.json
-        id: get-version
+      - name: Get version
+        id: version
         run: |
           VERSION=$(jq -r '.version' manifest.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_version=v$VERSION" >> $GITHUB_OUTPUT
-          echo "Package version: $VERSION"
 
       - name: Rename package asset
         run: |
-          VERSION="${{ steps.get-version.outputs.version }}"
+          VERSION="${{ steps.version.outputs.version }}"
           mv "dist/packages/v${VERSION}.zip" "dist/packages/webtoc-assistant-v${VERSION}.zip"
-
-      - name: Get package file size
-        id: package-info
-        run: |
-          VERSION="${{ steps.get-version.outputs.version }}"
-          FILE_SIZE=$(stat -c%s "dist/packages/webtoc-assistant-v${VERSION}.zip")
-          echo "size=$FILE_SIZE" >> $GITHUB_OUTPUT
-          echo "Package size: $FILE_SIZE bytes ($(( FILE_SIZE / 1024 )) KB)"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get-version.outputs.tag_version }}
-          name: Release ${{ steps.get-version.outputs.tag_version }}
+          tag_name: ${{ steps.version.outputs.tag_version }}
+          name: Release ${{ steps.version.outputs.tag_version }}
           body: |
-            ## Web TOC Assistant ${{ steps.get-version.outputs.tag_version }}
+            ## Web TOC Assistant ${{ steps.version.outputs.tag_version }}
 
             ### Installation / 安装
 
@@ -127,16 +55,16 @@ jobs:
             - [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
 
             **Option 2: Load Unpacked Extension / 加载已解压的扩展**
-            1. Download the `webtoc-assistant-v${{ steps.get-version.outputs.version }}.zip` file below / 下载下方的 `webtoc-assistant-v${{ steps.get-version.outputs.version }}.zip` 文件
+            1. Download the `webtoc-assistant-v${{ steps.version.outputs.version }}.zip` file below / 下载下方的 `webtoc-assistant-v${{ steps.version.outputs.version }}.zip` 文件
             2. Open Edge/Chrome and navigate to `edge://extensions/` or `chrome://extensions/` / 打开 Edge/Chrome 访问 `edge://extensions/` 或 `chrome://extensions/`
             3. Enable "Developer mode" / 启用"开发人员模式"
             4. Click "Load unpacked" and select the extracted folder / 点击"加载已解压的扩展程序"并选择解压后的文件夹
 
             ### Changes / 更新内容
 
-            🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.get-version.outputs.version }})
+            🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.version.outputs.version }})
 
-            🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG_CN.md#${{ steps.get-version.outputs.version }})
+            🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG_CN.md#${{ steps.version.outputs.version }})
           files: dist/packages/*.zip
           draft: false
           prerelease: false

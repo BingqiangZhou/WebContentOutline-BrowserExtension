@@ -10,7 +10,7 @@
 A web table of contents generator that automatically creates interactive floating TOC for any website to enhance reading experience.
 
 <p align="left">
-  <img src="docs/brand/store-screenshot-cover-en.png" alt="Web TOC Assistant Screenshot" width="800"/>
+  <img src="docs/brand/store-extension-intro-en.png" alt="Web TOC Assistant" width="800"/>
 </p>
 
 ## ✨ Key Features
