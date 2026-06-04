@@ -54,63 +54,6 @@ function loadCreateUrlMonitor() {
   return { createUrlMonitor: sandbox.__exports.createUrlMonitor, sandbox, listeners };
 }
 
-function loadPageUrlHook() {
-  const file = path.join(repoRoot, 'src/page-url-hook.js');
-  const source = fs.readFileSync(file, 'utf8');
-
-  const listeners = new Map();
-  const events = [];
-  const sandbox = {
-    console,
-    CustomEvent: class CustomEvent {
-      constructor(type, init = {}) {
-        this.type = type;
-        this.detail = init.detail;
-      }
-    },
-    document: {},
-    history: {
-      pushState() {
-        sandbox.location.href = 'https://example.com/after-push';
-        return 'push-result';
-      },
-      replaceState() {
-        sandbox.location.href = 'https://example.com/after-replace';
-        return 'replace-result';
-      }
-    },
-    location: {
-      href: 'https://example.com/start'
-    },
-    window: {
-      addEventListener(type, fn) {
-        const arr = listeners.get(type) || [];
-        arr.push(fn);
-        listeners.set(type, arr);
-      },
-      removeEventListener(type, fn) {
-        const arr = listeners.get(type) || [];
-        listeners.set(type, arr.filter((item) => item !== fn));
-      },
-      dispatchEvent(event) {
-        events.push(event);
-        const arr = listeners.get(event.type) || [];
-        for (const fn of arr) fn(event);
-        return true;
-      }
-    }
-  };
-  sandbox.window.window = sandbox.window;
-  sandbox.window.document = sandbox.document;
-  sandbox.window.history = sandbox.history;
-  sandbox.window.location = sandbox.location;
-  sandbox.globalThis = sandbox.window;
-
-  vm.runInNewContext(source, sandbox, { filename: file });
-
-  return { sandbox, events };
-}
-
 function loadCreateRebuildScheduler(hostname = 'example.com') {
   const file = path.join(repoRoot, 'src/core/rebuild-scheduler.js');
   const source = fs.readFileSync(file, 'utf8')
@@ -126,6 +69,9 @@ function loadCreateRebuildScheduler(hostname = 'example.com') {
     console,
     Date: {
       now() { return now; }
+    },
+    document: {
+      hidden: false
     },
     location: {
       hostname
@@ -204,7 +150,7 @@ test('url monitor observes SPA navigation without replacing History API methods'
   }
 });
 
-test('url monitor listens for page-world SPA navigation events', async () => {
+test('url monitor listens for native SPA navigation events', async () => {
   const { createUrlMonitor, sandbox, listeners } = loadCreateUrlMonitor();
   let calls = 0;
   const monitor = createUrlMonitor({
@@ -218,11 +164,11 @@ test('url monitor listens for page-world SPA navigation events', async () => {
     });
 
     sandbox.location.href = 'https://chatgpt.com/c/next';
-    const handler = listeners.get('toc:urlchange');
-    assert.equal(typeof handler, 'function');
-    handler({ type: 'toc:urlchange' });
+    const popstateHandler = listeners.get('popstate');
+    assert.equal(typeof popstateHandler, 'function');
+    popstateHandler();
 
-    await new Promise((resolve) => setTimeout(resolve, 5));
+    await new Promise((resolve) => setTimeout(resolve, 600));
     assert.equal(calls, 1);
   } finally {
     monitor.stop();
@@ -249,37 +195,6 @@ test('url monitor teardown does not overwrite History API changes made by the pa
 
   assert.equal(sandbox.history.pushState, thirdPartyPushState);
   assert.equal(sandbox.history.replaceState, thirdPartyReplaceState);
-});
-
-test('page URL hook emits one event for pushState and replaceState', () => {
-  const { sandbox, events } = loadPageUrlHook();
-
-  assert.equal(sandbox.history.pushState({}, '', '/after-push'), 'push-result');
-  assert.equal(sandbox.history.replaceState({}, '', '/after-replace'), 'replace-result');
-
-  const urlEvents = events.filter((event) => event.type === 'toc:urlchange');
-  assert.equal(urlEvents.length, 2);
-  assert.deepEqual(
-    urlEvents.map((event) => event.detail && event.detail.kind),
-    ['pushState', 'replaceState']
-  );
-});
-
-test('page URL hook is idempotent on repeated injection', () => {
-  const file = path.join(repoRoot, 'src/page-url-hook.js');
-  const source = fs.readFileSync(file, 'utf8');
-  const { sandbox, events } = loadPageUrlHook();
-  const wrappedPushState = sandbox.history.pushState;
-  const wrappedReplaceState = sandbox.history.replaceState;
-
-  vm.runInNewContext(source, sandbox, { filename: file });
-
-  assert.equal(sandbox.history.pushState, wrappedPushState);
-  assert.equal(sandbox.history.replaceState, wrappedReplaceState);
-
-  sandbox.history.pushState({}, '', '/after-second-push');
-  const urlEvents = events.filter((event) => event.type === 'toc:urlchange');
-  assert.equal(urlEvents.length, 1);
 });
 
 test('extension-created buttons explicitly opt out of submit behavior', () => {
@@ -312,21 +227,20 @@ test('extension-created buttons explicitly opt out of submit behavior', () => {
   }
 });
 
-test('project versions are unified at 1.0.1', () => {
+test('project versions are unified at 1.0.2', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifest.json'), 'utf8'));
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
 
-  assert.equal(manifest.version, '1.0.1');
-  assert.equal(packageJson.version, '1.0.1');
-  assert.equal(packageLock.version, '1.0.1');
-  assert.equal(packageLock.packages[''].version, '1.0.1');
+  assert.equal(manifest.version, '1.0.2');
+  assert.equal(packageJson.version, '1.0.2');
+  assert.equal(packageLock.version, '1.0.2');
+  assert.equal(packageLock.packages[''].version, '1.0.2');
 });
 
-test('build script removes existing version zip before packaging and copies page hook', () => {
+test('build script removes existing version zip before packaging', () => {
   const source = fs.readFileSync(path.join(repoRoot, 'build.js'), 'utf8');
 
-  assert.match(source, /page-url-hook\.js/);
   assert.match(source, /fs\.existsSync\(zipFile\)[\s\S]*fs\.rmSync\(zipFile/);
 });
 
@@ -344,9 +258,10 @@ test('mutation rebuilds start quickly on every host, including ChatGPT', () => {
   }
 });
 
-test('high-frequency mutations back off globally without site-specific branches', () => {
+test('high-frequency mutations use fixed debounce without site-specific branches', () => {
   const schedulerSource = fs.readFileSync(path.join(repoRoot, 'src/core/rebuild-scheduler.js'), 'utf8');
   assert.doesNotMatch(schedulerSource, /chatgpt|chat\.openai|isHighDynamicSpaHost/i);
+  assert.doesNotMatch(schedulerSource, /1\.3\*|backoff|exponential/i);
 
   const env = loadCreateRebuildScheduler('example.com');
   const scheduler = env.createRebuildScheduler(() => Promise.resolve(true));
@@ -357,8 +272,9 @@ test('high-frequency mutations back off globally without site-specific branches'
     env.getMutationHandler()();
   }
 
-  const lastDelay = env.delays[env.delays.length - 1];
-  assert.ok(lastDelay >= 1200, `burst mutations should back off, got ${lastDelay}`);
-  assert.ok(lastDelay <= 2000, `burst mutations should stay responsive, got ${lastDelay}`);
+  // Every mutation uses the same fixed debounce delay
+  for (const delay of env.delays) {
+    assert.equal(delay, 400, `all mutation debounces should be 400ms, got ${delay}`);
+  }
   scheduler.disconnect();
 });

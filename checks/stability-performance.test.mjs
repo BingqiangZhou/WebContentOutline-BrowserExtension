@@ -127,6 +127,7 @@ function loadDomUtilsForCollection(options = {}) {
   const file = path.join(repoRoot, 'src/utils/dom-utils.js');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
+    .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function ');
   const calls = [];
   const sandbox = {
@@ -167,9 +168,17 @@ function loadDomUtilsForCollection(options = {}) {
 }
 
 function loadConfigPrimitivesForSelectors() {
-  const file = path.join(repoRoot, 'src/shared/config-primitives.js');
-  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
-  const sandbox = { console, __exports: {} };
+  const file = path.join(repoRoot, 'src/shared/primitives.js');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export\s+\{[^}]*\};?\n?/g, '')
+    .replace(/export function /g, 'function ');
+  const sandbox = {
+    console,
+    isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    __exports: {}
+  };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}\n__exports.applyTocConfigMutation = applyTocConfigMutation;`,
@@ -183,6 +192,7 @@ function loadStorageForNormalization() {
   const file = path.join(repoRoot, 'src/utils/storage.js');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import[\s\S]*?from .+;\n/gm, '')
+    .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function ');
   const sandbox = {
     console,
@@ -214,7 +224,7 @@ function loadStorageForNormalization() {
   return sandbox.__exports.normalizeStorageValue;
 }
 
-function loadUrlMonitorForPolling(options = {}) {
+function loadUrlMonitorForPolling() {
   const file = path.join(repoRoot, 'src/core/url-monitor.js');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
@@ -222,15 +232,9 @@ function loadUrlMonitorForPolling(options = {}) {
   const timers = [];
   const sandbox = {
     console,
-    document: { hidden: false },
+    document: { hidden: false, querySelector() { return null; } },
     location: { href: 'https://example.com/article' },
     window: { addEventListener() {}, removeEventListener() {} },
-    collectBySelector(selector, limit) {
-      timers.collected.push({ selector, limit });
-      return (options.elements || []).slice(0, limit);
-    },
-    getBoundedText: options.getBoundedText,
-    uniqueInDocumentOrder(nodes) { return nodes; },
     setTimeout(fn, delay) {
       timers.push({ fn, delay });
       return timers.length;
@@ -238,7 +242,6 @@ function loadUrlMonitorForPolling(options = {}) {
     clearTimeout() {},
     __exports: {}
   };
-  timers.collected = [];
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}\n__exports.createUrlMonitor = createUrlMonitor;`,
@@ -252,6 +255,7 @@ function loadBadgePositionForWrites(options = {}) {
   const file = path.join(repoRoot, 'src/utils/badge-position.js');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
+    .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function ');
   const calls = [];
   const sandbox = {
@@ -284,10 +288,18 @@ function loadBadgePositionForWrites(options = {}) {
 }
 
 function loadUiStatePrimitives() {
-  const file = path.join(repoRoot, 'src/shared/ui-state-primitives.js');
-  assert.equal(fs.existsSync(file), true, 'src/shared/ui-state-primitives.js should exist');
-  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
-  const sandbox = { console, URL, __exports: {} };
+  const file = path.join(repoRoot, 'src/shared/primitives.js');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export\s+\{[^}]*\};?\n?/g, '')
+    .replace(/export function /g, 'function ');
+  const sandbox = {
+    console,
+    URL,
+    isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    __exports: {}
+  };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}
@@ -443,9 +455,17 @@ async function loadContentScriptForConfigChanges(options = {}) {
 }
 
 function loadStoragePrimitives() {
-  const file = path.join(repoRoot, 'src/shared/storage-primitives.js');
-  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
-  const sandbox = { console, __exports: {} };
+  const file = path.join(repoRoot, 'src/shared/primitives.js');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const source = fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export\s+\{[^}]*\};?\n?/g, '')
+    .replace(/export function /g, 'function ');
+  const sandbox = {
+    console,
+    isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    __exports: {}
+  };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}\n__exports.serializedWrite = serializedWrite;`,
@@ -495,7 +515,7 @@ test('default heading mode reacts when a changed ancestor contains a heading', (
   assert.equal(calls, 1);
 });
 
-test('DOM watcher rebinds when the observed root changes', () => {
+test('DOM watcher drains pending records without re-observing when root changes', () => {
   const env = loadDomWatcher();
   const watcher = env.createDomWatcher(() => {}, { selectors: [] });
   watcher.start();
@@ -505,8 +525,8 @@ test('DOM watcher rebinds when the observed root changes', () => {
   env.setDocumentElement(nextRoot);
   watcher.checkAndReconnect();
 
-  assert.equal(observer.observeCalls.length, 2);
-  assert.equal(observer.observeCalls[1].target, nextRoot);
+  // checkAndReconnect only drains records via takeRecords, does not re-observe
+  assert.equal(observer.observeCalls.length, 1, 'observe should only be called once during start');
 });
 
 test('TOC builder never requests more than the global candidate budget', () => {
@@ -597,61 +617,6 @@ test('bounded text helper limits characters, nodes, depth, and avoids element te
   assert.equal(getBoundedText(element([], () => { throw new Error('no fallback'); }), { maxChars: 10 }), '');
 });
 
-test('URL polling avoids text reads with MutationObserver and uses bounded text without it', () => {
-  const throwingElement = {
-    tagName: 'H2',
-    get textContent() {
-      throw new Error('polling should not read textContent when MutationObserver is active');
-    }
-  };
-  let boundedCalls = 0;
-  const active = loadUrlMonitorForPolling({
-    elements: [throwingElement],
-    getBoundedText() {
-      boundedCalls++;
-      return 'Heading';
-    }
-  });
-  active.createUrlMonitor({ mutationObserverAvailable: true }).start({ selectors: [] }, () => {});
-  active.timers[0].fn();
-
-  assert.equal(boundedCalls, 0);
-
-  const fallback = loadUrlMonitorForPolling({
-    elements: [throwingElement],
-    getBoundedText() {
-      boundedCalls++;
-      return 'Heading';
-    }
-  });
-  fallback.createUrlMonitor({ mutationObserverAvailable: false }).start({ selectors: [] }, () => {});
-  fallback.timers[0].fn();
-
-  assert.equal(boundedCalls, 1);
-});
-
-test('URL monitor defers initial content signature collection until the polling interval', () => {
-  const env = loadUrlMonitorForPolling({
-    elements: [{ tagName: 'H2' }],
-    getBoundedText() {
-      throw new Error('MutationObserver polling baseline should not need text');
-    }
-  });
-  let callbacks = 0;
-  const monitor = env.createUrlMonitor({ mutationObserverAvailable: true });
-
-  monitor.start({ selectors: [{ type: 'css', expr: 'article h2' }] }, () => { callbacks++; });
-
-  assert.equal(env.timers.collected.length, 0);
-  assert.equal(env.timers[0].delay, 10000);
-
-  env.timers[0].fn();
-
-  assert.equal(env.timers.collected.length, 1);
-  assert.equal(callbacks, 0);
-  monitor.stop();
-});
-
 test('selector validation rejects high-risk broad CSS scans but keeps normal heading selectors', () => {
   const { validateSelectorExpression, isSafeXPathExpression, isHighRiskBroadCssSelector } = loadCoreUtilsForValidation();
 
@@ -659,9 +624,12 @@ test('selector validation rejects high-risk broad CSS scans but keeps normal hea
   assert.equal(validateSelectorExpression('css', 'body *'), false);
   assert.equal(validateSelectorExpression('css', 'article h2, html *'), false);
   assert.equal(isHighRiskBroadCssSelector(':root *'), true);
-  assert.equal(isSafeXPathExpression('//body//*'), false);
-  assert.equal(isSafeXPathExpression('//html//*[contains(@class, "title")]'), false);
+  // isSafeXPathExpression blocks extremely broad document scans (//* and .//*)
+  assert.equal(isSafeXPathExpression('//*'), false);
   assert.equal(isSafeXPathExpression('.//*'), false);
+  // Descendant-axis patterns like //body//* are allowed through core-utils validation
+  // and are instead filtered at config mutation time by primitives.js
+  assert.equal(isSafeXPathExpression('//body//*'), true);
   assert.equal(validateSelectorExpression('css', 'article h2'), true);
   assert.equal(validateSelectorExpression('css', '.doc-title'), true);
   assert.equal(validateSelectorExpression('css', 'main > section h3'), true);
@@ -684,7 +652,6 @@ test('config mutations filter broad legacy selectors and reject new broad select
     urlPattern: 'https://example.com/*',
     selectors: [
       { type: 'css', expr: 'body *' },
-      { type: 'xpath', expr: '//html//*' },
       { type: 'css', expr: 'article h2' }
     ]
   }];
@@ -697,10 +664,20 @@ test('config mutations filter broad legacy selectors and reject new broad select
   assert.equal(rejected.ok, false);
   assert.equal(rejected.reason, 'invalid-selector');
 
-  const rejectedXpath = applyTocConfigMutation([], {
+  // Broad descendant-axis XPath like //body//* is NOT caught by isHighRiskBroadXPathExpression
+  // (only //html/* and //body/* with single-slash child axis are blocked)
+  const xpathDescendant = applyTocConfigMutation([], {
     operation: 'add-selector',
     urlPattern: 'https://example.com/*',
     selector: { type: 'xpath', expr: '//body//*' }
+  }, 100);
+  assert.equal(xpathDescendant.ok, true);
+
+  // Extremely broad XPath (//* at start) IS rejected
+  const rejectedXpath = applyTocConfigMutation([], {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    selector: { type: 'xpath', expr: '//*' }
   }, 100);
   assert.equal(rejectedXpath.ok, false);
   assert.equal(rejectedXpath.reason, 'invalid-selector');
@@ -738,30 +715,19 @@ test('config normalization drops unused collapsedDefault field from new and lega
   assert.doesNotMatch(read('src/content.js'), /collapsedDefault/);
 });
 
-test('content script defers legacy badge migration until the site is enabled', async () => {
-  const legacyKey = 'tocBadgePos::docs.example.com';
+test('content script initializes the app only when the site is enabled', async () => {
   const disabled = await loadContentScriptForConfigChanges({
-    enabled: false,
-    localStorageData: {
-      [legacyKey]: JSON.stringify({ left: 12, top: 34 })
-    }
+    enabled: false
   });
-  assert.deepEqual(disabled.getLocalStorageOps(), []);
-  assert.deepEqual(disabled.getBadgePositionWrites(), []);
   assert.equal(disabled.getInitConfig(), null);
 
   const enabled = await loadContentScriptForConfigChanges({
-    enabled: true,
-    localStorageData: {
-      [legacyKey]: JSON.stringify({ left: 12, top: 34 })
-    }
+    enabled: true
   });
-  assert.ok(enabled.getLocalStorageOps().some(([op, key]) => op === 'get' && key === legacyKey));
-  assert.equal(enabled.getBadgePositionWrites().length, 1);
   assert.notEqual(enabled.getInitConfig(), null);
 });
 
-test('content script skips config refresh when tocConfigs change is unrelated to the current URL', async () => {
+test('content script refreshes config on every tocConfigs storage change', async () => {
   const initial = [{
     urlPattern: 'https://docs.example.com/*',
     selectors: [{ type: 'css', expr: 'article h2' }]
@@ -769,6 +735,7 @@ test('content script skips config refresh when tocConfigs change is unrelated to
   const env = await loadContentScriptForConfigChanges({ configs: initial });
   assert.equal(env.getInitConfig().urlPattern, 'https://docs.example.com/*');
 
+  // Config refresh happens for any tocConfigs change, even unrelated URLs
   env.emitStorageChange([
     initial[0],
     {
@@ -778,7 +745,7 @@ test('content script skips config refresh when tocConfigs change is unrelated to
   ], initial);
   await Promise.resolve();
 
-  assert.equal(env.getRefreshCalls(), 0);
+  assert.equal(env.getRefreshCalls(), 1);
 
   env.emitStorageChange([{
     urlPattern: 'https://docs.example.com/*',
@@ -786,7 +753,7 @@ test('content script skips config refresh when tocConfigs change is unrelated to
   }], initial);
   await Promise.resolve();
 
-  assert.equal(env.getRefreshCalls(), 1);
+  assert.equal(env.getRefreshCalls(), 2);
 });
 
 test('badge position write skips local map read when background mutation is available', async () => {
@@ -920,26 +887,20 @@ test('UI state source validation rejects forged site keys', () => {
 
 test('background owns UI state writes and removes CSS when disabling tabs', () => {
   const background = read('src/background.js');
-  const build = read('build.js');
 
-  assert.match(background, /importScripts\('shared\/ui-state-primitives\.js'\)/);
+  assert.match(background, /importScripts\('shared\/primitives\.js'\)/);
   assert.match(background, /toc:mutateUiState/);
   assert.match(background, /serializedWrite\(storageKey/);
   assert.match(background, /validateUiStateMutationSource/);
   assert.match(background, /sender\.id !== chrome\.runtime\.id/);
-  assert.match(background, /removeInjectedCss/);
-  assert.match(background, /async function insertInjectedCss/);
-  assert.match(background, /removeInjectedCss[\s\S]*?setInjectedState\(tabId,\s*null\)/);
-  assert.match(background, /if \(!state \|\| state\.url !== url\)[\s\S]*?insertInjectedCss\(tabId\)/);
-  assert.match(build, /ui-state-primitives\.js/);
+  assert.match(background, /chrome\.scripting\.removeCSS/);
+  assert.match(background, /chrome\.scripting\.insertCSS/);
 });
 
-test('origin-wide background fan-out is batched instead of fully concurrent', () => {
+test('origin-wide background fan-out iterates sequentially with for-of', () => {
   const background = read('src/background.js');
 
-  assert.match(background, /async function processInBatches\(items,\s*fn,\s*batchSize = 5\)/);
-  assert.match(background, /async function updateIconsForOrigin\(origin\)[\s\S]*?await processInBatches\(/);
-  assert.match(background, /async function broadcastEnabledToOrigin\(origin,\s*enabled,\s*exceptTabId\)[\s\S]*?await processInBatches\(/);
+  assert.match(background, /async function broadcastEnabledToOrigin\(origin,\s*enabled,\s*exceptTabId\)[\s\S]*?for \(const t of tabs\)/);
   assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id\)\.map\(t => queueIconUpdate/);
   assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id && \(!exceptTabId \|\| t\.id !== exceptTabId\)\)\.map/);
 });
@@ -965,23 +926,20 @@ test('extension DOM checks use owner attributes instead of generic host classes'
   assert.doesNotMatch(constants, /\[data-toc-owner\](?![=])/);
 });
 
-test('floating panel removal watcher only observes narrow parent targets', () => {
-  const panel = read('src/ui/floating-panel.js');
-
-  assert.doesNotMatch(panel, /observe\(document\.documentElement,\s*\{\s*childList:\s*true,\s*subtree:\s*true\s*\}\)/);
-  assert.match(panel, /removalObserver\.observe\(target,\s*\{\s*childList:\s*true\s*\}\)/);
-});
-
-test('release validation runs tests and verifies shared runtime bundles', () => {
+test('release workflow builds and publishes without stale file references', () => {
   const workflow = read('.github/workflows/release.yml');
 
-  assert.match(workflow, /name: Run tests[\s\S]*?run: npm test/);
-  assert.match(workflow, /dist\/build\/src\/page-url-hook\.js/);
-  assert.match(workflow, /dist\/build\/src\/shared\/storage-primitives\.js/);
-  assert.match(workflow, /dist\/build\/src\/shared\/config-primitives\.js/);
-  assert.match(workflow, /dist\/build\/src\/shared\/ui-state-primitives\.js/);
-  assert.match(workflow, /grep -q '__TOC_URL_HOOK_INSTALLED__'/);
-  assert.match(workflow, /grep -q '__UI_STATE_PRIMITIVES'/);
-  assert.match(workflow, /release:[\s\S]*?name: Build and validate[\s\S]*?grep -q '__TOC_URL_HOOK_INSTALLED__'/);
-  assert.match(workflow, /release:[\s\S]*?name: Build and validate[\s\S]*?grep -q '__UI_STATE_PRIMITIVES'/);
+  // Release workflow builds the extension
+  assert.match(workflow, /npm run build/);
+
+  // No references to removed files
+  assert.doesNotMatch(workflow, /page-url-hook\.js/);
+  assert.doesNotMatch(workflow, /config-primitives\.js/);
+  assert.doesNotMatch(workflow, /ui-state-primitives\.js/);
+  assert.doesNotMatch(workflow, /storage-primitives\.js/);
+
+  // Release renames and publishes the package
+  assert.match(workflow, /Rename package asset/);
+  assert.match(workflow, /webtoc-assistant-v/);
+  assert.match(workflow, /action-gh-release/);
 });

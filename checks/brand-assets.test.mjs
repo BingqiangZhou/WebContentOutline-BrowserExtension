@@ -82,8 +82,8 @@ test('bilingual brand package includes Chrome Web Store visual assets', async ()
     'docs/brand/chrome-web-store-marquee-zh-CN.png',
     'docs/brand/store-screenshot-cover-en.png',
     'docs/brand/store-screenshot-cover-zh-CN.png',
-    'docs/descriptions/ChatGPT_Desc_screenshots1280x800_EN_1.x.png',
-    'docs/descriptions/ChatGPT_Desc_screenshots1280x800_CN_1.x.png'
+    'docs/brand/store-extension-intro-en.png',
+    'docs/brand/store-extension-intro-zh-CN.png'
   ];
 
   for (const file of requiredFiles) {
@@ -96,6 +96,6 @@ test('bilingual brand package includes Chrome Web Store visual assets', async ()
   assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/chrome-web-store-marquee-zh-CN.png'))), { width: 1400, height: 560 });
   assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-screenshot-cover-en.png'))), { width: 1280, height: 800 });
   assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-screenshot-cover-zh-CN.png'))), { width: 1280, height: 800 });
-  assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/descriptions/ChatGPT_Desc_screenshots1280x800_EN_1.x.png'))), { width: 1280, height: 800 });
-  assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/descriptions/ChatGPT_Desc_screenshots1280x800_CN_1.x.png'))), { width: 1280, height: 800 });
+  assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-extension-intro-en.png'))), { width: 1280, height: 800 });
+  assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-extension-intro-zh-CN.png'))), { width: 1280, height: 800 });
 });

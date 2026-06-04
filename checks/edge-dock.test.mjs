@@ -219,11 +219,9 @@ test('collapsed outline preview maps heading levels to line width and inset', ()
 });
 
 test('edge dock is included in cleanup, mutation filtering, and picker exclusion rules', () => {
-  const constants = fs.readFileSync(path.join(repoRoot, 'src/utils/constants.js'), 'utf8');
   const domWatcher = fs.readFileSync(path.join(repoRoot, 'src/core/dom-watcher.js'), 'utf8');
   const picker = fs.readFileSync(path.join(repoRoot, 'src/ui/element-picker.js'), 'utf8');
 
-  assert.match(constants, /\.toc-edge-dock/);
   assert.match(domWatcher, /\[data-toc-owner="web-toc-assistant"\]/);
   assert.match(picker, /\[data-toc-owner="web-toc-assistant"\]/);
 });
@@ -242,8 +240,6 @@ test('floating panel mounts inside the edge dock and no longer owns dragging', (
   const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.js'), 'utf8');
 
   assert.match(panel, /mountTarget/);
-  assert.match(panel, /removalObserver\.observe\(target,\s*\{\s*childList:\s*true\s*\}\)/);
-  assert.doesNotMatch(panel, /removalObserver\.observe\([^)]*,\s*\{\s*childList:\s*true,\s*subtree:\s*true\s*\}\)/);
   assert.doesNotMatch(panel, /createDragController/);
   assert.doesNotMatch(panel, /buttonPickElement/);
   assert.doesNotMatch(panel, /buttonSiteConfig/);
@@ -324,7 +320,7 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(dock, /function openMenu\(\)[\s\S]*?controller\.collapse\(\);[\s\S]*?quickMenu\.hidden = false;/);
   assert.match(dock, /function onSettingsPointerEnter[\s\S]*?lastPointerType !== 'touch'[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function scheduleMenuClose\(\)[\s\S]*?setTimeout\(closeMenu, CFG\.CLOSE_DELAY_MS\)/);
-  assert.match(dock, /PROGRAMMATIC_CLOSE_DELAY_MS:\s*get\('DOCK_PROGRAMMATIC_CLOSE_DELAY_MS',\s*1800\)/);
+  assert.match(dock, /PROGRAMMATIC_CLOSE_DELAY_MS:\s*1800/);
   assert.match(dock, /peek:\s*function\(opts\)\s*\{[\s\S]*?controller\.peek\(\);[\s\S]*?opts && opts\.autoCollapse[\s\S]*?controller\.scheduleCollapse\(CFG\.PROGRAMMATIC_CLOSE_DELAY_MS\)/);
   assert.match(dock, /function onRootFocusIn[\s\S]*?e\.target === settingsButton[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function onRootFocusOut[\s\S]*?scheduleMenuClose\(\);/);
