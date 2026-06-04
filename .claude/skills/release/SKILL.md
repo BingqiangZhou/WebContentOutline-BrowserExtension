@@ -24,13 +24,16 @@ git log --oneline -5
 
 ## Step 2: Commit Pending Changes
 
-If there are uncommitted changes, ask the user: "有未提交的更改，要一起提交再发布吗？"
+If there are uncommitted changes, analyze the diff and commit directly with a descriptive message (no need to ask the user):
 
-If the user confirms, commit the changes:
 ```bash
+git diff --stat
+git diff
 git add -A
-git commit -m "feat: <descriptive message>"
+git commit -m "<type>: <descriptive message>"
 ```
+
+Choose commit type based on the changes: `feat` for new features, `fix` for bug fixes, `refactor` for restructuring, `docs` for documentation, `chore` for maintenance tasks.
 
 ## Step 3: Run Tests (Validation)
 
