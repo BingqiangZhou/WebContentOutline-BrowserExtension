@@ -429,10 +429,6 @@ Issues and Pull Requests are welcome!
 4. Push branch: `git push origin feature/new-feature`
 5. Create Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
-
 ## 🗺️ Roadmap
 
 ### Smart Auto-Detection (Planned)
@@ -448,6 +444,10 @@ The goal is to make the TOC "just work" out of the box for the vast majority of 
 ## 📝 Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and updates. [中文更新日志](CHANGELOG_CN.md)
+
+## 📄 License
+
+This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 

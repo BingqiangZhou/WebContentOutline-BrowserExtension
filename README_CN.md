@@ -419,10 +419,6 @@ src/content.js（入口）
 4. 推送分支：`git push origin feature/new-feature`
 5. 创建 Pull Request
 
-## 📄 开源协议
-
-本项目采用 MIT 开源协议 - 详见 [LICENSE](LICENSE) 文件。
-
 ## 🗺️ 后续计划
 
 ### 智能自动识别（规划中）
@@ -438,6 +434,10 @@ src/content.js（入口）
 ## 📝 更新日志
 
 查看 [更新日志](CHANGELOG_CN.md) 了解版本历史和更新内容。 [English Changelog](CHANGELOG.md)
+
+## 📄 开源协议
+
+本项目采用 MIT 开源协议 - 详见 [LICENSE](LICENSE) 文件。
 
 ---
 
