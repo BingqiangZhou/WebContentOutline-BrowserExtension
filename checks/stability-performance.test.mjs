@@ -966,7 +966,7 @@ test('release workflow builds and publishes without stale file references', () =
   // Release verifies and publishes the package
   assert.match(workflow, /Verify package asset/);
   assert.match(workflow, /content-scripts\/toc\.js/);
-  assert.match(workflow, /steps\.package\.outputs\.file/);
+  assert.match(workflow, /steps\.version\.outputs\.zip_file/);
   assert.match(workflow, /webtoc-assistant-v/);
   assert.match(workflow, /action-gh-release/);
 });
