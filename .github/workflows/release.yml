@@ -106,9 +106,9 @@ jobs:
 
             ### Changes / 更新内容
 
-            🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.version.outputs.version }})
+            🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ steps.release_type.outputs.tag }}/CHANGELOG.md#${{ steps.version.outputs.version }})
 
-            🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG_CN.md#${{ steps.version.outputs.version }})
+            🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/${{ steps.release_type.outputs.tag }}/CHANGELOG_CN.md#${{ steps.version.outputs.version }})
           files: ${{ steps.version.outputs.zip_file }}
           draft: false
           prerelease: ${{ steps.release_type.outputs.prerelease }}
