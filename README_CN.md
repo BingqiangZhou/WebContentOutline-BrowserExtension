@@ -219,7 +219,7 @@
 │   │   └── toc-disabled-*.png # 禁用状态图标
 │   └── svg/                   # SVG 源文件
 ├── docs/brand/                # 1.0 品牌资产和 Chrome 网上应用店视觉素材
-├── public/                    # WXT 复制到扩展包的静态资源
+├── public/                    # WXT 打包用静态资源，由 icons/ 与 _locales/ 镜像
 ├── _locales/                  # 国际化文件
 │   ├── en/
 │   │   └── messages.json      # 英文翻译
@@ -234,22 +234,21 @@
 │   │   ├── storage.ts         # 存储 I/O 和标准化
 │   │   └── toc-builder.ts     # TOC 构建逻辑
 │   ├── shared/                # 跨上下文共享模块
-│   │   ├── primitives.ts      # 共享存储、配置和 UI 状态工具
-│   │   └── types.ts           # 共享存储和消息类型
+│   │   └── primitives.ts      # 共享存储、配置和 UI 状态工具
 │   ├── ui/                    # UI 组件
-│   │   ├── edge-dock.js       # 吸附工具条与纯 hover 目录状态
-│   │   ├── classic-collapsed-badge.js # 原始文字徽章交互
-│   │   ├── classic-floating-panel.js  # 原始自由拖拽面板壳层
-│   │   ├── element-picker.js  # 元素拾取器
-│   │   ├── floating-panel.js  # 共享轻量目录列表卡片
-│   │   └── floating-panel-helpers.js # 提取的面板辅助函数
+│   │   ├── edge-dock.ts       # 吸附工具条与纯 hover 目录状态
+│   │   ├── classic-collapsed-badge.ts # 原始文字徽章交互
+│   │   ├── classic-floating-panel.ts  # 原始自由拖拽面板壳层
+│   │   ├── element-picker.ts  # 元素拾取器
+│   │   ├── floating-panel.ts  # 共享轻量目录列表卡片
+│   │   └── floating-panel-helpers.ts # 提取的面板辅助函数
 │   └── core/                  # 核心逻辑
-│       ├── nav-lock.js        # 导航锁定模块
-│       ├── config-manager.js  # 配置管理
-│       ├── dom-watcher.js     # MutationObserver 封装
-│       ├── url-monitor.js     # URL/hash 变更监控
-│       ├── rebuild-scheduler.js # 重建调度与协调
-│       └── toc-app.js         # 主应用逻辑
+│       ├── nav-lock.ts        # 导航锁定模块
+│       ├── config-manager.ts  # 配置管理
+│       ├── dom-watcher.ts     # MutationObserver 封装
+│       ├── url-monitor.ts     # URL/hash 变更监控
+│       ├── rebuild-scheduler.ts # 重建调度与协调
+│       └── toc-app.ts         # 主应用逻辑
 ├── docs/                      # 文档资源
 │   ├── PRIVACY_POLICY.md      # 隐私政策
 │   └── descriptions/          # 截图与应用商店描述
@@ -259,7 +258,7 @@
 
 ### 品牌资产
 
-运行 `npm run assets:brand` 可重新生成 1.0 透明背景白色文档图标和中英双语 Chrome 网上应用店视觉素材。生成内容包括工具栏/商店 PNG 图标、SVG 主标志、440×280 小宣传图、1400×560 marquee 图，以及 `docs/brand/` 下的 1280×800 截图封面。
+运行 `npm run assets:brand` 可重新生成 1.0 透明背景白色文档图标和中英双语 Chrome 网上应用店视觉素材。运行时图标源文件写入 `icons/`，并同步到 WXT 打包使用的 `public/icons/`。生成内容还包括 SVG 主标志、440×280 小宣传图、1400×560 marquee 图，以及 `docs/brand/` 下的 1280×800 截图封面。
 
 ### 核心技术
 
@@ -281,8 +280,8 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
   ├── src/utils/toc-utils.ts（工具模块聚合重导出）
   └── src/core/toc-app.ts（编排器）
         ├── ui/ 组件（吸附工具条、元素拾取器、浮动面板）
-        ├── core/config-manager.js → focus-trap.js
-        └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
+        ├── core/config-manager.ts → focus-trap.ts
+        └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, nav-lock.ts
 ```
 
 **后台脚本**：`entrypoints/background.ts` 使用 WXT 的 `browser` API 包装，并只对已启用站点动态注入 `content-scripts/toc.js` 和 `content-scripts/toc.css`。
@@ -406,7 +405,7 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
 1. 在对应模块目录创建新文件（`utils/`、`ui/`、`core/`、`shared/`）
 2. 使用 `export` 导出模块的公共 API
 3. 在需要使用的模块中通过 `import` 引入（WXT/Vite 在构建时自动解析）
-4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
+4. 如果是工具函数，考虑添加到 `utils/toc-utils.ts` 的 barrel 重导出
 
 详细的技术文档请查看 [`CLAUDE.md`](CLAUDE.md)。
 

@@ -17,29 +17,27 @@
 src/
 ├── content.ts                  # 内容脚本启动逻辑 - 应用启动、重注入清理、消息/storage listener
 ├── README.md                   # 项目文档
-├── shared/                     # background 与内容脚本共享的存储原语和类型
-│   ├── primitives.ts           # 存储、配置、UI 状态共享原语
-│   └── types.ts                # 共享存储和消息类型
+├── shared/                     # background 与内容脚本共享的存储原语
+│   └── primitives.ts           # 存储、配置、UI 状态共享原语
 ├── utils/                      # 工具模块
 │   ├── constants.ts            # STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
 │   ├── core-utils.ts           # 通用工具：消息、校验、焦点管理、JSON解析
 │   ├── storage.ts              # 存储操作：getConfigs/saveConfigs 等
 │   └── toc-utils.ts            # barrel 重导出模块
 ├── ui/                         # UI组件
-│   ├── edge-dock.js            # 吸附式工具条与纯 hover 目录状态
-│   ├── classic-collapsed-badge.js # 经典文字徽章交互
-│   ├── classic-floating-panel.js  # 经典自由拖拽面板壳层
-│   ├── element-picker.js       # 元素拾取器
-│   ├── floating-panel-helpers.js # 浮动面板辅助函数
-│   └── floating-panel.js       # 轻量目录卡片
+│   ├── edge-dock.ts            # 吸附式工具条与纯 hover 目录状态
+│   ├── classic-collapsed-badge.ts # 经典文字徽章交互
+│   ├── classic-floating-panel.ts  # 经典自由拖拽面板壳层
+│   ├── element-picker.ts       # 元素拾取器
+│   ├── floating-panel-helpers.ts # 浮动面板辅助函数
+│   └── floating-panel.ts       # 轻量目录卡片
 └── core/                       # 核心逻辑
-    ├── toc-app.js              # 主应用协调器
-    ├── config-manager.js       # 配置管理
-    ├── rebuild-scheduler.js    # 重建调度器
-    ├── url-monitor.js          # URL变化监测
-    ├── dom-watcher.js          # DOM变化监测
-    ├── nav-lock.js             # 导航锁
-    └── event-bus.js            # 事件总线
+    ├── toc-app.ts              # 主应用协调器
+    ├── config-manager.ts       # 配置管理
+    ├── rebuild-scheduler.ts    # 重建调度器
+    ├── url-monitor.ts          # URL变化监测
+    ├── dom-watcher.ts          # DOM变化监测
+    └── nav-lock.ts             # 导航锁
 ```
 
 ## 🔧 模块加载机制
@@ -58,7 +56,7 @@ src/
 ## 🏗️ 架构设计原则
 
 ### 1. 单一职责原则
-每个模块只负责特定功能域。工具层拆分为 11 个独立文件（存储、DOM、选择器、拖拽、焦点等），核心层拆分为 7 个文件（编排、配置、监听、调度、锁、事件），UI层拆分为 3 个组件文件。
+每个模块只负责特定功能域。工具层拆分为独立文件（存储、DOM、选择器、拖拽、焦点等），核心层拆分为编排、配置、监听、调度和导航锁模块，UI 层按交互组件拆分。
 
 ### 2. 静态模块依赖
 通过 ES Modules 明确表达模块依赖，由 WXT/Vite 在构建时打包和校验。无需关心加载顺序。
@@ -76,20 +74,20 @@ if (isExtensionContextInvalidated()) {
 
 ### 工具模块层
 
-**constants.js** — 常量定义
+**constants.ts** — 常量定义
 - `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap, tocUiMode）
 - `UI_CONSTANTS`: UI 尺寸和布局常量
 - `CLEANUP_SELECTOR`: 扩展元素清理选择器
 
-**core-utils.js** — 通用工具
+**core-utils.ts** — 通用工具
 - 扩展上下文失效检测: `isExtensionContextInvalidated()`
 - 消息封装: `msg()`
 - 焦点管理: `getFocusableWithin()`
 - JSON解析、数值校验、选择器表达式验证
 - `originFromUrl()`: URL → origin 转换
 
-**storage.js** — 存储操作
-- `getStorage()` / `setStorage()`: 通用存储读写
+**storage.ts** — 存储操作
+- 内部 `getStorage()` / `setStorage()`: 通用存储读写
 - `getConfigs()` / `saveConfigs()`: TOC 配置管理
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
 - `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
@@ -97,41 +95,41 @@ if (isExtensionContextInvalidated()) {
 - `getUiMode()` / `saveUiMode()`: 全局界面模式偏好，缺省为新版 Edge Dock
 - 使用 `shared/primitives.ts` 的 `serializedWrite` 保证写入顺序
 
-**dom-utils.js** — DOM操作
+**dom-utils.ts** — DOM操作
 - `collectBySelector()`: 执行 CSS/XPath 选择器
 - `uniqueInDocumentOrder()`: 通过 `compareDocumentPosition` 去重
 - `findMatchingConfig()`: URL 通配符匹配
 - `getSiteEnabledByOrigin()`: 按域名查询启用状态
 
-**toc-builder.js** — TOC构建
+**toc-builder.ts** — TOC构建
 - 选择器执行（CSS/XPath）
 - 元素可见性检测：计算样式、边界矩形、overflow 裁剪、offsetParent
 - 元素去重排序（compareDocumentPosition）
 
-**css-selector.js** — CSS选择器生成
+**css-selector.ts** — CSS选择器生成
 - 优先使用 class 选择器
 - 回退到路径选择器（nth-of-type）
 
-**badge-position.js** — 工具条锚点位置管理
+**badge-position.ts** — 工具条锚点位置管理
 - 按域名存储位置
 - 窗口尺寸变化时：水平贴边，竖直按高度比例缩放
 
-**drag-helper.js** — 拖拽辅助
+**drag-helper.ts** — 拖拽辅助
 - 鼠标/触摸拖拽支持
 - 拖拽 vs 点击判定
 
-**focus-trap.js** — 焦点陷阱
+**focus-trap.ts** — 焦点陷阱
 - 对话框内的 Tab 键焦点循环
 
-**toast.js** — Toast 提示
+**toast.ts** — Toast 提示
 - 临时提示消息显示
 
-**toc-utils.js** — barrel 重导出
+**toc-utils.ts** — barrel 重导出
 - 聚合 utils/ 下所有模块的导出
 
 ### UI组件层
 
-**edge-dock.js** — 吸附式工具条
+**edge-dock.ts** — 吸附式工具条
 - 固定吸附页面左侧或右侧，整体仅上下拖动
 - 收起态显示最多 12 条实时目录横线，按标题层级缩进并高亮当前阅读位置；点击横线可直接导航且不改变展开状态
 - 设置入口使用独立圆形的插件列表标记
@@ -141,30 +139,30 @@ if (isExtensionContextInvalidated()) {
 - 快捷设置支持全局切换到经典模式
 - 按域名持久化吸附侧边和竖直位置
 
-**element-picker.js** — 元素拾取器
+**element-picker.ts** — 元素拾取器
 - 实时高亮悬停元素
 - 避免选中扩展自身UI
 - 支持ESC取消和右键取消
 - 焦点管理
 
-**floating-panel.js** — 轻量目录卡片
+**floating-panel.ts** — 轻量目录卡片
 - 目录列表渲染和交互
 - 无标题栏卡片，按标题层级缩进
 - 用户点击目录项时保持导航高亮锁定
 - 挂载到 Edge Dock 并向页面内侧展开
 - 错误处理
 
-**classic-collapsed-badge.js / classic-floating-panel.js** — 经典界面
+**classic-collapsed-badge.ts / classic-floating-panel.ts** — 经典界面
 - 保留经典文字徽章、自由拖拽面板和标题操作栏
 - 从经典面板可全局切换回新版 Edge Dock
 
 ### 核心逻辑层
 
-**active-item-tracker.js** — 当前阅读位置跟踪
+**active-item-tracker.ts** — 当前阅读位置跟踪
 - 在卡片展开或收起时持续观察目录元素
 - 将统一 activeIndex 同步给缩略横线和展开列表
 
-**toc-app.js** — 主应用协调器
+**toc-app.ts** — 主应用协调器
 - 组件生命周期管理（`initForConfig` 返回 `{ rebuild, collapse, expand, destroy }`）
 - 状态同步和事件协调
 - 重建逻辑和优化
@@ -173,37 +171,33 @@ if (isExtensionContextInvalidated()) {
 - 导航锁故障保护（8秒超时自动解锁）
 - 动画帧管理和资源清理
 
-**config-manager.js** — 配置管理
+**config-manager.ts** — 配置管理
 - 站点配置的保存和读取
 - 选择器管理界面
 - 配置清空功能
 - 通过后台 `toc:mutateConfig` 串行化配置变更并验证结果
-- 通过 event-bus 发送 `toc:config-changed` 事件
+- 通过 `setOnConfigChanged()` 回调通知 `toc-app.ts` 触发重建
 
-**rebuild-scheduler.js** — 重建调度器
+**rebuild-scheduler.ts** — 重建调度器
 - 协调 dom-watcher 和 url-monitor
 - 动态防抖：`DEBOUNCE_MS * 1.3^consecutiveMutations`，上限 1000ms
 - 导航锁集成（等待解锁后重建）
 - 失败重试逻辑（1秒延迟）
 - 断路器（连续5次失败后暂停）
 
-**url-monitor.js** — URL变化监测
+**url-monitor.ts** — URL变化监测
 - History API 拦截（pushState/replaceState）
 - 轮询检测 URL 变化
 - popstate 事件监听
 
-**dom-watcher.js** — DOM变化监测
+**dom-watcher.ts** — DOM变化监测
 - MutationObserver 监听 DOM 变更
 - 上下文失效检测和自动断开
 
-**nav-lock.js** — 导航锁
+**nav-lock.ts** — 导航锁
 - `lock(durationMs)`, `unlock()`, `isLocked()`, `onUnlock(callback)`, `destroy()`
 - 防止 IntersectionObserver 在用户点击 TOC 项时干扰
 - 自动超时解锁
-
-**event-bus.js** — 事件总线
-- `on(event, fn)`, `off(event, fn)`, `emit(event, ...args)`
-- 当前仅用于 `toc:config-changed` 事件
 
 ## 🛡️ 样式保护机制
 
@@ -237,7 +231,7 @@ if (isExtensionContextInvalidated()) {
 1. 在对应模块目录创建新文件，使用 `export` 导出
 2. 在需要使用的模块中通过 `import` 引入
 3. WXT/Vite 在构建时自动解析和打包，无需关心加载顺序
-4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
+4. 如果是工具函数，考虑添加到 `utils/toc-utils.ts` 的 barrel 重导出
 
 ### 调试和测试
 - 自动化测试：`npm test` 运行 `checks/*.test.mjs`

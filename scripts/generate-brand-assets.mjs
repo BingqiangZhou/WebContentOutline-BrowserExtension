@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 
 import { Resvg } from '@resvg/resvg-js';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ICON_SVG_DIR = path.join(ROOT, 'icons', 'svg');
 const ICON_PNG_DIR = path.join(ROOT, 'icons', 'png');
+const PUBLIC_ICON_DIR = path.join(ROOT, 'public/icons');
 const BRAND_DIR = path.join(ROOT, 'docs', 'brand');
 const ICON_SIZES = [16, 32, 48, 128];
 
@@ -55,6 +56,8 @@ function esc(value) {
 async function ensureDirs() {
   await mkdir(ICON_SVG_DIR, { recursive: true });
   await mkdir(ICON_PNG_DIR, { recursive: true });
+  await mkdir(path.join(PUBLIC_ICON_DIR, 'svg'), { recursive: true });
+  await mkdir(path.join(PUBLIC_ICON_DIR, 'png'), { recursive: true });
   await mkdir(BRAND_DIR, { recursive: true });
 }
 
@@ -76,6 +79,11 @@ async function renderPng(svg, relativePath, width, height = width) {
   });
   const png = renderer.render().asPng();
   await writeFile(target, png);
+}
+
+async function syncRuntimeIconsToPublic() {
+  await cp(ICON_SVG_DIR, path.join(PUBLIC_ICON_DIR, 'svg'), { recursive: true, force: true });
+  await cp(ICON_PNG_DIR, path.join(PUBLIC_ICON_DIR, 'png'), { recursive: true, force: true });
 }
 
 function documentOutlineSvg(state = 'enabled') {
@@ -234,6 +242,7 @@ async function generate() {
     await renderPng(enabledSvg, `icons/png/toc-enabled-${size}.png`, size);
     await renderPng(disabledSvg, `icons/png/toc-disabled-${size}.png`, size);
   }
+  await syncRuntimeIconsToPublic();
 
   await writeText('docs/brand/web-toc-assistant-mark-enabled.svg', standaloneMarkSvg('enabled'));
   await writeText('docs/brand/web-toc-assistant-mark-disabled.svg', standaloneMarkSvg('disabled'));
@@ -264,7 +273,7 @@ Generated with \`npm run assets:brand\`.
 - \`store-screenshot-cover-en.png\` and \`store-screenshot-cover-zh-CN.png\`: 1280x800 bilingual screenshot cover images.
 - \`docs/descriptions/ChatGPT_Desc_screenshots1280x800_EN_1.x.png\` and \`docs/descriptions/ChatGPT_Desc_screenshots1280x800_CN_1.x.png\`: GPT image generated 1.x description screenshots, kept outside the deterministic generator so reruns do not overwrite them.
 
-The extension runtime icon paths in \`wxt.config.ts\` remain unchanged; regenerated PNGs are written to \`icons/png/toc-*-{16,32,48,128}.png\`.
+The extension runtime icon paths in \`wxt.config.ts\` remain unchanged. Regenerated icon sources are written under \`icons/\`, then mirrored into \`public/icons/\` for WXT packaging.
 `);
 }
 

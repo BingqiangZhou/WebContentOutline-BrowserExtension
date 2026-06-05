@@ -67,7 +67,7 @@ function normalizeTocConfigs(value) {
     return normalized;
   }
 
-export function validateStorageValue(key, value) {
+function validateStorageValue(key, value) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return Array.isArray(value);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.PANEL_STATE_MAP) return isPlainObject(value);
@@ -89,7 +89,7 @@ function normalizeStorageValue(key, value) {
   /**
    * Read a value from chrome.storage.local with fallback.
    */
-export async function getStorage(key, fallback) {
+async function getStorage(key, fallback) {
     if (isExtensionContextInvalidated()) return fallback;
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
@@ -114,7 +114,7 @@ export async function getStorage(key, fallback) {
   /**
    * Write a value to chrome.storage.local.
    */
-export async function setStorage(key, value) {
+async function setStorage(key, value) {
     if (isExtensionContextInvalidated()) return false;
     var normalized = normalizeStorageValue(key, value);
     try {
@@ -146,7 +146,7 @@ export function getEnabledMap() {
     return getStorage(STORAGE_KEYS.SITE_ENABLE_MAP, {});
   }
 
-export function saveEnabledMap(map) {
+function saveEnabledMap(map) {
     return setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
   }
 

@@ -230,7 +230,7 @@ For complex page structures, you can use XPath:
 │   │   └── toc-disabled-*.png # Disabled state icons
 │   └── svg/                   # SVG source files
 ├── docs/brand/                # 1.0 brand assets and Chrome Web Store visuals
-├── public/                    # Static assets copied by WXT
+├── public/                    # WXT-packaged static assets mirrored from icons/ and _locales/
 ├── _locales/                  # Internationalization
 │   ├── en/
 │   │   └── messages.json      # English translation
@@ -244,22 +244,21 @@ For complex page structures, you can use XPath:
 │   │   ├── storage.ts         # Storage I/O and normalization
 │   │   └── toc-builder.ts     # TOC building logic
 │   ├── shared/                # Shared between contexts
-│   │   ├── primitives.ts      # Shared storage, config, and UI state utilities
-│   │   └── types.ts           # Shared storage and message types
+│   │   └── primitives.ts      # Shared storage, config, and UI state utilities
 │   ├── ui/                    # UI components
-│   │   ├── edge-dock.js       # Edge-docked toolbar and hover-only TOC state
-│   │   ├── classic-collapsed-badge.js # Original text badge interaction
-│   │   ├── classic-floating-panel.js  # Original freely draggable panel shell
-│   │   ├── element-picker.js  # Element picker
-│   │   ├── floating-panel.js  # Shared lightweight TOC list card
-│   │   └── floating-panel-helpers.js # Extracted panel helpers
+│   │   ├── edge-dock.ts       # Edge-docked toolbar and hover-only TOC state
+│   │   ├── classic-collapsed-badge.ts # Original text badge interaction
+│   │   ├── classic-floating-panel.ts  # Original freely draggable panel shell
+│   │   ├── element-picker.ts  # Element picker
+│   │   ├── floating-panel.ts  # Shared lightweight TOC list card
+│   │   └── floating-panel-helpers.ts # Extracted panel helpers
 │   └── core/                  # Core logic
-│       ├── nav-lock.js        # Navigation lock module
-│       ├── config-manager.js  # Configuration management
-│       ├── dom-watcher.js     # MutationObserver wrapper
-│       ├── url-monitor.js     # URL/hash change monitor
-│       ├── rebuild-scheduler.js # Rebuild scheduling & coordination
-│       └── toc-app.js         # Main application logic
+│       ├── nav-lock.ts        # Navigation lock module
+│       ├── config-manager.ts  # Configuration management
+│       ├── dom-watcher.ts     # MutationObserver wrapper
+│       ├── url-monitor.ts     # URL/hash change monitor
+│       ├── rebuild-scheduler.ts # Rebuild scheduling & coordination
+│       └── toc-app.ts         # Main application logic
 ├── docs/                      # Documentation assets
 │   ├── PRIVACY_POLICY.md      # Privacy policy
 │   └── descriptions/          # Screenshots & store descriptions
@@ -269,7 +268,7 @@ For complex page structures, you can use XPath:
 
 ### Brand Assets
 
-Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon set and bilingual Chrome Web Store visual assets. The generated package includes toolbar/store PNG icons, master SVG marks, 440×280 small promotional tiles, 1400×560 marquee tiles, and 1280×800 screenshot cover images under `docs/brand/`.
+Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon set and bilingual Chrome Web Store visual assets. Runtime icon sources are written under `icons/` and mirrored into `public/icons/` for WXT packaging. The generated package also includes master SVG marks, 440×280 small promotional tiles, 1400×560 marquee tiles, and 1280×800 screenshot cover images under `docs/brand/`.
 
 ### Core Technologies
 
@@ -291,8 +290,8 @@ entrypoints/toc.content/index.ts (runtime content script)
   ├── src/utils/toc-utils.ts (barrel re-export of all utils)
   └── src/core/toc-app.ts (orchestrator)
         ├── ui/ components (edge-dock, element-picker, floating-panel)
-        ├── core/config-manager.js → focus-trap.js
-        └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
+        ├── core/config-manager.ts → focus-trap.ts
+        └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, nav-lock.ts
 ```
 
 **Background Script**: `entrypoints/background.ts` uses WXT's `browser` API wrapper and dynamically injects `content-scripts/toc.js` plus `content-scripts/toc.css` only for enabled origins.
@@ -416,7 +415,7 @@ Source code is built by WXT:
 1. Create new file in appropriate module directory (`utils/`, `ui/`, `core/`, `shared/`)
 2. Use `export` for the module's public API
 3. `import` from the module wherever needed (WXT/Vite resolves at build time)
-4. If it's a utility, consider adding to `utils/toc-utils.js` barrel re-export
+4. If it's a utility, consider adding to `utils/toc-utils.ts` barrel re-export
 
 For detailed technical documentation, see [`CLAUDE.md`](CLAUDE.md).
 

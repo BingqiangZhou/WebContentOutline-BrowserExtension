@@ -32,7 +32,7 @@ test('WXT migration files and entrypoints exist', () => {
     'entrypoints/background.ts',
     'entrypoints/toc.content/index.ts',
     'entrypoints/toc.content/style.css',
-    'src/shared/types.ts',
+    'src/shared/primitives.ts',
     'scripts/collect-package.mjs'
   ]) {
     assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), true, `${relativePath} should exist`);

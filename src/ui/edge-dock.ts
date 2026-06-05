@@ -18,18 +18,18 @@ function normalizeMode(mode) {
   return mode === 'peek' ? mode : 'collapsed';
 }
 
-export function clampDockTop(top, viewportHeight, dockHeight, safeMargin) {
+function clampDockTop(top, viewportHeight, dockHeight, safeMargin) {
   var max = Math.max(safeMargin, viewportHeight - dockHeight - safeMargin);
   return Math.max(safeMargin, Math.min(max, top));
 }
 
-export function resolveDockSide(pos, viewportWidth, fallbackSide) {
+function resolveDockSide(pos, viewportWidth, fallbackSide) {
   if (pos && (pos.anchorX === 'left' || pos.anchorX === 'right')) return pos.anchorX;
   if (pos && Number.isFinite(pos.x)) return pos.x <= viewportWidth / 2 ? 'left' : 'right';
   return fallbackSide === 'left' ? 'left' : 'right';
 }
 
-export function getPreviewLineMetrics(level) {
+function getPreviewLineMetrics(level) {
   var metrics = [
     { width: 26, inset: 0 },
     { width: 23, inset: 2 },
@@ -42,7 +42,7 @@ export function getPreviewLineMetrics(level) {
   return metrics[safeLevel - 1];
 }
 
-export function selectPreviewItems(items, activeIndex, limit) {
+function selectPreviewItems(items, activeIndex, limit) {
   var list = Array.isArray(items) ? items : [];
   var size = Math.max(1, limit || 12);
   if (list.length <= size) return list.slice();
@@ -51,7 +51,7 @@ export function selectPreviewItems(items, activeIndex, limit) {
   return list.slice(start, start + size);
 }
 
-export function createDockStateController(options) {
+function createDockStateController(options) {
   options = options || {};
   var mode = normalizeMode(options.initialMode);
   var closeDelayMs = Number.isFinite(options.closeDelayMs) ? options.closeDelayMs : CFG.CLOSE_DELAY_MS;

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -12,6 +13,10 @@ function readPngSize(buffer) {
     width: buffer.readUInt32BE(16),
     height: buffer.readUInt32BE(20)
   };
+}
+
+function sha256(buffer) {
+  return createHash('sha256').update(buffer).digest('hex');
 }
 
 test('brand asset generation script is exposed through npm', async () => {
@@ -98,4 +103,32 @@ test('bilingual brand package includes Chrome Web Store visual assets', async ()
   assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-screenshot-cover-zh-CN.png'))), { width: 1280, height: 800 });
   assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-extension-intro-en.png'))), { width: 1280, height: 800 });
   assert.deepEqual(readPngSize(await readFile(path.join(ROOT, 'docs/brand/store-extension-intro-zh-CN.png'))), { width: 1280, height: 800 });
+});
+
+test('brand generator syncs runtime icons into WXT public assets', async () => {
+  const generator = await readFile(path.join(ROOT, 'scripts/generate-brand-assets.mjs'), 'utf8');
+  assert.match(generator, /PUBLIC_ICON_DIR/);
+  assert.match(generator, /public[/\\]icons/);
+
+  for (const state of ['enabled', 'disabled']) {
+    for (const size of [16, 32, 48, 128]) {
+      const source = await readFile(path.join(ROOT, `icons/png/toc-${state}-${size}.png`));
+      const runtime = await readFile(path.join(ROOT, `public/icons/png/toc-${state}-${size}.png`));
+      assert.equal(sha256(runtime), sha256(source), `public PNG icon should match generated source: ${state}-${size}`);
+    }
+  }
+
+  for (const state of ['enabled', 'disabled']) {
+    const source = await readFile(path.join(ROOT, `icons/svg/toc-${state}.svg`));
+    const runtime = await readFile(path.join(ROOT, `public/icons/svg/toc-${state}.svg`));
+    assert.equal(sha256(runtime), sha256(source), `public SVG icon should match generated source: ${state}`);
+  }
+});
+
+test('root and WXT public locale files remain in sync', async () => {
+  for (const locale of ['en', 'zh_CN']) {
+    const source = await readFile(path.join(ROOT, `_locales/${locale}/messages.json`));
+    const runtime = await readFile(path.join(ROOT, `public/_locales/${locale}/messages.json`));
+    assert.equal(sha256(runtime), sha256(source), `public locale should match root locale: ${locale}`);
+  }
 });

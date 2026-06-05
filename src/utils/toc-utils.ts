@@ -1,5 +1,5 @@
 // @ts-nocheck
-// src/utils/toc-utils.js - Aggregate module combining utility APIs
+// src/utils/toc-utils.ts - Aggregate module combining utility APIs
 export * from './constants.js';
 export * from './core-utils.js';
 export * from './toast.js';

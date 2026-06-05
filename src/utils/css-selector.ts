@@ -1,7 +1,7 @@
 // @ts-nocheck
-// src/utils/css-selector.js - CSS selector generation
+// src/utils/css-selector.ts - CSS selector generation
 
-export function escapeCssIdentifier(ident) {
+function escapeCssIdentifier(ident) {
   if (typeof ident !== 'string') return '';
   return ident.replace(/([^\w-])/g, '\\$1');
 }

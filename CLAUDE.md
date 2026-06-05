@@ -80,7 +80,7 @@ Only a few window globals remain for compatibility/debugging:
 
 **`src/content.ts`** - Content script bootstrap
 - Checks site enable state on load
-- Imports `initForConfig` from `core/toc-app.js` via ESM
+- Imports `initForConfig` from `core/toc-app.ts` via ESM (using WXT-compatible `.js` import specifiers in source)
 - Sets up reinjection guard and cleanup hooks
 - Message listeners: `toc:openPanel`, `toc:updateEnabled`
 
@@ -92,13 +92,13 @@ Only a few window globals remain for compatibility/debugging:
 - Dynamic icon switching based on state
 - Message broadcast to all tabs of same origin
 
-**2. Configuration Management (`core/config-manager.js`)**
+**2. Configuration Management (`core/config-manager.ts`)**
 - Storage: `chrome.storage.local` → key: `tocConfigs`
 - Per-site URL pattern matching (wildcards supported)
 - Selector management (CSS/XPath)
 - Config change notification via callback pattern (`setOnConfigChanged` / `_onConfigChanged`)
 
-**3. TOC Building Pipeline (`utils/toc-builder.js`)**
+**3. TOC Building Pipeline (`utils/toc-builder.ts`)**
 ```
 Selectors (CSS/XPath)
   → collectBySelector() → DOM Elements
@@ -107,7 +107,7 @@ Selectors (CSS/XPath)
   → Map to TOC items {id, el, text}
 ```
 
-**4. UI State Management (`core/toc-app.js`)**
+**4. UI State Management (`core/toc-app.ts`)**
 - Uses nav-lock via ESM import for navigation locking
 - Active item restoration after rebuild
 - Pending rebuild queue (processes after navigation unlock)
@@ -115,13 +115,13 @@ Selectors (CSS/XPath)
 
 **5. Dynamic Content Updates**
 Split into three focused modules:
-- `core/dom-watcher.js` — MutationObserver-based DOM change detection
-- `core/url-monitor.js` — URL change detection via custom events (from `page-url-hook.js`) + polling fallback
-- `core/rebuild-scheduler.js` — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
+- `core/dom-watcher.ts` — MutationObserver-based DOM change detection
+- `core/url-monitor.ts` — URL change detection via History API interception, popstate, and polling fallback
+- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
 
 **6. Config Change Notification**
-- Callback pattern via `setOnConfigChanged()` in `core/config-manager.js`
-- `toc-app.js` registers a callback that triggers a TOC rebuild when configs change in storage
+- Callback pattern via `setOnConfigChanged()` in `core/config-manager.ts`
+- `toc-app.ts` registers a callback that triggers a TOC rebuild when configs change in storage
 
 ### Storage Schema
 
@@ -178,13 +178,13 @@ Split into three focused modules:
 
 **Hidden element filtering**: Checks `display:none`, `visibility:hidden`, `opacity:0`, zero dimensions, overflow clipping
 
-**Selector generation** (`utils/css-selector.js`):
+**Selector generation** (`utils/css-selector.ts`):
 - Priority: class-based selector
 - Fallback: path selector with nth-of-type
 
 **Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 8 seconds as a safety fallback.
 
-**Rebuild scheduling** (`core/rebuild-scheduler.js`):
+**Rebuild scheduling** (`core/rebuild-scheduler.ts`):
 - Dynamic debounce: `DEBOUNCE_MS * 1.3^consecutiveMutations`, capped at 1800ms
 - Circuit breaker: pauses after 5 consecutive failures
 
@@ -203,19 +203,19 @@ Split into three focused modules:
 1. Create file in appropriate directory (`utils/`, `ui/`, `core/`)
 2. Use `export` for the module's public API
 3. `import` from the module wherever needed (WXT/Vite resolves at build time)
-4. If it's a utility, consider adding to `utils/toc-utils.js` barrel re-export
+4. If it's a utility, consider adding to `utils/toc-utils.ts` barrel re-export
 
 ### Modifying TOC building logic
-Edit `utils/toc-builder.js` - handles selector execution, filtering, and item mapping
+Edit `utils/toc-builder.ts` - handles selector execution, filtering, and item mapping
 
 ### Modifying UI components
-- Floating panel: `ui/floating-panel.js` (title-free TOC card rendering) + `ui/floating-panel-helpers.js` (extracted helpers)
-- Edge dock: `ui/edge-dock.js` (edge toolbar, live outline preview, hover preview, pinned state, vertical dragging)
-- Active item tracker: `core/active-item-tracker.js` (shared reading-position observer for collapsed and expanded states)
-- Element picker: `ui/element-picker.js` (hover highlighting, click selection)
+- Floating panel: `ui/floating-panel.ts` (title-free TOC card rendering) + `ui/floating-panel-helpers.ts` (extracted helpers)
+- Edge dock: `ui/edge-dock.ts` (edge toolbar, live outline preview, hover preview, pinned state, vertical dragging)
+- Active item tracker: `core/active-item-tracker.ts` (shared reading-position observer for collapsed and expanded states)
+- Element picker: `ui/element-picker.ts` (hover highlighting, click selection)
 
 ### Adding new storage keys
-Use `chrome.storage.local` - follow existing patterns in `utils/storage.js` for storage wrappers. Add the key name to `STORAGE_KEYS` in `utils/constants.js`.
+Use `chrome.storage.local` - follow existing patterns in `utils/storage.ts` for storage wrappers. Add the key name to `STORAGE_KEYS` in `utils/constants.ts`.
 
 ### Per-site state changes
 Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPanelExpandedMap` for UI state

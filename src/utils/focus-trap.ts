@@ -1,5 +1,5 @@
 // @ts-nocheck
-// src/utils/focus-trap.js - Shared keyboard focus trap utility
+// src/utils/focus-trap.ts - Shared keyboard focus trap utility
 
 export function createFocusTrap(container, opts) {
   var onClose = opts && opts.onClose;

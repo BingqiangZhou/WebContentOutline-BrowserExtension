@@ -31,4 +31,4 @@ Generated with `npm run assets:brand`.
 
 ## Extension Runtime Icons
 
-The extension runtime icon paths in `wxt.config.ts` remain unchanged; regenerated PNGs are written to `icons/png/toc-*-{16,32,48,128}.png`.
+The extension runtime icon paths in `wxt.config.ts` remain unchanged. Regenerated icon sources are written under `icons/`, then mirrored into `public/icons/` for WXT packaging.

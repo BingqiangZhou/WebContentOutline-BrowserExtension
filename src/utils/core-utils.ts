@@ -77,7 +77,7 @@ export function isSafeXPathExpression(expr) {
     return true;
   }
 
-export function isValidCssSelector(expr) {
+function isValidCssSelector(expr) {
     if (typeof expr !== 'string') return false;
     if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
@@ -114,4 +114,3 @@ export function validateSelectorExpression(type, expr) {
       return false;
     }
   }
-
