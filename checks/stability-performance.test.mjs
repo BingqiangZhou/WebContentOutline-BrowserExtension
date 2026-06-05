@@ -954,7 +954,7 @@ test('release workflow builds and publishes without stale file references', () =
   const workflow = read('.github/workflows/release.yml');
 
   // Release workflow builds the extension
-  assert.match(workflow, /npm run build/);
+  assert.match(workflow, /npm run release:build/);
 
   // No references to removed files
   assert.doesNotMatch(workflow, /page-url-hook\.js/);
@@ -962,8 +962,8 @@ test('release workflow builds and publishes without stale file references', () =
   assert.doesNotMatch(workflow, /ui-state-primitives\.js/);
   assert.doesNotMatch(workflow, /storage-primitives\.js/);
 
-  // Release verifies, renames, and publishes the package
-  assert.match(workflow, /Verify and rename package asset/);
+  // Release verifies and publishes the package
+  assert.match(workflow, /Verify package asset/);
   assert.match(workflow, /content-scripts\/toc\.js/);
   assert.match(workflow, /steps\.package\.outputs\.file/);
   assert.match(workflow, /webtoc-assistant-v/);

@@ -240,13 +240,6 @@ test('project versions are unified and recorded in the changelog', () => {
   assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}`));
 });
 
-test('package collection script removes existing version zip before copying', () => {
-  const source = fs.readFileSync(path.join(repoRoot, 'scripts/collect-package.mjs'), 'utf8');
-
-  assert.match(source, /fs\.existsSync\(dest\)[\s\S]*fs\.rmSync\(dest/);
-  assert.match(source, /branch !== 'HEAD'/);
-});
-
 test('mutation rebuilds start quickly on every host, including ChatGPT', () => {
   for (const hostname of ['example.com', 'chatgpt.com']) {
     const env = loadCreateRebuildScheduler(hostname);

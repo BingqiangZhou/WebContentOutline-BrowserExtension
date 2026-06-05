@@ -14,7 +14,7 @@ Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that a
 
 ## Installation and Development
 
-**Build & packaging**: Run `npm run build` to typecheck, run Vitest, build with WXT, zip the extension, and copy a release-compatible package to `dist/packages/`. Load `.output/chrome-mv3` in Developer Mode; the project root contains source files and is not a runnable unpacked extension directory.
+**Build & packaging**: Run `npm run build` to typecheck, run Vitest, and build with WXT. For release packaging, use `npm run release:build` which also zips the extension into `.output/` (filename includes branch suffix for non-main branches). Load `.output/chrome-mv3` in Developer Mode; the project root contains source files and is not a runnable unpacked extension directory.
 
 ### Loading the extension
 1. Open Edge/Chrome: `edge://extensions/` or `chrome://extensions/`
@@ -224,8 +224,9 @@ Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPane
 Run `npm run build` to:
 1. Run TypeScript typecheck
 2. Run Vitest
-3. Build and zip the WXT chrome-mv3 extension
-4. Copy the zip to `dist/packages/v{version}.zip`
+3. Build the WXT chrome-mv3 extension
+
+For release packaging, run `npm run release:build` which also zips the extension into `.output/`.
 
 ## Working Documents
 

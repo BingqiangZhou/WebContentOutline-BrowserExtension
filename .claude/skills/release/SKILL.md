@@ -135,15 +135,14 @@ Also update `CLAUDE.md` if architecture, module structure, or storage schema cha
 ## Step 8: Build
 
 ```bash
-npm run build
+npm run release:build
 ```
 
 The build script:
 - Runs TypeScript typecheck
 - Runs Vitest
 - Builds the Chrome MV3 extension with WXT into `.output/chrome-mv3/`
-- Creates the WXT zip under `.output/`
-- Copies the release-compatible package to `dist/packages/v{VERSION}.zip`
+- Creates the zip at `.output/webtoc-assistant-v{VERSION}.zip` (or `.output/webtoc-assistant-v{VERSION}-dev.zip` on non-main branches)
 
 If build fails, stop and fix errors before proceeding.
 
@@ -151,8 +150,8 @@ If build fails, stop and fix errors before proceeding.
 
 Check the produced zip:
 ```bash
-ls -la dist/packages/v${VERSION}.zip
-unzip -l dist/packages/v${VERSION}.zip | head -20
+ls -la .output/webtoc-assistant-v${VERSION}.zip
+unzip -l .output/webtoc-assistant-v${VERSION}.zip | head -20
 ```
 
 Verify:
@@ -194,4 +193,4 @@ Report to the user:
 2. Zip file path and size
 3. Git tag pushed
 4. GitHub Actions release link: `https://github.com/{owner}/{repo}/actions`
-5. Remind about Chrome Web Store / Edge Add-ons if applicable: "如需同步到 Chrome Web Store 或 Edge Add-ons，请手动上传 dist/packages/v${VERSION}.zip（或 GitHub Release 中的 webtoc-assistant-v${VERSION}.zip）"
+5. Remind about Chrome Web Store / Edge Add-ons if applicable: "如需同步到 Chrome Web Store 或 Edge Add-ons，请手动上传 `.output/webtoc-assistant-v${VERSION}.zip`（或 GitHub Release 中的同名文件）"

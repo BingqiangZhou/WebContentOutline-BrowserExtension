@@ -8,7 +8,9 @@
     "dev:edge": "wxt -b edge",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "npm run typecheck && npm run test && wxt build && wxt zip && node scripts/collect-package.mjs",
+    "build": "npm run typecheck && npm run test && wxt build",
+    "zip": "wxt zip",
+    "release:build": "npm run build && npm run zip",
     "postinstall": "wxt prepare"
   },
   "devDependencies": {

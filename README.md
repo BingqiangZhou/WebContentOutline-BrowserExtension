@@ -403,7 +403,7 @@ Source code is built by WXT:
 - Edit TypeScript/CSS files directly; WXT/Vite resolves ESM imports at build time
 - Run `npm run typecheck` for TypeScript validation
 - Run `npm run test` for Vitest checks
-- Run `npm run build` to build, zip, and copy a release package to `dist/packages/v{version}.zip`
+- Run `npm run build` to build the extension. For release packaging, use `npm run release:build` which also creates a zip in `.output/`.
 - Load `.output/chrome-mv3` in Developer Mode. The project root is source code, not a runnable unpacked extension directory.
 
 ### Debugging

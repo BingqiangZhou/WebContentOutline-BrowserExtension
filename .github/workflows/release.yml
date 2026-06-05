@@ -26,7 +26,7 @@ jobs:
         run: npm ci
 
       - name: Build
-        run: npm run build
+        run: npm run release:build
 
       - name: Get version
         id: version
@@ -35,18 +35,16 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_version=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Verify and rename package asset
+      - name: Verify package asset
         id: package
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          SRC_ZIP=$(find dist/packages -maxdepth 1 -type f -name "v${VERSION}*.zip" | sort | head -1)
-          if [ -z "$SRC_ZIP" ]; then echo "FAIL: v${VERSION}*.zip not found in dist/packages/" && ls dist/packages/ && exit 1; fi
-          DEST_ZIP="dist/packages/webtoc-assistant-v${VERSION}.zip"
-          mv "$SRC_ZIP" "$DEST_ZIP"
+          SRC_ZIP=".output/webtoc-assistant-v${VERSION}.zip"
+          if [ ! -f "$SRC_ZIP" ]; then echo "FAIL: $SRC_ZIP not found" && ls .output/ && exit 1; fi
 
           node -e "const m=require('./.output/chrome-mv3/manifest.json'); if (m.version !== '${VERSION}') throw new Error('manifest version mismatch'); if (m.content_scripts) throw new Error('content_scripts should be runtime-injected, not manifest-registered'); if (m.background?.service_worker !== 'background.js') throw new Error('unexpected background worker');"
 
-          unzip -l "$DEST_ZIP" > zip-list.txt
+          unzip -l "$SRC_ZIP" > zip-list.txt
           grep -q "manifest.json" zip-list.txt
           grep -q "background.js" zip-list.txt
           grep -q "content-scripts/toc.js" zip-list.txt
@@ -58,7 +56,7 @@ jobs:
           ! grep -q "^.*entrypoints/" zip-list.txt
           ! grep -q "^.*wxt.config.ts" zip-list.txt
 
-          echo "file=$DEST_ZIP" >> "$GITHUB_OUTPUT"
+          echo "file=$SRC_ZIP" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

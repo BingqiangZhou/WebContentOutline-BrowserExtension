@@ -18,7 +18,8 @@ test('project exposes WXT TypeScript build scripts', () => {
   assert.equal(pkg.scripts.test, 'vitest run');
   assert.equal(pkg.scripts.postinstall, 'wxt prepare');
   assert.match(pkg.scripts.build, /wxt build/);
-  assert.match(pkg.scripts.build, /wxt zip/);
+  assert.match(pkg.scripts.zip, /^wxt zip$/);
+  assert.match(pkg.scripts['release:build'], /npm run zip/);
   assert.equal(pkg.devDependencies.wxt, '0.20.26');
   assert.equal(typeof pkg.devDependencies.typescript, 'string');
   assert.equal(typeof pkg.devDependencies.vitest, 'string');
@@ -32,8 +33,7 @@ test('WXT migration files and entrypoints exist', () => {
     'entrypoints/background.ts',
     'entrypoints/toc.content/index.ts',
     'entrypoints/toc.content/style.css',
-    'src/shared/primitives.ts',
-    'scripts/collect-package.mjs'
+    'src/shared/primitives.ts'
   ]) {
     assert.equal(fs.existsSync(path.join(repoRoot, relativePath)), true, `${relativePath} should exist`);
   }

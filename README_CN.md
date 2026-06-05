@@ -393,7 +393,7 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
 - 直接编辑 TypeScript/CSS 文件；WXT/Vite 在构建时解析 ESM 导入
 - 运行 `npm run typecheck` 进行 TypeScript 校验
 - 运行 `npm run test` 执行 Vitest 检查
-- 运行 `npm run build` 构建、压缩并复制发布包到 `dist/packages/v{版本号}.zip`
+- 运行 `npm run build` 构建扩展。如需发布打包，使用 `npm run release:build`，会在 `.output/` 下生成 zip 文件。
 - 开发者模式请加载 `.output/chrome-mv3`。项目根目录包含源码文件，不是可直接运行的已解压扩展目录。
 
 ### 调试方法
