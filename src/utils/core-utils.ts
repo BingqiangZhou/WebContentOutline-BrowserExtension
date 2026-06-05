@@ -1,5 +1,8 @@
 
 import { SELECTOR_EXPR_MAX_LENGTH } from './constants.js';
+import { isPlainObject, isHighRiskBroadCssSelector } from '../shared/primitives.js';
+
+export { isPlainObject, isHighRiskBroadCssSelector };
 
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
@@ -26,12 +29,6 @@ export function msg(key, substitutions?) {
     } catch (_) {
       return key;
     }
-  }
-
-export function isPlainObject(value) {
-    if (!value || typeof value !== 'object') return false;
-    var proto = Object.getPrototypeOf(value);
-    return proto === Object.prototype || proto === null;
   }
 
 export function isContextInvalidatedError(e) {
@@ -95,16 +92,6 @@ function isValidCssSelector(expr) {
     } catch (_) {
       return false;
     }
-  }
-
-export function isHighRiskBroadCssSelector(expr) {
-    if (typeof expr !== 'string') return false;
-    var parts = expr.split(',');
-    for (var i = 0; i < parts.length; i++) {
-      var normalized = String(parts[i] || '').trim().replace(/\s+/g, ' ').toLowerCase();
-      if (normalized === '*' || normalized === 'html *' || normalized === 'body *' || normalized === ':root *') return true;
-    }
-    return false;
   }
 
 export function validateSelectorExpression(type, expr) {

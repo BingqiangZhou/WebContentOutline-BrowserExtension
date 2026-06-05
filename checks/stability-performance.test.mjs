@@ -107,8 +107,13 @@ function loadBoundedText() {
 
 function loadCoreUtilsForValidation() {
   const file = path.join(repoRoot, 'src/utils/core-utils.ts');
+  const primitives = stripTsSyntax(fs.readFileSync(path.join(repoRoot, 'src/shared/primitives.ts'), 'utf8')
+    .replace(/^import .+;\n/gm, '')
+    .replace(/export\s+\{[^}]*\};?\n?/g, '')
+    .replace(/export function /g, 'function '));
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
+    .replace(/export \{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const sandbox = {
     console,
@@ -126,7 +131,7 @@ function loadCoreUtilsForValidation() {
   };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
-    `${source}
+    `${primitives}\n${source}
 __exports.validateSelectorExpression = validateSelectorExpression;
 __exports.isSafeXPathExpression = isSafeXPathExpression;
 __exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,

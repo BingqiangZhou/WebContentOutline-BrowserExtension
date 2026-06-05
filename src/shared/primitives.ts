@@ -70,6 +70,7 @@ function positiveLimit(value, fallback) {
 }
 
 function isHighRiskBroadCssSelector(expr) {
+  if (typeof expr !== 'string') return false;
   var parts = expr.split(',');
   for (var i = 0; i < parts.length; i++) {
     var normalized = String(parts[i] || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -269,6 +270,7 @@ function applyUiStateMutation(currentMap, mutation, maxKeys) {
 
 export {
   serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit,
+  isPlainObject, isHighRiskBroadCssSelector,
   applyTocConfigMutation,
   validateUiStateMutationSource, applyUiStateMutation
 };
