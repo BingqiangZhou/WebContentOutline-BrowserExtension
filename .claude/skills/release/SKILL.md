@@ -5,7 +5,7 @@ description: Release a new version of the extension. Handles version bump, CHANG
 
 # Release Extension
 
-You are managing the release process for the Web TOC Assistant browser extension. The full pipeline: commit pending changes → validate → version bump → changelog → build → tag → push → GitHub Actions auto-publishes the release.
+You are managing the release process for the Web TOC Assistant browser extension. The full pipeline: commit pending changes → validate → version bump → changelog → WXT build/zip → tag → push → GitHub Actions auto-publishes the release.
 
 ## Arguments
 
@@ -40,10 +40,11 @@ Choose commit type based on the changes: `feat` for new features, `fix` for bug 
 Validate the committed code before starting the release process:
 
 ```bash
+npm run typecheck
 npm test
 ```
 
-If tests fail, stop and report the errors. Ask the user to fix the issues before proceeding with the release.
+If typecheck or tests fail, stop and report the errors. Ask the user to fix the issues before proceeding with the release.
 
 ## Step 4: Analyze Changes Since Last Release
 
@@ -52,8 +53,8 @@ Find the previous release tag and analyze what changed:
 ```bash
 git tag --sort=-version:refname | head -5
 git log v{prev_version}..HEAD --oneline
-git diff v{prev_version}..HEAD --stat -- src/
-git diff v{prev_version}..HEAD -- src/
+git diff v{prev_version}..HEAD --stat -- src/ entrypoints/ public/ wxt.config.ts package.json .github/workflows/ docs/ README.md README_CN.md CLAUDE.md
+git diff v{prev_version}..HEAD -- src/ entrypoints/ public/ wxt.config.ts package.json .github/workflows/ docs/ README.md README_CN.md CLAUDE.md
 ```
 
 Categorize changes into:
@@ -73,9 +74,10 @@ Based on the scope and nature of changes, suggest a version number to the user:
 
 Once the user confirms the version, update all version files:
 
-1. `"version"` in `manifest.json`
-2. `"version"` in `package.json`
-3. `"version"` in `package-lock.json` (both the top-level and `packages."".version` if present)
+1. `"version"` in `package.json`
+2. `"version"` in `package-lock.json` (both the top-level and `packages."".version` if present)
+
+Do not edit `manifest.json`; WXT generates `.output/chrome-mv3/manifest.json` from `package.json` and `wxt.config.ts`.
 
 ## Step 6: Update CHANGELOG.md and CHANGELOG_CN.md
 
@@ -137,10 +139,11 @@ npm run build
 ```
 
 The build script:
-- Bundles content script with esbuild into `dist/build/`
-- Validates syntax
-- Auto-increments `.build-number` (internal tracking, not in zip filename)
-- Creates `dist/packages/v{VERSION}.zip`
+- Runs TypeScript typecheck
+- Runs Vitest
+- Builds the Chrome MV3 extension with WXT into `.output/chrome-mv3/`
+- Creates the WXT zip under `.output/`
+- Copies the release-compatible package to `dist/packages/v{VERSION}.zip`
 
 If build fails, stop and fix errors before proceeding.
 
@@ -154,15 +157,23 @@ unzip -l dist/packages/v${VERSION}.zip | head -20
 
 Verify:
 1. Zip exists and file size is reasonable (~50-100 KB)
-2. Contains expected files: `manifest.json`, `src/content.js`, `src/background.js`, `src/content.css`, `src/shared/primitives.js`, `_locales/`, `icons/`
-3. Does NOT contain dev files: `build.js`, `.claude/`, `node_modules/`, `.build-number`, `.gitignore`
+2. Contains expected runtime files: `manifest.json`, `background.js`, `content-scripts/toc.js`, `content-scripts/toc.css`, `_locales/`, `icons/`
+3. Does NOT contain dev/source files: `wxt.config.ts`, `entrypoints/`, `src/`, `.claude/`, `node_modules/`, `.output/`, `.gitignore`
+
+Also inspect the generated manifest:
+
+```bash
+node -e "const m=require('./.output/chrome-mv3/manifest.json'); console.log(JSON.stringify({version:m.version, permissions:m.permissions, host_permissions:m.host_permissions, background:m.background, content_scripts:m.content_scripts}, null, 2))"
+```
+
+Expected: `version` matches `${VERSION}`, background is `background.js`, and `content_scripts` is absent because the extension dynamically injects the WXT-built content script only for enabled sites.
 
 ## Step 10: Commit, Tag, and Push
 
 ```bash
-git add manifest.json package.json package-lock.json CHANGELOG.md CHANGELOG_CN.md
-# Only add READMEs/CLAUDE.md if they were actually modified
-git add README.md README_CN.md CLAUDE.md 2>/dev/null
+git add package.json package-lock.json CHANGELOG.md CHANGELOG_CN.md
+# Only add docs/configs if they were actually modified
+git add README.md README_CN.md CLAUDE.md docs/ .github/workflows/release.yml wxt.config.ts 2>/dev/null
 
 git commit -m "release: v${VERSION}"
 git tag -a "v${VERSION}" -m "Release v${VERSION}"
@@ -183,4 +194,4 @@ Report to the user:
 2. Zip file path and size
 3. Git tag pushed
 4. GitHub Actions release link: `https://github.com/{owner}/{repo}/actions`
-5. Remind about Chrome Web Store / Edge Add-ons if applicable: "如需同步到 Chrome Web Store 或 Edge Add-ons，请手动上传 dist/packages/v${VERSION}.zip"
+5. Remind about Chrome Web Store / Edge Add-ons if applicable: "如需同步到 Chrome Web Store 或 Edge Add-ons，请手动上传 dist/packages/v${VERSION}.zip（或 GitHub Release 中的 webtoc-assistant-v${VERSION}.zip）"

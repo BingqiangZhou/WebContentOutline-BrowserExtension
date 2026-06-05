@@ -942,8 +942,10 @@ test('release workflow builds and publishes without stale file references', () =
   assert.doesNotMatch(workflow, /ui-state-primitives\.js/);
   assert.doesNotMatch(workflow, /storage-primitives\.js/);
 
-  // Release renames and publishes the package
-  assert.match(workflow, /Rename package asset/);
+  // Release verifies, renames, and publishes the package
+  assert.match(workflow, /Verify and rename package asset/);
+  assert.match(workflow, /content-scripts\/toc\.js/);
+  assert.match(workflow, /steps\.package\.outputs\.file/);
   assert.match(workflow, /webtoc-assistant-v/);
   assert.match(workflow, /action-gh-release/);
 });

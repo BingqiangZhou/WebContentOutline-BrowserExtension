@@ -242,6 +242,7 @@ test('package collection script removes existing version zip before copying', ()
   const source = fs.readFileSync(path.join(repoRoot, 'scripts/collect-package.mjs'), 'utf8');
 
   assert.match(source, /fs\.existsSync\(dest\)[\s\S]*fs\.rmSync\(dest/);
+  assert.match(source, /branch !== 'HEAD'/);
 });
 
 test('mutation rebuilds start quickly on every host, including ChatGPT', () => {

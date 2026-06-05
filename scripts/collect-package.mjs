@@ -36,7 +36,9 @@ try {
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
   }).trim();
-  if (branch && branch !== 'main') branchSuffix = '-' + branch.replace(/[/\\]+/g, '-');
+  if (branch && branch !== 'main' && branch !== 'HEAD') {
+    branchSuffix = '-' + branch.replace(/[/\\]+/g, '-');
+  }
 } catch {}
 
 fs.mkdirSync(packagesDir, { recursive: true });

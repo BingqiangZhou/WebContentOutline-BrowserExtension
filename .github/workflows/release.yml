@@ -35,12 +35,30 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_version=v$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Rename package asset
+      - name: Verify and rename package asset
+        id: package
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          SRC_ZIP=$(ls dist/packages/v${VERSION}*.zip 2>/dev/null | head -1)
+          SRC_ZIP=$(find dist/packages -maxdepth 1 -type f -name "v${VERSION}*.zip" | sort | head -1)
           if [ -z "$SRC_ZIP" ]; then echo "FAIL: v${VERSION}*.zip not found in dist/packages/" && ls dist/packages/ && exit 1; fi
-          mv "$SRC_ZIP" "dist/packages/webtoc-assistant-v${VERSION}.zip"
+          DEST_ZIP="dist/packages/webtoc-assistant-v${VERSION}.zip"
+          mv "$SRC_ZIP" "$DEST_ZIP"
+
+          node -e "const m=require('./.output/chrome-mv3/manifest.json'); if (m.version !== '${VERSION}') throw new Error('manifest version mismatch'); if (m.content_scripts) throw new Error('content_scripts should be runtime-injected, not manifest-registered'); if (m.background?.service_worker !== 'background.js') throw new Error('unexpected background worker');"
+
+          unzip -l "$DEST_ZIP" > zip-list.txt
+          grep -q "manifest.json" zip-list.txt
+          grep -q "background.js" zip-list.txt
+          grep -q "content-scripts/toc.js" zip-list.txt
+          grep -q "content-scripts/toc.css" zip-list.txt
+          grep -q "_locales/en/messages.json" zip-list.txt
+          grep -q "icons/png/toc-disabled-128.png" zip-list.txt
+          ! grep -q "^.*\\.claude/" zip-list.txt
+          ! grep -q "^.*src/" zip-list.txt
+          ! grep -q "^.*entrypoints/" zip-list.txt
+          ! grep -q "^.*wxt.config.ts" zip-list.txt
+
+          echo "file=$DEST_ZIP" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -67,6 +85,6 @@ jobs:
             🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.version.outputs.version }})
 
             🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG_CN.md#${{ steps.version.outputs.version }})
-          files: dist/packages/*.zip
+          files: ${{ steps.package.outputs.file }}
           draft: false
           prerelease: false

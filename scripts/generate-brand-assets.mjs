@@ -264,7 +264,7 @@ Generated with \`npm run assets:brand\`.
 - \`store-screenshot-cover-en.png\` and \`store-screenshot-cover-zh-CN.png\`: 1280x800 bilingual screenshot cover images.
 - \`docs/descriptions/ChatGPT_Desc_screenshots1280x800_EN_1.x.png\` and \`docs/descriptions/ChatGPT_Desc_screenshots1280x800_CN_1.x.png\`: GPT image generated 1.x description screenshots, kept outside the deterministic generator so reruns do not overwrite them.
 
-The extension runtime icon paths in \`manifest.json\` remain unchanged; regenerated PNGs are written to \`icons/png/toc-*-{16,32,48,128}.png\`.
+The extension runtime icon paths in \`wxt.config.ts\` remain unchanged; regenerated PNGs are written to \`icons/png/toc-*-{16,32,48,128}.png\`.
 `);
 }
 

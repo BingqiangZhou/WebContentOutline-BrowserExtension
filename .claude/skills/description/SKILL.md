@@ -13,7 +13,7 @@ Both stores only support **plain text** — no HTML, no Markdown. Pasting Markdo
 
 ## Arguments
 
-Optional version number (e.g., `1.0`). If omitted, read version from `manifest.json` and format as `{major}.{minor}.x`.
+Optional version number (e.g., `1.0`). If omitted, read version from `package.json` and format as `{major}.{minor}.x`.
 
 ## File Layout
 
@@ -29,7 +29,7 @@ All files live in `docs/descriptions/`:
 
 ### Step 1 — Locate the Source
 
-1. Determine version: use the argument, or read `manifest.json` → `{major}.{minor}.x`.
+1. Determine version: use the argument, or read `package.json` → `{major}.{minor}.x`.
 2. Check if `description_{version}.md` exists in `docs/descriptions/`.
 3. If it exists → read it and understand the current structure.
 4. If not → read the latest existing `description_*.md` as a starting reference.
