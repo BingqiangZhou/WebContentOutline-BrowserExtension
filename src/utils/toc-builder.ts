@@ -9,6 +9,7 @@ import { tryBuildChatbotTocItems, getChatbotSentinelSelector } from './chatbot-d
     var TOC_TEXT_MAX_LEN = 200;
     var TOC_MAX_ITEMS = 400;
     var TOC_MAX_CANDIDATES = 1200;
+    var COLLAPSE_WS_RE = /\s+/g;
 
     function getTrimmedText(el) {
       var rawText = '';
@@ -18,7 +19,7 @@ import { tryBuildChatbotTocItems, getChatbotSentinelSelector } from './chatbot-d
         try { rawText = String(el && el.textContent || '').slice(0, TOC_TEXT_MAX_LEN * 4); } catch (_) { rawText = ''; }
       }
       rawText = rawText.trim();
-      rawText = rawText.replace(/\s+/g, ' ');
+      rawText = rawText.replace(COLLAPSE_WS_RE, ' ');
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
 
@@ -55,6 +56,7 @@ function buildTocItemsFromSelectors(selectors, cfg) {
       }
 
       // Phase 1: Batch-read all geometry in a tight loop (avoids forced reflows)
+      // Order: cheap property reads first, expensive getComputedStyle last
       var geoData = [];
       var docEl = document.documentElement;
       var docScrollW = (docEl && docEl.scrollWidth) || 0;
@@ -64,15 +66,18 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         if (!el || !el.isConnected) { geoData.push(null); continue; }
         // aria-hidden="true" — element is semantically hidden
         try { if (el.getAttribute('aria-hidden') === 'true') { geoData.push(null); continue; } } catch (_) {}
-        var style;
-        try { style = window.getComputedStyle(el); } catch (_) { geoData.push(null); continue; }
-        if (!style || style.display === 'none') { geoData.push(null); continue; }
-        var offsetParent;
-        try { offsetParent = el.offsetParent; } catch (_) { geoData.push(null); continue; }
-        if (offsetParent === null && style.position !== 'fixed') { geoData.push(null); continue; }
+        // Cheap dimension check — eliminates most hidden elements without getComputedStyle
         var ow, oh;
         try { ow = el.offsetWidth; oh = el.offsetHeight; } catch (_) { geoData.push(null); continue; }
         if (ow === 0 || oh === 0) { geoData.push(null); continue; }
+        // Cheap offsetParent check — catches display:none ancestors in most cases
+        var offsetParent;
+        try { offsetParent = el.offsetParent; } catch (_) { geoData.push(null); continue; }
+        // Now do the expensive style recalculation only for survivors
+        var style;
+        try { style = window.getComputedStyle(el); } catch (_) { geoData.push(null); continue; }
+        if (!style || style.display === 'none') { geoData.push(null); continue; }
+        if (offsetParent === null && style.position !== 'fixed') { geoData.push(null); continue; }
         if (style.visibility === 'hidden' || style.visibility === 'collapse') { geoData.push(null); continue; }
         var opacity = parseFloat(style.opacity);
         if (Number.isFinite(opacity) && opacity <= 0) { geoData.push(null); continue; }
@@ -102,56 +107,52 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         // Parent clipping check (only for survivors that passed cheap checks)
         // Excludes headings truly hidden by collapsed/zero-size containers,
         // but preserves headings that are simply below the fold in a scrollable page.
+        // Single-pass ancestor scan: build chain once, then scan linearly
+        // instead of nested while-loops with O(depth²) getComputedStyle calls.
         var clipped = false;
-        var parent = el.parentElement;
-        var depth = 0;
-        while (parent && depth < 6) {
-          var parentStyle;
-          try { parentStyle = window.getComputedStyle(parent); } catch (_) { break; }
-          if (parentStyle) {
-            var overflowVal = parentStyle.overflow;
-            var overflowX = parentStyle.overflowX;
-            var overflowY = parentStyle.overflowY;
-            var clips = overflowVal === 'hidden' || overflowVal === 'clip'
-              || overflowX === 'hidden' || overflowX === 'clip'
-              || overflowY === 'hidden' || overflowY === 'clip';
-            if (clips) {
-              // Skip clipping check if a scrollable ancestor sits between the
-              // heading and this clipping parent — the heading can be scrolled into view.
-              var hasScrollableAncestor = false;
-              var between = el.parentElement;
-              while (between && between !== parent) {
-                var bs;
-                try { bs = window.getComputedStyle(between); } catch (_) { bs = null; }
-                if (bs) {
-                  var bo = bs.overflow || bs.overflowY;
-                  if (bo === 'auto' || bo === 'scroll') {
-                    try {
-                      if (between.scrollHeight > between.clientHeight + 2) {
-                        hasScrollableAncestor = true;
-                        break;
-                      }
-                    } catch (_) {}
-                  }
-                }
-                between = between.parentElement;
+        var ancestors = [];
+        var ancNode = el.parentElement;
+        for (var ai = 0; ai < 6 && ancNode; ai++) {
+          ancestors.push(ancNode);
+          ancNode = ancNode.parentElement;
+        }
+        // Track if any ancestor between el and a clipping parent is scrollable
+        var scrollableBelow = false;
+        for (var ai2 = 0; ai2 < ancestors.length; ai2++) {
+          var ancestor = ancestors[ai2];
+          var ancStyle;
+          try { ancStyle = window.getComputedStyle(ancestor); } catch (_) { break; }
+          if (!ancStyle) continue;
+          // Check if this ancestor is scrollable (with actual overflow)
+          var ancOv = ancStyle.overflow || ancStyle.overflowY;
+          if (ancOv === 'auto' || ancOv === 'scroll') {
+            try {
+              if (ancestor.scrollHeight > ancestor.clientHeight + 2) {
+                scrollableBelow = true;
               }
-              if (!hasScrollableAncestor) {
-                var parentRect;
-                try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
-                // Only clip if heading is completely outside AND the clipping parent
-                // has negligible height (collapsed/tab) — not a full-height layout container
-                var isCollapsed = parent.clientHeight < 10 || parent.offsetWidth < 10;
-                if (isCollapsed && (rect.right <= parentRect.left || rect.left >= parentRect.right
-                    || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom)) {
-                  clipped = true;
-                  break;
-                }
+            } catch (_) {}
+          }
+          // Check if this ancestor clips
+          var clips = ancStyle.overflow === 'hidden' || ancStyle.overflow === 'clip'
+            || ancStyle.overflowX === 'hidden' || ancStyle.overflowX === 'clip'
+            || ancStyle.overflowY === 'hidden' || ancStyle.overflowY === 'clip';
+          if (clips) {
+            // Only clip if no scrollable ancestor sits between el and this clipping parent
+            if (!scrollableBelow) {
+              var parentRect;
+              try { parentRect = ancestor.getBoundingClientRect(); } catch (_) { break; }
+              // Only clip if heading is completely outside AND the clipping parent
+              // has negligible height (collapsed/tab) — not a full-height layout container
+              var isCollapsed = ancestor.clientHeight < 10 || ancestor.offsetWidth < 10;
+              if (isCollapsed && (rect.right <= parentRect.left || rect.left >= parentRect.right
+                  || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom)) {
+                clipped = true;
+                break;
               }
             }
+            // If scrollable ancestor exists, the heading can be scrolled into view — skip clip
+            scrollableBelow = false; // reset for next potential clipping ancestor
           }
-          parent = parent.parentElement;
-          depth++;
         }
         if (clipped) continue;
 
@@ -162,6 +163,24 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         if (items.length >= TOC_MAX_ITEMS) {
           truncated = true;
           break;
+        }
+      }
+
+      // Deduplicate items with identical text that point to the same visual
+      // position (e.g. headings duplicated in sidebar + main content via
+      // aria-hidden or SR-only mirrors that survived the filter above).
+      if (items.length > 1) {
+        var seenTexts = new Set();
+        var deduped = [];
+        for (var d = 0; d < items.length; d++) {
+          var key = items[d].text;
+          if (!seenTexts.has(key)) {
+            seenTexts.add(key);
+            deduped.push(items[d]);
+          }
+        }
+        if (deduped.length < items.length) {
+          items = deduped;
         }
       }
 

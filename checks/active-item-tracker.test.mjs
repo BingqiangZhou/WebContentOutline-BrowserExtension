@@ -64,16 +64,17 @@ test('active item selector chooses the topmost visible outline item', () => {
   const first = { id: 'first' };
   const second = { id: 'second' };
 
-  assert.equal(selectActiveItem([
-    { item: first, top: 240 },
-    { item: second, top: 90 }
-  ]), second);
+  const map = new Map();
+  map.set(first, 240);
+  map.set(second, 90);
+
+  assert.equal(selectActiveItem(map), second);
 });
 
 test('active item selector returns null when nothing is visible', () => {
   const selectActiveItem = loadSelector();
 
-  assert.equal(selectActiveItem([]), null);
+  assert.equal(selectActiveItem(new Map()), null);
 });
 
 test('active tracker retains the previous item while scrolling between headings', () => {

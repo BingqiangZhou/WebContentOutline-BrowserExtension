@@ -168,21 +168,125 @@ export function uniqueInDocumentOrder(list) {
     }
 
     /**
-     * Smooth scroll to element
+     * Minimum gap (px) to leave above the target element when scrolling.
+     * Ensures the element does not sit flush against the viewport top.
+     */
+    var SCROLL_TOP_PADDING = 80;
+
+    // Cached fixed-header height: recomputed at most once per 5 seconds.
+    // Header height rarely changes between clicks, so this avoids a
+    // querySelectorAll + getComputedStyle per scroll-to-item click.
+    var _cachedHeaderHeight = 0;
+    var _cachedHeaderTime = 0;
+    var HEADER_CACHE_TTL = 5000; // ms
+    var _reduceMotion = null; // cached boolean
+
+    /**
+     * Invalidate the cached fixed-header height (call after DOM rebuilds).
+     */
+    export function invalidateScrollCaches() {
+      _cachedHeaderHeight = 0;
+      _cachedHeaderTime = 0;
+    }
+
+    /**
+     * Find the nearest ancestor (or self) that is a scrollable container.
+     * A scrollable container has overflow:auto/scroll AND content that overflows
+     * (scrollHeight > clientHeight or scrollWidth > clientWidth).
+     * Returns null if the document root is the scroll container (normal pages).
+     */
+    function findScrollableAncestor(el) {
+      var node = el.parentElement;
+      while (node && node !== document.documentElement && node !== document.body) {
+        try {
+          var style = window.getComputedStyle(node);
+          if (style) {
+            var overflowY = style.overflowY;
+            if (overflowY === 'auto' || overflowY === 'scroll') {
+              if (node.scrollHeight > node.clientHeight + 1) {
+                return node;
+              }
+            }
+          }
+        } catch (_) {}
+        node = node.parentElement;
+      }
+      return null;
+    }
+
+    /**
+     * Detect the combined height of fixed/sticky elements at the top of the page.
+     * Returns 0 if no such elements are found.
+     * Results are cached for HEADER_CACHE_TTL ms.
+     */
+    function detectFixedHeaderHeight() {
+      var now = Date.now();
+      if (now - _cachedHeaderTime < HEADER_CACHE_TTL) return _cachedHeaderHeight;
+      var maxHeight = 0;
+      try {
+        var els = document.querySelectorAll('header, [role="banner"], nav, [role="navigation"]');
+        for (var i = 0; i < els.length; i++) {
+          var el = els[i];
+          var style = window.getComputedStyle(el);
+          if (!style) continue;
+          var pos = style.position;
+          if (pos !== 'fixed' && pos !== 'sticky') continue;
+          // Only count elements that are anchored near the top of the viewport
+          var rect = el.getBoundingClientRect();
+          if (rect.top > 10) continue;
+          var bottom = rect.bottom;
+          if (bottom > maxHeight) maxHeight = bottom;
+        }
+      } catch (_) {}
+      _cachedHeaderHeight = maxHeight;
+      _cachedHeaderTime = now;
+      return maxHeight;
+    }
+
+    /**
+     * Smooth scroll to element, positioning it below the top of the viewport
+     * with padding for fixed/sticky headers and a comfortable reading gap.
+     *
+     * Handles both traditional document-scrolled pages and modern SPAs that use
+     * an internal scrollable container (e.g. ChatGPT, Claude, Gemini).
      * @param {Element} el
      */
 export function scrollToElement(el) {
       try {
-        var reduceMotion = (function() {
+        // Cache prefers-reduced-motion — it doesn't change during a session
+        if (_reduceMotion == null) {
           try {
-            return !!(window && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
-          } catch (_) {
-            return false;
+            _reduceMotion = !!(window && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+          } catch (_) { _reduceMotion = false; }
+        }
+        var behavior = (_reduceMotion ? 'auto' : 'smooth') as ScrollBehavior;
+        var headerH = detectFixedHeaderHeight();
+        var offset = Math.max(headerH, SCROLL_TOP_PADDING);
+
+        // Find the actual scrollable container — many modern sites (ChatGPT, Claude,
+        // Gemini) use an internal div with overflow:auto instead of document scroll.
+        var scrollContainer = findScrollableAncestor(el);
+
+        if (scrollContainer) {
+          // Internal scroll container: calculate position relative to it
+          var containerRect = scrollContainer.getBoundingClientRect();
+          var elRect = el.getBoundingClientRect();
+          var targetTop = scrollContainer.scrollTop + (elRect.top - containerRect.top) - offset;
+          if (targetTop < 0) targetTop = 0;
+          scrollContainer.scrollTo({ top: targetTop, behavior: behavior });
+        } else {
+          // Document-level scroll: use window.scrollTo
+          var rect = el.getBoundingClientRect();
+          var scrollY = window.scrollY;
+          if (typeof scrollY !== 'number' || !Number.isFinite(scrollY)) {
+            scrollY = window.pageYOffset || 0;
           }
-        })();
-        el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start', inline: 'nearest' });
+          var targetY = scrollY + rect.top - offset;
+          if (typeof targetY !== 'number' || !Number.isFinite(targetY) || targetY < 0) targetY = 0;
+          window.scrollTo({ top: targetY, behavior: behavior });
+        }
       } catch (e) {
-        el.scrollIntoView(true);
+        try { el.scrollIntoView(true); } catch (_2) {}
       }
     }
 

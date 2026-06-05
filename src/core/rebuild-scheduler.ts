@@ -5,6 +5,7 @@ import { createDomWatcher } from './dom-watcher.js';
 import { createUrlMonitor } from './url-monitor.js';
 import * as NL from './nav-lock.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
+import { invalidateChatbotCache } from '../utils/chatbot-detector.js';
 
   var DEBOUNCE_MS = 400;
   var MAX_CONSECUTIVE_FAILURES = 5;
@@ -126,6 +127,8 @@ export function createRebuildScheduler(onRebuild, opts) {
 
     var onUrlChange = function(immediate) {
       if (onConfigDirty) onConfigDirty();
+      // Invalidate chatbot detection cache on URL change so new pages get re-detected
+      try { invalidateChatbotCache(); } catch (_) {}
       scheduleRebuild(immediate);
     };
 

@@ -218,9 +218,28 @@ export function renderEdgeDock(options) {
   tocButton.setAttribute('aria-controls', panelHost.id);
   tocButton.setAttribute('aria-expanded', 'false');
 
+  // Track the current preview window to enable incremental active-class updates
+  var previewWindowStart = -1;
+  var previewWindowSize = 0;
+
   function renderPreview() {
-    while (preview.firstChild) preview.removeChild(preview.firstChild);
-    selectPreviewItems(dockItems, activeIndex, 12).forEach(function(item) {
+    // Use replaceChildren() for efficient clear
+    if (typeof preview.replaceChildren === 'function') {
+      preview.replaceChildren();
+    } else {
+      while (preview.firstChild) preview.removeChild(preview.firstChild);
+    }
+    var subset = selectPreviewItems(dockItems, activeIndex, 12);
+    // Track the window range for incremental updates
+    if (subset.length > 0 && subset.length < dockItems.length) {
+      previewWindowStart = dockItems.indexOf(subset[0]);
+      previewWindowSize = subset.length;
+    } else {
+      previewWindowStart = 0;
+      previewWindowSize = subset.length;
+    }
+    for (var i = 0; i < subset.length; i++) {
+      var item = subset[i];
       var index = dockItems.indexOf(item);
       var metrics = getPreviewLineMetrics(item && item.level);
       var line = document.createElement('button');
@@ -233,7 +252,35 @@ export function renderEdgeDock(options) {
       line.style.setProperty('width', metrics.width + 'px', 'important');
       line.style.setProperty('margin-left', metrics.inset + 'px', 'important');
       preview.appendChild(line);
-    });
+    }
+  }
+
+  /**
+   * Update the active highlight without re-rendering the entire preview.
+   * Falls back to full render if the window needs to slide.
+   */
+  function updatePreviewActive(nextIndex) {
+    if (previewWindowStart < 0 || !preview.children.length) {
+      renderPreview();
+      return;
+    }
+    // Check if the new active index is within the current window
+    var inWindow = nextIndex >= previewWindowStart && nextIndex < previewWindowStart + previewWindowSize;
+    if (!inWindow) {
+      renderPreview();
+      return;
+    }
+    // Toggle active class on old and new items — no DOM rebuild
+    var children = preview.children;
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i] as HTMLElement;
+      var idx = parseInt(child.dataset.index || '-1', 10);
+      if (idx === nextIndex) {
+        child.classList.add('toc-edge-dock-preview-line-active');
+      } else {
+        child.classList.remove('toc-edge-dock-preview-line-active');
+      }
+    }
   }
   renderPreview();
 
@@ -565,7 +612,7 @@ export function renderEdgeDock(options) {
     },
     setActiveIndex: function(nextIndex) {
       activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
-      renderPreview();
+      updatePreviewActive(activeIndex);
     },
     setItems: function(nextItems) {
       dockItems = Array.isArray(nextItems) ? nextItems : [];

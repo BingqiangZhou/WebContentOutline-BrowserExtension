@@ -177,7 +177,11 @@ async function setTabIcon(tabId, enabled) {
   } catch (_) {}
 }
 
-async function updateIconForTab(tabId, url = '') {
+/**
+ * Update the icon for a tab using a pre-fetched enabled map when available.
+ * Falls back to reading storage if no map is provided.
+ */
+async function updateIconForTab(tabId, url = '', enabledMap = null) {
   if (!tabId) return;
   let finalUrl = url;
   if (!finalUrl || !isHttpUrl(finalUrl)) {
@@ -196,8 +200,10 @@ async function updateIconForTab(tabId, url = '') {
   }
 
   const origin = originFromUrl(finalUrl);
-  const enabled = await getEnabledByOrigin(origin);
+  // Use pre-fetched map if available, otherwise read from storage
+  const enabled = enabledMap != null ? !!(origin && enabledMap[origin]) : await getEnabledByOrigin(origin);
   try { await setTabIcon(tabId, enabled); } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
+  return enabled;
 }
 
 function pingContentScript(tabId) {
@@ -239,14 +245,31 @@ async function injectIntoTab(tabId) {
   return { ok: true };
 }
 
+// Per-tab injection lock to prevent concurrent ensureContentScript calls
+// from double-injecting when tabs.onActivated and tabs.onUpdated fire near-simultaneously.
+const injectionLocks = new Map();
+
 async function ensureContentScript(tabId, url) {
   if (!tabId || !isHttpUrl(url)) return false;
 
-  const pingOk = await pingContentScript(tabId);
-  if (pingOk) return true;
+  // If injection is already in-flight for this tab, await the existing promise
+  const existing = injectionLocks.get(tabId);
+  if (existing) return existing;
 
-  const result = await injectIntoTab(tabId);
-  return !!result.ok;
+  const promise = (async () => {
+    try {
+      const pingOk = await pingContentScript(tabId);
+      if (pingOk) return true;
+
+      const result = await injectIntoTab(tabId);
+      return !!result.ok;
+    } finally {
+      injectionLocks.delete(tabId);
+    }
+  })();
+
+  injectionLocks.set(tabId, promise);
+  return promise;
 }
 
 async function maybeAutoInject(tabId, url) {
@@ -318,14 +341,17 @@ browser.action.onClicked.addListener(handleActionClick);
 
 browser.tabs.onActivated.addListener(async (activeInfo) => {
   try {
-    await updateIconForTab(activeInfo.tabId);
-  } catch (_) {}
-  try {
-    const tab = await browser.tabs.get(activeInfo.tabId);
-    if (!tab?.id || !tab.url || !isHttpUrl(tab.url)) return;
-    const origin = originFromUrl(tab.url);
-    const enabled = await getEnabledByOrigin(origin);
-    if (enabled) await ensureContentScript(tab.id, tab.url);
+    // Read the enabled map once and pass it to both icon update and injection check
+    const map = await getEnabledMap();
+    const enabled = await updateIconForTab(activeInfo.tabId, '', map);
+    if (enabled) {
+      try {
+        const tab = await browser.tabs.get(activeInfo.tabId);
+        if (tab?.id && tab.url && isHttpUrl(tab.url)) {
+          await ensureContentScript(tab.id, tab.url);
+        }
+      } catch (_) {}
+    }
   } catch (_) {}
 });
 
@@ -345,7 +371,8 @@ async function processAllTabs() {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     for (const t of tabs) {
-      if (t.id) updateIconForTab(t.id, t.url).catch(() => {});
+      // Pass pre-fetched map to avoid O(n) storage reads
+      if (t.id) updateIconForTab(t.id, t.url, map).catch(() => {});
       if (t.id && t.url && isHttpUrl(t.url)) {
         const origin = originFromUrl(t.url);
         if (map[origin]) ensureContentScript(t.id, t.url).catch(() => {});

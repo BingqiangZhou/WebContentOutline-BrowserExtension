@@ -231,21 +231,23 @@ export function renderFloatingPanel(opts) {
       if (!e) return;
       var key = e.key;
       var node = e.target && e.target.closest ? e.target.closest('.toc-item') : null;
-      var nodes = Array.from(list.querySelectorAll('.toc-item'));
-      var currentIndex = node ? nodes.indexOf(node) : -1;
+      // Find current index from dataset instead of querySelectorAll on every keypress
+      var currentIndex = node ? parseInt((node as HTMLElement).dataset.index || '0', 10) : -1;
 
       if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
-        if (!nodes.length) return;
+        if (!items.length) return;
         e.preventDefault();
         var nextIndex = currentIndex >= 0 ? currentIndex : 0;
-        if (key === 'ArrowDown') nextIndex = Math.min(nodes.length - 1, nextIndex + 1);
+        if (key === 'ArrowDown') nextIndex = Math.min(items.length - 1, nextIndex + 1);
         if (key === 'ArrowUp') nextIndex = Math.max(0, nextIndex - 1);
         if (key === 'Home') nextIndex = 0;
-        if (key === 'End') nextIndex = nodes.length - 1;
-        try {
-          nodes.forEach(function(n, idx) { (n as HTMLElement).tabIndex = idx === nextIndex ? 0 : -1; });
-        } catch (_) {}
-        try { (nodes[nextIndex] as HTMLElement).focus({ preventScroll: false }); } catch (_) { (nodes[nextIndex] as HTMLElement).focus(); }
+        if (key === 'End') nextIndex = items.length - 1;
+        // Update tabIndex only for old and new items (not all items)
+        setActiveIndex(nextIndex);
+        var nextItem = items[nextIndex];
+        if (nextItem && nextItem._node) {
+          try { (nextItem._node as HTMLElement).focus({ preventScroll: false }); } catch (_) { try { (nextItem._node as HTMLElement).focus(); } catch (_2) {} }
+        }
         return;
       }
 

@@ -1,6 +1,13 @@
 
 export function clearChildren(el) {
-  while (el && el.firstChild) {
+  if (!el) return;
+  // replaceChildren() is a single native clear — much faster than N removeChild calls.
+  // Available since Chrome 86 / Firefox 78 / Safari 14.
+  if (typeof el.replaceChildren === 'function') {
+    try { el.replaceChildren(); return; } catch (_) {}
+  }
+  // Fallback for ancient browsers
+  while (el.firstChild) {
     try { el.removeChild(el.firstChild); } catch (_) { break; }
   }
 }

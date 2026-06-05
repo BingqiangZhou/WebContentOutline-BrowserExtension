@@ -17,7 +17,8 @@ import {
   getBadgePosByHost,
   setBadgePosByHost,
   scrollToElement,
-  setPanelExpandedByOrigin
+  setPanelExpandedByOrigin,
+  invalidateScrollCaches
 } from '../utils/toc-utils.js';
 import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
 import {
@@ -158,6 +159,9 @@ export function initForConfig(cfg, options) {
 
         items = newItems;
         tocMeta = newMeta;
+
+        // Invalidate scroll caches since the DOM may have changed layout
+        try { invalidateScrollCaches(); } catch (_) {}
 
         // Badge mode: update in-memory items so next expand is fresh, but skip full UI rebuild.
         if (!panelInstance) {
