@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { msg, getFocusableWithin } from '../utils/toc-utils.js';
@@ -65,8 +65,8 @@ export function showPickerResult(selector, saveCb) {
 
     var restoreFocus = function() {
       try {
-        if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
-          prevFocus.focus({ preventScroll: true });
+        if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
+          (prevFocus as HTMLElement).focus({ preventScroll: true });
         }
       } catch (_) {}
     };
@@ -84,9 +84,9 @@ export function showPickerResult(selector, saveCb) {
     var removeFocusTrap = createFocusTrap ? createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin }) : null;
     wrap.addEventListener('click', function(e) {
       var target = e && e.target;
-      var btn = target && target.closest ? target.closest('[data-act]') : null;
+      var btn = target && (target as HTMLElement).closest ? (target as HTMLElement).closest('[data-act]') : null;
       if (!btn) return;
-      var act = btn.dataset.act;
+      var act = (btn as HTMLElement).dataset.act;
       if (act === 'close') close();
       if (act === 'save') { try { saveCb && saveCb(selector, close); } catch (e) { console.warn('[toc] saveCb error:', e); } }
     });

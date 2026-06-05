@@ -6,16 +6,28 @@ import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 
+const TS_STRIP_RE = [
+  [/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, ''],
+  [/(\w+)!([,);}\]\n])/g, '$1$2'],
+  [/(\w+)\?([,)=\n])/g, '$1$2'],
+  [/Promise<\w+>/g, 'Promise'],
+  [/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =']
+];
+function stripTsSyntax(source) {
+  for (const [re, repl] of TS_STRIP_RE) source = source.replace(re, repl);
+  return source;
+}
+
 function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
 function loadDomUtils(querySelectorAll = () => []) {
   const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     document: {
@@ -43,13 +55,14 @@ __exports.uniqueInDocumentOrder = uniqueInDocumentOrder;`,
 function loadConfigPrimitives() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    SELECTOR_EXPR_MAX_LENGTH: 2000,
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -63,9 +76,9 @@ function loadConfigPrimitives() {
 
 function loadUrlMonitor() {
   const file = path.join(repoRoot, 'src/core/url-monitor.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
-    .replace('export function createUrlMonitor', 'function createUrlMonitor');
+    .replace('export function createUrlMonitor', 'function createUrlMonitor'));
   const delays = [];
   const timers = [];
   let identity = 0;
@@ -94,7 +107,7 @@ function loadUrlMonitor() {
 
 function loadDomWatcher() {
   const file = path.join(repoRoot, 'src/core/dom-watcher.ts');
-  const source = fs.readFileSync(file, 'utf8').replace('export function createDomWatcher', 'function createDomWatcher');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8').replace('export function createDomWatcher', 'function createDomWatcher'));
   let observer = null;
   class FakeMutationObserver {
     constructor(callback) {

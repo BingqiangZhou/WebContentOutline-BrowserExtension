@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // src/utils/focus-trap.ts - Shared keyboard focus trap utility
 
 export function createFocusTrap(container, opts) {

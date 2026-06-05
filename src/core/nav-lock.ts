@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
   var _locked = false;

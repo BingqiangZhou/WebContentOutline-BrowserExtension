@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import { msg } from './core-utils.js';
 
   var TOAST_DURATION_MS = 3000;
@@ -20,7 +20,7 @@ function ensureToastContainer() {
    * @param {string} text
    * @param {{type?: 'info'|'success'|'warning'|'error', durationMs?: number}} [opts]
    */
-export function showToast(text, opts) {
+export function showToast(text, opts?) {
     if (!opts) opts = {};
     try {
       var type = opts.type || 'info';
@@ -60,7 +60,7 @@ export function showToast(text, opts) {
       closeBtn.addEventListener('click', removeToast, { once: true });
       toast.addEventListener('click', function(e) {
         // Allow clicking toast body to dismiss, but ignore text selection drags.
-        if (e && e.target && e.target.closest && e.target.closest('button')) return;
+        if (e && e.target && (e.target as HTMLElement).closest && (e.target as HTMLElement).closest('button')) return;
         try {
           var sel = window.getSelection && window.getSelection();
           if (sel && !sel.isCollapsed) {

@@ -6,14 +6,26 @@ import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 
+const TS_STRIP_RE = [
+  [/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, ''],
+  [/(\w+)!([,);}\]\n])/g, '$1$2'],
+  [/(\w+)\?([,)=\n])/g, '$1$2'],
+  [/Promise<\w+>/g, 'Promise'],
+  [/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =']
+];
+function stripTsSyntax(source) {
+  for (const [re, repl] of TS_STRIP_RE) source = source.replace(re, repl);
+  return source;
+}
+
 function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
 function loadDomWatcher() {
   const file = path.join(repoRoot, 'src/core/dom-watcher.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace('export function createDomWatcher', 'function createDomWatcher');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace('export function createDomWatcher', 'function createDomWatcher'));
   let observer = null;
   class FakeMutationObserver {
     constructor(callback) {
@@ -49,9 +61,9 @@ function loadDomWatcher() {
 
 function loadTocBuilder(options = {}) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const requestedLimits = [];
   const elements = options.elements || null;
   const sandbox = {
@@ -82,7 +94,7 @@ function loadTocBuilder(options = {}) {
 function loadBoundedText() {
   const file = path.join(repoRoot, 'src/utils/bounded-text.ts');
   assert.equal(fs.existsSync(file), true, 'src/utils/bounded-text.ts should exist');
-  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8').replace(/export function /g, 'function '));
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
@@ -95,9 +107,9 @@ function loadBoundedText() {
 
 function loadCoreUtilsForValidation() {
   const file = path.join(repoRoot, 'src/utils/core-utils.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     CSS: { supports() { return true; } },
@@ -109,6 +121,7 @@ function loadCoreUtilsForValidation() {
       }
     },
     uiConst(_name, fallback) { return fallback; },
+    SELECTOR_EXPR_MAX_LENGTH: 2000,
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -125,10 +138,10 @@ __exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,
 
 function loadDomUtilsForCollection(options = {}) {
   const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const calls = [];
   const sandbox = {
     console,
@@ -170,13 +183,14 @@ function loadDomUtilsForCollection(options = {}) {
 function loadConfigPrimitivesForSelectors() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
+    SELECTOR_EXPR_MAX_LENGTH: 2000,
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -190,10 +204,10 @@ function loadConfigPrimitivesForSelectors() {
 
 function loadStorageForNormalization() {
   const file = path.join(repoRoot, 'src/utils/storage.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import[\s\S]*?from .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     STORAGE_KEYS: {
@@ -203,6 +217,7 @@ function loadStorageForNormalization() {
       BADGE_POS_MAP: 'tocBadgePosMap',
       UI_MODE: 'tocUiMode'
     },
+    SELECTOR_EXPR_MAX_LENGTH: 2000,
     uiConst(_name, fallback) { return fallback; },
     isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
     isExtensionContextInvalidated() { return false; },
@@ -226,9 +241,9 @@ function loadStorageForNormalization() {
 
 function loadUrlMonitorForPolling() {
   const file = path.join(repoRoot, 'src/core/url-monitor.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
-    .replace('export function createUrlMonitor', 'function createUrlMonitor');
+    .replace('export function createUrlMonitor', 'function createUrlMonitor'));
   const timers = [];
   const sandbox = {
     console,
@@ -253,10 +268,10 @@ function loadUrlMonitorForPolling() {
 
 function loadBadgePositionForWrites(options = {}) {
   const file = path.join(repoRoot, 'src/utils/badge-position.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const calls = [];
   const sandbox = {
     console,
@@ -290,10 +305,10 @@ function loadBadgePositionForWrites(options = {}) {
 function loadUiStatePrimitives() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     URL,
@@ -313,10 +328,10 @@ __exports.validateUiStateMutationSource = validateUiStateMutationSource;`,
 
 async function loadContentScriptForConfigChanges(options = {}) {
   const file = path.join(repoRoot, 'src/content.ts');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\n/, '')
     .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\n/, '')
-    .replace('export function startTocContent', 'function startTocContent');
+    .replace('export function startTocContent', 'function startTocContent'));
   const timers = [];
   const storageListeners = [];
   let refreshCalls = 0;
@@ -458,10 +473,10 @@ async function loadContentScriptForConfigChanges(options = {}) {
 function loadStoragePrimitives() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
-  const source = fs.readFileSync(file, 'utf8')
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
-    .replace(/export function /g, 'function ');
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },

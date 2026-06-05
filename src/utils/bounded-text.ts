@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 function positiveInt(value, fallback) {

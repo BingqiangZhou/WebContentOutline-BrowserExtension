@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';

@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { getBadgePosMap, saveBadgePosMap } from './storage.js';
@@ -12,12 +12,12 @@ export async function getBadgePosByHost(host) {
 export async function setBadgePosByHost(host, pos) {
   if (!host || !pos) return null;
 
-  var enriched = {
+  var enriched: { x: number; y: number; updatedAt?: number; anchorX?: string } = {
     x: Number(pos.x),
     y: Number(pos.y),
-    updatedAt: typeof pos.updatedAt === 'number' ? pos.updatedAt : Date.now()
+    updatedAt: typeof (pos as any).updatedAt === 'number' ? (pos as any).updatedAt : Date.now()
   };
-  if (pos.anchorX === 'left' || pos.anchorX === 'right') enriched.anchorX = pos.anchorX;
+  if ((pos as any).anchorX === 'left' || (pos as any).anchorX === 'right') enriched.anchorX = (pos as any).anchorX;
 
   // Try background message first for cross-tab consistency
   try {

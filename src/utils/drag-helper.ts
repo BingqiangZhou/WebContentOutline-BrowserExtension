@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 export function createDragController(options) {

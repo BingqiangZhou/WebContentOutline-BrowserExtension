@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
   var OBSERVED_ATTRIBUTES = [
@@ -103,8 +103,10 @@ export function createDomWatcher(onMutation, cfg) {
     function checkAndReconnect() {
       if (!observerRef) return;
       try {
-        // Drain pending mutations to keep the observer fresh
-        observerRef.takeRecords();
+        var records = observerRef.takeRecords();
+        if (records && records.length && hasMeaningfulChange(records)) {
+          onMutation();
+        }
       } catch (_) {}
     }
 

@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 function selectActiveItem(entries) {
@@ -70,17 +70,19 @@ export function createActiveItemTracker(options) {
 
   function observeItems() {
     if (destroyed || typeof IntersectionObserver === 'undefined') return;
-    observer = new IntersectionObserver(function(entries) {
-      if (destroyed) return;
-      pendingEntries.push.apply(pendingEntries, entries);
-      if (processRaf != null) return;
-      processRaf = requestAnimationFrame(function() {
-        processRaf = null;
-        var batch = pendingEntries;
-        pendingEntries = [];
-        processEntries(batch);
-      });
-    }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
+    if (!observer) {
+      observer = new IntersectionObserver(function(entries) {
+        if (destroyed) return;
+        pendingEntries.push.apply(pendingEntries, entries);
+        if (processRaf != null) return;
+        processRaf = requestAnimationFrame(function() {
+          processRaf = null;
+          var batch = pendingEntries;
+          pendingEntries = [];
+          processEntries(batch);
+        });
+      }, { root: null, rootMargin: '0px 0px -65% 0px', threshold: 0.1 });
+    }
 
     observeRaf = requestAnimationFrame(function() {
       observeRaf = null;
@@ -96,7 +98,16 @@ export function createActiveItemTracker(options) {
 
   function setItems(nextItems) {
     var previousActiveEl = activeItem && activeItem.el;
-    disconnectObserver();
+    cancelRaf(observeRaf);
+    cancelRaf(processRaf);
+    observeRaf = null;
+    processRaf = null;
+    pendingEntries = [];
+    visibleTops.clear();
+    itemByElement.clear();
+    if (observer) {
+      try { observer.disconnect(); } catch (_) {}
+    }
     items = Array.isArray(nextItems) ? nextItems : [];
     items.forEach(function(item) {
       if (item && item.el) itemByElement.set(item.el, item);

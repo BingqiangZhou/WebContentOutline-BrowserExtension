@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import {
@@ -50,7 +50,7 @@ export function renderFloatingPanel(opts) {
     var removeScrollListener = null;
 
     panel.style.setProperty('visibility', 'hidden', 'important');
-    var SCROLL_LISTENER_OPTS = { passive: true };
+    var SCROLL_LISTENER_OPTS: { passive: boolean; capture?: boolean } = { passive: true };
 
     var unlockLater = function() {
       if (unlockTimer) clearTimeout(unlockTimer);
@@ -193,7 +193,7 @@ export function renderFloatingPanel(opts) {
 
     var handleItemClick = function(item, node, index, e) {
       if (e && e.preventDefault) e.preventDefault();
-      NL.lock();
+      NL.lock(undefined!);
       setActiveIndex(index);
       try { onNavigate && onNavigate(item, index); } catch (_) {}
 
@@ -243,9 +243,9 @@ export function renderFloatingPanel(opts) {
         if (key === 'Home') nextIndex = 0;
         if (key === 'End') nextIndex = nodes.length - 1;
         try {
-          nodes.forEach(function(n, idx) { n.tabIndex = idx === nextIndex ? 0 : -1; });
+          nodes.forEach(function(n, idx) { (n as HTMLElement).tabIndex = idx === nextIndex ? 0 : -1; });
         } catch (_) {}
-        try { nodes[nextIndex].focus({ preventScroll: false }); } catch (_) { nodes[nextIndex].focus(); }
+        try { (nodes[nextIndex] as HTMLElement).focus({ preventScroll: false }); } catch (_) { (nodes[nextIndex] as HTMLElement).focus(); }
         return;
       }
 

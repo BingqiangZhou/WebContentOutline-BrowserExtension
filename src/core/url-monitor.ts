@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
   /**
@@ -21,6 +21,7 @@ export function createUrlMonitor(opts) {
 
     // Polling fallback state
     var pollTimer = null;
+    var visibilityHandler = null;
 
     var isContextValid = true;
     var onChangeCallback = null;
@@ -50,10 +51,6 @@ export function createUrlMonitor(opts) {
 
       function poll() {
         if (!isContextValid) return;
-        if (document.hidden) {
-          pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
-          return;
-        }
         // Detect URL changes that may have been missed by event listeners
         if (location.href !== lastKnownUrl) {
           onUrlChange();
@@ -65,6 +62,17 @@ export function createUrlMonitor(opts) {
         pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
       }
       pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
+
+      // Pause/resume polling based on tab visibility
+      if (!visibilityHandler) {
+        visibilityHandler = function() {
+          if (document.hidden) { stopPolling(); }
+          else { startPolling(); }
+        };
+      }
+      if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', visibilityHandler);
+      }
     }
 
     function stopPolling() {
@@ -115,6 +123,12 @@ export function createUrlMonitor(opts) {
     function stop() {
       teardownUrlHooks();
       stopPolling();
+      if (visibilityHandler) {
+        if (typeof document !== 'undefined' && document.removeEventListener) {
+          document.removeEventListener('visibilitychange', visibilityHandler);
+        }
+        visibilityHandler = null;
+      }
       onChangeCallback = null;
     }
 

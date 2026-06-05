@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // src/utils/css-selector.ts - CSS selector generation
 
 function escapeCssIdentifier(ident) {
@@ -8,7 +8,7 @@ function escapeCssIdentifier(ident) {
 
 export function buildClassSelector(el) {
   if (!el || !el.classList || !el.classList.length) return '';
-  var meaningful = Array.from(el.classList).filter(function(cls) {
+  var meaningful = (Array.from(el.classList) as string[]).filter(function(cls) {
     return !/^(toc-|data-)/.test(cls);
   });
   if (!meaningful.length) return '';
@@ -27,7 +27,7 @@ export function cssPathFor(el) {
       break;
     }
     if (current.classList && current.classList.length) {
-      var meaningful = Array.from(current.classList).filter(function(cls) {
+      var meaningful = (Array.from(current.classList) as string[]).filter(function(cls) {
         return !/^(toc-|data-)/.test(cls);
       });
       if (meaningful.length) {
@@ -37,7 +37,7 @@ export function cssPathFor(el) {
     var parent = current.parentElement;
     if (parent) {
       var siblings = Array.from(parent.children).filter(function(s) {
-        return s.tagName === current.tagName;
+        return (s as Element).tagName === (current as Element).tagName;
       });
       if (siblings.length > 1) {
         var index = siblings.indexOf(current) + 1;

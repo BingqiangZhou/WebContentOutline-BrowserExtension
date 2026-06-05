@@ -5,7 +5,7 @@
     "checkJs": false,
     "noImplicitAny": false,
     "strict": false,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals", "chrome"]
   },
   "include": [
     ".wxt/types/**/*.d.ts",

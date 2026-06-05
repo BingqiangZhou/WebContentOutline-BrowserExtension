@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 /**
  * Storage keys
  */
@@ -9,3 +9,8 @@ export var STORAGE_KEYS = {
   BADGE_POS_MAP: 'tocBadgePosMap',
   UI_MODE: 'tocUiMode'
 };
+
+/**
+ * Maximum allowed length for a single selector expression (CSS or XPath).
+ */
+export var SELECTOR_EXPR_MAX_LENGTH = 2000;

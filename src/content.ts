@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 import {
   msg,
   getConfigs,
@@ -67,7 +67,7 @@ export function startTocContent(ctx) {
     detachListeners();
     try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
-    if (cleanupOwnedElements) cleanupOwnedElements();
+    if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = null;
     if (opts?.reason) console.debug(msg('logPrefix') + ' disposed:', opts.reason);
@@ -112,9 +112,6 @@ export function startTocContent(ctx) {
   }
 
   function stopApp() {
-    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
-    appInstance = null;
-    try { if (cleanupOwnedElements) cleanupOwnedElements(); } catch (_) {}
     dispose({ reason: 'stopApp' });
   }
 
@@ -127,12 +124,12 @@ export function startTocContent(ctx) {
     if (!currentEnabled || disposed) return;
     try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
-    if (cleanupOwnedElements) cleanupOwnedElements();
+    if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
     await startApp();
     await applyExpandState({});
   }
 
-  async function applyExpandState(opts) {
+  async function applyExpandState(opts?) {
     if (!appInstance) return;
     try {
       if (opts?.expandPanel) {
@@ -140,14 +137,14 @@ export function startTocContent(ctx) {
       } else if (currentUiMode !== 'classic') {
         if (appInstance.collapse) appInstance.collapse();
       } else {
-        var expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin() : false;
+        var expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin(undefined as any) : false;
         if (expanded && appInstance.expand) await appInstance.expand();
         else if (appInstance.collapse) appInstance.collapse();
       }
     } catch (_) {}
   }
 
-  async function applyEnabledState(want, opts) {
+  async function applyEnabledState(want, opts?) {
     if (want === currentEnabled) {
       if (want) {
         await startApp();
@@ -165,14 +162,14 @@ export function startTocContent(ctx) {
     if (disposed) return;
     console.debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
     try {
-      await new Promise(function(resolve) {
+      await new Promise<void>(function(resolve) {
         try {
           chrome.runtime.sendMessage({ type: 'toc:ensureIcon' }, function() { void chrome.runtime.lastError; resolve(); });
         } catch (_) { resolve(); }
       });
-      var enabled = await getSiteEnabledByOrigin();
+      var enabled = await getSiteEnabledByOrigin(undefined as any);
       if (enabled) {
-        await applyEnabledState(true);
+        await applyEnabledState(true, undefined as any);
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
@@ -226,7 +223,7 @@ export function startTocContent(ctx) {
           if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
           (async function() {
             try {
-              await applyEnabledState(enabled);
+              await applyEnabledState(enabled, undefined as any);
               respondOnce({ ok: true });
             } catch (err) {
               respondOnce({ ok: false, error: String(err) });
@@ -262,7 +259,7 @@ export function startTocContent(ctx) {
           var originKey = location?.origin && location.origin !== 'null' ? location.origin : null;
           if (!originKey) return;
           var next = !!map[originKey];
-          if (next !== currentEnabled) applyEnabledState(next);
+          if (next !== currentEnabled) applyEnabledState(next, undefined as any);
         } catch (e) {
           if (isContextInvalidatedError?.(e)) dispose({ reason: 'context-invalidated' });
         }

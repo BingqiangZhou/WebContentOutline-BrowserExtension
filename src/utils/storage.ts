@@ -1,5 +1,5 @@
-// @ts-nocheck
-import { STORAGE_KEYS } from './constants.js';
+
+import { STORAGE_KEYS, SELECTOR_EXPR_MAX_LENGTH } from './constants.js';
 import {
   isPlainObject,
   isExtensionContextInvalidated,
@@ -14,8 +14,8 @@ function normalizeSelectorEntry(entry) {
     if (!type) return null;
     var expr = String(entry.expr || '').trim();
     if (!expr) return null;
-    if (type === 'css' && expr.length > 2000) return null;
-    if (type === 'xpath' && expr.length > 2000) return null;
+    if (type === 'css' && expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
+    if (type === 'xpath' && expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
     try {
       if (typeof validateSelectorExpression === 'function' && !validateSelectorExpression(type, expr)) return null;
     } catch (_) {

@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 export function clearChildren(el) {
   while (el && el.firstChild) {
     try { el.removeChild(el.firstChild); } catch (_) { break; }

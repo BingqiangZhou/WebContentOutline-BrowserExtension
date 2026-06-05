@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { createFocusTrap } from '../utils/focus-trap.js';
@@ -128,7 +128,7 @@ export async function siteConfig(cfg) {
                   selector: { type: selType, expr: selExpr }
                 });
 
-                if (!result || !result.ok) {
+                if (!result || !(result as any).ok) {
                   showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
                   return;
                 }
@@ -180,8 +180,8 @@ export async function siteConfig(cfg) {
 
       var restoreFocus = function() {
         try {
-          if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
-            prevFocus.focus({ preventScroll: true });
+          if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
+            (prevFocus as HTMLElement).focus({ preventScroll: true });
           }
         } catch (_) {}
       };
@@ -207,8 +207,8 @@ export async function siteConfig(cfg) {
 
       box.addEventListener('click', async function(e) {
         try {
-          if (!e.target || e.target.nodeType !== Node.ELEMENT_NODE) return;
-          var btn = e.target.closest('[data-act]');
+          if (!e.target || (e.target as Node).nodeType !== Node.ELEMENT_NODE) return;
+          var btn = (e.target as HTMLElement).closest('[data-act]') as HTMLElement | null;
           if (!btn || btn.nodeType !== Node.ELEMENT_NODE) return;
           var act = btn.dataset.act;
           if (act === 'close') { close(); return; }
@@ -217,7 +217,7 @@ export async function siteConfig(cfg) {
               operation: 'clear-site',
               urlPattern: urlPattern
             });
-            if (!result || !result.ok) {
+            if (!result || !(result as any).ok) {
               showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
               return;
             }
@@ -272,11 +272,11 @@ export async function saveSelector(selector, cfg) {
         selector: entry,
         side: sidePersist
       });
-      if (result && result.ok) {
+      if (result && (result as any).ok) {
         cfg.selectors = selectorsFromMutationResult(result);
         if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
       }
-      return !!(result && result.ok);
+      return !!(result && (result as any).ok);
     } catch (e) {
       console.error(msg('logSaveConfigFailed'), e);
       return false;

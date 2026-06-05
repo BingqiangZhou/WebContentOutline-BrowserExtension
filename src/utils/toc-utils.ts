@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 // src/utils/toc-utils.ts - Aggregate module combining utility APIs
 export * from './constants.js';
 export * from './core-utils.js';

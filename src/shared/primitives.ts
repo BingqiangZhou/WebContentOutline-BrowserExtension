@@ -1,6 +1,8 @@
-// @ts-nocheck
+
 // Shared primitives for storage, config, and UI state mutations.
 // WXT bundles this ESM module into the background and content script entrypoints.
+
+import { SELECTOR_EXPR_MAX_LENGTH } from '../utils/constants.js';
 
 // --- Storage primitives ---
 
@@ -89,7 +91,7 @@ function normalizeSelector(selector) {
   if (!isPlainObject(selector)) return null;
   var type = selector.type === 'css' || selector.type === 'xpath' ? selector.type : null;
   var expr = String(selector.expr || '').trim();
-  if (!type || !expr || expr.length > 2000) return null;
+  if (!type || !expr || expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
   if (type === 'css' && isHighRiskBroadCssSelector(expr)) return null;
   if (type === 'xpath' && isHighRiskBroadXPathExpression(expr)) return null;
   return Object.assign({}, selector, { type: type, expr: expr });
@@ -214,7 +216,7 @@ function normalizePosition(value) {
   var x = Number(value.x);
   var y = Number(value.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  var result = { x: x, y: y };
+  var result: { x: number; y: number; updatedAt?: number; anchorX?: string } = { x: x, y: y };
   var updatedAt = Number(value.updatedAt);
   if (Number.isFinite(updatedAt)) result.updatedAt = updatedAt;
   if (value.anchorX === 'left' || value.anchorX === 'right') result.anchorX = value.anchorX;

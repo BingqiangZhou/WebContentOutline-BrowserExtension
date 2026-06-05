@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { createDomWatcher } from './dom-watcher.js';
@@ -8,6 +8,7 @@ import { isContextInvalidatedError } from '../utils/core-utils.js';
 
   var DEBOUNCE_MS = 400;
   var MAX_CONSECUTIVE_FAILURES = 5;
+  var CIRCUIT_BREAKER_RESET_MS = 30000;
 
   /**
    * Creates a rebuild scheduler that coordinates DOM watching, URL monitoring,
@@ -26,6 +27,8 @@ export function createRebuildScheduler(onRebuild, opts) {
     var rebuildInFlight = null;
     var debounceTimer = null;
     var consecutiveFailures = 0;
+    var lastFailureTime = 0;
+    var visibilityHandler = null;
 
     // Sub-components
     var domWatcher = null;
@@ -33,10 +36,18 @@ export function createRebuildScheduler(onRebuild, opts) {
 
     var safeRebuild = async function() {
       if (!isExtensionContextValid) return false;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return false;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        if (Date.now() - lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
+          consecutiveFailures = 0;
+          lastFailureTime = 0;
+        } else {
+          return false;
+        }
+      }
       try {
         await onRebuild();
         consecutiveFailures = 0;
+        lastFailureTime = 0;
         return true;
       } catch (e) {
         if (isContextInvalidatedError(e)) {
@@ -50,6 +61,7 @@ export function createRebuildScheduler(onRebuild, opts) {
         }
         console.warn('[toc] rebuild failed:', e);
         consecutiveFailures++;
+        lastFailureTime = Date.now();
         return false;
       }
     };
@@ -86,7 +98,14 @@ export function createRebuildScheduler(onRebuild, opts) {
 
     var scheduleRebuild = function(immediate) {
       if (!isExtensionContextValid) return;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return;
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        if (Date.now() - lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
+          consecutiveFailures = 0;
+          lastFailureTime = 0;
+        } else {
+          return;
+        }
+      }
       if (document.hidden) { hasPendingRebuild = true; return; }
       if (immediate) {
         hasPendingRebuild = true;
@@ -116,6 +135,7 @@ export function createRebuildScheduler(onRebuild, opts) {
       hasPendingRebuild = false;
       isExtensionContextValid = true;
       consecutiveFailures = 0;
+      lastFailureTime = 0;
 
       // Create dom-watcher
       domWatcher = createDomWatcher(onMutation, cfg);
@@ -129,12 +149,29 @@ export function createRebuildScheduler(onRebuild, opts) {
       });
       urlMonitor.start(cfg, onUrlChange);
 
+      // Register visibilitychange listener for pending rebuilds
+      if (!visibilityHandler) {
+        visibilityHandler = function() {
+          if (!document.hidden && hasPendingRebuild) {
+            attemptRebuild();
+          }
+        };
+      }
+      if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', visibilityHandler);
+      }
+
       return handle;
     }
 
     var handle = {
       start: start,
       disconnect: function() {
+        if (visibilityHandler) {
+          if (typeof document !== 'undefined' && document.removeEventListener) {
+            document.removeEventListener('visibilitychange', visibilityHandler);
+          }
+        }
         if (domWatcher) { domWatcher.stop(); domWatcher = null; }
         if (urlMonitor) { urlMonitor.stop(); urlMonitor = null; }
         if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
@@ -142,11 +179,16 @@ export function createRebuildScheduler(onRebuild, opts) {
         rebuildInFlight = null;
         isExtensionContextValid = false;
         consecutiveFailures = 0;
+        lastFailureTime = 0;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
       setPendingRebuild: function(val) {
         hasPendingRebuild = !!val;
         if (hasPendingRebuild) attemptRebuild();
+      },
+      resetCircuitBreaker: function() {
+        consecutiveFailures = 0;
+        lastFailureTime = 0;
       }
     };
 

@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';

@@ -1,4 +1,6 @@
-// @ts-nocheck
+
+import { SELECTOR_EXPR_MAX_LENGTH } from './constants.js';
+
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
    * @returns {boolean}
@@ -18,7 +20,7 @@ export function isExtensionContextInvalidated() {
    * @param {string|string[]} [substitutions]
    * @returns {string}
    */
-export function msg(key, substitutions) {
+export function msg(key, substitutions?) {
     try {
       return chrome.i18n.getMessage(key, substitutions) || key;
     } catch (_) {
@@ -56,8 +58,8 @@ export function getFocusableWithin(rootEl) {
     ].join(',');
     try {
       return Array.from(root.querySelectorAll(selector)).filter(function(el) {
-        if (!el || !el.focus) return false;
-        var style = window.getComputedStyle(el);
+        if (!el || !(el as HTMLElement).focus) return false;
+        var style = window.getComputedStyle(el as Element);
         return style && style.visibility !== 'hidden' && style.display !== 'none';
       });
     } catch (_) {
@@ -68,7 +70,7 @@ export function getFocusableWithin(rootEl) {
 export function isSafeXPathExpression(expr) {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
-    if (!trimmed || trimmed.length > 2000) return false;
+    if (!trimmed || trimmed.length > SELECTOR_EXPR_MAX_LENGTH) return false;
     // Block extremely broad document scans
     var normalized = trimmed.replace(/\s+/g, '').toLowerCase();
     if (normalized.indexOf('//*') === 0 || normalized.indexOf('.//*') === 0) return false;
@@ -81,7 +83,7 @@ function isValidCssSelector(expr) {
     if (typeof expr !== 'string') return false;
     if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
-    if (!trimmed || trimmed.length > 2000) return false;
+    if (!trimmed || trimmed.length > SELECTOR_EXPR_MAX_LENGTH) return false;
     if (isHighRiskBroadCssSelector(expr)) return false;
     try {
       var frag = document.createDocumentFragment();

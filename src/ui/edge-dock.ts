@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements } from '../utils/toc-utils.js';
@@ -176,6 +176,7 @@ export function renderEdgeDock(options) {
   var activeIndex = -1;
 
   var root = document.createElement('aside');
+  var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   root.className = 'toc-edge-dock toc-edge-dock-' + side;
   root.setAttribute('data-toc-owner', 'web-toc-assistant');
   root.setAttribute('aria-label', msg('dockLabel') || 'TOC tools');
@@ -420,7 +421,7 @@ export function renderEdgeDock(options) {
 
   function onRootPointerLeave(e) {
     if (e && e.relatedTarget && root.contains(e.relatedTarget)) return;
-    if (lastPointerType !== 'touch') controller.scheduleCollapse();
+    if (lastPointerType !== 'touch') controller.scheduleCollapse(undefined!);
     scheduleMenuClose();
   }
 
@@ -471,7 +472,7 @@ export function renderEdgeDock(options) {
 
   function onRootFocusOut(e) {
     if (e && e.relatedTarget && root.contains(e.relatedTarget)) return;
-    controller.scheduleCollapse();
+    controller.scheduleCollapse(undefined!);
     scheduleMenuClose();
   }
 
@@ -517,19 +518,19 @@ export function renderEdgeDock(options) {
     });
   }
 
-  root.addEventListener('pointerenter', onRootPointerEnter);
-  root.addEventListener('pointerleave', onRootPointerLeave);
-  root.addEventListener('focusin', onRootFocusIn);
-  root.addEventListener('focusout', onRootFocusOut);
-  root.addEventListener('keydown', onRootKeydown);
-  tocButton.addEventListener('pointerenter', onTocPointerEnter);
-  tocButton.addEventListener('pointerdown', onTocPointerDown);
-  tocButton.addEventListener('click', onTocClick);
-  preview.addEventListener('click', onPreviewClick);
-  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter);
-  settingsButton.addEventListener('click', onSettingsClick);
-  document.addEventListener('pointerdown', onDocumentPointerDown, true);
-  window.addEventListener('resize', onResize, { passive: true });
+  root.addEventListener('pointerenter', onRootPointerEnter, ac ? { signal: ac.signal } : undefined);
+  root.addEventListener('pointerleave', onRootPointerLeave, ac ? { signal: ac.signal } : undefined);
+  root.addEventListener('focusin', onRootFocusIn, ac ? { signal: ac.signal } : undefined);
+  root.addEventListener('focusout', onRootFocusOut, ac ? { signal: ac.signal } : undefined);
+  root.addEventListener('keydown', onRootKeydown, ac ? { signal: ac.signal } : undefined);
+  tocButton.addEventListener('pointerenter', onTocPointerEnter, ac ? { signal: ac.signal } : undefined);
+  tocButton.addEventListener('pointerdown', onTocPointerDown, ac ? { signal: ac.signal } : undefined);
+  tocButton.addEventListener('click', onTocClick, ac ? { signal: ac.signal } : undefined);
+  preview.addEventListener('click', onPreviewClick, ac ? { signal: ac.signal } : undefined);
+  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter, ac ? { signal: ac.signal } : undefined);
+  settingsButton.addEventListener('click', onSettingsClick, ac ? { signal: ac.signal } : undefined);
+  document.addEventListener('pointerdown', onDocumentPointerDown, ac ? { capture: true, signal: ac.signal } : true);
+  window.addEventListener('resize', onResize, ac ? { passive: true, signal: ac.signal } : { passive: true });
 
   function destroy() {
     if (destroyed) return;
@@ -539,8 +540,7 @@ export function renderEdgeDock(options) {
     if (persistTimer) clearTimeout(persistTimer);
     cancelMenuClose();
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-    document.removeEventListener('pointerdown', onDocumentPointerDown, true);
-    window.removeEventListener('resize', onResize);
+    try { ac && ac.abort && ac.abort(); } catch (_) {}
     try { root.remove(); } catch (_) {}
   }
 

@@ -1,4 +1,4 @@
-// @ts-nocheck
+
 'use strict';
 
 import { buildTocItems } from '../utils/toc-builder.js';
@@ -64,7 +64,7 @@ export function initForConfig(cfg, options) {
     var panelInstance = null;
     var activeTracker = null;
     var activeIndex = -1;
-    var mutationObserver = null;
+    var rebuildScheduler = null;
     var pickerInstance = null;
     var rebuildInFlight = null;
     var configDirty = true; // true on init so first rebuild reads from storage
@@ -107,8 +107,8 @@ export function initForConfig(cfg, options) {
 
       // Early exit: if extension context is invalidated, stop all rebuilds
       if (isExtensionContextInvalidated && isExtensionContextInvalidated()) {
-        if (mutationObserver && mutationObserver.disconnect) {
-          try { mutationObserver.disconnect(); } catch (_) {}
+        if (rebuildScheduler && rebuildScheduler.disconnect) {
+          try { rebuildScheduler.disconnect(); } catch (_) {}
         }
         // Show notice on existing panel
         if (panelInstance && !document.querySelector('[data-toc-owner="web-toc-assistant"] .toc-ctx-invalidated-notice')) {
@@ -116,14 +116,21 @@ export function initForConfig(cfg, options) {
             var noticeEl = document.createElement('div');
             noticeEl.className = 'toc-ctx-invalidated-notice';
             noticeEl.setAttribute('role', 'alert');
-            noticeEl.innerHTML = '<span>' + (msg('ctxInvalidatedNotice') || 'Extension updated. Please refresh the page.') +
-              '</span> <a class="toc-ctx-refresh-link" href="#">' +
-              (msg('ctxInvalidatedRefresh') || 'Refresh') + '</a>';
-            var refreshLink = noticeEl.querySelector('.toc-ctx-refresh-link');
-            if (refreshLink) refreshLink.addEventListener('click', function(ev) {
+            var noticeSpan = document.createElement('span');
+            noticeSpan.textContent = msg('ctxInvalidatedNotice') || 'Extension updated. Please refresh the page.';
+
+            var refreshLink = document.createElement('a');
+            refreshLink.className = 'toc-ctx-refresh-link';
+            refreshLink.href = '#';
+            refreshLink.textContent = msg('ctxInvalidatedRefresh') || 'Refresh';
+            refreshLink.addEventListener('click', function(ev) {
               try { ev.preventDefault(); } catch (_) {}
               try { location.reload(); } catch (_) {}
             });
+
+            noticeEl.appendChild(noticeSpan);
+            noticeEl.appendChild(document.createTextNode(' '));
+            noticeEl.appendChild(refreshLink);
             var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
             var listEl = panelEl && panelEl.querySelector('.toc-list');
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
@@ -181,7 +188,7 @@ export function initForConfig(cfg, options) {
           }
           panelInstance.remove();
           panelInstance = null;
-          renderPanelCard(preservedPanelPos, preservedPanelSide);
+          renderPanelCard(preservedPanelPos, preservedPanelSide, null);
         }
 
         syncItemViews(previousActiveItem, previousActiveIndex);
@@ -192,9 +199,9 @@ export function initForConfig(cfg, options) {
           try {
             items.forEach(function(it) { it._userSelected = false; });
           } catch (_) {}
-          if (mutationObserver && mutationObserver.disconnect) {
+          if (rebuildScheduler && rebuildScheduler.disconnect) {
             try {
-              mutationObserver.disconnect();
+              rebuildScheduler.disconnect();
             } catch (_) {}
           }
           return false;
@@ -295,8 +302,8 @@ export function initForConfig(cfg, options) {
           onPick: startPick,
           onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
           onSwitchUiMode: onSwitchUiMode,
-          getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : function() { return false; },
-          setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
+          getPendingRebuild: rebuildScheduler ? rebuildScheduler.getPendingRebuild : function() { return false; },
+          setPendingRebuild: rebuildScheduler ? rebuildScheduler.setPendingRebuild : function() {},
           panelPos: panelPos,
           anchorPos: anchorPos,
           tocMeta: tocMeta,
@@ -312,8 +319,8 @@ export function initForConfig(cfg, options) {
         items: items,
         onCollapse: function() { collapse({ focus: true }); },
         onRefresh: rebuild,
-        getPendingRebuild: mutationObserver ? mutationObserver.getPendingRebuild : function() { return false; },
-        setPendingRebuild: mutationObserver ? mutationObserver.setPendingRebuild : function() {},
+        getPendingRebuild: rebuildScheduler ? rebuildScheduler.getPendingRebuild : function() { return false; },
+        setPendingRebuild: rebuildScheduler ? rebuildScheduler.setPendingRebuild : function() {},
         mountTarget: dockInstance.getPanelHost(),
         tocMeta: tocMeta,
         activeIndex: activeIndex,
@@ -331,7 +338,7 @@ export function initForConfig(cfg, options) {
 
         await rebuild();
         if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
-        if (!panelInstance) renderPanelCard();
+        if (!panelInstance) renderPanelCard(null, null, null);
       } catch (e) {
         if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
           console.debug('[toc] dock mode update failed:', e);
@@ -410,8 +417,8 @@ export function initForConfig(cfg, options) {
       activeTracker = null;
       try { if (dockInstance) dockInstance.destroy(); } catch (_) {}
       dockInstance = null;
-      try { if (mutationObserver && mutationObserver.disconnect) mutationObserver.disconnect(); } catch (_) {}
-      mutationObserver = null;
+      try { if (rebuildScheduler && rebuildScheduler.disconnect) rebuildScheduler.disconnect(); } catch (_) {}
+      rebuildScheduler = null;
       try {
         if (pickerInstance && pickerInstance.cleanup) {
           pickerInstance.cleanup();
@@ -426,8 +433,8 @@ export function initForConfig(cfg, options) {
 
     try {
       if (createRebuildScheduler) {
-        mutationObserver = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; } });
-        mutationObserver.start(cfg);
+        rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; } });
+        rebuildScheduler.start(cfg);
       }
       if (uiMode === 'classic') {
         collapse({ persist: false });
