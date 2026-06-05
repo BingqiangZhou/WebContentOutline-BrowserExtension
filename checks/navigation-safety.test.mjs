@@ -227,15 +227,17 @@ test('extension-created buttons explicitly opt out of submit behavior', () => {
   }
 });
 
-test('project versions are unified at 1.0.2', () => {
+test('project versions are unified and recorded in the changelog', () => {
   const wxtConfig = fs.readFileSync(path.join(repoRoot, 'wxt.config.ts'), 'utf8');
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
+  const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
 
   assert.match(wxtConfig, /defineConfig/);
-  assert.equal(packageJson.version, '1.0.2');
-  assert.equal(packageLock.version, '1.0.2');
-  assert.equal(packageLock.packages[''].version, '1.0.2');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(packageLock.version, packageJson.version);
+  assert.equal(packageLock.packages[''].version, packageJson.version);
+  assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}`));
 });
 
 test('package collection script removes existing version zip before copying', () => {

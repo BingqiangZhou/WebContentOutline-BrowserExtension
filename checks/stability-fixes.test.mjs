@@ -300,15 +300,17 @@ test('collapsed rebuilds skip view synchronization when content is identical', (
   );
 });
 
-test('project exposes npm test and publishes stability fixes as 1.0.2', () => {
+test('project exposes WXT build scripts and keeps package versions aligned', () => {
   const wxtConfig = read('wxt.config.ts');
   const packageJson = JSON.parse(read('package.json'));
   const packageLock = JSON.parse(read('package-lock.json'));
+  const changelog = read('CHANGELOG.md');
 
   assert.equal(packageJson.scripts.test, 'vitest run');
   assert.match(packageJson.scripts.build, /wxt build/);
   assert.match(wxtConfig, /manifestVersion:\s*3/);
-  assert.equal(packageJson.version, '1.0.2');
-  assert.equal(packageLock.version, '1.0.2');
-  assert.equal(packageLock.packages[''].version, '1.0.2');
+  assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
+  assert.equal(packageLock.version, packageJson.version);
+  assert.equal(packageLock.packages[''].version, packageJson.version);
+  assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}`));
 });

@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#102---2026-06-04)
+[Table of Contents](#table-of-contents) • [Latest](#110---2026-06-05)
 
 ---
 
 ## Table of Contents
 
+- [1.1.0](#110---2026-06-05) - 2026-06-05
 - [1.0.2](#102---2026-06-04) - 2026-06-04
 - [1.0.1](#101---2026-06-02) - 2026-06-02
 - [1.0.0](#100---2026-06-02) - 2026-06-02
@@ -30,6 +31,21 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.1.0] - 2026-06-05
+
+### ⚡ Technical Improvements
+- **WXT build migration**
+  - Replaced the custom `build.js` and source `manifest.json` pipeline with WXT-managed Manifest V3 generation, TypeScript entrypoints, and Vite bundling.
+  - Runtime injection behavior remains unchanged: the background service worker dynamically injects `content-scripts/toc.js` and `content-scripts/toc.css` only on enabled sites.
+- **TypeScript project structure**
+  - Migrated source modules from `.js` to `.ts`, added shared storage/message types, and introduced WXT/TypeScript configuration.
+- **Vitest test workflow**
+  - Replaced `node:test` scripts with Vitest while preserving existing coverage and adding WXT migration checks.
+- **Release pipeline hardening**
+  - Updated the release skill and GitHub Actions workflow for WXT packages, generated manifest validation, and zip content checks.
 
 ---
 
