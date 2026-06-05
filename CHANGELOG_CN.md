@@ -4,12 +4,13 @@ Web TOC Assistant 扩展的所有显著更改都将记录在此文件中。
 
 **[English Version](CHANGELOG.md)**
 
-[版本目录](#版本目录) • [最新版本](#110---2026-06-05)
+[版本目录](#版本目录) • [最新版本](#120---2026-06-05)
 
 ---
 
 ## 版本目录
 
+- [1.2.0](#120---2026-06-05) - 2026-06-05
 - [1.1.0](#110---2026-06-05) - 2026-06-05
 - [1.0.2](#102---2026-06-04) - 2026-06-04
 - [1.0.1](#101---2026-06-02) - 2026-06-02
@@ -31,6 +32,27 @@ Web TOC Assistant 扩展的所有显著更改都将记录在此文件中。
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.2.0] - 2026-06-05
+
+### 🐛 修复
+- **断路器永久锁定** — 重建调度器连续失败后新增 30 秒自动重置机制，TOC 不再因临时错误永久不可用
+- **标签页切换后 TOC 不恢复** — 注册 visibilitychange 监听器，切回标签页时自动触发待处理的重建
+- **隐藏标签页浪费资源** — URL 监听器在标签页隐藏时暂停轮询，可见时恢复，减少后台 CPU 占用
+
+### 🔧 更改
+- **CSP 合规** — 将 innerHTML 拼接替换为 createElement + textContent，符合扩展内容安全策略最佳实践
+- **stopApp 去重** — 简化停止流程，避免 destroy/cleanupOwnedElements 与 dispose 的重复清理
+
+### ⚡ 技术改进
+- **共享工具函数统一** — isPlainObject 和 isHighRiskBroadCssSelector 统一由 primitives.ts 导出，消除跨模块重复定义；SELECTOR_EXPR_MAX_LENGTH 常量统一到 constants.ts
+- **变量命名修正** — toc-app.ts 中 mutationObserver（实际为 rebuild scheduler handle）重命名为 rebuildScheduler
+- **IntersectionObserver 复用** — setItems 不再每次销毁重建 observer，改为 disconnect 后复用同一实例
+- **DOM 突变处理** — checkAndReconnect 中 takeRecords 返回值传递给 hasMeaningfulChange，有意义的突变触发重建
+- **统一事件清理** — edge-dock.ts 采用 AbortController + signal 模式统一管理 13 个事件监听器的生命周期
+- **全量 TypeScript 类型检查** — 移除所有 27 个源文件的 @ts-nocheck，修复全部类型错误，添加 @types/chrome 和全局类型声明
 
 ---
 

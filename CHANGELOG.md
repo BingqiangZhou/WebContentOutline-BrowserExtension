@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#110---2026-06-05)
+[Table of Contents](#table-of-contents) • [Latest](#120---2026-06-05)
 
 ---
 
 ## Table of Contents
 
+- [1.2.0](#120---2026-06-05) - 2026-06-05
 - [1.1.0](#110---2026-06-05) - 2026-06-05
 - [1.0.2](#102---2026-06-04) - 2026-06-04
 - [1.0.1](#101---2026-06-02) - 2026-06-02
@@ -31,6 +32,27 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.2.0] - 2026-06-05
+
+### 🐛 Fixed
+- **Circuit breaker permanent lockout** — Rebuild scheduler now auto-resets after 30 seconds, preventing permanent TOC loss from transient errors
+- **TOC not restored after tab switch** — Added `visibilitychange` listener to trigger pending rebuilds when switching back to the tab
+- **Hidden tab resource waste** — URL monitor pauses polling when the tab is hidden and resumes on visibility, reducing background CPU usage
+
+### 🔧 Changed
+- **CSP compliance** — Replaced `innerHTML` string concatenation with `createElement` + `textContent` for extension context invalidated notice, following Content Security Policy best practices
+- **stopApp duplicate cleanup** — Simplified the stop flow to call `dispose()` directly, eliminating redundant `destroy()` + `cleanupOwnedElements()` calls
+
+### ⚡ Technical Improvements
+- **Unified shared utilities** — `isPlainObject` and `isHighRiskBroadCssSelector` are now exported from `primitives.ts` and imported where needed, eliminating cross-module duplication. `SELECTOR_EXPR_MAX_LENGTH` constant consolidated into `constants.ts`
+- **Variable naming correction** — Renamed `mutationObserver` (actually a rebuild scheduler handle) to `rebuildScheduler` in `toc-app.ts`
+- **IntersectionObserver reuse** — `setItems()` disconnects without destroying the observer instance; `observeItems()` reuses the existing observer instead of creating a new one each time
+- **Mutation record processing** — `checkAndReconnect()` now passes `takeRecords()` output to `hasMeaningfulChange()` to trigger rebuilds for pending mutations
+- **Unified event cleanup** — Edge dock adopts `AbortController` + `{ signal }` pattern for managing all 13 event listener lifecycles, matching the existing floating-panel pattern
+- **Full TypeScript type checking** — Removed `@ts-nocheck` from all 27 source files, fixed all type errors, added `@types/chrome` and global type declarations (`src/types.d.ts`)
 
 ---
 
