@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+      - 'v*.*.*-*'
 
 permissions:
   contents: write
@@ -15,6 +16,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Determine release type
+        id: release_type
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          # Pre-release tags contain a hyphen after the version: v1.3.0-pre, v1.3.0-beta.1
+          if echo "$TAG" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-'; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "release_title=Pre-release $TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+            echo "release_title=Release $TAG" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -28,23 +44,32 @@ jobs:
       - name: Build
         run: npm run release:build
 
-      - name: Get version
+      - name: Get version and locate zip
         id: version
         run: |
           VERSION=$(jq -r '.version' package.json)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag_version=v$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # Find the actual zip file (may have branch suffix like -dev)
+          ZIP_FILE=$(ls .output/webtoc-assistant-v${VERSION}*.zip 2>/dev/null | head -1)
+          if [ -z "$ZIP_FILE" ]; then
+            echo "FAIL: no zip found matching .output/webtoc-assistant-v${VERSION}*.zip"
+            ls .output/
+            exit 1
+          fi
+          ZIP_NAME=$(basename "$ZIP_FILE")
+          echo "zip_file=$ZIP_FILE" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "Found zip: $ZIP_NAME"
 
       - name: Verify package asset
-        id: package
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          SRC_ZIP=".output/webtoc-assistant-v${VERSION}.zip"
-          if [ ! -f "$SRC_ZIP" ]; then echo "FAIL: $SRC_ZIP not found" && ls .output/ && exit 1; fi
+          ZIP_FILE="${{ steps.version.outputs.zip_file }}"
 
-          node -e "const m=require('./.output/chrome-mv3/manifest.json'); if (m.version !== '${VERSION}') throw new Error('manifest version mismatch'); if (m.content_scripts) throw new Error('content_scripts should be runtime-injected, not manifest-registered'); if (m.background?.service_worker !== 'background.js') throw new Error('unexpected background worker');"
+          node -e "const m=require('./.output/chrome-mv3/manifest.json'); if (m.version !== '${VERSION}') throw new Error('manifest version mismatch: ' + m.version + ' vs ${VERSION}'); if (m.content_scripts) throw new Error('content_scripts should be runtime-injected, not manifest-registered'); if (m.background?.service_worker !== 'background.js') throw new Error('unexpected background worker');"
 
-          unzip -l "$SRC_ZIP" > zip-list.txt
+          unzip -l "$ZIP_FILE" > zip-list.txt
           grep -q "manifest.json" zip-list.txt
           grep -q "background.js" zip-list.txt
           grep -q "content-scripts/toc.js" zip-list.txt
@@ -55,16 +80,17 @@ jobs:
           ! grep -q "^.*src/" zip-list.txt
           ! grep -q "^.*entrypoints/" zip-list.txt
           ! grep -q "^.*wxt.config.ts" zip-list.txt
-
-          echo "file=$SRC_ZIP" >> "$GITHUB_OUTPUT"
+          echo "Verification passed ✓"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag_version }}
-          name: Release ${{ steps.version.outputs.tag_version }}
+          tag_name: ${{ steps.release_type.outputs.tag }}
+          name: ${{ steps.release_type.outputs.release_title }}
           body: |
-            ## Web TOC Assistant ${{ steps.version.outputs.tag_version }}
+            ## Web TOC Assistant ${{ steps.release_type.outputs.tag }}
+
+            ${{ steps.release_type.outputs.prerelease == 'true' && '⚠️ **This is a pre-release build.** It may contain unfinished features or bugs. Use for testing only.' || '' }}
 
             ### Installation / 安装
 
@@ -73,7 +99,7 @@ jobs:
             - [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
 
             **Option 2: Load Unpacked Extension / 加载已解压的扩展**
-            1. Download the `webtoc-assistant-v${{ steps.version.outputs.version }}.zip` file below / 下载下方的 `webtoc-assistant-v${{ steps.version.outputs.version }}.zip` 文件
+            1. Download the `${{ steps.version.outputs.zip_name }}` file below / 下载下方的 `${{ steps.version.outputs.zip_name }}` 文件
             2. Open Edge/Chrome and navigate to `edge://extensions/` or `chrome://extensions/` / 打开 Edge/Chrome 访问 `edge://extensions/` 或 `chrome://extensions/`
             3. Enable "Developer mode" / 启用"开发人员模式"
             4. Click "Load unpacked" and select the extracted folder / 点击"加载已解压的扩展程序"并选择解压后的文件夹
@@ -83,6 +109,6 @@ jobs:
             🇺🇸 English: [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md#${{ steps.version.outputs.version }})
 
             🇨🇳 中文：[CHANGELOG_CN.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG_CN.md#${{ steps.version.outputs.version }})
-          files: ${{ steps.package.outputs.file }}
+          files: ${{ steps.version.outputs.zip_file }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.release_type.outputs.prerelease }}
