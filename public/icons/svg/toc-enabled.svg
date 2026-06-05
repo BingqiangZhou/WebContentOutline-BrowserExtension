@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Web TOC Assistant enabled icon</title>
+  <g id="document-outline-icon">
+    <path d="M33 14H78L105 41V108C105 113.523 100.523 118 95 118H33C27.477 118 23 113.523 23 108V24C23 18.477 27.477 14 33 14Z" fill="#ffffff"/>
+    <path d="M78 14V36C78 41.523 82.477 46 88 46H105L78 14Z" fill="#f3f4f6"/>
+    <path d="M33 14H78L105 41V108C105 113.523 100.523 118 95 118H33C27.477 118 23 113.523 23 108V24C23 18.477 27.477 14 33 14Z" stroke="#202124" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M78 14V36C78 41.523 82.477 46 88 46H105" stroke="#202124" stroke-width="4" stroke-linejoin="round"/>
+    <rect x="38" y="44" width="9" height="9" rx="2" fill="#202124"/>
+    <rect x="38" y="65" width="9" height="9" rx="2" fill="#202124"/>
+    <rect x="38" y="86" width="9" height="9" rx="2" fill="#202124"/>
+    <path d="M58 48.5H88" stroke="#202124" stroke-width="7" stroke-linecap="round"/>
+    <path d="M58 69.5H82" stroke="#202124" stroke-width="7" stroke-linecap="round"/>
+    <path d="M58 90.5H88" stroke="#202124" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>

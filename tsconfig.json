@@ -1,0 +1,18 @@
+{
+  "extends": "./.wxt/tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "checkJs": false,
+    "noImplicitAny": false,
+    "strict": false,
+    "types": ["node", "vitest/globals"]
+  },
+  "include": [
+    ".wxt/types/**/*.d.ts",
+    "entrypoints/**/*.ts",
+    "src/**/*.ts",
+    "checks/**/*.mjs",
+    "vitest.config.ts",
+    "wxt.config.ts"
+  ]
+}

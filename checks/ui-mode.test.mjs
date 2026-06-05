@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
@@ -11,7 +11,7 @@ function read(relativePath) {
 }
 
 function loadNormalizeUiMode() {
-  const storage = read('src/utils/storage.js');
+  const storage = read('src/utils/storage.ts');
   const match = storage.match(/export function normalizeUiMode\(mode\) \{[\s\S]*?\n\s*\}/);
   assert.ok(match, 'normalizeUiMode() should be exported from storage.js');
   const sandbox = { __exports: {} };
@@ -33,9 +33,9 @@ test('global toc ui mode defaults invalid values to edge dock', () => {
 });
 
 test('storage exposes global ui mode helpers through toc utils', () => {
-  const constants = read('src/utils/constants.js');
-  const storage = read('src/utils/storage.js');
-  const tocUtils = read('src/utils/toc-utils.js');
+  const constants = read('src/utils/constants.ts');
+  const storage = read('src/utils/storage.ts');
+  const tocUtils = read('src/utils/toc-utils.ts');
 
   assert.match(constants, /UI_MODE:\s*'tocUiMode'/);
   assert.match(storage, /export function getUiMode\(\)/);
@@ -46,8 +46,8 @@ test('storage exposes global ui mode helpers through toc utils', () => {
 });
 
 test('edge dock and classic panel expose opposite global mode switch actions', () => {
-  const dock = read('src/ui/edge-dock.js');
-  const classicPanel = read('src/ui/classic-floating-panel.js');
+  const dock = read('src/ui/edge-dock.ts');
+  const classicPanel = read('src/ui/classic-floating-panel.ts');
 
   assert.match(dock, /dockSwitchToClassic/);
   assert.match(dock, /options\.onSwitchUiMode && options\.onSwitchUiMode\('classic'\)/);
@@ -56,10 +56,10 @@ test('edge dock and classic panel expose opposite global mode switch actions', (
 });
 
 test('classic renderers preserve the original free floating badge and panel interaction', () => {
-  const badge = read('src/ui/classic-collapsed-badge.js');
-  const classicPanel = read('src/ui/classic-floating-panel.js');
-  const panel = read('src/ui/floating-panel.js');
-  const helpers = read('src/ui/floating-panel-helpers.js');
+  const badge = read('src/ui/classic-collapsed-badge.ts');
+  const classicPanel = read('src/ui/classic-floating-panel.ts');
+  const panel = read('src/ui/floating-panel.ts');
+  const helpers = read('src/ui/floating-panel-helpers.ts');
 
   assert.match(badge, /export function renderClassicCollapsedBadge/);
   assert.match(badge, /toc-collapsed-badge/);
@@ -76,7 +76,7 @@ test('classic renderers preserve the original free floating badge and panel inte
 });
 
 test('classic panel restores the original structured header and actions styles', () => {
-  const css = read('src/content.css');
+  const css = read('entrypoints/toc.content/style.css');
 
   assert.match(css, /\.toc-header\s*\{[^}]*display:\s*flex[^}]*flex-direction:\s*column[^}]*padding:\s*8px 10px[^}]*background:\s*var\(--toc-bg-header\)/s);
   assert.match(css, /\.toc-header-row\s*\{[^}]*display:\s*flex[^}]*justify-content:\s*space-between[^}]*align-items:\s*center/s);
@@ -87,8 +87,8 @@ test('classic panel restores the original structured header and actions styles',
 });
 
 test('classic mode switch sits beside the toc title instead of crowding the action row', () => {
-  const classicPanel = read('src/ui/classic-floating-panel.js');
-  const css = read('src/content.css');
+  const classicPanel = read('src/ui/classic-floating-panel.ts');
+  const css = read('entrypoints/toc.content/style.css');
   const en = JSON.parse(read('_locales/en/messages.json'));
   const zh = JSON.parse(read('_locales/zh_CN/messages.json'));
 
@@ -101,8 +101,8 @@ test('classic mode switch sits beside the toc title instead of crowding the acti
 });
 
 test('toc app and content script orchestrate the selected global ui mode', () => {
-  const app = read('src/core/toc-app.js');
-  const content = read('src/content.js');
+  const app = read('src/core/toc-app.ts');
+  const content = read('src/content.ts');
 
   assert.match(app, /renderClassicCollapsedBadge/);
   assert.match(app, /renderClassicFloatingPanel/);

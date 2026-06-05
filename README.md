@@ -72,7 +72,7 @@ A web table of contents generator that automatically creates interactive floatin
 2. Run `npm run build` from the project root
 3. Open Chrome browser and navigate to `chrome://extensions/` or Edge browser to `edge://extensions/`
 4. Enable "Developer Mode"
-5. Click "Load unpacked" and select the `dist/build` folder
+5. Click "Load unpacked" and select the `.output/chrome-mv3` folder
 6. Visit any webpage to start using
 
 ### Basic Operations
@@ -215,38 +215,37 @@ For complex page structures, you can use XPath:
 ### Project Structure
 
 ```
-├── manifest.json              # Manifest V3 configuration
-├── build.js                   # Build & packaging script
+├── wxt.config.ts              # WXT and generated Manifest V3 configuration
+├── tsconfig.json              # TypeScript configuration
+├── vitest.config.ts           # Vitest configuration
 ├── package.json               # Node.js metadata
+├── entrypoints/               # WXT extension entrypoints
+│   ├── background.ts          # Background service worker entry
+│   └── toc.content/           # Runtime-registered content script
+│       ├── index.ts           # Content script entry
+│       └── style.css          # Content script styles
 ├── icons/                     # Extension icons
 │   ├── png/                   # PNG icons (16/32/48/128)
 │   │   ├── toc-enabled-*.png  # Enabled state icons
 │   │   └── toc-disabled-*.png # Disabled state icons
 │   └── svg/                   # SVG source files
 ├── docs/brand/                # 1.0 brand assets and Chrome Web Store visuals
+├── public/                    # Static assets copied by WXT
 ├── _locales/                  # Internationalization
 │   ├── en/
 │   │   └── messages.json      # English translation
 │   └── zh_CN/
 │       └── messages.json      # Chinese translation
 ├── src/
-│   ├── background.js          # Background service worker
-│   ├── content.js             # Content script entry (ESM)
-│   ├── content.css            # Content script styles
+│   ├── content.ts             # Content script bootstrap
 │   ├── utils/                 # Utility modules
-│   │   ├── constants.js       # Storage keys, UI constants
-│   │   ├── core-utils.js      # Type checks, i18n, validation
-│   │   ├── toast.js           # Toast notifications
-│   │   ├── storage.js         # Storage I/O and normalization
-│   │   ├── toc-utils.js       # Aggregate re-exports for convenience
-│   │   ├── badge-position.js  # Badge position persistence
-│   │   ├── dom-utils.js       # DOM ops, URL matching, site state
-│   │   ├── css-selector.js    # CSS selector generation
-│   │   ├── focus-trap.js      # Focus trap utility
-│   │   ├── toc-builder.js     # TOC building logic
-│   │   └── drag-helper.js     # Pointer-event drag controller
+│   │   ├── constants.ts       # Storage keys, UI constants
+│   │   ├── core-utils.ts      # Type checks, i18n, validation
+│   │   ├── storage.ts         # Storage I/O and normalization
+│   │   └── toc-builder.ts     # TOC building logic
 │   ├── shared/                # Shared between contexts
-│   │   └── primitives.js            # Shared storage, config, and UI state utilities (ESM source; build produces IIFE for background)
+│   │   ├── primitives.ts      # Shared storage, config, and UI state utilities
+│   │   └── types.ts           # Shared storage and message types
 │   ├── ui/                    # UI components
 │   │   ├── edge-dock.js       # Edge-docked toolbar and hover-only TOC state
 │   │   ├── classic-collapsed-badge.js # Original text badge interaction
@@ -276,28 +275,29 @@ Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon
 
 - **Runtime**: Edge/Chrome browser (Chromium-based)
 - **Extension Standard**: Manifest V3
-- **Language**: Vanilla JavaScript + CSS3 (ES Modules, bundled with esbuild)
-- **Storage**: `chrome.storage.local` API
+- **Language**: Vanilla TypeScript + CSS3 (built by WXT/Vite)
+- **Storage**: `browser.storage.local` / Chromium extension storage
 - **Permissions**: `storage`, `tabs`, `scripting`
 - **Host Permissions**: `http://*/*`, `https://*/*`
 
 ### Architecture
 
-**ES Modules + esbuild**: Source code uses standard ESM `import`/`export`. esbuild bundles the content script tree into a single IIFE at build time. No runtime module loading or load-order concerns.
+**WXT + TypeScript**: WXT generates the Manifest V3 package, bundles the runtime-registered content script, and outputs the unpacked extension under `.output/chrome-mv3`.
 
 **Content Script Dependency Graph**:
 ```
-src/content.js (entry)
-  ├── utils/toc-utils.js (barrel re-export of all utils)
-  └── core/toc-app.js (orchestrator)
+entrypoints/toc.content/index.ts (runtime content script)
+  ├── src/content.ts (bootstrap)
+  ├── src/utils/toc-utils.ts (barrel re-export of all utils)
+  └── src/core/toc-app.ts (orchestrator)
         ├── ui/ components (edge-dock, element-picker, floating-panel)
         ├── core/config-manager.js → focus-trap.js
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
 
-**Background Script**: Uses `importScripts()` to load the IIFE bundle of `primitives.js` produced by the build (MV3 service workers cannot use ESM).
+**Background Script**: `entrypoints/background.ts` uses WXT's `browser` API wrapper and dynamically injects `content-scripts/toc.js` plus `content-scripts/toc.css` only for enabled origins.
 
-**Shared Primitives**: `primitives.js` is ESM source; the build produces a separate IIFE bundle for the background service worker.
+**Shared Primitives**: `src/shared/primitives.ts` is imported directly by both WXT entrypoints and content modules.
 
 ### Key Algorithms
 
@@ -400,11 +400,12 @@ Site configuration is stored in `chrome.storage.local`:
 ## 🔧 Development Guide
 
 ### Build & Packaging
-Source code uses ES Modules, bundled with esbuild at build time:
-- Edit files directly — esbuild resolves ESM imports at build time
-- Run `npm run build` to bundle with esbuild, validate syntax, and create a distributable zip
-- The build script produces `dist/build/src/content.js` (bundled IIFE) and creates `dist/packages/v{version}.zip`
-- Load `dist/build` in Developer Mode. The project root contains ESM source files and is not a runnable unpacked extension directory.
+Source code is built by WXT:
+- Edit TypeScript/CSS files directly; WXT/Vite resolves ESM imports at build time
+- Run `npm run typecheck` for TypeScript validation
+- Run `npm run test` for Vitest checks
+- Run `npm run build` to build, zip, and copy a release package to `dist/packages/v{version}.zip`
+- Load `.output/chrome-mv3` in Developer Mode. The project root is source code, not a runnable unpacked extension directory.
 
 ### Debugging
 1. **Background Page**: Click "Service Worker" at `edge://extensions/` to view background logs
@@ -414,7 +415,7 @@ Source code uses ES Modules, bundled with esbuild at build time:
 ### Adding New Features
 1. Create new file in appropriate module directory (`utils/`, `ui/`, `core/`, `shared/`)
 2. Use `export` for the module's public API
-3. `import` from the module wherever needed (esbuild resolves at build time)
+3. `import` from the module wherever needed (WXT/Vite resolves at build time)
 4. If it's a utility, consider adding to `utils/toc-utils.js` barrel re-export
 
 For detailed technical documentation, see [`CLAUDE.md`](CLAUDE.md).

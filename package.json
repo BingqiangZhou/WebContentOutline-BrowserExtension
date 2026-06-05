@@ -4,11 +4,18 @@
   "private": true,
   "scripts": {
     "assets:brand": "node scripts/generate-brand-assets.mjs",
-    "build": "node build.js",
-    "test": "node --test checks/*.test.mjs"
+    "dev": "wxt",
+    "dev:edge": "wxt -b edge",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "npm run typecheck && npm run test && wxt build && wxt zip && node scripts/collect-package.mjs",
+    "postinstall": "wxt prepare"
   },
   "devDependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "esbuild": "^0.25.0"
+    "@types/node": "^25.9.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8",
+    "wxt": "0.20.26"
   }
 }

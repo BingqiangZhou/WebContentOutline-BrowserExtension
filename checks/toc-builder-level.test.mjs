@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
@@ -22,7 +22,7 @@ function createVisibleElement(tagName, text) {
 }
 
 function loadBuilder(elements) {
-  const file = path.join(repoRoot, 'src/utils/toc-builder.js');
+  const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');

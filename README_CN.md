@@ -72,7 +72,7 @@
 2. 在项目根目录运行 `npm run build`
 3. 打开 Chrome 浏览器访问 `chrome://extensions/` 或 Edge 浏览器访问 `edge://extensions/`
 4. 开启"开发人员模式"（Developer Mode）
-5. 点击"加载已解压的扩展程序"（Load unpacked），选择 `dist/build` 文件夹
+5. 点击"加载已解压的扩展程序"（Load unpacked），选择 `.output/chrome-mv3` 文件夹
 6. 安装完成后访问任意网页即可使用
 
 ### 基本操作
@@ -205,38 +205,37 @@
 ### 项目结构
 
 ```
-├── manifest.json              # Manifest V3 配置文件
+├── wxt.config.ts              # WXT 与生成 Manifest V3 的配置
+├── tsconfig.json              # TypeScript 配置
+├── vitest.config.ts           # Vitest 配置
+├── entrypoints/               # WXT 扩展入口
+│   ├── background.ts          # 后台 service worker 入口
+│   └── toc.content/           # 运行时注册的内容脚本
+│       ├── index.ts           # 内容脚本入口
+│       └── style.css          # 内容脚本样式
 ├── icons/                     # 扩展图标
 │   ├── png/                   # PNG 图标（16/32/48/128）
 │   │   ├── toc-enabled-*.png  # 启用状态图标
 │   │   └── toc-disabled-*.png # 禁用状态图标
 │   └── svg/                   # SVG 源文件
 ├── docs/brand/                # 1.0 品牌资产和 Chrome 网上应用店视觉素材
+├── public/                    # WXT 复制到扩展包的静态资源
 ├── _locales/                  # 国际化文件
 │   ├── en/
 │   │   └── messages.json      # 英文翻译
 │   └── zh_CN/
 │       └── messages.json      # 中文翻译
-├── build.js                   # 构建和打包脚本
 ├── package.json               # Node.js 元数据
 ├── src/
-│   ├── background.js          # 后台服务工作者
-│   ├── content.js             # 内容脚本入口（ESM）
-│   ├── content.css            # 内容脚本样式
+│   ├── content.ts             # 内容脚本启动逻辑
 │   ├── utils/                 # 工具模块
-│   │   ├── constants.js       # 存储键名、UI 常量
-│   │   ├── core-utils.js      # 类型检查、国际化、验证
-│   │   ├── toast.js           # Toast 通知
-│   │   ├── storage.js         # 存储 I/O 和标准化
-│   │   ├── toc-utils.js       # 聚合重导出，方便引用
-│   │   ├── badge-position.js  # 按钮位置持久化
-│   │   ├── dom-utils.js       # DOM 操作、URL 匹配、站点状态
-│   │   ├── css-selector.js    # CSS 选择器生成
-│   │   ├── focus-trap.js      # 焦点陷阱工具
-│   │   ├── toc-builder.js     # TOC 构建逻辑
-│   │   └── drag-helper.js     # Pointer Events 拖拽控制器
+│   │   ├── constants.ts       # 存储键名、UI 常量
+│   │   ├── core-utils.ts      # 类型检查、国际化、验证
+│   │   ├── storage.ts         # 存储 I/O 和标准化
+│   │   └── toc-builder.ts     # TOC 构建逻辑
 │   ├── shared/                # 跨上下文共享模块
-│   │   └── primitives.js            # 共享存储、配置和 UI 状态工具（ESM 源码；构建时产出 background 可 importScripts 的 IIFE）
+│   │   ├── primitives.ts      # 共享存储、配置和 UI 状态工具
+│   │   └── types.ts           # 共享存储和消息类型
 │   ├── ui/                    # UI 组件
 │   │   ├── edge-dock.js       # 吸附工具条与纯 hover 目录状态
 │   │   ├── classic-collapsed-badge.js # 原始文字徽章交互
@@ -266,28 +265,29 @@
 
 - **运行环境**：Edge/Chrome 浏览器（Chromium 内核）
 - **扩展标准**：Manifest V3
-- **开发语言**：原生 JavaScript + CSS3（ES Modules，使用 esbuild 打包）
-- **存储方案**：`chrome.storage.local` API
+- **开发语言**：原生 TypeScript + CSS3（使用 WXT/Vite 构建）
+- **存储方案**：`browser.storage.local` / Chromium 扩展存储
 - **权限需求**：`storage`、`tabs`、`scripting`
 - **站点权限**：`http://*/*`、`https://*/*`
 
 ### 架构设计
 
-**ES Modules + esbuild**：源码使用标准 ESM `import`/`export`。构建时 esbuild 将内容脚本依赖树打包为单个 IIFE，无需运行时模块加载或加载顺序管理。
+**WXT + TypeScript**：WXT 生成 Manifest V3 扩展包，打包运行时注册的内容脚本，并将已解压扩展输出到 `.output/chrome-mv3`。
 
 **内容脚本依赖图**：
 ```
-src/content.js（入口）
-  ├── utils/toc-utils.js（工具模块聚合重导出）
-  └── core/toc-app.js（编排器）
+entrypoints/toc.content/index.ts（运行时内容脚本）
+  ├── src/content.ts（启动逻辑）
+  ├── src/utils/toc-utils.ts（工具模块聚合重导出）
+  └── src/core/toc-app.ts（编排器）
         ├── ui/ 组件（吸附工具条、元素拾取器、浮动面板）
         ├── core/config-manager.js → focus-trap.js
         └── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js, nav-lock.js
 ```
 
-**后台脚本**：通过 `importScripts()` 加载构建产出的 `primitives.js` IIFE bundle（MV3 service worker 不支持 ESM）。
+**后台脚本**：`entrypoints/background.ts` 使用 WXT 的 `browser` API 包装，并只对已启用站点动态注入 `content-scripts/toc.js` 和 `content-scripts/toc.css`。
 
-**共享原语**：`primitives.js` 是 ESM 源码；构建时产出单独的 IIFE bundle 供后台 service worker 使用。
+**共享原语**：`src/shared/primitives.ts` 由 WXT entrypoint 和内容脚本模块直接 ESM 引入。
 
 ### 关键算法
 
@@ -390,11 +390,12 @@ src/content.js（入口）
 ## 🔧 开发指南
 
 ### 构建与打包
-源码使用 ES Modules，构建时通过 esbuild 打包：
-- 直接编辑文件即可 — esbuild 在构建时解析 ESM 导入
-- 运行 `npm run build` 使用 esbuild 打包、验证语法并创建分发包
-- 构建脚本生成 `dist/build/src/content.js`（IIFE bundle）并创建 `dist/packages/v{版本号}.zip`
-- 开发者模式请加载 `dist/build`。项目根目录包含 ESM 源码文件，不是可直接运行的已解压扩展目录。
+源码使用 WXT 构建：
+- 直接编辑 TypeScript/CSS 文件；WXT/Vite 在构建时解析 ESM 导入
+- 运行 `npm run typecheck` 进行 TypeScript 校验
+- 运行 `npm run test` 执行 Vitest 检查
+- 运行 `npm run build` 构建、压缩并复制发布包到 `dist/packages/v{版本号}.zip`
+- 开发者模式请加载 `.output/chrome-mv3`。项目根目录包含源码文件，不是可直接运行的已解压扩展目录。
 
 ### 调试方法
 1. **后台页面调试**：在 `edge://extensions/` 页面点击"Service Worker"查看后台日志
@@ -404,7 +405,7 @@ src/content.js（入口）
 ### 添加新功能
 1. 在对应模块目录创建新文件（`utils/`、`ui/`、`core/`、`shared/`）
 2. 使用 `export` 导出模块的公共 API
-3. 在需要使用的模块中通过 `import` 引入（esbuild 在构建时自动解析）
+3. 在需要使用的模块中通过 `import` 引入（WXT/Vite 在构建时自动解析）
 4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
 
 详细的技术文档请查看 [`CLAUDE.md`](CLAUDE.md)。
