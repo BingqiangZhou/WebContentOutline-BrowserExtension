@@ -14,6 +14,8 @@ Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that a
 
 ## Installation and Development
 
+**Do not develop directly on `main`.** Use the `dev` branch for ongoing development, or create feature branches (e.g. `feature/foo`) from `dev` for isolated work. The `main` branch is reserved for releases only.
+
 **Build & packaging**: Run `npm run build` to typecheck, run Vitest, and build with WXT. For release packaging, use `npm run release:build` which also zips the extension into `.output/` (filename includes branch suffix for non-main branches). Load `.output/chrome-mv3` in Developer Mode; the project root contains source files and is not a runnable unpacked extension directory.
 
 ### Loading the extension
