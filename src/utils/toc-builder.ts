@@ -4,6 +4,7 @@
 import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
 import { getBoundedText } from './bounded-text.js';
 import { detectContentRegion } from './content-region.js';
+import { tryBuildChatbotTocItems, getChatbotSentinelSelector } from './chatbot-detector.js';
 
     var TOC_TEXT_MAX_LEN = 200;
     var TOC_MAX_ITEMS = 400;
@@ -175,6 +176,21 @@ function buildTocItemsFromSelectors(selectors, cfg) {
     }
 
 export function buildTocItems(cfg, extraSelectors) {
+      // Chatbot pages: build conversation-aware TOC (user prompts as level-1)
+      var chatbotResult = null;
+      try { chatbotResult = tryBuildChatbotTocItems(); } catch (_) {}
+      if (chatbotResult !== null) {
+        // Inject sentinel selector so DOM watcher monitors all mutations
+        // (not heading-only) on subsequent rebuilds
+        if (cfg && Array.isArray(cfg.selectors) && cfg.selectors.length === 0) {
+          try {
+            var sentinel = getChatbotSentinelSelector();
+            if (sentinel) cfg.selectors.push({ type: 'css', expr: sentinel });
+          } catch (_) {}
+        }
+        return chatbotResult;
+      }
+
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
       var combined = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
 
