@@ -75,6 +75,7 @@ function loadTocBuilder(options = {}) {
     },
     getBoundedText: options.getBoundedText || function() { return ''; },
     uniqueInDocumentOrder(nodes) { return nodes; },
+    document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
     window: {
       getComputedStyle: options.getComputedStyle || function() {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };

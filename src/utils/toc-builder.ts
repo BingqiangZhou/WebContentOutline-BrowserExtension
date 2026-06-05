@@ -55,9 +55,14 @@ function buildTocItemsFromSelectors(selectors, cfg) {
 
       // Phase 1: Batch-read all geometry in a tight loop (avoids forced reflows)
       var geoData = [];
+      var docEl = document.documentElement;
+      var docScrollW = (docEl && docEl.scrollWidth) || 0;
+      var docScrollH = (docEl && docEl.scrollHeight) || 0;
       for (var m = 0; m < candidates.length; m++) {
         var el = candidates[m];
         if (!el || !el.isConnected) { geoData.push(null); continue; }
+        // aria-hidden="true" — element is semantically hidden
+        try { if (el.getAttribute('aria-hidden') === 'true') { geoData.push(null); continue; } } catch (_) {}
         var style;
         try { style = window.getComputedStyle(el); } catch (_) { geoData.push(null); continue; }
         if (!style || style.display === 'none') { geoData.push(null); continue; }
@@ -70,9 +75,18 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         if (style.visibility === 'hidden' || style.visibility === 'collapse') { geoData.push(null); continue; }
         var opacity = parseFloat(style.opacity);
         if (Number.isFinite(opacity) && opacity <= 0) { geoData.push(null); continue; }
+        // clip-path hiding (clip-path: inset(100%), polygon(0…), etc.)
+        var clipPath = style.clipPath;
+        if (clipPath && clipPath !== 'none') { geoData.push(null); continue; }
         var rect;
         try { rect = el.getBoundingClientRect(); } catch (_) { geoData.push(null); continue; }
         if (!rect || rect.width === 0 || rect.height === 0) { geoData.push(null); continue; }
+        // Too small to be a visible heading — catches .sr-only (1×1 px) tricks
+        if (rect.width < 2 || rect.height < 2) { geoData.push(null); continue; }
+        // Far off-screen — catches position:left:-9999px, transform:translate(-9999px)
+        var farOffscreen = rect.right < -1000 || rect.left > (docScrollW + 1000)
+                        || rect.bottom < -1000 || rect.top > (docScrollH + 1000);
+        if (farOffscreen) { geoData.push(null); continue; }
         geoData.push({ el: el, rect: rect });
       }
 
@@ -90,7 +104,7 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         var clipped = false;
         var parent = el.parentElement;
         var depth = 0;
-        while (parent && depth < 3) {
+        while (parent && depth < 6) {
           var parentStyle;
           try { parentStyle = window.getComputedStyle(parent); } catch (_) { break; }
           if (parentStyle) {

@@ -31,6 +31,7 @@ function loadBuilder(elements) {
     uiConst(name, fallback) { return fallback; },
     collectBySelector() { return elements; },
     uniqueInDocumentOrder(nodes) { return nodes; },
+    document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
     window: {
       getComputedStyle() {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };
