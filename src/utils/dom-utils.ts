@@ -111,10 +111,12 @@ export function collectBySelector(selector, maxCandidates) {
       if (!selector || !selector.expr) return [];
       var limit = 1200;
       if (Number.isFinite(maxCandidates) && maxCandidates > 0) limit = Math.min(limit, Math.floor(maxCandidates));
+      var queryRoot = selector._root || document;
       if (selector.type === 'xpath') {
         if (!isSafeXPathExpression(selector.expr)) return [];
         try {
-          var iterator = document.evaluate(selector.expr, document, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
+          var contextNode = (selector._root && selector._root.ownerDocument) || document;
+          var iterator = contextNode.evaluate(selector.expr, queryRoot, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
           var nodes = [];
           for (var i = 0; i < limit; i++) {
             var node = iterator.iterateNext();
@@ -128,7 +130,7 @@ export function collectBySelector(selector, maxCandidates) {
       }
       try {
         if (typeof isHighRiskBroadCssSelector === 'function' && isHighRiskBroadCssSelector(selector.expr)) return [];
-        var nodeList = document.querySelectorAll(selector.expr);
+        var nodeList = queryRoot.querySelectorAll(selector.expr);
         var len = Math.min(nodeList.length, limit);
         var result = new Array(len);
         for (var j = 0; j < len; j++) result[j] = nodeList[j];

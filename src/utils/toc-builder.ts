@@ -3,6 +3,7 @@
 
 import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
 import { getBoundedText } from './bounded-text.js';
+import { detectContentRegion } from './content-region.js';
 
     var TOC_TEXT_MAX_LEN = 200;
     var TOC_MAX_ITEMS = 400;
@@ -84,6 +85,8 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         var rect = entry.rect;
 
         // Parent clipping check (only for survivors that passed cheap checks)
+        // Excludes headings truly hidden by collapsed/zero-size containers,
+        // but preserves headings that are simply below the fold in a scrollable page.
         var clipped = false;
         var parent = el.parentElement;
         var depth = 0;
@@ -98,12 +101,37 @@ function buildTocItemsFromSelectors(selectors, cfg) {
               || overflowX === 'hidden' || overflowX === 'clip'
               || overflowY === 'hidden' || overflowY === 'clip';
             if (clips) {
-              var parentRect;
-              try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
-              if (rect.right <= parentRect.left || rect.left >= parentRect.right
-                  || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom) {
-                clipped = true;
-                break;
+              // Skip clipping check if a scrollable ancestor sits between the
+              // heading and this clipping parent — the heading can be scrolled into view.
+              var hasScrollableAncestor = false;
+              var between = el.parentElement;
+              while (between && between !== parent) {
+                var bs;
+                try { bs = window.getComputedStyle(between); } catch (_) { bs = null; }
+                if (bs) {
+                  var bo = bs.overflow || bs.overflowY;
+                  if (bo === 'auto' || bo === 'scroll') {
+                    try {
+                      if (between.scrollHeight > between.clientHeight + 2) {
+                        hasScrollableAncestor = true;
+                        break;
+                      }
+                    } catch (_) {}
+                  }
+                }
+                between = between.parentElement;
+              }
+              if (!hasScrollableAncestor) {
+                var parentRect;
+                try { parentRect = parent.getBoundingClientRect(); } catch (_) { break; }
+                // Only clip if heading is completely outside AND the clipping parent
+                // has negligible height (collapsed/tab) — not a full-height layout container
+                var isCollapsed = parent.clientHeight < 10 || parent.offsetWidth < 10;
+                if (isCollapsed && (rect.right <= parentRect.left || rect.left >= parentRect.right
+                    || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom)) {
+                  clipped = true;
+                  break;
+                }
               }
             }
           }
@@ -137,7 +165,13 @@ export function buildTocItems(cfg, extraSelectors) {
       var combined = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
 
       if (combined.length === 0) {
-        combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6' }];
+        var region = null;
+        try { region = detectContentRegion(); } catch (_) {}
+        if (region && region.root) {
+          combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6', _root: region.root }];
+        } else {
+          combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6' }];
+        }
       }
 
       return buildTocItemsFromSelectors(combined, cfg);
