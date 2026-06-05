@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
@@ -11,7 +11,7 @@ function read(relativePath) {
 }
 
 function loadDomUtils(querySelectorAll = () => []) {
-  const file = path.join(repoRoot, 'src/utils/dom-utils.js');
+  const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
@@ -41,8 +41,8 @@ __exports.uniqueInDocumentOrder = uniqueInDocumentOrder;`,
 }
 
 function loadConfigPrimitives() {
-  const file = path.join(repoRoot, 'src/shared/primitives.js');
-  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const file = path.join(repoRoot, 'src/shared/primitives.ts');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
@@ -62,7 +62,7 @@ function loadConfigPrimitives() {
 }
 
 function loadUrlMonitor() {
-  const file = path.join(repoRoot, 'src/core/url-monitor.js');
+  const file = path.join(repoRoot, 'src/core/url-monitor.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace('export function createUrlMonitor', 'function createUrlMonitor');
@@ -93,7 +93,7 @@ function loadUrlMonitor() {
 }
 
 function loadDomWatcher() {
-  const file = path.join(repoRoot, 'src/core/dom-watcher.js');
+  const file = path.join(repoRoot, 'src/core/dom-watcher.ts');
   const source = fs.readFileSync(file, 'utf8').replace('export function createDomWatcher', 'function createDomWatcher');
   let observer = null;
   class FakeMutationObserver {
@@ -238,17 +238,18 @@ test('invalid config mutations leave existing configs unchanged', () => {
   assert.deepEqual(result.configs, configs);
 });
 
-test('background owns config mutations and packages the shared primitive', () => {
-  const background = read('src/background.js');
+test('background owns config mutations through WXT and shared ESM imports', () => {
+  const background = read('entrypoints/background.ts');
 
-  assert.match(background, /importScripts\('shared\/primitives\.js'\)/);
+  assert.match(background, /from 'wxt\/browser'/);
+  assert.match(background, /from '\.\.\/src\/shared\/primitives\.js'/);
   assert.match(background, /toc:mutateConfig/);
   assert.match(background, /serializedWrite\('tocConfigs'/);
 });
 
 test('content scripts refresh app config when tocConfigs changes', () => {
-  const content = read('src/content.js');
-  const app = read('src/core/toc-app.js');
+  const content = read('src/content.ts');
+  const app = read('src/core/toc-app.ts');
 
   assert.match(content, /TOC_CONFIGS_KEY/);
   assert.match(content, /changes\?\.\[TOC_CONFIGS_KEY\]/);
@@ -284,7 +285,7 @@ test('default heading watcher ignores unrelated text but reacts to heading text'
 });
 
 test('collapsed rebuilds skip view synchronization when content is identical', () => {
-  const app = read('src/core/toc-app.js');
+  const app = read('src/core/toc-app.ts');
 
   // isContentIdentical is checked early, before the collapsed panelInstance branch
   const rebuildOnce = app.slice(
@@ -300,12 +301,13 @@ test('collapsed rebuilds skip view synchronization when content is identical', (
 });
 
 test('project exposes npm test and publishes stability fixes as 1.0.2', () => {
-  const manifest = JSON.parse(read('manifest.json'));
+  const wxtConfig = read('wxt.config.ts');
   const packageJson = JSON.parse(read('package.json'));
   const packageLock = JSON.parse(read('package-lock.json'));
 
-  assert.equal(packageJson.scripts.test, 'node --test checks/*.test.mjs');
-  assert.equal(manifest.version, '1.0.2');
+  assert.equal(packageJson.scripts.test, 'vitest run');
+  assert.match(packageJson.scripts.build, /wxt build/);
+  assert.match(wxtConfig, /manifestVersion:\s*3/);
   assert.equal(packageJson.version, '1.0.2');
   assert.equal(packageLock.version, '1.0.2');
   assert.equal(packageLock.packages[''].version, '1.0.2');

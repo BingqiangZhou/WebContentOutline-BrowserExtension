@@ -1,13 +1,13 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 
 function loadCreateUrlMonitor() {
-  const file = path.join(repoRoot, 'src/core/url-monitor.js');
+  const file = path.join(repoRoot, 'src/core/url-monitor.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace('export function createUrlMonitor', 'function createUrlMonitor');
@@ -55,7 +55,7 @@ function loadCreateUrlMonitor() {
 }
 
 function loadCreateRebuildScheduler(hostname = 'example.com') {
-  const file = path.join(repoRoot, 'src/core/rebuild-scheduler.js');
+  const file = path.join(repoRoot, 'src/core/rebuild-scheduler.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace('export function createRebuildScheduler', 'function createRebuildScheduler');
@@ -199,13 +199,13 @@ test('url monitor teardown does not overwrite History API changes made by the pa
 
 test('extension-created buttons explicitly opt out of submit behavior', () => {
   const files = [
-    'src/core/config-manager.js',
-    'src/ui/element-picker.js',
-    'src/ui/classic-collapsed-badge.js',
-    'src/ui/classic-floating-panel.js',
-    'src/ui/floating-panel.js',
-    'src/ui/edge-dock.js',
-    'src/utils/toast.js'
+    'src/core/config-manager.ts',
+    'src/ui/element-picker.ts',
+    'src/ui/classic-collapsed-badge.ts',
+    'src/ui/classic-floating-panel.ts',
+    'src/ui/floating-panel.ts',
+    'src/ui/edge-dock.ts',
+    'src/utils/toast.ts'
   ];
 
   for (const relativeFile of files) {
@@ -228,20 +228,20 @@ test('extension-created buttons explicitly opt out of submit behavior', () => {
 });
 
 test('project versions are unified at 1.0.2', () => {
-  const manifest = JSON.parse(fs.readFileSync(path.join(repoRoot, 'manifest.json'), 'utf8'));
+  const wxtConfig = fs.readFileSync(path.join(repoRoot, 'wxt.config.ts'), 'utf8');
   const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package.json'), 'utf8'));
   const packageLock = JSON.parse(fs.readFileSync(path.join(repoRoot, 'package-lock.json'), 'utf8'));
 
-  assert.equal(manifest.version, '1.0.2');
+  assert.match(wxtConfig, /defineConfig/);
   assert.equal(packageJson.version, '1.0.2');
   assert.equal(packageLock.version, '1.0.2');
   assert.equal(packageLock.packages[''].version, '1.0.2');
 });
 
-test('build script removes existing version zip before packaging', () => {
-  const source = fs.readFileSync(path.join(repoRoot, 'build.js'), 'utf8');
+test('package collection script removes existing version zip before copying', () => {
+  const source = fs.readFileSync(path.join(repoRoot, 'scripts/collect-package.mjs'), 'utf8');
 
-  assert.match(source, /fs\.existsSync\(zipFile\)[\s\S]*fs\.rmSync\(zipFile/);
+  assert.match(source, /fs\.existsSync\(dest\)[\s\S]*fs\.rmSync\(dest/);
 });
 
 test('mutation rebuilds start quickly on every host, including ChatGPT', () => {
@@ -259,7 +259,7 @@ test('mutation rebuilds start quickly on every host, including ChatGPT', () => {
 });
 
 test('high-frequency mutations use fixed debounce without site-specific branches', () => {
-  const schedulerSource = fs.readFileSync(path.join(repoRoot, 'src/core/rebuild-scheduler.js'), 'utf8');
+  const schedulerSource = fs.readFileSync(path.join(repoRoot, 'src/core/rebuild-scheduler.ts'), 'utf8');
   assert.doesNotMatch(schedulerSource, /chatgpt|chat\.openai|isHighDynamicSpaHost/i);
   assert.doesNotMatch(schedulerSource, /1\.3\*|backoff|exponential/i);
 

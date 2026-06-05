@@ -6,33 +6,25 @@
 
 ## 重构成果
 
-内容脚本源码使用 ES Modules 组织，并在构建时通过 esbuild 打包为单个 IIFE：
-- **源码**: `src/content.js` 作为入口，直接 import `utils/toc-utils.js` 和 `core/toc-app.js`，其余模块通过依赖树传递引入
-- **产物**: `dist/build/src/content.js` 是 Chrome MV3 实际动态注入的 bundle
+内容脚本源码使用 ES Modules 组织，并由 WXT/Vite 打包为运行时注册的内容脚本：
+- **源码**: `entrypoints/toc.content/index.ts` 作为 WXT 入口，调用 `src/content.ts`，其余模块通过依赖树传递引入
+- **产物**: `.output/chrome-mv3/content-scripts/toc.js` 是 Chrome MV3 实际动态注入的 bundle
 - **兼容**: 仅保留 `window.__TOC_ASSISTANT_CLEANUP__` 清理钩子，不再依赖全局模块命名空间
 
 ## 📁 文件结构
 
 ```
 src/
-├── content.js                  # 内容脚本入口 - 应用启动、重注入清理、消息/storage listener
-├── background.js               # MV3 service worker - 图标状态、站点开关、动态注入
-├── content.css                 # 样式文件 - 包含防御性CSS保护、CSS自定义属性主题、动画
+├── content.ts                  # 内容脚本启动逻辑 - 应用启动、重注入清理、消息/storage listener
 ├── README.md                   # 项目文档
-├── shared/                     # background 与内容脚本共享的存储原语
-│   └── storage-primitives.js   # ESM 源码；构建时另产出 background 可 importScripts 的 IIFE
+├── shared/                     # background 与内容脚本共享的存储原语和类型
+│   ├── primitives.ts           # 存储、配置、UI 状态共享原语
+│   └── types.ts                # 共享存储和消息类型
 ├── utils/                      # 工具模块
-│   ├── constants.js            # STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
-│   ├── core-utils.js           # 通用工具：消息、校验、焦点管理、JSON解析
-│   ├── toast.js                # Toast 提示
-│   ├── storage.js              # 存储操作：getConfigs/saveConfigs 等
-│   ├── badge-position.js       # 工具条锚点位置管理（兼容旧键名）
-│   ├── dom-utils.js            # DOM操作：选择器执行、元素去重、配置匹配
-│   ├── css-selector.js         # CSS选择器生成算法
-│   ├── toc-builder.js          # TOC构建：选择器执行、元素过滤、项目映射
-│   ├── drag-helper.js          # 拖拽辅助
-│   ├── focus-trap.js           # 焦点陷阱
-│   └── toc-utils.js            # barrel 重导出模块
+│   ├── constants.ts            # STORAGE_KEYS、UI_CONSTANTS、CLEANUP_SELECTOR 等常量
+│   ├── core-utils.ts           # 通用工具：消息、校验、焦点管理、JSON解析
+│   ├── storage.ts              # 存储操作：getConfigs/saveConfigs 等
+│   └── toc-utils.ts            # barrel 重导出模块
 ├── ui/                         # UI组件
 │   ├── edge-dock.js            # 吸附式工具条与纯 hover 目录状态
 │   ├── classic-collapsed-badge.js # 经典文字徽章交互
@@ -52,7 +44,7 @@ src/
 
 ## 🔧 模块加载机制
 
-源码模块不再按运行时顺序逐个注入。`build.js` 使用 esbuild 从 `src/content.js` 静态追踪 ESM 依赖，打包成 `dist/build/src/content.js`。扩展应加载 `dist/build`，`src/background.js` 只注入这一个内容脚本 bundle。
+源码模块不再按运行时顺序逐个注入。WXT 从 `entrypoints/toc.content/index.ts` 静态追踪 ESM 依赖，打包成 `.output/chrome-mv3/content-scripts/toc.js`。扩展开发者模式加载 `.output/chrome-mv3`，`entrypoints/background.ts` 只对启用站点动态注入这个内容脚本 bundle。
 
 ## 🌐 全局命名空间设计
 
@@ -69,7 +61,7 @@ src/
 每个模块只负责特定功能域。工具层拆分为 11 个独立文件（存储、DOM、选择器、拖拽、焦点等），核心层拆分为 7 个文件（编排、配置、监听、调度、锁、事件），UI层拆分为 3 个组件文件。
 
 ### 2. 静态模块依赖
-通过 ES Modules 明确表达模块依赖，由 esbuild 在构建时打包和校验。无需关心加载顺序。
+通过 ES Modules 明确表达模块依赖，由 WXT/Vite 在构建时打包和校验。无需关心加载顺序。
 
 ### 3. 防御性编程
 每个模块包含错误处理和扩展上下文失效检测：
@@ -103,7 +95,7 @@ if (isExtensionContextInvalidated()) {
 - `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
 - `getBadgePosMap()` / `saveBadgePosMap()`: 工具条锚点位置（兼容旧徽标数据）
 - `getUiMode()` / `saveUiMode()`: 全局界面模式偏好，缺省为新版 Edge Dock
-- 使用 `shared/storage-primitives.js` 的 `serializedWrite` 保证写入顺序
+- 使用 `shared/primitives.ts` 的 `serializedWrite` 保证写入顺序
 
 **dom-utils.js** — DOM操作
 - `collectBySelector()`: 执行 CSS/XPath 选择器
@@ -244,7 +236,7 @@ if (isExtensionContextInvalidated()) {
 ### 添加新功能
 1. 在对应模块目录创建新文件，使用 `export` 导出
 2. 在需要使用的模块中通过 `import` 引入
-3. esbuild 在构建时自动解析和打包，无需关心加载顺序
+3. WXT/Vite 在构建时自动解析和打包，无需关心加载顺序
 4. 如果是工具函数，考虑添加到 `utils/toc-utils.js` 的 barrel 重导出
 
 ### 调试和测试

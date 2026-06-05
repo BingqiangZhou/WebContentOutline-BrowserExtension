@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 
 function loadSelector() {
-  const file = path.join(repoRoot, 'src/core/active-item-tracker.js');
-  assert.equal(fs.existsSync(file), true, 'src/core/active-item-tracker.js should exist');
+  const file = path.join(repoRoot, 'src/core/active-item-tracker.ts');
+  assert.equal(fs.existsSync(file), true, 'src/core/active-item-tracker.ts should exist');
   const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
@@ -21,7 +21,7 @@ function loadSelector() {
 }
 
 function loadTrackerEnvironment() {
-  const file = path.join(repoRoot, 'src/core/active-item-tracker.js');
+  const file = path.join(repoRoot, 'src/core/active-item-tracker.ts');
   const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
   const rafQueue = [];
   const observerInstances = [];
@@ -99,7 +99,7 @@ test('active tracker retains the previous item while scrolling between headings'
 });
 
 test('toc app owns active tracking and synchronizes the collapsed preview', () => {
-  const app = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.js'), 'utf8');
+  const app = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.ts'), 'utf8');
 
   assert.match(app, /createActiveItemTracker/);
   assert.match(app, /items:\s*items/);
@@ -110,7 +110,7 @@ test('toc app owns active tracking and synchronizes the collapsed preview', () =
 });
 
 test('floating panel consumes shared active state instead of creating its own observer', () => {
-  const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.js'), 'utf8');
+  const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.ts'), 'utf8');
 
   assert.match(panel, /var activeIndex = opts\.activeIndex/);
   assert.match(panel, /var onNavigate = opts\.onNavigate/);

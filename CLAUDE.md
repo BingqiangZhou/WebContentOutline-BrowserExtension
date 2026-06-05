@@ -7,60 +7,56 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that automatically generates interactive floating table of contents for any webpage using DOM element detection.
 
 **Key characteristics:**
-- ES Modules architecture with esbuild bundling into a single IIFE
-- Pure vanilla JavaScript with a `build.js` script for validation, bundling, and packaging
+- WXT-managed Manifest V3 architecture with runtime-registered content scripts
+- Vanilla TypeScript and CSS built by WXT/Vite
 - All-in-one CSS with `!important` to resist host page interference
 - Per-site enable/disable state stored in `chrome.storage.local`
 
 ## Installation and Development
 
-**Build & packaging**: Run `npm run build` to bundle with esbuild, validate syntax, and create a distributable zip. Load `dist/build` in Developer Mode; the project root contains ESM source files and is not a runnable unpacked extension directory.
+**Build & packaging**: Run `npm run build` to typecheck, run Vitest, build with WXT, zip the extension, and copy a release-compatible package to `dist/packages/`. Load `.output/chrome-mv3` in Developer Mode; the project root contains source files and is not a runnable unpacked extension directory.
 
 ### Loading the extension
 1. Open Edge/Chrome: `edge://extensions/` or `chrome://extensions/`
 2. Enable Developer Mode
 3. Run `npm run build`
-4. Click "Load unpacked" and select the `dist/build` folder
+4. Click "Load unpacked" and select the `.output/chrome-mv3` folder
 
 ### Making changes
-- Edit files directly — esbuild resolves ESM imports at build time
-- For testing: run `npm run build`, then load from `dist/build/`
-- Changes to `manifest.json`: reload the extension
+- Edit TypeScript/CSS files directly — WXT/Vite resolves ESM imports at build time
+- For testing: run `npm run test` and `npm run build`, then load `.output/chrome-mv3/`
+- Changes to `wxt.config.ts`: rebuild and reload the extension
 - Changes to content scripts: rebuild and refresh the page
-- Changes to `background.js`: reload the extension
+- Changes to `entrypoints/background.ts`: rebuild and reload the extension
 
 ### Testing
-No automated test framework. Manual testing required by loading the extension and testing on various websites.
+Automated checks use Vitest: run `npm run test`. Manual browser smoke testing is still required for extension behavior.
 
 ## Architecture
 
 ### Module System
 
-Content script modules use **ES Modules** (`import`/`export`). At build time, esbuild bundles the entire dependency tree starting from `src/content.js` into a single IIFE at `dist/build/src/content.js`. There is no runtime module loading or load-order concern.
+Content script modules use **ES Modules** (`import`/`export`). WXT builds `entrypoints/toc.content/index.ts` into `content-scripts/toc.js` and keeps it runtime-registered so it is injected only for enabled origins.
 
-The background service worker cannot use ESM (MV3 limitation). The build produces a separate IIFE bundle of `shared/primitives.js` for `importScripts()` in the service worker.
+The background service worker is `entrypoints/background.ts` and imports shared primitives as ESM through WXT.
 
 ### Dependency Graph
 
 ```
-src/content.js (entry point)
-  ├── utils/toc-utils.js (barrel re-export)
-  │     ├── constants.js, core-utils.js, toast.js
-  │     ├── storage.js, badge-position.js, dom-utils.js
-  │     └── (storage.js → shared/storage-primitives.js)
-  └── core/toc-app.js (orchestrator)
-        ├── utils/toc-builder.js → dom-utils.js
-        ├── ui/edge-dock.js, ui/element-picker.js, ui/floating-panel.js
-        │     └── (floating-panel.js → ui/floating-panel-helpers.js)
-        ├── core/config-manager.js → focus-trap.js
-        ├── core/rebuild-scheduler.js → dom-watcher.js, url-monitor.js → dom-utils.js, nav-lock.js
-        └── core/nav-lock.js
+entrypoints/toc.content/index.ts
+  └── src/content.ts
+      ├── utils/toc-utils.ts (barrel re-export)
+      └── core/toc-app.ts (orchestrator)
+            ├── utils/toc-builder.ts → dom-utils.ts
+            ├── ui/edge-dock.ts, ui/element-picker.ts, ui/floating-panel.ts
+            ├── core/config-manager.ts → focus-trap.ts
+            └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, nav-lock.ts
 ```
 
-Background script (separate context, uses IIFE bundle produced by build):
+Background script:
 ```
-src/background.js
-  └── importScripts → shared/primitives.js (IIFE bundle)
+entrypoints/background.ts
+  └── src/shared/primitives.ts
 ```
 
 ### Window Globals
@@ -74,15 +70,15 @@ Only a few window globals remain for compatibility/debugging:
 
 ### Entry Points
 
-**`src/background.js`** - Service worker
-- Uses `importScripts('shared/primitives.js')` for shared storage, config, and UI state mutation utilities
+**`entrypoints/background.ts`** - Service worker
+- Uses WXT's `browser` wrapper and ESM imports for shared storage, config, and UI state mutation utilities
 - Manages per-site enable/disable state in `chrome.storage.local` → `tocSiteEnabledMap`
 - Updates extension icon (enabled=blue, disabled=gray)
-- Injects content script via `chrome.scripting.executeScript` (single bundled file)
+- Injects `content-scripts/toc.js` and `content-scripts/toc.css` via `browser.scripting`
 - Cross-tab synchronization for same origin
 - Message handling: `toc:ensureIcon`, `toc:openPanel`, `toc:updateEnabled`, `toc:mutateConfig`, `toc:mutateUiState`
 
-**`src/content.js`** - Content script entry
+**`src/content.ts`** - Content script bootstrap
 - Checks site enable state on load
 - Imports `initForConfig` from `core/toc-app.js` via ESM
 - Sets up reinjection guard and cleanup hooks
@@ -90,7 +86,7 @@ Only a few window globals remain for compatibility/debugging:
 
 ### Core Subsystems
 
-**1. Site Enable/Disable System (`background.js`)**
+**1. Site Enable/Disable System (`entrypoints/background.ts`)**
 - Storage: `chrome.storage.local` → key: `tocSiteEnabledMap`
 - Maps origin → boolean (enabled state per site)
 - Dynamic icon switching based on state
@@ -168,7 +164,7 @@ Split into three focused modules:
 
 5. **CSS isolation**: All styles use `!important` with global reset
 
-## CSS Architecture (`src/content.css`)
+## CSS Architecture (`entrypoints/toc.content/style.css`)
 
 - Defensive CSS with CSS custom properties for light/dark theming
 - Uses CSS custom properties for light/dark theming
@@ -197,16 +193,16 @@ Split into three focused modules:
 - `permissions`: ["storage", "tabs", "scripting"]
 - `host_permissions`: ["http://*/*", "https://*/*"]
 - `default_locale`: "en" - i18n support
-- Content script is a single bundled IIFE, injected dynamically via `chrome.scripting.executeScript`
-- Background script uses `importScripts()` (MV3 service workers cannot use ESM)
-- `shared/primitives.js` is ESM source; build produces an IIFE bundle for the background service worker
+- Content script is bundled by WXT and injected dynamically via `browser.scripting.executeScript`
+- Background script is a WXT MV3 service worker entrypoint
+- `src/shared/primitives.ts` is shared ESM source imported by WXT entrypoints
 
 ## Common Modification Patterns
 
 ### Adding a new content script module
 1. Create file in appropriate directory (`utils/`, `ui/`, `core/`)
 2. Use `export` for the module's public API
-3. `import` from the module wherever needed (esbuild resolves at build time)
+3. `import` from the module wherever needed (WXT/Vite resolves at build time)
 4. If it's a utility, consider adding to `utils/toc-utils.js` barrel re-export
 
 ### Modifying TOC building logic
@@ -226,9 +222,10 @@ Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPane
 
 ### Building and packaging
 Run `npm run build` to:
-1. Bundle `src/content.js` with esbuild into `dist/build/src/content.js` (IIFE format)
-2. Copy runtime files to `dist/build/` (background.js, page-url-hook.js, content.css, manifest.json, icons, locales, shared/primitives.js)
-3. Package into `dist/packages/v{version}.zip`
+1. Run TypeScript typecheck
+2. Run Vitest
+3. Build and zip the WXT chrome-mv3 extension
+4. Copy the zip to `dist/packages/v{version}.zip`
 
 ## Working Documents
 

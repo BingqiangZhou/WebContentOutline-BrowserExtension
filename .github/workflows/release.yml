@@ -31,7 +31,7 @@ jobs:
       - name: Get version
         id: version
         run: |
-          VERSION=$(jq -r '.version' manifest.json)
+          VERSION=$(jq -r '.version' package.json)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "tag_version=v$VERSION" >> $GITHUB_OUTPUT
 

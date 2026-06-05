@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
@@ -27,8 +27,8 @@ function extractCssVariable(css, variable) {
 }
 
 function loadDockController() {
-  const file = path.join(repoRoot, 'src/ui/edge-dock.js');
-  assert.equal(fs.existsSync(file), true, 'src/ui/edge-dock.js should exist');
+  const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
+  assert.equal(fs.existsSync(file), true, 'src/ui/edge-dock.ts should exist');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
@@ -68,7 +68,7 @@ function loadDockController() {
 }
 
 function loadDockClamp() {
-  const file = path.join(repoRoot, 'src/ui/edge-dock.js');
+  const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
@@ -83,7 +83,7 @@ function loadDockClamp() {
 }
 
 function loadDockSideResolver() {
-  const file = path.join(repoRoot, 'src/ui/edge-dock.js');
+  const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
@@ -98,7 +98,7 @@ function loadDockSideResolver() {
 }
 
 function loadDockPreviewHelpers() {
-  const file = path.join(repoRoot, 'src/ui/edge-dock.js');
+  const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
@@ -219,15 +219,15 @@ test('collapsed outline preview maps heading levels to line width and inset', ()
 });
 
 test('edge dock is included in cleanup, mutation filtering, and picker exclusion rules', () => {
-  const domWatcher = fs.readFileSync(path.join(repoRoot, 'src/core/dom-watcher.js'), 'utf8');
-  const picker = fs.readFileSync(path.join(repoRoot, 'src/ui/element-picker.js'), 'utf8');
+  const domWatcher = fs.readFileSync(path.join(repoRoot, 'src/core/dom-watcher.ts'), 'utf8');
+  const picker = fs.readFileSync(path.join(repoRoot, 'src/ui/element-picker.ts'), 'utf8');
 
   assert.match(domWatcher, /\[data-toc-owner="web-toc-assistant"\]/);
   assert.match(picker, /\[data-toc-owner="web-toc-assistant"\]/);
 });
 
 test('toc app orchestrates the edge dock instead of the collapsed badge', () => {
-  const app = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.js'), 'utf8');
+  const app = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.ts'), 'utf8');
 
   assert.match(app, /renderEdgeDock/);
   assert.doesNotMatch(app, /renderCollapsedBadge/);
@@ -237,7 +237,7 @@ test('toc app orchestrates the edge dock instead of the collapsed badge', () => 
 });
 
 test('floating panel mounts inside the edge dock and no longer owns dragging', () => {
-  const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.js'), 'utf8');
+  const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.ts'), 'utf8');
 
   assert.match(panel, /mountTarget/);
   assert.doesNotMatch(panel, /createDragController/);
@@ -247,8 +247,8 @@ test('floating panel mounts inside the edge dock and no longer owns dragging', (
 });
 
 test('expanded outline card is title free and styles items by heading level', () => {
-  const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.js'), 'utf8');
-  const css = fs.readFileSync(path.join(repoRoot, 'src/content.css'), 'utf8');
+  const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.ts'), 'utf8');
+  const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
 
   assert.doesNotMatch(panel, /toc-header-row/);
   assert.doesNotMatch(panel, /data-role', 'collapse/);
@@ -260,8 +260,8 @@ test('expanded outline card is title free and styles items by heading level', ()
 });
 
 test('edge dock styles and localized menu labels are present', () => {
-  const css = fs.readFileSync(path.join(repoRoot, 'src/content.css'), 'utf8');
-  const dock = fs.readFileSync(path.join(repoRoot, 'src/ui/edge-dock.js'), 'utf8');
+  const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
+  const dock = fs.readFileSync(path.join(repoRoot, 'src/ui/edge-dock.ts'), 'utf8');
   const en = fs.readFileSync(path.join(repoRoot, '_locales/en/messages.json'), 'utf8');
   const zh = fs.readFileSync(path.join(repoRoot, '_locales/zh_CN/messages.json'), 'utf8');
 
@@ -335,7 +335,7 @@ test('edge dock styles and localized menu labels are present', () => {
 });
 
 test('collapsed preview colors stay visible on light and dark host pages', () => {
-  const css = fs.readFileSync(path.join(repoRoot, 'src/content.css'), 'utf8');
+  const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
   const darkTheme = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'));
   const variables = [
     '--toc-preview-line',

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import test from 'node:test';
+import { test } from 'vitest';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
@@ -11,7 +11,7 @@ function read(relativePath) {
 }
 
 function loadDomWatcher() {
-  const file = path.join(repoRoot, 'src/core/dom-watcher.js');
+  const file = path.join(repoRoot, 'src/core/dom-watcher.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace('export function createDomWatcher', 'function createDomWatcher');
   let observer = null;
@@ -48,7 +48,7 @@ function loadDomWatcher() {
 }
 
 function loadTocBuilder(options = {}) {
-  const file = path.join(repoRoot, 'src/utils/toc-builder.js');
+  const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
@@ -80,8 +80,8 @@ function loadTocBuilder(options = {}) {
 }
 
 function loadBoundedText() {
-  const file = path.join(repoRoot, 'src/utils/bounded-text.js');
-  assert.equal(fs.existsSync(file), true, 'src/utils/bounded-text.js should exist');
+  const file = path.join(repoRoot, 'src/utils/bounded-text.ts');
+  assert.equal(fs.existsSync(file), true, 'src/utils/bounded-text.ts should exist');
   const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
@@ -94,7 +94,7 @@ function loadBoundedText() {
 }
 
 function loadCoreUtilsForValidation() {
-  const file = path.join(repoRoot, 'src/utils/core-utils.js');
+  const file = path.join(repoRoot, 'src/utils/core-utils.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export function /g, 'function ');
@@ -124,7 +124,7 @@ __exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,
 }
 
 function loadDomUtilsForCollection(options = {}) {
-  const file = path.join(repoRoot, 'src/utils/dom-utils.js');
+  const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
@@ -168,8 +168,8 @@ function loadDomUtilsForCollection(options = {}) {
 }
 
 function loadConfigPrimitivesForSelectors() {
-  const file = path.join(repoRoot, 'src/shared/primitives.js');
-  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const file = path.join(repoRoot, 'src/shared/primitives.ts');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
@@ -189,7 +189,7 @@ function loadConfigPrimitivesForSelectors() {
 }
 
 function loadStorageForNormalization() {
-  const file = path.join(repoRoot, 'src/utils/storage.js');
+  const file = path.join(repoRoot, 'src/utils/storage.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import[\s\S]*?from .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
@@ -225,7 +225,7 @@ function loadStorageForNormalization() {
 }
 
 function loadUrlMonitorForPolling() {
-  const file = path.join(repoRoot, 'src/core/url-monitor.js');
+  const file = path.join(repoRoot, 'src/core/url-monitor.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace('export function createUrlMonitor', 'function createUrlMonitor');
@@ -252,7 +252,7 @@ function loadUrlMonitorForPolling() {
 }
 
 function loadBadgePositionForWrites(options = {}) {
-  const file = path.join(repoRoot, 'src/utils/badge-position.js');
+  const file = path.join(repoRoot, 'src/utils/badge-position.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
@@ -288,8 +288,8 @@ function loadBadgePositionForWrites(options = {}) {
 }
 
 function loadUiStatePrimitives() {
-  const file = path.join(repoRoot, 'src/shared/primitives.js');
-  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const file = path.join(repoRoot, 'src/shared/primitives.ts');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
@@ -312,10 +312,11 @@ __exports.validateUiStateMutationSource = validateUiStateMutationSource;`,
 }
 
 async function loadContentScriptForConfigChanges(options = {}) {
-  const file = path.join(repoRoot, 'src/content.js');
+  const file = path.join(repoRoot, 'src/content.ts');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\n/, '')
-    .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\n/, '');
+    .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\n/, '')
+    .replace('export function startTocContent', 'function startTocContent');
   const timers = [];
   const storageListeners = [];
   let refreshCalls = 0;
@@ -427,7 +428,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
   };
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
-  vm.runInNewContext(source, sandbox, { filename: file });
+  vm.runInNewContext(`${source}\nstartTocContent({});`, sandbox, { filename: file });
   while (timers.length) {
     const fn = timers.shift();
     fn();
@@ -455,8 +456,8 @@ async function loadContentScriptForConfigChanges(options = {}) {
 }
 
 function loadStoragePrimitives() {
-  const file = path.join(repoRoot, 'src/shared/primitives.js');
-  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.js should exist');
+  const file = path.join(repoRoot, 'src/shared/primitives.ts');
+  assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
@@ -712,7 +713,7 @@ test('config normalization drops unused collapsedDefault field from new and lega
 
   assert.doesNotMatch(read('README.md'), /collapsedDefault/);
   assert.doesNotMatch(read('README_CN.md'), /collapsedDefault/);
-  assert.doesNotMatch(read('src/content.js'), /collapsedDefault/);
+  assert.doesNotMatch(read('src/content.ts'), /collapsedDefault/);
 });
 
 test('content script initializes the app only when the site is enabled', async () => {
@@ -886,19 +887,22 @@ test('UI state source validation rejects forged site keys', () => {
 });
 
 test('background owns UI state writes and removes CSS when disabling tabs', () => {
-  const background = read('src/background.js');
+  const background = read('entrypoints/background.ts');
 
-  assert.match(background, /importScripts\('shared\/primitives\.js'\)/);
+  assert.match(background, /from 'wxt\/browser'/);
+  assert.match(background, /from '\.\.\/src\/shared\/primitives\.js'/);
   assert.match(background, /toc:mutateUiState/);
   assert.match(background, /serializedWrite\(storageKey/);
   assert.match(background, /validateUiStateMutationSource/);
-  assert.match(background, /sender\.id !== chrome\.runtime\.id/);
-  assert.match(background, /chrome\.scripting\.removeCSS/);
-  assert.match(background, /chrome\.scripting\.insertCSS/);
+  assert.match(background, /sender\.id !== browser\.runtime\.id/);
+  assert.match(background, /browser\.scripting\.removeCSS/);
+  assert.match(background, /browser\.scripting\.insertCSS/);
+  assert.match(background, /content-scripts\/toc\.js/);
+  assert.match(background, /content-scripts\/toc\.css/);
 });
 
 test('origin-wide background fan-out iterates sequentially with for-of', () => {
-  const background = read('src/background.js');
+  const background = read('entrypoints/background.ts');
 
   assert.match(background, /async function broadcastEnabledToOrigin\(origin,\s*enabled,\s*exceptTabId\)[\s\S]*?for \(const t of tabs\)/);
   assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id\)\.map\(t => queueIconUpdate/);
@@ -906,17 +910,17 @@ test('origin-wide background fan-out iterates sequentially with for-of', () => {
 });
 
 test('extension CSS selectors are scoped to owned UI roots', () => {
-  const css = read('src/content.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const css = read('entrypoints/toc.content/style.css').replace(/\/\*[\s\S]*?\*\//g, '');
 
   assert.doesNotMatch(css, /(^|,|\n)\s*\.toc-/m);
 });
 
 test('extension DOM checks use owner attributes instead of generic host classes', () => {
-  const watcher = read('src/core/dom-watcher.js');
-  const config = read('src/core/config-manager.js');
-  const picker = read('src/ui/element-picker.js');
-  const toast = read('src/utils/toast.js');
-  const constants = read('src/utils/constants.js');
+  const watcher = read('src/core/dom-watcher.ts');
+  const config = read('src/core/config-manager.ts');
+  const picker = read('src/ui/element-picker.ts');
+  const toast = read('src/utils/toast.ts');
+  const constants = read('src/utils/constants.ts');
 
   assert.match(watcher, /\[data-toc-owner="web-toc-assistant"\]/);
   assert.doesNotMatch(watcher, /OWNED_SELECTOR = '\.toc-edge-dock/);
