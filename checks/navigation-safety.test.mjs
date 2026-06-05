@@ -237,7 +237,7 @@ test('project versions are unified and recorded in the changelog', () => {
   assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.equal(packageLock.version, packageJson.version);
   assert.equal(packageLock.packages[''].version, packageJson.version);
-  assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}`));
+  assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}(-[\\w.]+)?\\] - \\d{4}-\\d{2}-\\d{2}`));
 });
 
 test('mutation rebuilds start quickly on every host, including ChatGPT', () => {

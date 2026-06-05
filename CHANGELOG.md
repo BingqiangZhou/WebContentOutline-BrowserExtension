@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#120---2026-06-05)
+[Table of Contents](#table-of-contents) • [Latest](#130-pre---2026-06-06)
 
 ---
 
 ## Table of Contents
 
+- [1.3.0-pre](#130-pre---2026-06-06) - 2026-06-06
 - [1.2.0](#120---2026-06-05) - 2026-06-05
 - [1.1.0](#110---2026-06-05) - 2026-06-05
 - [1.0.2](#102---2026-06-04) - 2026-06-04
@@ -32,6 +33,33 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.3.0-pre] - 2026-06-06
+
+### 🚀 New Features
+- **Chatbot page detection** — Automatically recognizes ChatGPT, Claude, Gemini, DeepSeek, Kimi and other chatbot pages, generates conversation-turn-based TOC
+- **Automatic content region detection** — Intelligently identifies the main content area of a page, filters out navigation bars, sidebars, and footers for more accurate TOC headings
+
+### ⚡ Performance Optimizations
+- **Reorder geometry checks** — Cheap `offsetWidth`/`offsetHeight` checks run before expensive `getComputedStyle`, reducing style recalculation calls by ~60%
+- **Single-pass ancestor scan** — Parent clipping check rewritten from O(depth²) to O(depth)
+- **Chatbot matching optimization** — Fixed O(N×M) assistant matching with forward cursor, now O(N+M)
+- **Active item tracking** — Linear min-scan instead of sort, O(n) instead of O(n log n)
+- **Diff-based IntersectionObserver updates** — Only unobserve/observe changed elements instead of full disconnect/re-observe
+- **Edge-dock preview** — Incremental active class toggle instead of full DOM re-render
+- **Keyboard navigation** — Use `dataset.index` lookup instead of `querySelectorAll` per keypress
+- **DOM clearing** — Use `replaceChildren()` instead of N× `removeChild`
+
+### 🔧 MV3 Best Practices
+- **Cached storage reads** — Pre-fetched enabled map passed to `updateIconForTab`, eliminating O(n) storage reads in `processAllTabs`
+- **Single storage read in `tabs.onActivated`** — Was double-read, now reads once
+- **Per-tab injection lock** — Prevents concurrent double-injection race between `tabs.onActivated` and `tabs.onUpdated`
+- **Scroll caches** — `detectFixedHeaderHeight` cached with 5s TTL; `prefers-reduced-motion` cached to avoid `matchMedia` per click
+
+### 🔧 CI/CD
+- **Pre-release support** — GitHub Actions workflow now detects pre-release tags (e.g. `v1.3.0-pre`, `v1.3.0-beta.1`) and sets `prerelease: true` accordingly
 
 ---
 
