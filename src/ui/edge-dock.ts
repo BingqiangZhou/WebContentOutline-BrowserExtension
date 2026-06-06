@@ -463,7 +463,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   updateSide(side, false);
   restorePosition();
 
-  var dragController = createDragController ? createDragController({
+  var dragController = createDragController({
     element: toolbar,
     shouldStart: function(e: PointerEvent): boolean {
       var t = e && (e.target as HTMLElement);
@@ -488,7 +488,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       setTimeout(function() { suppressClick = false; }, 0);
       persistPosition();
     }
-  }) : null;
+  });
 
   function onRootPointerEnter() {
     controller.cancelCollapse();
@@ -615,7 +615,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     if (destroyed) return;
     destroyed = true;
     controller.destroy();
-    if (dragController && dragController.destroy) dragController.destroy();
+    dragController.destroy();
     if (persistTimer) clearTimeout(persistTimer);
     cancelMenuClose();
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);

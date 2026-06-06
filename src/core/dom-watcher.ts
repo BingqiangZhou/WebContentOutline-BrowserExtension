@@ -140,7 +140,7 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
           return;
         }
         if (!hasMeaningfulChange(mutations)) return;
-        if (typeof onMutation === 'function') onMutation();
+        if (onMutation) onMutation();
       });
       observerRef = observer;
 

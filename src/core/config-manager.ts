@@ -99,12 +99,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       listDiv.className = 'toc-overlay-list';
 
       var refreshList = async function(selectors: Array<{ type: string; expr: string }>) {
-        try {
-          if (listDiv.replaceChildren) listDiv.replaceChildren();
-          else listDiv.textContent = '';
-        } catch (_) {
-          listDiv.textContent = '';
-        }
+        listDiv.replaceChildren();
         if (selectors && selectors.length) {
           selectors.forEach(function(s, sIndex) {
             var item = document.createElement('div');
@@ -138,20 +133,20 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
                 });
 
                 if (!result || !result.ok) {
-                  showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+                  showToast(msg('errorOperationFailed'), { type: 'error' });
                   return;
                 }
 
                 var updatedSelectors = selectorsFromMutationResult(result);
                 cfg.selectors = updatedSelectors;
-                if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+                if (cfg.__markConfigDirty) cfg.__markConfigDirty();
                 await refreshList(updatedSelectors);
                 countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
 
                 notifyConfigChanged();
               } catch (e2) {
                 console.warn(msg('logClearConfigFailed'), e2);
-                showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+                showToast(msg('errorOperationFailed'), { type: 'error' });
               }
             });
 
@@ -194,7 +189,8 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       };
       var focusRaf: number | null = null;
       var close = function() {
-        if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
+        removeFocusTrap();
+        removeFocusTrap = function() {};
         if (focusRaf) {
           cancelAnimationFrame(focusRaf);
           focusRaf = null;
@@ -205,12 +201,12 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
 
       var getFocusable = function(): Element[] {
         try {
-          if (typeof getFocusableWithin === 'function' && box) return getFocusableWithin(box);
+          if (box) return getFocusableWithin(box);
         } catch (_) {}
         return [];
       };
 
-      var removeFocusTrap: (() => void) | null = createFocusTrap ? createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable }) : null;
+      var removeFocusTrap: (() => void) = createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable });
 
       box.addEventListener('click', async function(e) {
         try {
@@ -225,11 +221,11 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
               urlPattern: urlPattern
             });
             if (!result || !result.ok) {
-              showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+              showToast(msg('errorOperationFailed'), { type: 'error' });
               return;
             }
             cfg.selectors = [];
-            if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+            if (cfg.__markConfigDirty) cfg.__markConfigDirty();
             await refreshList([]);
             countLabel.textContent = msg('configSavedSelectors') + ' (0)';
 
@@ -258,12 +254,12 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
 export async function saveSelector(selector: string, cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     try {
       if (!cfg) {
-        showToast && showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
+        showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
         return false;
       }
       var expr = String(selector || '').trim();
       if (!expr || (validateSelectorExpression && !validateSelectorExpression('css', expr))) {
-        showToast && showToast(msg('errorInvalidSelector'), { type: 'error' });
+        showToast(msg('errorInvalidSelector'), { type: 'error' });
         return false;
       }
 
@@ -279,7 +275,7 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
       });
       if (result && result.ok) {
         cfg.selectors = selectorsFromMutationResult(result);
-        if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+        if (cfg.__markConfigDirty) cfg.__markConfigDirty();
       }
       return !!(result && result.ok);
     } catch (e) {

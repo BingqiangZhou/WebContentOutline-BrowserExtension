@@ -70,7 +70,8 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
     };
     var focusRaf: number | null = null;
     var close = function() {
-      if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
+      removeFocusTrap();
+      removeFocusTrap = function() {};
       if (focusRaf) {
         cancelAnimationFrame(focusRaf);
         focusRaf = null;
@@ -79,7 +80,7 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
       restoreFocus();
     };
 
-    var removeFocusTrap = createFocusTrap ? createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin }) : null;
+    var removeFocusTrap = createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin });
     wrap.addEventListener('click', function(e) {
       var target = e && e.target;
       var btn = target && (target as HTMLElement).closest ? (target as HTMLElement).closest('[data-act]') : null;
@@ -235,7 +236,7 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
     function cleanup() {
       finished = true;
       // Restore cursor first, before removing listeners that might reference it
-      if (document.body) document.body.style.cursor = prevCursor || '';
+      document.body.style.cursor = prevCursor || '';
       document.removeEventListener('mousemove', move, true);
       document.removeEventListener('click', click, true);
       document.removeEventListener('keydown', key, true);

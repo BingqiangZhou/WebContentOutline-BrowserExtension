@@ -141,7 +141,7 @@ export function renderClassicCollapsedBadge(side: string, onExpand: () => void, 
     opts = opts || {};
     if (destroyed) return;
     destroyed = true;
-    dragController && dragController.destroy && dragController.destroy();
+    dragController.destroy();
     badge.removeEventListener('keydown', onKeydown);
     window.removeEventListener('resize', onResize);
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);

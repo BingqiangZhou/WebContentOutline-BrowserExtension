@@ -201,7 +201,7 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   function remove() {
     if (destroyed) return;
     destroyed = true;
-    dragController && dragController.destroy && dragController.destroy();
+    dragController.destroy();
     window.removeEventListener('resize', onResize);
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
     panel && panel.remove && panel.remove();

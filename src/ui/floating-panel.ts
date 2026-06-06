@@ -221,7 +221,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     };
 
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
-      if (e) e.preventDefault();
+      e.preventDefault();
       navLock && navLock.lock(undefined!);
       setActiveIndex(index);
       onNavigate && onNavigate(item, index);
@@ -318,7 +318,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true);
       onPanelKeydown = null;
       removeScrollListener && removeScrollListener();
-      listenersController && listenersController.abort && listenersController.abort();
+      listenersController.abort();
       cleanupLock();
       if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }
       if (showRaf != null) cancelAnimationFrame(showRaf);

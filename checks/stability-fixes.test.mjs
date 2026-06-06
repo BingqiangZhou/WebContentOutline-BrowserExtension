@@ -29,6 +29,7 @@ function loadDomUtils(querySelectorAll = () => []) {
     XPathResult: { ORDERED_NODE_ITERATOR_TYPE: 1 },
     uiConst(_name, fallback) { return fallback; },
     isSafeXPathExpression() { return true; },
+    isHighRiskBroadCssSelector() { return false; },
     __exports: {}
   };
   sandbox.globalThis = sandbox;

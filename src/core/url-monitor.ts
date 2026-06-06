@@ -7,11 +7,10 @@
    *
    * @param {object} opts
    * @param {function} [opts.checkAndReconnect] - Callback to reconnect DOM watcher
-   * @param {boolean} [opts.mutationObserverAvailable] - Whether MutationObserver is active
    * @returns {object}
    */
-export function createUrlMonitor(opts: { checkAndReconnect?: () => void; mutationObserverAvailable?: boolean }) {
-    var checkAndReconnect: (() => void) | null = (opts && opts.checkAndReconnect) || null;
+export function createUrlMonitor(opts: { checkAndReconnect?: () => void }) {
+    var checkAndReconnect: (() => void) | null = opts.checkAndReconnect || null;
 
     // State
     var lastKnownUrl = '';

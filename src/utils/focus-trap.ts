@@ -13,7 +13,6 @@ export function createFocusTrap(container: HTMLElement, opts?: { onClose?: () =>
   };
 
   var handleKeydown = function(e: KeyboardEvent) {
-    if (!e) return;
     if (e.key === 'Tab') {
       var focusables = getFocusable();
       if (!focusables.length) {

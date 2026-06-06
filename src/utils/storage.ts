@@ -14,10 +14,9 @@ function normalizeSelectorEntry(entry: any) {
     if (!type) return null;
     var expr = String(entry.expr || '').trim();
     if (!expr) return null;
-    if (type === 'css' && expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
-    if (type === 'xpath' && expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
+    if (expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
     try {
-      if (typeof validateSelectorExpression === 'function' && !validateSelectorExpression(type, expr)) return null;
+      if (!validateSelectorExpression(type, expr)) return null;
     } catch (_) {
       return null;
     }

@@ -33,7 +33,6 @@ export function msg(key: string, substitutions?: string | string[]): string {
 
 export function isContextInvalidatedError(e: unknown): boolean {
     try {
-      if (!e) return false;
       var text = String(e && ((e as { message?: string }).message || ((e as { toString?: () => string }).toString && (e as { toString: () => string }).toString()) || e) || '');
       var lowered = text.toLowerCase();
       return lowered.indexOf('extension context invalidated') !== -1 || lowered.indexOf('context invalidated') !== -1;
