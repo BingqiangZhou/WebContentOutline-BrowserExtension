@@ -152,12 +152,12 @@
     "description": "清空配置失败时的错误消息"
   },
   "titleDisabled": {
-    "message": "网页目录助手：待机（点击启用）",
-    "description": "扩展待机时的图标标题"
+    "message": "网页目录：已禁用（点击启用）",
+    "description": "当前站点禁用时的图标标题"
   },
   "titleEnabled": {
-    "message": "网页目录助手：已启用（点击关闭）",
-    "description": "扩展启用时的图标标题"
+    "message": "网页目录：已启用（点击禁用）",
+    "description": "当前站点启用时的图标标题"
   },
   "titleDisabledFallback": {
     "message": "网页目录：禁用（按站点，点击启用）",
@@ -243,14 +243,10 @@
   },
   "deactivateToc": {
     "message": "关闭 TOC",
-    "description": "停用目录并返回待机模式的菜单项"
-  },
-  "standbyTooltip": {
-    "message": "点击启用 TOC",
-    "description": "待机状态的贴边图标提示"
+    "description": "停用当前站点目录的菜单项"
   },
   "dockDeactivate": {
     "message": "关闭 TOC",
-    "description": "快捷设置中停用目录并返回待机模式的操作"
+    "description": "快捷设置中停用当前站点目录的操作"
   }
 }

@@ -11,7 +11,7 @@ var CFG = {
   PROGRAMMATIC_CLOSE_DELAY_MS: 1800,
   SAFE_MARGIN_PX: 12,
   DEFAULT_TOP_MIN: 120,
-  DEFAULT_HEIGHT: 104
+  DEFAULT_HEIGHT: 75
 };
 
 function normalizeMode(mode: string): string {

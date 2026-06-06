@@ -13,18 +13,12 @@ import {
   STORAGE_KEYS
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
-import { renderStandbyDock } from './ui/standby-dock.js';
 
 interface TocAppInstance {
   destroy?: () => void;
   expand?: (opts?: any) => Promise<void>;
   collapse?: () => void;
   refreshConfig?: () => Promise<void>;
-}
-
-interface StandbyDockInstance {
-  destroy?: () => void;
-  getSide?: () => string;
 }
 
 export function startTocContent(ctx: any) {
@@ -49,7 +43,6 @@ export function startTocContent(ctx: any) {
   var hasChrome = (typeof chrome !== 'undefined');
 
   var appInstance: TocAppInstance | null = null;
-  var standbyInstance: StandbyDockInstance | null = null;
   var currentEnabled = false;
   var currentUiMode = 'edge-dock';
   var disposed = false;
@@ -82,8 +75,6 @@ export function startTocContent(ctx: any) {
     detachListeners();
     try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
-    try { if (standbyInstance?.destroy) standbyInstance.destroy(); } catch (_) {}
-    standbyInstance = null;
     if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
@@ -118,7 +109,18 @@ export function startTocContent(ctx: any) {
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
         onSwitchUiMode: applyUiMode,
-        onDeactivate: function() { toggleActive().catch(function() {}); }
+        onDeactivate: function() {
+          // Page-side "Close TOC" → persist disabled state to background, then self-disable
+          try {
+            if (hasChrome && chrome.runtime?.sendMessage) {
+              chrome.runtime.sendMessage(
+                { type: 'toc:persistActiveState', enabled: false, origin: location.origin },
+                function() { void chrome.runtime.lastError; }
+              );
+            }
+          } catch (_) {}
+          applyEnabledState(false).catch(function() {});
+        }
       }) as TocAppInstance | null;
     } catch (err) {
       if (isContextInvalidatedError && isContextInvalidatedError(err)) {
@@ -133,49 +135,6 @@ export function startTocContent(ctx: any) {
     try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
     if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
-  }
-
-  function destroyStandby() {
-    try { if (standbyInstance?.destroy) standbyInstance.destroy(); } catch (_) {}
-    standbyInstance = null;
-  }
-
-  function renderStandby() {
-    var lastSide = 'right';
-    try {
-      if (standbyInstance?.getSide) lastSide = standbyInstance.getSide() || 'right';
-    } catch (_) {}
-    destroyStandby();
-    standbyInstance = renderStandbyDock({
-      side: lastSide,
-      onActivate: function() { toggleActive().catch(function() {}); }
-    });
-  }
-
-  var togglePromise: Promise<void> | null = null;
-
-  async function toggleActive() {
-    if (togglePromise) return togglePromise;
-    togglePromise = (async () => {
-      try {
-        var nextEnabled = !currentEnabled;
-        // Persist to storage via background
-        try {
-          if (hasChrome && chrome.runtime?.sendMessage) {
-            await new Promise<void>(function(resolve) {
-              chrome.runtime.sendMessage(
-                { type: 'toc:persistActiveState', enabled: nextEnabled, origin: location.origin },
-                function() { void chrome.runtime.lastError; resolve(); }
-              );
-            });
-          }
-        } catch (_) {}
-        await applyEnabledState(nextEnabled);
-      } finally {
-        togglePromise = null;
-      }
-    })();
-    return togglePromise;
   }
 
   async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
@@ -216,13 +175,11 @@ export function startTocContent(ctx: any) {
     }
     currentEnabled = want;
     if (!want) {
-      // Transition to STANDBY: destroy TOC app, show standby dock
+      // Disabled: destroy TOC app, clean up DOM
       stopApp();
-      renderStandby();
       return;
     }
-    // Transition to ACTIVE: destroy standby dock, start TOC app
-    destroyStandby();
+    // Enabled: start TOC app
     await startApp();
     await applyExpandState(opts);
   }
@@ -240,10 +197,7 @@ export function startTocContent(ctx: any) {
       if (enabled) {
         await applyEnabledState(true, undefined as any);
       } else {
-        // STANDBY mode: render the dim standby dock icon
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
-        renderStandby();
-        currentEnabled = false;
       }
     } catch (e) {
       if (isContextInvalidatedError && isContextInvalidatedError(e)) {
@@ -251,8 +205,6 @@ export function startTocContent(ctx: any) {
         return;
       }
       console.warn(msg('logPrefix') + ' ' + msg('logReadEnabledFailed'), e);
-      // Even on error, render standby dock
-      renderStandby();
     }
   }
 
@@ -284,19 +236,6 @@ export function startTocContent(ctx: any) {
             (async function() {
               try {
                 await applyEnabledState(true, { expandPanel: true });
-                respondOnce({ ok: true });
-              } catch (err) {
-                respondOnce({ ok: false, error: String(err) });
-              }
-            })();
-            return true;
-          }
-
-          // Toolbar icon click or cross-tab sync toggles active state
-          if (msgObj.type === 'toc:toggleActive') {
-            (async function() {
-              try {
-                await toggleActive();
                 respondOnce({ ok: true });
               } catch (err) {
                 respondOnce({ ok: false, error: String(err) });

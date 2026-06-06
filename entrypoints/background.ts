@@ -148,8 +148,8 @@ function sitePatternFromUrl(url: string): string {
   }
 }
 
-function getIconPathMap(): Record<string, string> {
-  const base = 'icons/png/toc-enabled';
+function getIconPathMap(enabled: boolean): Record<string, string> {
+  const base = enabled ? 'icons/png/toc-enabled' : 'icons/png/toc-disabled';
   return {
     "16": `/${base}-16.png`,
     "32": `/${base}-32.png`,
@@ -158,12 +158,12 @@ function getIconPathMap(): Record<string, string> {
   };
 }
 
-async function setTabIcon(tabId: number): Promise<void> {
+async function setTabIcon(tabId: number, enabled: boolean): Promise<void> {
   try {
-    await browser.action.setIcon({ tabId, path: getIconPathMap() });
+    await browser.action.setIcon({ tabId, path: getIconPathMap(enabled) });
   } catch {
     try {
-      const pathMap = getIconPathMap();
+      const pathMap = getIconPathMap(enabled);
       const absolute: Record<string, string> = {};
       for (const [size, p] of Object.entries(pathMap)) {
         absolute[size] = browser.runtime.getURL(p.replace(/^\/+/, '') as any);
@@ -172,14 +172,16 @@ async function setTabIcon(tabId: number): Promise<void> {
     } catch (_) {}
   }
   try {
-    const title = browser.i18n.getMessage('browserActionTitle') || 'Web TOC Assistant';
+    const title = enabled
+      ? (browser.i18n.getMessage('titleEnabled') || 'Web TOC: Enabled (click to disable)')
+      : (browser.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled (click to enable)');
     await browser.action.setTitle({ tabId, title });
   } catch (_) {}
 }
 
 /**
- * Set the enabled icon for a tab if it's an HTTP(S) page.
- * All tabs now show the same enabled icon regardless of per-site state.
+ * Set the icon for a tab based on its per-site enabled state.
+ * Non-HTTP pages show disabled icon (no per-site state).
  */
 async function updateIconForTab(tabId: number, url: string = ''): Promise<void> {
   if (!tabId) return;
@@ -192,12 +194,16 @@ async function updateIconForTab(tabId: number, url: string = ''): Promise<void> 
   }
 
   if (!finalUrl || !isHttpUrl(finalUrl)) {
-    // Non-HTTP pages: still show enabled icon (no per-site state needed)
-    try { await setTabIcon(tabId); } catch (_) {}
+    // Non-HTTP pages: show disabled icon
+    try { await setTabIcon(tabId, false); } catch (_) {}
     return;
   }
 
-  try { await setTabIcon(tabId); } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
+  try {
+    const origin = originFromUrl(finalUrl);
+    const enabled = await getEnabledByOrigin(origin);
+    await setTabIcon(tabId, enabled);
+  } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
 }
 
 function pingContentScript(tabId: number): Promise<boolean> {
@@ -268,6 +274,9 @@ async function ensureContentScript(tabId: number, url: string): Promise<boolean>
 
 async function maybeAutoInject(tabId: number, url: string): Promise<void> {
   if (!isHttpUrl(url)) return;
+  const origin = originFromUrl(url);
+  const enabled = await getEnabledByOrigin(origin);
+  if (!enabled) return;
   await ensureContentScript(tabId, url);
 }
 
@@ -278,6 +287,8 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
       if (!t.id || t.id === exceptTabId) continue;
       try {
         browser.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void browser.runtime.lastError; });
+        // Update icon for each tab
+        await setTabIcon(t.id, enabled);
       } catch (_) {}
     }
   } catch (e) {
@@ -288,11 +299,27 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
 async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
-  // Ensure content script is present, then tell it to toggle
-  await ensureContentScript(tab.id, tab.url);
-  try {
-    browser.tabs.sendMessage(tab.id, { type: 'toc:toggleActive' }, () => { void browser.runtime.lastError; });
-  } catch (_) {}
+  const origin = originFromUrl(tab.url);
+  const current = await getEnabledByOrigin(origin);
+  const nextEnabled = !current;
+  const saved = await setEnabledByOrigin(origin, nextEnabled);
+  if (!saved || !saved.ok) return;
+  // Update icon for this tab
+  await setTabIcon(tab.id, nextEnabled);
+  if (nextEnabled) {
+    // Enable: inject content script if needed, then tell it to start
+    await ensureContentScript(tab.id, tab.url);
+    try {
+      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: true }, () => { void browser.runtime.lastError; });
+    } catch (_) {}
+  } else {
+    // Disable: tell content script to clean up
+    try {
+      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: false }, () => { void browser.runtime.lastError; });
+    } catch (_) {}
+  }
+  // Broadcast to other tabs of same origin
+  await broadcastEnabledToOrigin(origin, nextEnabled, tab.id);
 }
 
 function startBackground() {
@@ -301,11 +328,11 @@ browser.action.onClicked.addListener(handleActionClick);
 browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowId: number }) => {
   try {
     await updateIconForTab(activeInfo.tabId, '');
-    // Always inject content script for HTTP(S) pages
+    // Only auto-inject for enabled sites
     try {
       const tab = await browser.tabs.get(activeInfo.tabId);
       if (tab?.id && tab.url && isHttpUrl(tab.url)) {
-        await ensureContentScript(tab.id, tab.url);
+        await maybeAutoInject(tab.id, tab.url);
       }
     } catch (_) {}
   } catch (_) {}
@@ -327,9 +354,9 @@ async function processAllTabs() {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     for (const t of tabs) {
       if (t.id) updateIconForTab(t.id, t.url).catch(() => {});
-      // Always inject content script for all HTTP(S) tabs
+      // Only inject for enabled sites
       if (t.id && t.url && isHttpUrl(t.url)) {
-        ensureContentScript(t.id, t.url).catch(() => {});
+        maybeAutoInject(t.id, t.url).catch(() => {});
       }
     }
   } catch (e) {
@@ -339,8 +366,8 @@ async function processAllTabs() {
 
 async function setGlobalDefaultIcon() {
   try {
-    await browser.action.setIcon({ path: getIconPathMap() });
-    await browser.action.setTitle({ title: browser.i18n.getMessage('browserActionTitle') || 'Web TOC Assistant' });
+    await browser.action.setIcon({ path: getIconPathMap(false) });
+    await browser.action.setTitle({ title: browser.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled (click to enable)' });
   } catch (e) { console.warn('[toc] setGlobalDefaultIcon failed:', e); }
 }
 
@@ -408,7 +435,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       })();
       return true;
     }
-    // Content script requests to persist active/standby state to storage
+    // Content script requests to persist enabled state to storage (e.g. page-side "Close TOC")
     if (msg.type === 'toc:persistActiveState') {
       if (!sender || sender.id !== browser.runtime.id) { sendResponse?.({ ok: false, reason: 'bad-sender' }); return; }
       const tabId = sender?.tab?.id;
@@ -421,6 +448,10 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
           if (!saved || !saved.ok) {
             sendResponse?.({ ok: false });
             return;
+          }
+          // Update icon for the source tab
+          if (tabId) {
+            await setTabIcon(tabId, enabled);
           }
           // Broadcast to other tabs of same origin
           await broadcastEnabledToOrigin(origin, enabled, tabId);

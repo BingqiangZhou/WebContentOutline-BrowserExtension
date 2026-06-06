@@ -4,9 +4,7 @@
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock *,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge *,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock * {
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge * {
   all: unset !important;
   box-sizing: border-box !important;
 }
@@ -21,8 +19,7 @@
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-toast-container,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock {
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge {
   --toc-z-index: 2147483647;
 }
 
@@ -30,8 +27,7 @@
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-floating,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay,
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-toast-container,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock {
+:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-collapsed-badge {
   --toc-bg-panel: #fff;
   --toc-bg-header: #f6f7f9;
   --toc-bg-overlay: #fff;
@@ -128,7 +124,7 @@
   top: 120px !important;
   z-index: var(--toc-z-index) !important;
   display: block !important;
-  width: 48px !important;
+  width: 40px !important;
   height: auto !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
   color: var(--toc-dock-color) !important;
@@ -148,8 +144,8 @@
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-toolbar {
   display: flex !important;
   flex-direction: column !important;
-  gap: 4px !important;
-  width: 48px !important;
+  gap: 3px !important;
+  width: 40px !important;
   cursor: grab !important;
   user-select: none !important;
 }
@@ -158,94 +154,12 @@
   cursor: grabbing !important;
 }
 
-/* ============================================
-   Standby Dock (dimmed icon before TOC activation)
-   ============================================ */
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock {
-  --toc-dock-bg: #fff;
-  --toc-dock-color: #202124;
-  --toc-dock-border: rgba(15, 23, 42, 0.08);
-  --toc-dock-shadow: none;
-
-  position: fixed !important;
-  top: 120px !important;
-  z-index: var(--toc-z-index) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 48px !important;
-  height: 48px !important;
-  opacity: 0.4 !important;
-  transition: opacity 0.2s ease !important;
-  touch-action: none !important;
-  cursor: pointer !important;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
-  color: var(--toc-dock-color) !important;
-  outline: none !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock:hover,
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock:focus-visible {
-  opacity: 0.7 !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-dragging {
-  cursor: grabbing !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-button {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  width: 48px !important;
-  height: 48px !important;
-  border: 1px solid var(--toc-dock-border) !important;
-  background: var(--toc-dock-bg) !important;
-  color: var(--toc-dock-color) !important;
-  box-shadow: var(--toc-dock-shadow) !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-right {
-  right: 0 !important;
-  left: auto !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-right .toc-standby-dock-button {
-  border-right: 0 !important;
-  border-radius: 16px 0 0 16px !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-left {
-  left: 0 !important;
-  right: auto !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-left .toc-standby-dock-button {
-  border-left: 0 !important;
-  border-radius: 0 16px 16px 0 !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-button svg {
-  width: 23px !important;
-  height: 23px !important;
-  fill: currentColor !important;
-  stroke: none !important;
-}
-
-:where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock-button svg line {
-  fill: none !important;
-  stroke: currentColor !important;
-  stroke-width: 2 !important;
-  stroke-linecap: round !important;
-  stroke-linejoin: round !important;
-}
-
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-button {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 48px !important;
-  height: 48px !important;
+  width: 40px !important;
+  height: 40px !important;
   border: 1px solid var(--toc-dock-border) !important;
   background: var(--toc-dock-bg) !important;
   color: var(--toc-dock-color) !important;
@@ -255,21 +169,21 @@
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-right .toc-edge-dock-button {
   border-right: 0 !important;
-  border-radius: 16px 0 0 16px !important;
+  border-radius: 12px 0 0 12px !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-left .toc-edge-dock-button {
   border-left: 0 !important;
-  border-radius: 0 16px 16px 0 !important;
+  border-radius: 0 12px 12px 0 !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-settings {
   align-self: flex-end !important;
-  width: 32px !important;
-  height: 32px !important;
+  width: 28px !important;
+  height: 28px !important;
   border: 1px solid var(--toc-dock-border) !important;
   border-radius: 999px !important;
-  margin-right: 8px !important;
+  margin-right: 6px !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-right .toc-edge-dock-settings {
@@ -281,7 +195,7 @@
   align-self: flex-start !important;
   border-left: 1px solid var(--toc-dock-border) !important;
   border-radius: 999px !important;
-  margin-left: 8px !important;
+  margin-left: 6px !important;
   margin-right: 0 !important;
 }
 
@@ -291,8 +205,8 @@
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-button svg {
-  width: 23px !important;
-  height: 23px !important;
+  width: 20px !important;
+  height: 20px !important;
   fill: none !important;
   stroke: currentColor !important;
   stroke-linecap: round !important;
@@ -1090,13 +1004,6 @@
    Dark Theme Support (prefers-color-scheme: dark)
    ============================================ */
 @media (prefers-color-scheme: dark) {
-  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-standby-dock {
-    --toc-dock-bg: #242424;
-    --toc-dock-color: #e5e7eb;
-    --toc-dock-border: rgba(255, 255, 255, 0.12);
-    --toc-dock-shadow: none;
-  }
-
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock {
     --toc-dock-bg: #242424;
     --toc-dock-color: #e5e7eb;
