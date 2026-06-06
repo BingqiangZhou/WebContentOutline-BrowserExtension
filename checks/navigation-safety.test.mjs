@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function loadCreateUrlMonitor() {
   const file = path.join(repoRoot, 'src/core/url-monitor.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace('export function createUrlMonitor', 'function createUrlMonitor');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace('export function createUrlMonitor', 'function createUrlMonitor'));
 
   const listeners = new Map();
   const sandbox = {
@@ -56,9 +58,9 @@ function loadCreateUrlMonitor() {
 
 function loadCreateRebuildScheduler(hostname = 'example.com') {
   const file = path.join(repoRoot, 'src/core/rebuild-scheduler.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace('export function createRebuildScheduler', 'function createRebuildScheduler');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace('export function createRebuildScheduler', 'function createRebuildScheduler'));
 
   let mutationHandler = null;
   let urlChangeHandler = null;

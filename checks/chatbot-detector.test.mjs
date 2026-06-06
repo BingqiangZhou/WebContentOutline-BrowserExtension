@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, beforeEach } from 'vitest';
+import { stripTsSyntax } from './test-helpers.mjs';
 import vm from 'node:vm';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // ---------------------------------------------------------------------------
 // DOM mock helpers
@@ -137,9 +139,9 @@ function addTextContent(el, text) {
 
 function loadModule(locMock, docMock) {
   const file = path.join(repoRoot, 'src/utils/chatbot-detector.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace(/^export /gm, '');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/^export /gm, ''));
 
   const sandbox = {
     console,

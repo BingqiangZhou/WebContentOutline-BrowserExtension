@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
 }
 
 function loadNormalizeUiMode() {
-  const storage = read('src/utils/storage.ts');
+  const storage = stripTsSyntax(read('src/utils/storage.ts'));
   const match = storage.match(/export function normalizeUiMode\(mode\) \{[\s\S]*?\n\s*\}/);
   assert.ok(match, 'normalizeUiMode() should be exported from storage.js');
   const sandbox = { __exports: {} };
@@ -40,7 +42,7 @@ test('storage exposes global ui mode helpers through toc utils', () => {
   assert.match(constants, /UI_MODE:\s*'tocUiMode'/);
   assert.match(storage, /export function getUiMode\(\)/);
   assert.match(storage, /getStorage\(STORAGE_KEYS\.UI_MODE,\s*'edge-dock'\)/);
-  assert.match(storage, /export function saveUiMode\(mode\)/);
+  assert.match(storage, /export function saveUiMode\(mode[^)]*\)/);
   assert.match(storage, /setStorage\(STORAGE_KEYS\.UI_MODE,\s*normalizeUiMode\(mode\)\)/);
   assert.match(tocUtils, /export \* from '\.\/storage\.js'/);
 });
@@ -118,5 +120,5 @@ test('toc app and content script orchestrate the selected global ui mode', () =>
   assert.match(content, /changes\?\.\[UI_MODE_KEY\]/);
   assert.match(content, /if \(opts\?\.expandPanel\) \{[\s\S]*?appInstance\.expand\(\{\s*autoCollapse:\s*currentUiMode !== 'classic'\s*\}\)/);
   assert.match(content, /else if \(currentUiMode !== 'classic'\) \{[\s\S]*?appInstance\.collapse\(\);[\s\S]*?\} else \{[\s\S]*?getPanelExpandedByOrigin/);
-  assert.match(app, /async function expand\(opts\)[\s\S]*?dockInstance\.peek\(opts \|\| \{\}\)/);
+  assert.match(app, /async function expand\(opts[^)]*\)[\s\S]*?dockInstance\.peek\(opts \|\| \{\}\)/);
 });
