@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#140---2026-06-06)
+[Table of Contents](#table-of-contents) • [Latest](#150---2026-06-06)
 
 ---
 
 ## Table of Contents
 
+- [1.5.0](#150---2026-06-06) - 2026-06-06
 - [1.4.0](#140---2026-06-06) - 2026-06-06
 - [1.3.1](#131---2026-06-06) - 2026-06-06
 - [1.2.0](#120---2026-06-05) - 2026-06-05
@@ -34,6 +35,16 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.5.0] - 2026-06-06
+
+### 🚀 New Features
+- **TOC source indicators** — Visual source markers distinguish different types of TOC items:
+  - **Chatbot pages**: User prompts are marked with a blue left-side indicator; AI response headings have no indicator
+  - **Regular pages with custom selectors**: Items from user-configured selectors are marked with a green left-side indicator; auto-detected h1-h6 items have no indicator
+  - Edge dock preview lines also use source-aware coloring (blue for user prompts, green for custom selectors)
 
 ---
 
