@@ -32,7 +32,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
 
   function cancelRaf(id: number | null) {
     if (id == null) return;
-    try { cancelAnimationFrame(id); } catch (_) {}
+    cancelAnimationFrame(id);
   }
 
   function notify(nextItem: { el: Element; text: string; level: number } | null) {
@@ -43,7 +43,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
 
   function disconnectObserver() {
     if (observer) {
-      try { observer.disconnect(); } catch (_) {}
+      observer.disconnect();
       observer = null;
     }
     cancelRaf(observeRaf);
@@ -61,8 +61,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
       var entry = entries[i];
       var item = entry && itemByElement.get(entry.target);
       if (!item) continue;
-      var isConnected = true;
-      try { isConnected = !document || !document.contains || document.contains(entry.target); } catch (_) {}
+      var isConnected = document.contains(entry.target);
       if (entry.isIntersecting && isConnected) {
         var top = entry.boundingClientRect && entry.boundingClientRect.top;
         visibleTops.set(item, Number.isFinite(top) ? top : 0);
@@ -76,7 +75,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
   }
 
   function observeItems(newEls?: (Element | null | false | undefined)[]) {
-    if (destroyed || typeof IntersectionObserver === 'undefined') return;
+    if (destroyed) return;
     if (!observer) {
       observer = new IntersectionObserver(function(entries) {
         if (destroyed) return;
@@ -98,9 +97,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
     if (newEls) {
       for (var j = 0; j < newEls.length; j++) {
         var el = newEls[j];
-        try {
-          if (el && (!document || !document.contains || document.contains(el))) observer.observe(el);
-        } catch (_) {}
+        if (el && document.contains(el)) observer.observe(el);
       }
       return;
     }
@@ -112,9 +109,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
       for (var k = 0; k < items.length; k++) {
         var item = items[k];
         if (!item || !item.el) continue;
-        try {
-          if (!document || !document.contains || document.contains(item.el)) observer.observe(item.el);
-        } catch (_) {}
+        if (document.contains(item.el)) observer.observe(item.el);
       }
     });
   }
@@ -139,7 +134,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
       // Unobserve elements that are no longer in the new set
       oldElementsByItem.forEach(function(_item, el) {
         if (!newElementsByItem.has(el)) {
-          try { capturedObserver.unobserve(el); } catch (_) {}
+          capturedObserver.unobserve(el);
         }
       });
 

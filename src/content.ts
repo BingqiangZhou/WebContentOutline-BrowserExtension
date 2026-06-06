@@ -10,7 +10,8 @@ import {
   normalizeUiMode,
   isContextInvalidatedError,
   cleanupOwnedElements,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  buildSitePattern
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
 
@@ -86,7 +87,7 @@ export function startTocContent(ctx: any) {
 
   function getDefaultConfig() {
     return {
-      urlPattern: location.protocol + '//' + location.host + '/*',
+      urlPattern: buildSitePattern(),
       side: 'right',
       selectors: [] as Array<{ type: string; expr: string }>
     };

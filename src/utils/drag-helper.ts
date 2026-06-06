@@ -74,10 +74,10 @@ export function createDragController(options: DragControllerOptions) {
       }
 
       function removePointerListeners() {
-        try { element.removeEventListener('pointermove', handlePointerMove, true); } catch (_) {}
-        try { element.removeEventListener('pointerup', handlePointerUp, true); } catch (_) {}
-        try { element.removeEventListener('pointercancel', handlePointerCancel, true); } catch (_) {}
-        try { element.removeEventListener('lostpointercapture', handlePointerCancel, true); } catch (_) {}
+        element.removeEventListener('pointermove', handlePointerMove, true);
+        element.removeEventListener('pointerup', handlePointerUp, true);
+        element.removeEventListener('pointercancel', handlePointerCancel, true);
+        element.removeEventListener('lostpointercapture', handlePointerCancel, true);
         if (state.pointerId != null) {
           try { element.releasePointerCapture(state.pointerId); } catch (_) {}
         }
@@ -98,10 +98,10 @@ export function createDragController(options: DragControllerOptions) {
           onEnd && onEnd(state, e);
         } catch (_) {}
         if (prevent) {
-          try { e && e.preventDefault && e.preventDefault(); } catch (_) {}
+          e && e.preventDefault && e.preventDefault();
         }
         if (stop) {
-          try { e && e.stopPropagation && e.stopPropagation(); } catch (_) {}
+          e && e.stopPropagation && e.stopPropagation();
         }
       }
 
@@ -119,9 +119,7 @@ export function createDragController(options: DragControllerOptions) {
         try {
           onMove && onMove(state, e);
         } catch (_) {}
-        try {
-          e.preventDefault();
-        } catch (_) {}
+        e.preventDefault();
       }
 
       function handlePointerUp(e: PointerEvent) {
@@ -158,10 +156,8 @@ export function createDragController(options: DragControllerOptions) {
           onStart && onStart(state, e);
         } catch (_) {}
 
-        try {
-          e.preventDefault();
-          e.stopPropagation();
-        } catch (_) {}
+        e.preventDefault();
+        e.stopPropagation();
       }
 
       element.addEventListener('pointerdown', handlePointerDown, true);

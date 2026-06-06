@@ -223,6 +223,7 @@ function loadStorageForNormalization() {
     serializedWrite(_key, fn) { return fn(); },
     isQuotaExceededError() { return false; },
     pruneObjectToLimit(map) { return map; },
+    normalizeSide(side) { return side === 'left' ? 'left' : 'right'; },
     showToast() {},
     __exports: {}
   };
@@ -412,6 +413,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
     },
     isContextInvalidatedError() { return false; },
     cleanupOwnedElements() {},
+    buildSitePattern() { return sandbox.location.protocol + '//' + sandbox.location.host + '/*'; },
     safeJsonParse(raw) { try { return JSON.parse(raw); } catch (_) { return null; } },
     isPlainObject(value) { return !!(value && typeof value === 'object' && !Array.isArray(value)); },
     getFiniteNumber(value) {

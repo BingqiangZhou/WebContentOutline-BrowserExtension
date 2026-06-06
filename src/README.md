@@ -29,8 +29,7 @@ src/
 │   ├── classic-collapsed-badge.ts # 经典文字徽章交互
 │   ├── classic-floating-panel.ts  # 经典自由拖拽面板壳层
 │   ├── element-picker.ts       # 元素拾取器
-│   ├── floating-panel-helpers.ts # 浮动面板辅助函数
-│   └── floating-panel.ts       # 轻量目录卡片
+│   └── floating-panel.ts       # 轻量目录卡片（内联辅助函数）
 └── core/                       # 核心逻辑
     ├── toc-app.ts              # 主应用协调器（含导航锁）
     ├── config-manager.ts       # 配置管理
@@ -179,8 +178,8 @@ if (isExtensionContextInvalidated()) {
 
 **rebuild-scheduler.ts** — 重建调度器
 - 协调 dom-watcher 和 url-monitor
-- 动态防抖：`DEBOUNCE_MS * 1.3^consecutiveMutations`，上限 1000ms
-- 导航锁集成（等待解锁后重建）
+- 固定防抖：400ms（常规），1200ms（流式内容期间）
+- 内联导航锁集成（等待解锁后重建）
 - 失败重试逻辑（1秒延迟）
 - 断路器（连续5次失败后暂停）
 

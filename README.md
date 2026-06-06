@@ -252,15 +252,13 @@ For complex page structures, you can use XPath:
 │   │   ├── classic-collapsed-badge.ts # Original text badge interaction
 │   │   ├── classic-floating-panel.ts  # Original freely draggable panel shell
 │   │   ├── element-picker.ts  # Element picker
-│   │   ├── floating-panel.ts  # Shared lightweight TOC list card
-│   │   └── floating-panel-helpers.ts # Extracted panel helpers
+│   │   └── floating-panel.ts  # Shared lightweight TOC list card (inline helpers)
 │   └── core/                  # Core logic
-│       ├── nav-lock.ts        # Navigation lock module
 │       ├── config-manager.ts  # Configuration management
 │       ├── dom-watcher.ts     # MutationObserver wrapper
 │       ├── url-monitor.ts     # URL/hash change monitor
 │       ├── rebuild-scheduler.ts # Rebuild scheduling & coordination
-│       └── toc-app.ts         # Main application logic
+│       └── toc-app.ts         # Main application logic (inline nav-lock)
 ├── docs/                      # Documentation assets
 │   ├── PRIVACY_POLICY.md      # Privacy policy
 │   └── descriptions/          # Screenshots & store descriptions
@@ -290,10 +288,10 @@ Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon
 entrypoints/toc.content/index.ts (runtime content script)
   ├── src/content.ts (bootstrap)
   ├── src/utils/toc-utils.ts (barrel re-export of all utils)
-  └── src/core/toc-app.ts (orchestrator)
+  └── src/core/toc-app.ts (orchestrator, inline nav-lock via createNavLock())
         ├── ui/ components (edge-dock, element-picker, floating-panel)
         ├── core/config-manager.ts → focus-trap.ts
-        └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, nav-lock.ts
+        └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
 ```
 
 **Background Script**: `entrypoints/background.ts` uses WXT's `browser` API wrapper and dynamically injects `content-scripts/toc.js` plus `content-scripts/toc.css` only for enabled origins.

@@ -140,7 +140,7 @@ function normalizeConfigs(configs: unknown, limits: ConfigLimits | null): Normal
     if (!urlPattern) continue;
     var cfg = Object.assign({}, raw, {
       urlPattern: urlPattern,
-      side: raw.side === 'left' ? 'left' : 'right',
+      side: normalizeSide(raw.side),
       selectors: normalizeSelectors(raw.selectors, maxSels),
       updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0
     }) as NormalizedConfig;
@@ -210,7 +210,7 @@ function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number
   var maxSels = positiveLimit(limits ? limits.maxSelectorsPerSite as number : 0, 50);
   var current: NormalizedConfig = index >= 0 ? normalized[index] : {
     urlPattern: urlPattern,
-    side: mut.side === 'left' ? 'left' : 'right',
+    side: normalizeSide(mut.side),
     selectors: [],
     updatedAt: 0
   };
@@ -221,7 +221,7 @@ function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number
   nextSels = nextSels.slice(0, maxSels);
   var nextConfig = Object.assign({}, current, {
     urlPattern: urlPattern,
-    side: current.side === 'left' ? 'left' : 'right',
+    side: normalizeSide(current.side),
     selectors: nextSels,
     updatedAt: timestamp
   }) as NormalizedConfig;
@@ -311,11 +311,18 @@ function applyUiStateMutation(currentMap: unknown, mutation: unknown, maxKeys: n
   return { ok: true, reason: null, map: map, value: map[key] };
 }
 
-// --- Exports (globalThis) ---
+// --- Shared helpers ---
+
+function normalizeSide(side: unknown): 'left' | 'right' {
+  return side === 'left' ? 'left' : 'right';
+}
+
+// --- Exports ---
 
 export {
   serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit,
   isPlainObject, isHighRiskBroadCssSelector,
+  normalizeSide,
   applyTocConfigMutation,
   validateUiStateMutationSource, applyUiStateMutation
 };

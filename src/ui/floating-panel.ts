@@ -4,7 +4,8 @@
 import {
   msg,
   scrollToElement,
-  cleanupOwnedElements
+  cleanupOwnedElements,
+  isTocContentIdentical
 } from '../utils/toc-utils.js';
 
   /** Clear all children of an element using native replaceChildren(). */
@@ -71,7 +72,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
     var panel = document.createElement('div');
-    var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var listenersController = new AbortController();
 
     // Simple timer IDs for cleanup
     var unlockTimer: ReturnType<typeof setTimeout> | null = null;
@@ -125,7 +126,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         window.addEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
       }
       removeScrollListener = function() {
-        try { window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false); } catch (_) {}
+        window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false);
       };
     } catch (_) {
       removeScrollListener = function() {};
@@ -150,7 +151,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     onPanelKeydown = function(e: KeyboardEvent) {
       if (!e) return;
       if (e.key === 'Escape') {
-        try { e.preventDefault(); } catch (_) {}
+        e.preventDefault();
         onCollapse && onCollapse();
       }
     };
@@ -221,11 +222,9 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         if (!item._node) return;
         var isActive = index === activeIndex;
         item._node.classList.toggle('active', isActive);
-        try {
-          if (isActive) item._node.setAttribute('aria-current', 'location');
-          else item._node.removeAttribute('aria-current');
-          item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
-        } catch (_) {}
+        if (isActive) item._node.setAttribute('aria-current', 'location');
+        else item._node.removeAttribute('aria-current');
+        item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
       });
     };
 
@@ -233,7 +232,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (e && e.preventDefault) e.preventDefault();
       navLock && navLock.lock(undefined!);
       setActiveIndex(index);
-      try { onNavigate && onNavigate(item, index); } catch (_) {}
+      onNavigate && onNavigate(item, index);
 
       try {
         if (scrollToElement) {
@@ -284,7 +283,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         setActiveIndex(nextIndex);
         var nextItem = items[nextIndex];
         if (nextItem && nextItem._node) {
-          try { (nextItem._node as HTMLElement).focus({ preventScroll: false }); } catch (_) { try { (nextItem._node as HTMLElement).focus(); } catch (_2) {} }
+          (nextItem._node as HTMLElement).focus({ preventScroll: false });
         }
         return;
       }
@@ -327,27 +326,23 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var cleanup = function() {
       if (cleanedUp) return;
       cleanedUp = true;
-      try { if (onListClick) list.removeEventListener('click', onListClick); } catch (_) {}
-      try { if (onListKeydown) list.removeEventListener('keydown', onListKeydown); } catch (_) {}
+      if (onListClick) list.removeEventListener('click', onListClick);
+      if (onListKeydown) list.removeEventListener('keydown', onListKeydown);
       onListClick = null;
       onListKeydown = null;
-      try { if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true); } catch (_) {}
+      if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true);
       onPanelKeydown = null;
-      try { removeScrollListener && removeScrollListener(); } catch (_) {}
-      try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
+      removeScrollListener && removeScrollListener();
+      listenersController && listenersController.abort && listenersController.abort();
       cleanupLock();
       if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }
-      try {
-        if (showRaf != null) cancelAnimationFrame(showRaf);
-      } catch (_) {}
+      if (showRaf != null) cancelAnimationFrame(showRaf);
       showRaf = null;
     };
 
     panel.remove = function() {
       cleanup();
-      try {
-        if (panel && panel.isConnected) origRemove();
-      } catch (_) {}
+      if (panel && panel.isConnected) origRemove();
     };
 
     // Used by cleanupOwnedElements() for teardown
@@ -358,16 +353,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (!panel || !panel.isConnected) return false;
 
       // Check for identical content — no-op if nothing changed
-      if (items.length === newItems.length && items.length > 0) {
-        var identical = true;
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].text !== newItems[i].text || items[i].el !== newItems[i].el) {
-            identical = false;
-            break;
-          }
-        }
-        if (identical) return false;
-      }
+      if (isTocContentIdentical(items, newItems)) return false;
 
       // Both empty — nothing to do
       if (items.length === 0 && newItems.length === 0) {

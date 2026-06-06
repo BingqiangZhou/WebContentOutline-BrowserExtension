@@ -3,7 +3,8 @@
 import {
   msg,
   setBadgePosByHost,
-  cleanupOwnedElements
+  cleanupOwnedElements,
+  normalizeSide
 } from '../utils/toc-utils.js';
 import { createDragController } from '../utils/drag-helper.js';
 import { renderFloatingPanel } from './floating-panel.js';
@@ -50,7 +51,7 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
   var shell = document.createElement('div');
-  shell.className = 'toc-floating toc-floating-classic toc-floating-' + (options.side === 'left' ? 'left' : 'right');
+  shell.className = 'toc-floating toc-floating-classic toc-floating-' + normalizeSide(options.side);
   shell.setAttribute('data-toc-owner', 'web-toc-assistant');
   shell.setAttribute('role', 'dialog');
   shell.setAttribute('aria-modal', 'false');
@@ -200,11 +201,11 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   function remove() {
     if (destroyed) return;
     destroyed = true;
-    try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
-    try { window.removeEventListener('resize', onResize); } catch (_) {}
+    dragController && dragController.destroy && dragController.destroy();
+    window.removeEventListener('resize', onResize);
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-    try { panel && panel.remove && panel.remove(); } catch (_) {}
-    try { shell.remove(); } catch (_) {}
+    panel && panel.remove && panel.remove();
+    shell.remove();
   }
 
   (shell as any).__TOC_CLEANUP__ = remove;

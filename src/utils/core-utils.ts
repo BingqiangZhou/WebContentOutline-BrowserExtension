@@ -1,8 +1,8 @@
 
 import { SELECTOR_EXPR_MAX_LENGTH } from './constants.js';
-import { isPlainObject, isHighRiskBroadCssSelector } from '../shared/primitives.js';
+import { isPlainObject, isHighRiskBroadCssSelector, normalizeSide } from '../shared/primitives.js';
 
-export { isPlainObject, isHighRiskBroadCssSelector };
+export { isPlainObject, isHighRiskBroadCssSelector, normalizeSide };
 
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
@@ -102,4 +102,16 @@ export function validateSelectorExpression(type: string, expr: string): boolean 
     } catch (_) {
       return false;
     }
+  }
+
+export function buildSitePattern(): string {
+    return location.protocol + '//' + location.host + '/*';
+  }
+
+export function isTocContentIdentical(prevItems: Array<{ text: string; el: Element }>, nextItems: Array<{ text: string; el: Element }>): boolean {
+    if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
+    for (var i = 0; i < prevItems.length; i++) {
+      if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
+    }
+    return true;
   }

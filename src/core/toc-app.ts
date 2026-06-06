@@ -23,7 +23,9 @@ import {
 import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
 import {
   isContextInvalidatedError,
-  isExtensionContextInvalidated
+  isExtensionContextInvalidated,
+  normalizeSide,
+  isTocContentIdentical
 } from '../utils/core-utils.js';
 
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
@@ -54,21 +56,17 @@ import {
 
   // Config change callback — wired when initForConfig runs
   var _activeRebuild: (() => any) | null = null;
-  try {
-    if (setOnConfigChanged) {
-      setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
-    }
-  } catch (_) {}
+  setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
 
 export function initForConfig(cfg: any, options: any) {
     options = options || {};
     var uiMode = options.uiMode === 'classic' ? 'classic' : 'edge-dock';
     var onSwitchUiMode = options.onSwitchUiMode;
     var onDeactivate = options.onDeactivate;
-    var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+    var side: string = normalizeSide(cfg.side);
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+    cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
     var destroyed = false;
 
@@ -97,16 +95,6 @@ export function initForConfig(cfg: any, options: any) {
     var navLock = createNavLock();
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
-
-    var getNavLock = function() { return navLock.isLocked(); };
-
-    var isContentIdentical = function(prevItems: any[], nextItems: any[]) {
-      if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
-      for (var i = 0; i < prevItems.length; i++) {
-        if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
-      }
-      return true;
-    };
 
     var findMatchingActiveIndex = function(nextItems: any[], previousItem: any, fallbackIndex: number) {
       if (!nextItems || !nextItems.length || !previousItem) return -1;
@@ -182,7 +170,7 @@ export function initForConfig(cfg: any, options: any) {
         var newMeta = buildResult.meta;
 
         // Skip rebuild if content is identical
-        if (isContentIdentical(prevItems, newItems)) return true;
+        if (isTocContentIdentical(prevItems, newItems)) return true;
 
         items = newItems;
         tocMeta = newMeta;
@@ -458,16 +446,14 @@ export function initForConfig(cfg: any, options: any) {
       } catch (_) {}
       pickerInstance = null;
       // Clear config change callback
-      try { if (clearOnConfigChanged) clearOnConfigChanged(); } catch (_) {}
+      clearOnConfigChanged();
       // Clear event handler
       _activeRebuild = null;
     };
 
     try {
-      if (createRebuildScheduler) {
-        rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; }, navLock: navLock });
-        rebuildScheduler.start(cfg);
-      }
+      rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; }, navLock: navLock });
+      rebuildScheduler.start(cfg);
       if (uiMode === 'classic') {
         collapse({ persist: false });
       } else if (renderEdgeDock) {
@@ -499,14 +485,12 @@ export function initForConfig(cfg: any, options: any) {
           }
         });
       }
-      if (createActiveItemTracker) {
-        activeTracker = createActiveItemTracker({
-          items: items,
-          onChange: function(_item: any, index: number) {
-            if (!rebuildInFlight && !getNavLock()) syncActiveIndex(index);
-          }
-        });
-      }
+      activeTracker = createActiveItemTracker({
+        items: items,
+        onChange: function(_item: any, index: number) {
+          if (!rebuildInFlight && !navLock.isLocked()) syncActiveIndex(index);
+        }
+      });
       syncActiveIndex(activeIndex);
 
       return {

@@ -110,7 +110,7 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     function disconnect() {
       var obs = observerRef;
       observerRef = null;
-      if (obs) { try { obs.disconnect(); } catch (_) {} }
+      if (obs) { obs.disconnect(); }
     }
 
     function checkAndReconnect() {
@@ -131,7 +131,7 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
 
       if (typeof MutationObserver === 'undefined') return false;
 
-      var root = document.documentElement || document.body;
+      var root = document.documentElement;
       if (!root) return false;
 
       var observer = new MutationObserver(function(mutations) {
@@ -155,7 +155,7 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
         return true;
       } catch (_) {
         observerRef = null;
-        try { observer.disconnect(); } catch (_2) {}
+        observer.disconnect();
         return false;
       }
     }

@@ -14,9 +14,7 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
    * Get dynamic debounce interval: longer during streaming to reduce rebuild frequency.
    */
   function getDebounceMs() {
-    try {
-      if (typeof isStreaming === 'function' && isStreaming()) return STREAMING_DEBOUNCE_MS;
-    } catch (_) {}
+    if (isStreaming()) return STREAMING_DEBOUNCE_MS;
     return DEBOUNCE_MS;
   }
 
@@ -121,7 +119,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
     var onUrlChange = function(immediate: boolean) {
       if (onConfigDirty) onConfigDirty();
       // Invalidate chatbot detection cache on URL change so new pages get re-detected
-      try { invalidateChatbotCache(); } catch (_) {}
+      invalidateChatbotCache();
       scheduleRebuild(immediate);
     };
 
@@ -133,12 +131,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       consecutiveFailures = 0;
 
       // Create dom-watcher with optional scope selector for chatbot pages
-      var scopeSelector: string | null = null;
-      try {
-        if (typeof getChatbotContainerSelector === 'function') {
-          scopeSelector = getChatbotContainerSelector();
-        }
-      } catch (_) {}
+      var scopeSelector: string | null = getChatbotContainerSelector() || null;
       domWatcher = createDomWatcher(onMutation, {
         selectors: cfg.selectors,
         scopeSelector: scopeSelector,
@@ -148,7 +141,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       // Create url-monitor
       var capturedDomWatcher = domWatcher;
       urlMonitor = createUrlMonitor({
-        checkAndReconnect: (capturedDomWatcher && typeof capturedDomWatcher.checkAndReconnect === 'function')
+        checkAndReconnect: capturedDomWatcher
           ? function() { capturedDomWatcher.checkAndReconnect(); }
           : undefined
       });
@@ -162,9 +155,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
           }
         };
       }
-      if (typeof document !== 'undefined' && document.addEventListener) {
-        document.addEventListener('visibilitychange', visibilityHandler);
-      }
+      document.addEventListener('visibilitychange', visibilityHandler);
 
       return handle;
     }
@@ -173,9 +164,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       start: start,
       disconnect: function() {
         if (visibilityHandler) {
-          if (typeof document !== 'undefined' && document.removeEventListener) {
-            document.removeEventListener('visibilitychange', visibilityHandler);
-          }
+          document.removeEventListener('visibilitychange', visibilityHandler);
         }
         if (domWatcher) { domWatcher.stop(); domWatcher = null; }
         if (urlMonitor) { urlMonitor.stop(); urlMonitor = null; }
@@ -189,9 +178,6 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       setPendingRebuild: function(val: boolean) {
         hasPendingRebuild = !!val;
         if (hasPendingRebuild) attemptRebuild();
-      },
-      resetCircuitBreaker: function() {
-        consecutiveFailures = 0;
       }
     };
 

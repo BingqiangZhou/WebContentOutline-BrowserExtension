@@ -142,12 +142,12 @@ export function renderClassicCollapsedBadge(side: string, onExpand: () => void, 
     opts = opts || {};
     if (destroyed) return;
     destroyed = true;
-    try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
-    try { badge.removeEventListener('keydown', onKeydown); } catch (_) {}
-    try { window.removeEventListener('resize', onResize); } catch (_) {}
+    dragController && dragController.destroy && dragController.destroy();
+    badge.removeEventListener('keydown', onKeydown);
+    window.removeEventListener('resize', onResize);
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
     if (!opts.removedExternally) {
-      try { badge.remove(); } catch (_) {}
+      badge.remove();
     }
   }
 

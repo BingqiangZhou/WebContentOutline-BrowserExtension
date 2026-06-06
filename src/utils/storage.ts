@@ -6,7 +6,7 @@ import {
   isContextInvalidatedError,
   validateSelectorExpression
 } from './core-utils.js';
-import { serializedWrite, pruneObjectToLimit } from '../shared/primitives.js';
+import { serializedWrite, pruneObjectToLimit, normalizeSide } from '../shared/primitives.js';
 
 function normalizeSelectorEntry(entry: any) {
     if (!entry || typeof entry !== 'object') return null;
@@ -44,7 +44,7 @@ function normalizeTocConfigs(value: unknown) {
       if (seen.has(urlPattern)) continue;
       seen.add(urlPattern);
 
-      var side = raw.side === 'left' || raw.side === 'right' ? raw.side : 'right';
+      var side = normalizeSide(raw.side);
       var selectorsRaw: any[] = Array.isArray(raw.selectors) ? raw.selectors : [];
       var selectors: any[] = [];
       var selSeen = new Set<string>();

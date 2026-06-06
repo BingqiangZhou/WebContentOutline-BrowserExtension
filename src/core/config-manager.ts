@@ -8,7 +8,9 @@ import {
   findMatchingConfig,
   getFocusableWithin,
   msg,
-  validateSelectorExpression
+  validateSelectorExpression,
+  normalizeSide,
+  buildSitePattern
 } from '../utils/toc-utils.js';
 
   interface StoredConfig {
@@ -67,7 +69,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       }
 
       var configs = await getConfigs() as StoredConfig[];
-      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var urlPattern = buildSitePattern();
       var idx = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
       var list: Array<{ type: string; expr: string }> = (idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : null) || [];
 
@@ -186,11 +188,9 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       box.appendChild(actions);
 
       var restoreFocus = function() {
-        try {
-          if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
-            prevFocus.focus({ preventScroll: true });
-          }
-        } catch (_) {}
+        if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
+          prevFocus.focus({ preventScroll: true });
+        }
       };
       var focusRaf: number | null = null;
       var close = function() {
@@ -199,7 +199,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
           cancelAnimationFrame(focusRaf);
           focusRaf = null;
         }
-        try { if (box) box.remove(); } catch (_) {}
+        if (box) box.remove();
         restoreFocus();
       };
 
@@ -243,15 +243,13 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       });
 
       document.documentElement.appendChild(box);
-      try {
-        focusRaf = requestAnimationFrame(function() {
-          focusRaf = null;
-          if (!box || !box.isConnected) return;
-          try { btnClose.focus({ preventScroll: true }); } catch (_) {}
-        });
-      } catch (_) {}
+      focusRaf = requestAnimationFrame(function() {
+        focusRaf = null;
+        if (!box || !box.isConnected) return;
+        btnClose.focus({ preventScroll: true });
+      });
     } catch (e) {
-      try { if (box && box.isConnected) box.remove(); } catch (_) {}
+      if (box && box.isConnected) box.remove();
       console.error(msg('logClearConfigFailed'), e);
       if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
     }
@@ -269,9 +267,9 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
         return false;
       }
 
-      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var urlPattern = buildSitePattern();
       var entry = { type: 'css', expr: expr };
-      var sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+      var sidePersist = normalizeSide(cfg.side);
 
       var result = await requestConfigMutation({
         operation: 'add-selector',
@@ -293,7 +291,7 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
 export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     try {
       var configs = await getConfigs() as StoredConfig[];
-      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var urlPattern = buildSitePattern();
       var latest = findMatchingConfig(configs, location.href) as StoredConfig | null;
       if (!latest) {
         latest = configs.find(function(c) { return c && c.urlPattern === urlPattern; }) || null;
@@ -301,7 +299,7 @@ export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: s
 
       if (latest) {
         cfg.selectors = Array.isArray(latest.selectors) ? latest.selectors.slice() : [];
-        cfg.side = (latest.side === 'left' || latest.side === 'right') ? latest.side : cfg.side;
+        cfg.side = latest.side === 'left' || latest.side === 'right' ? latest.side : cfg.side;
       } else {
         cfg.selectors = [];
       }

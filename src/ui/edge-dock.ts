@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements } from '../utils/toc-utils.js';
+import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements, normalizeSide } from '../utils/toc-utils.js';
 import { createDragController, DragState } from '../utils/drag-helper.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
@@ -198,7 +198,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   options = options || {};
   if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
 
-  var side: string = options.side === 'left' ? 'left' : 'right';
+  var side: string = normalizeSide(options.side);
   var destroyed = false;
   var lastPointerType: string = 'mouse';
   var suppressClick = false;
@@ -209,7 +209,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var activeIndex = -1;
 
   var root = document.createElement('aside');
-  var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var ac = new AbortController();
   root.className = 'toc-edge-dock toc-edge-dock-' + side;
   root.setAttribute('data-toc-owner', 'web-toc-assistant');
   root.setAttribute('aria-label', msg('dockLabel') || 'TOC tools');
@@ -321,7 +321,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   function navigatePreviewItem(index: number): void {
     var item = dockItems[index];
     if (!item) return;
-    try { options.onNavigate && options.onNavigate(item, index); } catch (_) {}
+    options.onNavigate && options.onNavigate(item, index);
   }
 
   function onPreviewClick(e: MouseEvent): void {
@@ -390,12 +390,10 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     updateSide(side === 'left' ? 'right' : 'left', true);
   });
   createMenuButton('dockSwitchToClassic', 'Switch to classic mode', function() {
-    try {
-      options.onSwitchUiMode && options.onSwitchUiMode('classic');
-    } catch (_) {}
+    options.onSwitchUiMode && options.onSwitchUiMode('classic');
   });
   createMenuButton('dockDeactivate', 'Close TOC', function() {
-    try { options.onDeactivate && options.onDeactivate(); } catch (_) {}
+    options.onDeactivate && options.onDeactivate();
   });
 
   var controller = createDockStateController({
@@ -405,7 +403,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       root.setAttribute('data-mode', next);
       tocButton.setAttribute('aria-expanded', next === 'collapsed' ? 'false' : 'true');
       panelHost.hidden = next === 'collapsed';
-      try { options.onModeChange && options.onModeChange(next, prev); } catch (_) {}
+      options.onModeChange && options.onModeChange(next, prev);
     }
   });
   root.setAttribute('data-mode', controller.getMode());
@@ -422,7 +420,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     sideButton.textContent = (text && text !== key) ? text : fallback;
     if (persist) {
       persistPosition();
-      try { options.onSideChange && options.onSideChange(side); } catch (_) {}
+      options.onSideChange && options.onSideChange(side);
     }
   }
 
@@ -570,11 +568,11 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     if (!e || e.key !== 'Escape') return;
     if (!quickMenu.hidden) {
       closeMenu();
-      try { settingsButton.focus(); } catch (_) {}
+      settingsButton.focus();
       return;
     }
     controller.collapse();
-    try { tocButton.focus(); } catch (_) {}
+    tocButton.focus();
   }
 
   function onDocumentPointerDown(e: PointerEvent): void {
@@ -627,8 +625,8 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     if (persistTimer) clearTimeout(persistTimer);
     cancelMenuClose();
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-    try { ac && ac.abort && ac.abort(); } catch (_) {}
-    try { root.remove(); } catch (_) {}
+    ac && ac.abort && ac.abort();
+    root.remove();
   }
 
   root.__TOC_CLEANUP__ = destroy;
@@ -638,7 +636,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       closeMenu();
       controller.collapse();
       if (opts && opts.focus) {
-        try { tocButton.focus(); } catch (_) {}
+        tocButton.focus();
       }
     },
     destroy: destroy,

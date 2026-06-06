@@ -242,15 +242,13 @@
 │   │   ├── classic-collapsed-badge.ts # 原始文字徽章交互
 │   │   ├── classic-floating-panel.ts  # 原始自由拖拽面板壳层
 │   │   ├── element-picker.ts  # 元素拾取器
-│   │   ├── floating-panel.ts  # 共享轻量目录列表卡片
-│   │   └── floating-panel-helpers.ts # 提取的面板辅助函数
+│   │   ├── floating-panel.ts  # 共享轻量目录列表卡片（内联辅助函数）
 │   └── core/                  # 核心逻辑
-│       ├── nav-lock.ts        # 导航锁定模块
 │       ├── config-manager.ts  # 配置管理
 │       ├── dom-watcher.ts     # MutationObserver 封装
 │       ├── url-monitor.ts     # URL/hash 变更监控
 │       ├── rebuild-scheduler.ts # 重建调度与协调
-│       └── toc-app.ts         # 主应用逻辑
+│       └── toc-app.ts         # 主应用逻辑（含内联导航锁）
 ├── docs/                      # 文档资源
 │   ├── PRIVACY_POLICY.md      # 隐私政策
 │   └── descriptions/          # 截图与应用商店描述
@@ -280,10 +278,10 @@
 entrypoints/toc.content/index.ts（运行时内容脚本）
   ├── src/content.ts（启动逻辑）
   ├── src/utils/toc-utils.ts（工具模块聚合重导出）
-  └── src/core/toc-app.ts（编排器）
+  └── src/core/toc-app.ts（编排器，内联 nav-lock）
         ├── ui/ 组件（吸附工具条、元素拾取器、浮动面板）
         ├── core/config-manager.ts → focus-trap.ts
-        └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, nav-lock.ts
+        └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
 ```
 
 **后台脚本**：`entrypoints/background.ts` 使用 WXT 的 `browser` API 包装，并只对已启用站点动态注入 `content-scripts/toc.js` 和 `content-scripts/toc.css`。
