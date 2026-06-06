@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#131---2026-06-06)
+[Table of Contents](#table-of-contents) • [Latest](#140---2026-06-06)
 
 ---
 
 ## Table of Contents
 
+- [1.4.0](#140---2026-06-06) - 2026-06-06
 - [1.3.1](#131---2026-06-06) - 2026-06-06
 - [1.2.0](#120---2026-06-05) - 2026-06-05
 - [1.1.0](#110---2026-06-05) - 2026-06-05
@@ -33,6 +34,18 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.4.0] - 2026-06-06
+
+### 🔧 Changed
+- **Toolbar-toggle model** — Reverted always-on standby dock to the original per-site toolbar icon toggle. Blue icon = enabled, gray icon = disabled. When disabled, the extension is completely invisible — no standby dock, no UI
+- **Smaller edge dock button** — Collapsed edge dock button reduced from 48×48 to 40×40 for a more subtle appearance
+- **Chatbot detection improved** — More accurate chatbot page detection and content region analysis
+
+### 🐛 Fixed
+- **Re-enable bug** — Fixed critical issue where TOC and dock wouldn't reappear after disabling and re-enabling a site. Root cause: CSS was removed on disable but never re-injected on re-enable (ensureContentScript skips injection when ping succeeds). CSS is now never removed on disable — it's inert when no matching DOM elements exist
 
 ---
 
