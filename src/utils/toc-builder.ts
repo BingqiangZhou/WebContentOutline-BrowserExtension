@@ -137,7 +137,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       }
 
       // Phase 2: Filter using cached geometry — parent clipping + text extraction only for survivors
-      var items: Array<{ id: string; el: Element; text: string; level: number }> = [];
+      var items: Array<{ id: string; el: Element; text: string; level: number; source?: string }> = [];
       for (var g = 0; g < geoData.length; g++) {
         var entry = geoData[g];
         if (!entry) continue;
@@ -199,7 +199,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
         var text = getTrimmedText(el2);
         if (!keepEmpty && (!text || text.length === 0)) continue;
 
-        items.push({ id: 'toc-item-' + items.length, el: el2, text: text, level: getTocItemLevel(el2) });
+        items.push({ id: 'toc-item-' + items.length, el: el2, text: text, level: getTocItemLevel(el2), source: undefined as string | undefined });
         if (items.length >= TOC_MAX_ITEMS) {
           truncated = true;
           break;
@@ -211,7 +211,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       // aria-hidden or SR-only mirrors that survived the filter above).
       if (items.length > 1) {
         var seenTexts = new Set<string>();
-        var deduped: Array<{ id: string; el: Element; text: string; level: number }> = [];
+        var deduped: Array<{ id: string; el: Element; text: string; level: number; source?: string }> = [];
         for (var d = 0; d < items.length; d++) {
           var key = items[d].text;
           if (!seenTexts.has(key)) {
@@ -259,6 +259,7 @@ export function buildTocItems(cfg: { selectors: Array<{ type: string; expr: stri
       }
 
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
+      var isCustom = base.length > 0;
       var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
 
       if (combined.length === 0) {
@@ -271,5 +272,12 @@ export function buildTocItems(cfg: { selectors: Array<{ type: string; expr: stri
         }
       }
 
-      return buildTocItemsFromSelectors(combined, cfg);
+      var result = buildTocItemsFromSelectors(combined, cfg);
+      // Mark items from user-configured selectors
+      if (isCustom && result.items) {
+        for (var si = 0; si < result.items.length; si++) {
+          result.items[si].source = 'custom';
+        }
+      }
+      return result;
     }

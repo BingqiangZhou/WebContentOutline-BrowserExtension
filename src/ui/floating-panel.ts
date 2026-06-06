@@ -21,6 +21,7 @@ interface TocItem {
   el: HTMLElement;
   text: string;
   level: number;
+  source?: string;
   _node?: HTMLElement;
 }
 
@@ -197,6 +198,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         btn.textContent = item.text;
         btn.dataset.index = String(index);
         btn.dataset.level = String(item.level || 2);
+        if (item.source) btn.dataset.source = item.source;
         if (index === activeIndex) {
           btn.classList.add('active');
           btn.setAttribute('aria-current', 'location');

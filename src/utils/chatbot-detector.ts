@@ -63,6 +63,7 @@ interface TocItem {
   el: HTMLElement;
   text: string;
   level: number;
+  source?: string;  // 'user' | 'ai' — marks conversation turn origin
 }
 
 // ---------------------------------------------------------------------------
@@ -1327,6 +1328,7 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
       el: userEl,
       text: promptText,
       level: 1,
+      source: 'user',
     });
 
     // Find nearest following assistant message using forward cursor — O(N+M) total
@@ -1385,6 +1387,7 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
         el: hEl,
         text: hText,
         level: itemLevel,
+        source: 'ai',
       });
     }
   }
