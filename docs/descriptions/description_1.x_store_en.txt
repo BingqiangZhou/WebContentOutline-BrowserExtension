@@ -33,6 +33,9 @@ Prefer the original interaction? Switch back to classic mode. It keeps the blue 
 ★ Key Features
 
   • Automatic TOC generation — Detects standard h1-h6 headings by default.
+  • Automatic content region detection — Intelligently identifies the main content area, filtering out navigation and footer noise.
+  • Chatbot conversation TOC — Automatically detects ChatGPT, Claude, Gemini and other AI chatbot pages, generating turn-based TOC.
+  • TOC source indicators — Color-coded markers distinguish user prompts and custom selector items at a glance.
   • Fast smooth navigation — Click any TOC item to scroll to the matching section.
   • Visual element picker — Click page elements directly to create custom outline rules.
   • CSS and XPath selectors — Adapt the TOC to websites with non-standard heading structures.

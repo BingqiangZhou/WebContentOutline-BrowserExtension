@@ -36,6 +36,7 @@
 - **自动生成目录**：默认识别网页中的 `h1-h6` 标题。
 - **自动内容区域检测**：智能识别页面主要内容区域，过滤导航栏和页脚干扰。
 - **Chatbot 对话目录**：自动识别 ChatGPT、Claude、Gemini 等 AI 对话页面，按对话轮次生成目录。
+- **目录来源标识**：用户提示和自定义选择器的目录项带有彩色标识，一目了然。
 - **平滑快速跳转**：点击目录项即可滚动到对应内容。
 - **可视化元素拾取**：直接在网页上点击目标元素，快速创建自定义目录规则。
 - **CSS 与 XPath 选择器**：适配标题结构不标准的网页。
@@ -103,6 +104,7 @@ Prefer the original interaction? Switch back to classic mode. It keeps the blue 
 - **Automatic TOC generation**: Detects standard `h1-h6` headings by default.
 - **Automatic content region detection**: Intelligently identifies the main content area, filtering out navigation and footer noise.
 - **Chatbot conversation TOC**: Automatically detects ChatGPT, Claude, Gemini and other AI chatbot pages, generating turn-based TOC.
+- **TOC source indicators**: Color-coded markers distinguish user prompts and custom selector items at a glance.
 - **Fast smooth navigation**: Click any TOC item to scroll to the matching section.
 - **Visual element picker**: Click page elements directly to create custom outline rules.
 - **CSS and XPath selectors**: Adapt the TOC to websites with non-standard heading structures.
