@@ -4,12 +4,13 @@ Web TOC Assistant 扩展的所有显著更改都将记录在此文件中。
 
 **[English Version](CHANGELOG.md)**
 
-[版本目录](#版本目录) • [最新版本](#150---2026-06-06)
+[版本目录](#版本目录) • [最新版本](#151---2026-06-06)
 
 ---
 
 ## 版本目录
 
+- [1.5.1](#151---2026-06-06) - 2026-06-06
 - [1.5.0](#150---2026-06-06) - 2026-06-06
 - [1.4.0](#140---2026-06-06) - 2026-06-06
 - [1.3.1](#131---2026-06-06) - 2026-06-06
@@ -35,6 +36,22 @@ Web TOC Assistant 扩展的所有显著更改都将记录在此文件中。
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.5.1] - 2026-06-06
+
+### 🔧 内部优化
+- **代码库精简** — 移除约 200 行不必要的防御性代码，涉及 30+ 文件：
+  - 移除静态 ES 模块导入的死代码守卫（`typeof fn === 'function'`、`if (importedFunc)` 等）
+  - 移除非抛出 DOM API 周围不必要的 `try/catch`（`el.remove()`、`observer.disconnect()`、`cancelAnimationFrame`、`e.preventDefault()`、`replaceChildren()` 等）
+  - 移除死代码分支（Chrome 26–86 即已可用的 API 平台检测、`replaceChildren` 降级分支、冗余 `else` 分支）
+  - 移除始终有值的变量的冗余空值守卫（`AbortController`、`createDragController`、`createFocusTrap`）
+  - 统一共享辅助函数（`normalizeSide`、`isTocContentIdentical`）替代内联重复逻辑
+  - 删除 2 个不必要的文件（`nav-lock.ts`、`floating-panel-helpers.ts`）— 内联至调用方
+  - 简化存储 try/catch 嵌套和断路器复杂度
+- **内容脚本包** 从 95.27 kB 缩减至 94.85 kB
+- 无用户可见变化 — 行为与 v1.5.0 完全一致
 
 ---
 
