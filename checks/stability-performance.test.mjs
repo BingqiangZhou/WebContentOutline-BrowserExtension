@@ -327,6 +327,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\r?\n/, '')
     .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\r?\n/, '')
+    .replace(/import[\s\S]*?from '\.\/ui\/standby-dock\.js';\r?\n/, '')
     .replace('export function startTocContent', 'function startTocContent'));
   const timers = [];
   const storageListeners = [];
@@ -435,6 +436,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
         destroy() {}
       };
     },
+    renderStandbyDock() { return { destroy() {} }; },
     __exports: {}
   };
   sandbox.window = sandbox;

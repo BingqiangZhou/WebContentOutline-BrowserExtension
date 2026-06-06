@@ -13,12 +13,18 @@ import {
   STORAGE_KEYS
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
+import { renderStandbyDock } from './ui/standby-dock.js';
 
 interface TocAppInstance {
   destroy?: () => void;
   expand?: (opts?: any) => Promise<void>;
   collapse?: () => void;
   refreshConfig?: () => Promise<void>;
+}
+
+interface StandbyDockInstance {
+  destroy?: () => void;
+  getSide?: () => string;
 }
 
 export function startTocContent(ctx: any) {
@@ -43,6 +49,7 @@ export function startTocContent(ctx: any) {
   var hasChrome = (typeof chrome !== 'undefined');
 
   var appInstance: TocAppInstance | null = null;
+  var standbyInstance: StandbyDockInstance | null = null;
   var currentEnabled = false;
   var currentUiMode = 'edge-dock';
   var disposed = false;
@@ -74,6 +81,8 @@ export function startTocContent(ctx: any) {
     detachListeners();
     try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
+    try { if (standbyInstance?.destroy) standbyInstance.destroy(); } catch (_) {}
+    standbyInstance = null;
     if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
@@ -107,7 +116,8 @@ export function startTocContent(ctx: any) {
       }
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
-        onSwitchUiMode: applyUiMode
+        onSwitchUiMode: applyUiMode,
+        onDeactivate: function() { toggleActive(); }
       }) as TocAppInstance | null;
     } catch (err) {
       if (isContextInvalidatedError && isContextInvalidatedError(err)) {
@@ -119,7 +129,42 @@ export function startTocContent(ctx: any) {
   }
 
   function stopApp() {
-    dispose({ reason: 'stopApp' });
+    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
+    appInstance = null;
+    if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
+  }
+
+  function destroyStandby() {
+    try { if (standbyInstance?.destroy) standbyInstance.destroy(); } catch (_) {}
+    standbyInstance = null;
+  }
+
+  function renderStandby() {
+    var lastSide = 'right';
+    try {
+      if (standbyInstance?.getSide) lastSide = standbyInstance.getSide() || 'right';
+    } catch (_) {}
+    destroyStandby();
+    standbyInstance = renderStandbyDock({
+      side: lastSide,
+      onActivate: function() { toggleActive(); }
+    });
+  }
+
+  async function toggleActive() {
+    var nextEnabled = !currentEnabled;
+    // Persist to storage via background
+    try {
+      if (hasChrome && chrome.runtime?.sendMessage) {
+        await new Promise<void>(function(resolve) {
+          chrome.runtime.sendMessage(
+            { type: 'toc:persistActiveState', enabled: nextEnabled, origin: location.origin },
+            function() { void chrome.runtime.lastError; resolve(); }
+          );
+        });
+      }
+    } catch (_) {}
+    await applyEnabledState(nextEnabled);
   }
 
   async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
@@ -160,7 +205,14 @@ export function startTocContent(ctx: any) {
       return;
     }
     currentEnabled = want;
-    if (!want) { stopApp(); return; }
+    if (!want) {
+      // Transition to STANDBY: destroy TOC app, show standby dock
+      stopApp();
+      renderStandby();
+      return;
+    }
+    // Transition to ACTIVE: destroy standby dock, start TOC app
+    destroyStandby();
     await startApp();
     await applyExpandState(opts);
   }
@@ -178,7 +230,10 @@ export function startTocContent(ctx: any) {
       if (enabled) {
         await applyEnabledState(true, undefined as any);
       } else {
+        // STANDBY mode: render the dim standby dock icon
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
+        renderStandby();
+        currentEnabled = false;
       }
     } catch (e) {
       if (isContextInvalidatedError && isContextInvalidatedError(e)) {
@@ -186,6 +241,8 @@ export function startTocContent(ctx: any) {
         return;
       }
       console.warn(msg('logPrefix') + ' ' + msg('logReadEnabledFailed'), e);
+      // Even on error, render standby dock
+      renderStandby();
     }
   }
 
@@ -225,18 +282,33 @@ export function startTocContent(ctx: any) {
             return true;
           }
 
-          if (msgObj.type !== 'toc:updateEnabled') return;
-          var enabled = !!msgObj.enabled;
-          if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
-          (async function() {
-            try {
-              await applyEnabledState(enabled, undefined as any);
-              respondOnce({ ok: true });
-            } catch (err) {
-              respondOnce({ ok: false, error: String(err) });
-            }
-          })();
-          return true;
+          // Toolbar icon click or cross-tab sync toggles active state
+          if (msgObj.type === 'toc:toggleActive') {
+            (async function() {
+              try {
+                await toggleActive();
+                respondOnce({ ok: true });
+              } catch (err) {
+                respondOnce({ ok: false, error: String(err) });
+              }
+            })();
+            return true;
+          }
+
+          // Cross-tab sync: background tells us the new enabled state
+          if (msgObj.type === 'toc:updateEnabled') {
+            var enabled = !!msgObj.enabled;
+            if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
+            (async function() {
+              try {
+                await applyEnabledState(enabled, undefined as any);
+                respondOnce({ ok: true });
+              } catch (err) {
+                respondOnce({ ok: false, error: String(err) });
+              }
+            })();
+            return true;
+          }
         } catch (err) {
           respondOnce({ ok: false, error: String(err) });
           if (isContextInvalidatedError && isContextInvalidatedError(err)) dispose({ reason: 'context-invalidated' });

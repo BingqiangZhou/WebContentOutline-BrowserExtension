@@ -152,12 +152,12 @@
     "description": "Error message when clearing config fails"
   },
   "titleDisabled": {
-    "message": "Web TOC Assistant: Disabled (per-site, click to enable)",
-    "description": "Icon title when extension is disabled for current site"
+    "message": "Web TOC Assistant: Standby (click to activate)",
+    "description": "Icon title when extension is in standby for current site"
   },
   "titleEnabled": {
-    "message": "Web TOC Assistant: Enabled (per-site, click to disable)",
-    "description": "Icon title when extension is enabled for current site"
+    "message": "Web TOC Assistant: Active (click to deactivate)",
+    "description": "Icon title when extension is active for current site"
   },
   "titleDisabledFallback": {
     "message": "Web TOC: Disabled (per-site, click to enable)",
@@ -240,5 +240,17 @@
   "classicSwitchToModernTitle": {
     "message": "Switch to Modern UI",
     "description": "Tooltip for switching from the classic panel to the modern edge dock interface"
+  },
+  "deactivateToc": {
+    "message": "Close TOC",
+    "description": "Menu item to deactivate TOC and return to standby mode"
+  },
+  "standbyTooltip": {
+    "message": "Click to activate TOC",
+    "description": "Tooltip for the standby dock icon"
+  },
+  "dockDeactivate": {
+    "message": "Close TOC",
+    "description": "Quick settings action for deactivating TOC and returning to standby"
   }
 }

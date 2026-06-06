@@ -274,9 +274,6 @@ async function ensureContentScript(tabId: number, url: string): Promise<boolean>
 
 async function maybeAutoInject(tabId: number, url: string): Promise<void> {
   if (!isHttpUrl(url)) return;
-  const origin = originFromUrl(url);
-  const enabled = await getEnabledByOrigin(origin);
-  if (!enabled) return;
   await ensureContentScript(tabId, url);
 }
 
@@ -285,13 +282,9 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
     const tabs = await getTabsByOrigin(origin);
     for (const t of tabs) {
       if (!t.id || t.id === exceptTabId) continue;
-      if (enabled) await ensureContentScript(t.id, t.url!);
       try {
         browser.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void browser.runtime.lastError; });
       } catch (_) {}
-      if (!enabled) {
-        try { await browser.scripting.removeCSS({ target: { tabId: t.id }, files: CONTENT_CSS }); } catch (_) {}
-      }
     }
   } catch (e) {
     console.warn('[toc] broadcastEnabledToOrigin failed:', e, { origin, enabled });
@@ -301,39 +294,11 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
 async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
-  const origin = originFromUrl(tab.url);
-  if (!origin) return;
-
-  const currentlyEnabled = await getEnabledByOrigin(origin);
-  const nextEnabled = !currentlyEnabled;
-  const saved: { ok: boolean; enabled: boolean; error: Error | null } = await setEnabledByOrigin(origin, nextEnabled);
-
-  if (!saved || !saved.ok) {
-    await updateIconForTab(tab.id, tab.url);
-    return;
-  }
-
-  try { await browser.action.setBadgeText({ tabId: tab.id, text: '' }); } catch (_) {}
-
-  if (saved.enabled) {
-    await ensureContentScript(tab.id, tab.url);
-    await updateIconForTab(tab.id, tab.url);
-    await broadcastEnabledToOrigin(origin, true, tab.id);
-    try {
-      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: true }, () => { void browser.runtime.lastError; });
-    } catch (_) {}
-    try {
-      browser.tabs.sendMessage(tab.id, { type: 'toc:openPanel' }, () => { void browser.runtime.lastError; });
-    } catch (_) {}
-    return;
-  }
-
-  await updateIconForTab(tab.id, tab.url);
-  await broadcastEnabledToOrigin(origin, false, tab.id);
+  // Ensure content script is present, then tell it to toggle
+  await ensureContentScript(tab.id, tab.url);
   try {
-    browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: false }, () => { void browser.runtime.lastError; });
+    browser.tabs.sendMessage(tab.id, { type: 'toc:toggleActive' }, () => { void browser.runtime.lastError; });
   } catch (_) {}
-  try { await browser.scripting.removeCSS({ target: { tabId: tab.id }, files: CONTENT_CSS }); } catch (_) {}
 }
 
 function startBackground() {
@@ -341,17 +306,16 @@ browser.action.onClicked.addListener(handleActionClick);
 
 browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowId: number }) => {
   try {
-    // Read the enabled map once and pass it to both icon update and injection check
+    // Read the enabled map for icon state
     const map = await getEnabledMap();
-    const enabled = await updateIconForTab(activeInfo.tabId, '', map);
-    if (enabled) {
-      try {
-        const tab = await browser.tabs.get(activeInfo.tabId);
-        if (tab?.id && tab.url && isHttpUrl(tab.url)) {
-          await ensureContentScript(tab.id, tab.url);
-        }
-      } catch (_) {}
-    }
+    await updateIconForTab(activeInfo.tabId, '', map);
+    // Always inject content script for HTTP(S) pages
+    try {
+      const tab = await browser.tabs.get(activeInfo.tabId);
+      if (tab?.id && tab.url && isHttpUrl(tab.url)) {
+        await ensureContentScript(tab.id, tab.url);
+      }
+    } catch (_) {}
   } catch (_) {}
 });
 
@@ -373,9 +337,9 @@ async function processAllTabs() {
     for (const t of tabs) {
       // Pass pre-fetched map to avoid O(n) storage reads
       if (t.id) updateIconForTab(t.id, t.url, map).catch(() => {});
+      // Always inject content script for all HTTP(S) tabs
       if (t.id && t.url && isHttpUrl(t.url)) {
-        const origin = originFromUrl(t.url);
-        if (map[origin]) ensureContentScript(t.id, t.url).catch(() => {});
+        ensureContentScript(t.id, t.url).catch(() => {});
       }
     }
   } catch (e) {
@@ -451,6 +415,31 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
           });
           sendResponse?.(result);
         } catch (_) { sendResponse?.({ ok: false, reason: 'storage-write-failed' }); }
+      })();
+      return true;
+    }
+    // Content script requests to persist active/standby state to storage
+    if (msg.type === 'toc:persistActiveState') {
+      if (!sender || sender.id !== browser.runtime.id) { sendResponse?.({ ok: false, reason: 'bad-sender' }); return; }
+      const tabId = sender?.tab?.id;
+      const tabUrl = sender?.tab?.url || sender?.url || '';
+      const origin = msg.origin || originFromUrl(tabUrl);
+      const enabled = !!msg.enabled;
+      (async () => {
+        try {
+          const saved = await setEnabledByOrigin(origin, enabled);
+          if (!saved || !saved.ok) {
+            sendResponse?.({ ok: false });
+            return;
+          }
+          // Update toolbar icon for this tab
+          if (tabId) await updateIconForTab(tabId, tabUrl);
+          // Broadcast to other tabs of same origin
+          await broadcastEnabledToOrigin(origin, enabled, tabId);
+          sendResponse?.({ ok: true });
+        } catch (_) {
+          sendResponse?.({ ok: false });
+        }
       })();
       return true;
     }
