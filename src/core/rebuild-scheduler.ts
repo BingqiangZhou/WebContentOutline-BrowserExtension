@@ -5,11 +5,22 @@ import { createDomWatcher } from './dom-watcher.js';
 import { createUrlMonitor } from './url-monitor.js';
 import * as NL from './nav-lock.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
-import { invalidateChatbotCache } from '../utils/chatbot-detector.js';
+import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from '../utils/chatbot-detector.js';
 
   var DEBOUNCE_MS = 400;
+  var STREAMING_DEBOUNCE_MS = 1200;
   var MAX_CONSECUTIVE_FAILURES = 5;
   var CIRCUIT_BREAKER_RESET_MS = 30000;
+
+  /**
+   * Get dynamic debounce interval: longer during streaming to reduce rebuild frequency.
+   */
+  function getDebounceMs() {
+    try {
+      if (typeof isStreaming === 'function' && isStreaming()) return STREAMING_DEBOUNCE_MS;
+    } catch (_) {}
+    return DEBOUNCE_MS;
+  }
 
   /**
    * Creates a rebuild scheduler that coordinates DOM watching, URL monitoring,
@@ -118,7 +129,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         debounceTimer = null;
         hasPendingRebuild = true;
         attemptRebuild();
-      }, DEBOUNCE_MS);
+      }, getDebounceMs());
     };
 
     var onMutation = function() {
@@ -140,8 +151,17 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       consecutiveFailures = 0;
       lastFailureTime = 0;
 
-      // Create dom-watcher
-      domWatcher = createDomWatcher(onMutation, cfg);
+      // Create dom-watcher with optional scope selector for chatbot pages
+      var scopeSelector: string | null = null;
+      try {
+        if (typeof getChatbotContainerSelector === 'function') {
+          scopeSelector = getChatbotContainerSelector();
+        }
+      } catch (_) {}
+      domWatcher = createDomWatcher(onMutation, {
+        selectors: cfg.selectors,
+        scopeSelector: scopeSelector,
+      });
       var watcherOk = domWatcher.start();
 
       // Create url-monitor

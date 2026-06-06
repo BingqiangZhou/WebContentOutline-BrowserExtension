@@ -35,6 +35,19 @@ interface SelectorResult {
   _needsUserSelectorHint?: boolean;
 }
 
+/**
+ * Adapter interface for per-site detection logic.
+ * When a hint entry provides a detect() function, it runs custom
+ * detection logic instead of simple selector matching.
+ */
+interface ChatbotAdapter {
+  match: (hostname: string) => boolean;
+  detect?: () => SelectorResult | null;
+  userSelector: string;
+  assistantSelector: string;
+  sentinelSelector: string;
+}
+
 interface ChatbotProfile {
   userSelector: string;
   assistantSelector: string;
@@ -42,6 +55,7 @@ interface ChatbotProfile {
   sentinelSelector: string;
   source: string;
   _rootEl: Element | null;
+  confidence: number;
 }
 
 interface TocItem {
@@ -63,6 +77,21 @@ var PROMPT_MAX_LEN = 120;
 
 /** Maximum total TOC items */
 var MAX_ITEMS = 400;
+
+// ---------------------------------------------------------------------------
+// Streaming state tracking
+// ---------------------------------------------------------------------------
+
+/** Tracks text length of the last assistant element to detect streaming */
+var _lastAssistantTextLen = 0;
+
+/** Selectors for stop/streaming buttons across platforms */
+var STOP_BUTTON_SELECTORS = [
+  'button[aria-label*="Stop" i]',
+  '[data-testid*="stop"]',
+  '[class*="stop-generating"]',
+  'button[aria-label*="stop" i]',
+];
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -91,15 +120,15 @@ export function invalidateChatbotCache() {
  * Each hint provides multiple candidate selectors (comma-separated) so that
  * if one breaks after a site update, others still work.
  */
-var CHATBOT_HINTS = [
+var CHATBOT_HINTS: ChatbotAdapter[] = [
   {
     match: function(hostname: string) {
       return hostname === 'chatgpt.com' || hostname.endsWith('.chatgpt.com')
         || hostname === 'chat.openai.com' || hostname.endsWith('.chat.openai.com');
     },
     userSelector: '[data-message-author-role="user"]',
-    assistantSelector: '[data-message-author-role="assistant"]',
-    sentinelSelector: '[data-message-author-role]',
+    assistantSelector: '[data-message-author-role="assistant"], .agent-turn',
+    sentinelSelector: '[data-message-author-role], [data-testid^="conversation-turn-"], [data-message-id]',
   },
   {
     // DeepSeek: hashed class names are unstable; use .ds-markdown heuristic via auto-detection.
@@ -108,8 +137,8 @@ var CHATBOT_HINTS = [
       return hostname === 'chat.deepseek.com' || hostname.endsWith('.chat.deepseek.com');
     },
     userSelector: '.ds-chat-user-message, [data-role="user"]',
-    assistantSelector: '.ds-chat-assistant-message, [data-role="assistant"]',
-    sentinelSelector: '.ds-chat-user-message, .ds-chat-assistant-message, .ds-markdown',
+    assistantSelector: '.ds-chat-assistant-message, [data-role="assistant"], div[class*="prose"]',
+    sentinelSelector: '.ds-chat-user-message, .ds-chat-assistant-message, .ds-markdown, [data-role]',
   },
   {
     // Claude: uses data-testid="user-message" (not "human-message") as of 2026
@@ -117,16 +146,48 @@ var CHATBOT_HINTS = [
       return hostname === 'claude.ai' || hostname.endsWith('.claude.ai');
     },
     userSelector: '[data-testid="user-message"], [data-testid="human-message"]',
-    assistantSelector: '[data-testid="assistant-message"], .row-start-2',
+    assistantSelector: '[data-testid="assistant-message"], .row-start-2, .font-claude-response',
     sentinelSelector: '[data-testid="user-message"], [data-testid="human-message"], [data-testid="assistant-message"], .row-start-2',
   },
   {
     match: function(hostname: string) {
       return hostname === 'gemini.google.com' || hostname.endsWith('.gemini.google.com');
     },
-    userSelector: '.query-content, [data-turn-role="user"], .user-query-bubble-with-background',
-    assistantSelector: '.response-container, [data-turn-role="model"], .chat-turn-container.model',
-    sentinelSelector: '.query-content, .response-container, [data-turn-role], ms-chat-turn, .chat-turn-container',
+    // Custom detect for Gemini: handles both legacy (ms-chat-turn) and modern
+    // (<user-query>/<model-response> custom elements) DOM structures.
+    detect: function(): SelectorResult | null {
+      // Modern Gemini: custom web components
+      try {
+        var userQueries = document.querySelectorAll('user-query');
+        var modelResponses = document.querySelectorAll('model-response');
+        if (userQueries.length >= 1 && modelResponses.length >= 1) {
+          return {
+            userSelector: 'user-query, user-query .query-text',
+            assistantSelector: 'model-response, model-response message-content, structured-content-container.model-response-text, model-response .model-response-text',
+            sentinelSelector: 'user-query, model-response, conversation-turn',
+            source: 'gemini-custom-elements',
+          };
+        }
+      } catch (_) {}
+
+      // Legacy Gemini: ms-chat-turn + data-turn-role
+      try {
+        var msTurns = document.querySelectorAll('ms-chat-turn');
+        if (msTurns.length >= 1) {
+          return {
+            userSelector: '.chat-turn-container.user, .user-query-bubble-with-background, .query-content, [data-turn-role="user"]',
+            assistantSelector: '.chat-turn-container.model, .response-container, [data-turn-role="model"]',
+            sentinelSelector: 'ms-chat-turn, .chat-turn-container, [data-turn-role]',
+            source: 'gemini-legacy',
+          };
+        }
+      } catch (_) {}
+
+      return null;
+    },
+    userSelector: '.query-content, [data-turn-role="user"], .user-query-bubble-with-background, user-query .query-text',
+    assistantSelector: '.response-container, [data-turn-role="model"], .chat-turn-container.model, model-response message-content, structured-content-container.model-response-text',
+    sentinelSelector: '.query-content, .response-container, [data-turn-role], ms-chat-turn, .chat-turn-container, user-query, model-response',
   },
   {
     match: function(hostname: string) {
@@ -136,6 +197,63 @@ var CHATBOT_HINTS = [
     userSelector: '.message-user, [class*="user-message"]',
     assistantSelector: '.message-assistant, [class*="assistant-message"]',
     sentinelSelector: '.message-user, .message-assistant',
+  },
+  // --- New platforms (Phase 1A) ---
+  {
+    // Perplexity
+    match: function(hostname: string) {
+      return hostname === 'perplexity.ai' || hostname.endsWith('.perplexity.ai');
+    },
+    userSelector: '[class*="user-query"], [class*="UserQuery"], div.query-user',
+    assistantSelector: '[class*="prose"], [class*="Perplexity"]',
+    sentinelSelector: '[class*="user-query"], [class*="prose"]',
+  },
+  {
+    // Grok (grok.com / x.ai)
+    match: function(hostname: string) {
+      return hostname === 'grok.com' || hostname.endsWith('.grok.com')
+        || hostname === 'x.ai' || hostname.endsWith('.x.ai');
+    },
+    userSelector: '[class*="user-message"], [data-testid*="user"]',
+    assistantSelector: '[class*="assistant"], [class*="bot-message"], [data-testid*="assistant"]',
+    sentinelSelector: '[class*="user-message"], [class*="assistant"], [class*="bot-message"]',
+  },
+  {
+    // Mistral (chat.mistral.ai)
+    match: function(hostname: string) {
+      return hostname === 'chat.mistral.ai' || hostname.endsWith('.chat.mistral.ai');
+    },
+    userSelector: '[class*="user-message"], [class*="human-message"]',
+    assistantSelector: '[class*="assistant-message"], [class*="bot-message"]',
+    sentinelSelector: '[class*="user-message"], [class*="assistant-message"]',
+  },
+  {
+    // NotebookLM (notebooklm.google.com)
+    match: function(hostname: string) {
+      return hostname === 'notebooklm.google.com' || hostname.endsWith('.notebooklm.google.com');
+    },
+    userSelector: '.from-user-message-inner-content, [class*="user-query"]',
+    assistantSelector: '.to-user-message-inner-content, [class*="response-container"]',
+    sentinelSelector: '.from-user-message-inner-content, .to-user-message-inner-content',
+  },
+  {
+    // Qwen / Tongyi (tongyi.aliyun.com, qianwen.aliyun.com)
+    match: function(hostname: string) {
+      return hostname === 'tongyi.aliyun.com' || hostname.endsWith('.tongyi.aliyun.com')
+        || hostname === 'qianwen.aliyun.com' || hostname.endsWith('.qianwen.aliyun.com');
+    },
+    userSelector: '[class*="user-msg"], [class*="user-message"]',
+    assistantSelector: '[class*="bot-msg"], [class*="assistant-message"], [class*="ai-msg"]',
+    sentinelSelector: '[class*="user-msg"], [class*="bot-msg"], [class*="ai-msg"]',
+  },
+  {
+    // GitHub Copilot Chat (github.com with /copilot path)
+    match: function(hostname: string) {
+      return hostname === 'github.com' || hostname.endsWith('.github.com');
+    },
+    userSelector: '[class*="copilot-user"], [class*="CopilotUserMessage"]',
+    assistantSelector: '[class*="copilot-assistant"], [class*="CopilotAssistantMessage"], [class*="SuggestedAction"]',
+    sentinelSelector: '[class*="copilot-user"], [class*="copilot-assistant"], [class*="Copilot"]',
   },
 ];
 
@@ -710,6 +828,165 @@ function deriveSelectorFromElements(elements: Element[], roleHint: string): stri
 }
 
 /**
+ * Strategy G: Alternating pattern detection.
+ * Zero-shot detection for unknown chat platforms that use no distinguishing
+ * data attributes or ARIA roles. Detects the universal chat pattern of
+ * alternating short (user) and long (assistant) messages.
+ */
+function discoverByAlternation(): SelectorResult | null {
+  // Find a likely chat container: [role="log"], [role="feed"], or main
+  var container: Element | null = null;
+  try { container = document.querySelector('[role="log"]'); } catch (_) {}
+  if (!container) {
+    try { container = document.querySelector('[role="feed"]'); } catch (_) {}
+  }
+  if (!container) {
+    try { container = document.querySelector('main'); } catch (_) {}
+  }
+  if (!container) return null;
+
+  // Get direct children that are visible and have text
+  var children: Element[] = [];
+  try {
+    var allChildren = container.children;
+    for (var i = 0; i < allChildren.length; i++) {
+      var child = allChildren[i];
+      if (!child.isConnected) continue;
+      // Must have text content
+      var text = (child.textContent || '').trim();
+      if (text.length < 5) continue;
+      // Quick visibility check
+      var childEl = child as HTMLElement;
+      if (childEl.offsetWidth === 0 || childEl.offsetHeight === 0) continue;
+      children.push(child);
+    }
+  } catch (_) { return null; }
+
+  if (children.length < 4) return null; // Need at least 2 pairs
+
+  // Compute text lengths and find median
+  var textLengths: number[] = [];
+  for (var j = 0; j < children.length; j++) {
+    textLengths.push((children[j].textContent || '').trim().length);
+  }
+  var sorted = textLengths.slice().sort(function(a, b) { return a - b; });
+  var median = sorted[Math.floor(sorted.length / 2)];
+
+  if (median < 10) return null; // All text too short — not a chat page
+
+  // Classify: below median → user-like, above → assistant-like
+  var userGroup: Element[] = [];
+  var assistantGroup: Element[] = [];
+
+  for (var k = 0; k < children.length; k++) {
+    if (textLengths[k] <= median) {
+      userGroup.push(children[k]);
+    } else {
+      assistantGroup.push(children[k]);
+    }
+  }
+
+  if (userGroup.length < 2 || assistantGroup.length < 2) return null;
+
+  // Verify alternating pattern: at least 2 alternations between user/assistant
+  var alternations = 0;
+  var lastWasUser: boolean | null = null;
+  for (var m = 0; m < children.length; m++) {
+    var isUser = textLengths[m] <= median;
+    if (lastWasUser !== null && lastWasUser !== isUser) {
+      alternations++;
+    }
+    lastWasUser = isUser;
+  }
+
+  if (alternations < 2) return null; // Not enough alternation — probably not a chat
+
+  // Try to derive selectors from element attributes
+  var userSel = deriveSelectorFromElements(userGroup, 'user');
+  var assistantSel = deriveSelectorFromElements(assistantGroup, 'assistant');
+
+  if (userSel && assistantSel) {
+    return {
+      userSelector: userSel,
+      assistantSelector: assistantSel,
+      sentinelSelector: userSel + ', ' + assistantSel,
+      source: 'alternation',
+    };
+  }
+
+  // Fallback: use positional selectors scoped to the container
+  // This handles platforms using generic <div> elements with no attributes
+  try {
+    var containerSel = getContainerSelector(container);
+    if (containerSel) {
+      // Determine which indices are user vs assistant
+      // Use :nth-child for the dominant pattern
+      var userIndices: number[] = [];
+      var assistantIndices: number[] = [];
+      for (var n = 0; n < children.length; n++) {
+        // Get 1-based child index relative to parent
+        var childIndex = getChildIndex(children[n]);
+        if (textLengths[n] <= median) {
+          userIndices.push(childIndex);
+        } else {
+          assistantIndices.push(childIndex);
+        }
+      }
+
+      // Check if a simple even/odd pattern works
+      var allUserEven = userIndices.every(function(idx) { return idx % 2 === 0; });
+      var allUserOdd = userIndices.every(function(idx) { return idx % 2 !== 0; });
+      var allAssistantEven = assistantIndices.every(function(idx) { return idx % 2 === 0; });
+      var allAssistantOdd = assistantIndices.every(function(idx) { return idx % 2 !== 0; });
+
+      if ((allUserEven && allAssistantOdd) || (allUserOdd && allAssistantEven)) {
+        var userNth = allUserEven ? ':nth-child(even)' : ':nth-child(odd)';
+        var assistantNth = allUserEven ? ':nth-child(odd)' : ':nth-child(even)';
+        return {
+          userSelector: containerSel + ' > ' + userNth,
+          assistantSelector: containerSel + ' > ' + assistantNth,
+          sentinelSelector: containerSel + ' > *',
+          source: 'alternation-positional',
+        };
+      }
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+/**
+ * Get a CSS selector for a container element.
+ * Tries ID first, then role attribute, then tag name.
+ */
+function getContainerSelector(el: Element): string | null {
+  if (!el) return null;
+  try {
+    if (el.id) return '#' + CSS.escape(el.id);
+  } catch (_) {}
+  try {
+    var role = el.getAttribute('role');
+    if (role) return '[' + 'role="' + role + '"]';
+  } catch (_) {}
+  try {
+    return el.tagName.toLowerCase();
+  } catch (_) { return null; }
+}
+
+/**
+ * Get the 1-based index of an element among its siblings.
+ */
+function getChildIndex(el: Element): number {
+  var parent = el.parentElement;
+  if (!parent) return 1;
+  var children = parent.children;
+  for (var i = 0; i < children.length; i++) {
+    if (children[i] === el) return i + 1;
+  }
+  return 1;
+}
+
+/**
  * Run selector discovery cascade.
  * Returns { userSelector, assistantSelector, sentinelSelector } or null.
  */
@@ -734,6 +1011,10 @@ function discoverSelectors(): SelectorResult | null {
   result = discoverByAriaLogAnalysis();
   if (result) return result;
 
+  // Strategy G: Alternating pattern detection (zero-shot for unknown platforms)
+  result = discoverByAlternation();
+  if (result) return result;
+
   return null;
 }
 
@@ -753,6 +1034,19 @@ function tryHintFallback(needsUserSelectorOnly: boolean): SelectorResult | null 
     var hint = CHATBOT_HINTS[i];
     try {
       if (hint.match(hostname)) {
+        // Try custom detect() function first if available (per-site adapter pattern)
+        if (typeof hint.detect === 'function') {
+          var adapterResult = hint.detect();
+          if (adapterResult) {
+            return {
+              userSelector: adapterResult.userSelector,
+              assistantSelector: adapterResult.assistantSelector,
+              sentinelSelector: adapterResult.sentinelSelector,
+              source: adapterResult.source || 'hint-adapter',
+            };
+          }
+        }
+
         // If we only need a user selector (DeepSeek case), validate differently
         if (needsUserSelectorOnly) {
           var testEl = document.querySelector(hint.userSelector);
@@ -768,6 +1062,13 @@ function tryHintFallback(needsUserSelectorOnly: boolean): SelectorResult | null 
           // Full validation: check that at least one user message exists
           var testEl2 = document.querySelector(hint.userSelector);
           if (testEl2) {
+            // Diagnostic: verify sentinel selector also produces results
+            try {
+              var sentinelCount = document.querySelectorAll(hint.sentinelSelector).length;
+              if (sentinelCount === 0) {
+                console.debug('[toc] hint selectors matched hostname but sentinel found 0 elements — selectors may be stale');
+              }
+            } catch (_) {}
             return {
               userSelector: hint.userSelector,
               assistantSelector: hint.assistantSelector,
@@ -832,18 +1133,22 @@ function detectChatPage(): ChatbotProfile | null {
   // --- Page detection cascade ---
 
   var detectionResult: DetectionResult | null = null;
+  var confidence = 0;
 
-  // Layer 1: ARIA semantic signals
+  // Layer 1: ARIA semantic signals (highest confidence)
   try { detectionResult = detectByAria(); } catch (_) {}
+  if (detectionResult) confidence = 0.9;
 
   // Layer 2: Data attribute signals
   if (!detectionResult) {
     try { detectionResult = detectByDataAttrs(); } catch (_) {}
+    if (detectionResult) confidence = 0.8;
   }
 
-  // Layer 3: Structural heuristics
+  // Layer 3: Structural heuristics (lowest confidence — many false positives)
   if (!detectionResult) {
     try { detectionResult = detectByStructure(); } catch (_) {}
+    if (detectionResult) confidence = 0.6;
   }
 
   // --- Selector discovery ---
@@ -873,9 +1178,22 @@ function detectChatPage(): ChatbotProfile | null {
   // --- Hint fallback (when auto-detection found selectors or failed entirely) ---
   if (!selectors) {
     try { selectors = tryHintFallback(false); } catch (_) {}
+    if (selectors) confidence = 0.7; // Hint table confidence
   }
 
   if (!selectors) return null;
+
+  // Apply confidence bonuses
+  if (selectors.source && selectors.source !== 'hint') confidence += 0.10; // Discovery succeeded
+
+  // Message count bonus: ≥4 messages is a strong signal
+  try {
+    var userCount = document.querySelectorAll(selectors.userSelector).length;
+    if (userCount >= 4) confidence += 0.05;
+  } catch (_) {}
+
+  // Cap confidence at 1.0
+  confidence = Math.min(confidence, 1.0);
 
   // Build and cache profile
   var profile: ChatbotProfile = {
@@ -885,6 +1203,7 @@ function detectChatPage(): ChatbotProfile | null {
     sentinelSelector: selectors.sentinelSelector,
     source: selectors.source || (detectionResult ? detectionResult.source : 'hint'),
     _rootEl: (detectionResult && detectionResult.container) || null,
+    confidence: confidence,
   };
 
   _cachedProfile = profile;
@@ -1130,4 +1449,97 @@ export function isChatbotPage() {
 export function getChatbotSentinelSelector() {
   var profile = detectChatPage();
   return profile ? profile.sentinelSelector : null;
+}
+
+/**
+ * Get the confidence score for chatbot detection.
+ * Returns 0 for non-chatbot pages, 0.6–1.0 for detected chatbot pages.
+ * Scores below 0.7 may indicate embedded chat widgets rather than full chat pages.
+ */
+export function getChatbotConfidence() {
+  var profile = detectChatPage();
+  return profile ? profile.confidence : 0;
+}
+
+/**
+ * Detect whether a chatbot response is currently being streamed/generated.
+ * Used by the rebuild scheduler to increase debounce during streaming.
+ */
+export function isStreaming(): boolean {
+  var profile = detectChatPage();
+  if (!profile) return false;
+
+  // Check 1: Look for a stop-generating button (universal signal)
+  for (var i = 0; i < STOP_BUTTON_SELECTORS.length; i++) {
+    try {
+      var stopBtn = document.querySelector(STOP_BUTTON_SELECTORS[i]);
+      if (stopBtn && (stopBtn as HTMLElement).offsetParent !== null) return true;
+    } catch (_) {}
+  }
+
+  // Check 2: Track if the last assistant element's text is growing
+  try {
+    var assistants = document.querySelectorAll(profile.assistantSelector);
+    if (assistants.length > 0) {
+      var lastAssistant = assistants[assistants.length - 1];
+      var currentLen = (lastAssistant.textContent || '').length;
+      if (_lastAssistantTextLen > 0 && currentLen > _lastAssistantTextLen + 20) {
+        // Text grew significantly since last check — streaming in progress
+        _lastAssistantTextLen = currentLen;
+        return true;
+      }
+      _lastAssistantTextLen = currentLen;
+    }
+  } catch (_) {}
+
+  return false;
+}
+
+/**
+ * Get a CSS selector for the detected chatbot container.
+ * Returns null if not a chatbot page or no container found.
+ * Used to scope MutationObserver to only watch chat-related DOM changes.
+ */
+export function getChatbotContainerSelector(): string | null {
+  var profile = detectChatPage();
+  if (!profile) return null;
+
+  // If we have a root element, try to derive a selector for it
+  if (profile._rootEl) {
+    var el = profile._rootEl;
+
+    // Try ID
+    try {
+      if (el.id) return '#' + CSS.escape(el.id);
+    } catch (_) {}
+
+    // Try role attribute
+    try {
+      var role = el.getAttribute('role');
+      if (role === 'log' || role === 'feed') return '[role="' + role + '"]';
+    } catch (_) {}
+
+    // Try tag name if it's specific enough (main, article)
+    var tag = (el.tagName || '').toLowerCase();
+    if (tag === 'main') return 'main';
+
+    // Try finding the container via sentinel: get common ancestor of sentinel elements
+    try {
+      var sentinelEls = document.querySelectorAll(profile.sentinelSelector);
+      if (sentinelEls.length >= 2) {
+        // The sentinel elements' common ancestor is the container
+        // Walk up from the first sentinel to find an ancestor that contains all sentinels
+        var container = findCommonAncestor(sentinelEls[0], sentinelEls[sentinelEls.length - 1]);
+        if (container) {
+          if (container.id) return '#' + CSS.escape(container.id);
+          var cRole = container.getAttribute('role');
+          if (cRole) return '[role="' + cRole + '"]';
+        }
+      }
+    } catch (_) {}
+  }
+
+  // Fallback: use the sentinel selector's parent scope
+  // This is less precise but still helps scope mutations
+  return null;
 }

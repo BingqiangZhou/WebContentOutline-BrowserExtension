@@ -75,8 +75,9 @@ var NEGATIVE_WORDS = [
   'sponsor', 'pagination', 'shoutbox', 'skyscraper', 'menu', 'toolbar',
 ];
 
-/** Heading weights for ancestor scoring */
+/** Heading weights for ancestor scoring (H1 weighted lower — often site-wide) */
 var HEADING_WEIGHTS: Record<string, number> = {
+  H1: 40,
   H2: 100,
   H3: 80,
   H4: 60,
@@ -331,7 +332,7 @@ function detectByAncestorScoring(): ContentRegionResult | null {
     headings = sampled;
   }
 
-  // Step 2: Score ancestors
+  // Step 2: Score ancestors with distance-based weight decay
   var ancestorScores = new Map<Element, number>();
   var patternCache = new Map<Element, number>();
 
@@ -345,7 +346,9 @@ function detectByAncestorScoring(): ContentRegionResult | null {
 
     while (ancestor && ancestor !== document.body && ancestor !== document.documentElement && depth < MAX_ANCESTOR_DEPTH) {
       var score = ancestorScores.get(ancestor) || 0;
-      score += weight;
+      // Distance-based decay: 100% at parent, 85% at grandparent, 70% at great-grandparent, etc.
+      var decayedWeight = weight * (1 - depth * 0.15);
+      if (decayedWeight > 0) score += decayedWeight;
 
       // Tag bonus (applied once per ancestor)
       var tagBonus = TAG_BONUSES[ancestor.tagName] || 0;
@@ -386,10 +389,15 @@ function detectByAncestorScoring(): ContentRegionResult | null {
     var baseScore = entry.score;
 
     try {
-      // Width check
+      // Width: continuous scoring based on viewport coverage ratio
       var width = (el as HTMLElement).offsetWidth;
-      if (width > 400) baseScore += 100;
-      if (width > viewportWidth * 0.6) baseScore += 50;
+      if (width > 0 && viewportWidth > 0) {
+        var widthRatio = width / viewportWidth;
+        if (widthRatio > 0.3) baseScore += Math.round(widthRatio * 80);  // Up to ~80 at 100%
+        if (widthRatio > 0.6) baseScore += 40;  // Bonus for majority-width
+      } else if (width > 400) {
+        baseScore += 60;  // Fallback for fixed-width containers
+      }
 
       // Heading density
       var childCount = el.querySelectorAll('*').length;
@@ -399,15 +407,38 @@ function detectByAncestorScoring(): ContentRegionResult | null {
         if (density > 0.005 && density < 0.15) baseScore += 50;
       }
 
-      // Link density penalty
+      // Link density scaling (graduated penalty instead of hard cutoff)
       var linkCount = el.querySelectorAll('a').length;
       if (childCount > 0) {
-        var linkRatio = linkCount / childCount;
-        if (linkRatio > 0.4) baseScore -= 200;
+        var linkDensity = linkCount / childCount;
+        baseScore *= Math.max(0.1, 1 - linkDensity);
       }
 
-      // Vertical space
-      if ((el as HTMLElement).offsetHeight > viewportHeight * 0.3) baseScore += 50;
+      // Text density scoring (from Boilerpipe research: TD < 10.5 = boilerplate)
+      var textLength = 0;
+      try { textLength = (el.textContent || '').length; } catch (_) {}
+      var tagCount = Math.max(1, childCount);
+      var textDensity = textLength / tagCount;
+      if (textDensity > 10) baseScore += 50;   // Content-rich region
+      if (textDensity < 3) baseScore -= 100;   // Tag-heavy, likely navigation/boilerplate
+
+      // Vertical space: continuous scoring based on viewport coverage
+      var height = (el as HTMLElement).offsetHeight;
+      if (height > 0 && viewportHeight > 0) {
+        var heightRatio = height / viewportHeight;
+        if (heightRatio > 0.2) baseScore += Math.round(Math.min(heightRatio, 1.0) * 50);
+      }
+
+      // Horizontal position: penalize elements far from center (likely sidebars)
+      if (width > 0 && viewportWidth > 0) {
+        try {
+          var rect = el.getBoundingClientRect();
+          var centerX = rect.left + rect.width / 2;
+          var pageCenter = viewportWidth / 2;
+          var deviation = Math.abs(centerX - pageCenter) / viewportWidth;
+          if (deviation > 0.35) baseScore -= 50;  // Far from center
+        } catch (_) {}
+      }
 
       // Penalize body/html
       if (el === document.body || el === document.documentElement) {
