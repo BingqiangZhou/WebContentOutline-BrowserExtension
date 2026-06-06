@@ -299,7 +299,7 @@ export function cleanupOwnedElements(selectorFallback: string) {
             var cleanup = (el as any).__TOC_CLEANUP__;
             if (typeof cleanup === 'function') cleanup();
           } catch (_) {}
-          try { el.remove(); } catch (_) {}
+          el.remove();
         });
       } catch (_) {}
     }

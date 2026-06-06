@@ -94,14 +94,12 @@ export function createDragController(options: DragControllerOptions) {
         } finally {
           state.active = false;
         }
-        try {
-          onEnd && onEnd(state, e);
-        } catch (_) {}
+        if (onEnd) onEnd(state, e);
         if (prevent) {
-          e && e.preventDefault && e.preventDefault();
+          e.preventDefault();
         }
         if (stop) {
-          e && e.stopPropagation && e.stopPropagation();
+          e.stopPropagation();
         }
       }
 
@@ -116,9 +114,7 @@ export function createDragController(options: DragControllerOptions) {
         if (!state.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
           state.moved = true;
         }
-        try {
-          onMove && onMove(state, e);
-        } catch (_) {}
+        if (onMove) onMove(state, e);
         e.preventDefault();
       }
 
@@ -152,9 +148,7 @@ export function createDragController(options: DragControllerOptions) {
         element.addEventListener('pointercancel', handlePointerCancel, true);
         element.addEventListener('lostpointercapture', handlePointerCancel, true);
 
-        try {
-          onStart && onStart(state, e);
-        } catch (_) {}
+        if (onStart) onStart(state, e);
 
         e.preventDefault();
         e.stopPropagation();

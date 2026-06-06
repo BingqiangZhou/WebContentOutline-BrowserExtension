@@ -91,7 +91,7 @@ function createDockStateController(options: DockStateControllerOptions) {
     if (next === mode) return mode;
     var prev = mode;
     mode = next;
-    try { onChange && onChange(next, prev); } catch (_) {}
+    if (onChange) onChange(next, prev);
     return mode;
   }
 
@@ -196,7 +196,7 @@ interface EdgeDockOptions {
 
 export function renderEdgeDock(options: EdgeDockOptions) {
   options = options || {};
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
 
   var side: string = normalizeSide(options.side);
   var destroyed = false;
@@ -256,12 +256,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var previewWindowSize = 0;
 
   function renderPreview() {
-    // Use replaceChildren() for efficient clear
-    if (typeof preview.replaceChildren === 'function') {
-      preview.replaceChildren();
-    } else {
-      while (preview.firstChild) preview.removeChild(preview.firstChild);
-    }
+    preview.replaceChildren();
     var subset = selectPreviewItems(dockItems, activeIndex, 12);
     // Track the window range for incremental updates
     if (subset.length > 0 && subset.length < dockItems.length) {
@@ -367,7 +362,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function runMenuAction(callback: (() => void) | undefined): void {
     closeMenu();
-    try { callback && callback(); } catch (_) {}
+    if (callback) callback();
   }
 
   function createMenuButton(labelKey: string, fallbackText: string, callback: (() => void) | undefined): HTMLButtonElement {
@@ -442,10 +437,9 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   }
 
   function persistPosition() {
-    if (!setBadgePosByHost) return;
     var y = centerY();
     var x = side === 'left' ? 0 : window.innerWidth;
-    try { setBadgePosByHost(location.host, { x: x, y: y, anchorX: side }); } catch (_) {}
+    setBadgePosByHost(location.host, { x: x, y: y, anchorX: side });
   }
 
   async function restorePosition() {
@@ -603,29 +597,29 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     });
   }
 
-  root.addEventListener('pointerenter', onRootPointerEnter, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('pointerleave', onRootPointerLeave, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('focusin', onRootFocusIn, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('focusout', onRootFocusOut, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('keydown', onRootKeydown, ac ? { signal: ac.signal } : undefined);
-  tocButton.addEventListener('pointerenter', onTocPointerEnter, ac ? { signal: ac.signal } : undefined);
-  tocButton.addEventListener('pointerdown', onTocPointerDown, ac ? { signal: ac.signal } : undefined);
-  tocButton.addEventListener('click', onTocClick, ac ? { signal: ac.signal } : undefined);
-  preview.addEventListener('click', onPreviewClick, ac ? { signal: ac.signal } : undefined);
-  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter, ac ? { signal: ac.signal } : undefined);
-  settingsButton.addEventListener('click', onSettingsClick, ac ? { signal: ac.signal } : undefined);
-  document.addEventListener('pointerdown', onDocumentPointerDown, ac ? { capture: true, signal: ac.signal } : true);
-  window.addEventListener('resize', onResize, ac ? { passive: true, signal: ac.signal } : { passive: true });
+  root.addEventListener('pointerenter', onRootPointerEnter, { signal: ac.signal });
+  root.addEventListener('pointerleave', onRootPointerLeave, { signal: ac.signal });
+  root.addEventListener('focusin', onRootFocusIn, { signal: ac.signal });
+  root.addEventListener('focusout', onRootFocusOut, { signal: ac.signal });
+  root.addEventListener('keydown', onRootKeydown, { signal: ac.signal });
+  tocButton.addEventListener('pointerenter', onTocPointerEnter, { signal: ac.signal });
+  tocButton.addEventListener('pointerdown', onTocPointerDown, { signal: ac.signal });
+  tocButton.addEventListener('click', onTocClick, { signal: ac.signal });
+  preview.addEventListener('click', onPreviewClick, { signal: ac.signal });
+  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter, { signal: ac.signal });
+  settingsButton.addEventListener('click', onSettingsClick, { signal: ac.signal });
+  document.addEventListener('pointerdown', onDocumentPointerDown, { capture: true, signal: ac.signal });
+  window.addEventListener('resize', onResize, { passive: true, signal: ac.signal });
 
   function destroy() {
     if (destroyed) return;
     destroyed = true;
     controller.destroy();
-    try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
+    if (dragController && dragController.destroy) dragController.destroy();
     if (persistTimer) clearTimeout(persistTimer);
     cancelMenuClose();
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-    ac && ac.abort && ac.abort();
+    ac.abort();
     root.remove();
   }
 

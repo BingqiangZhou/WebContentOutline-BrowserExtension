@@ -52,9 +52,9 @@ test('edge dock and classic panel expose opposite global mode switch actions', (
   const classicPanel = read('src/ui/classic-floating-panel.ts');
 
   assert.match(dock, /dockSwitchToClassic/);
-  assert.match(dock, /options\.onSwitchUiMode && options\.onSwitchUiMode\('classic'\)/);
+  assert.match(dock, /options\.onSwitchUiMode\('classic'\)/);
   assert.match(classicPanel, /classicSwitchToModern/);
-  assert.match(classicPanel, /options\.onSwitchUiMode && options\.onSwitchUiMode\('edge-dock'\)/);
+  assert.match(classicPanel, /options\.onSwitchUiMode\('edge-dock'\)/);
 });
 
 test('classic renderers preserve the original free floating badge and panel interaction', () => {

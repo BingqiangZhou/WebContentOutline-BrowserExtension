@@ -43,8 +43,7 @@ export function isContextInvalidatedError(e: unknown): boolean {
   }
 
 export function getFocusableWithin(rootEl: Element | null): Element[] {
-    var root = rootEl ? rootEl : null;
-    if (!root) return [];
+    if (!rootEl) return [];
     var selector = [
       'button:not([disabled])',
       'textarea:not([disabled])',
@@ -54,7 +53,7 @@ export function getFocusableWithin(rootEl: Element | null): Element[] {
       '[tabindex]:not([tabindex="-1"])'
     ].join(',');
     try {
-      return Array.from(root.querySelectorAll(selector)).filter(function(el) {
+      return Array.from(rootEl.querySelectorAll(selector)).filter(function(el) {
         if (!el || !(el as HTMLElement).focus) return false;
         var style = window.getComputedStyle(el as Element);
         return style && style.visibility !== 'hidden' && style.display !== 'none';
@@ -78,16 +77,11 @@ export function isSafeXPathExpression(expr: string): boolean {
 
 function isValidCssSelector(expr: string): boolean {
     if (typeof expr !== 'string') return false;
-    if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
     if (!trimmed || trimmed.length > SELECTOR_EXPR_MAX_LENGTH) return false;
     if (isHighRiskBroadCssSelector(expr)) return false;
     try {
-      var frag = document.createDocumentFragment();
-      if (frag && frag.querySelector) {
-        frag.querySelector(trimmed);
-        return true;
-      }
+      document.createDocumentFragment().querySelector(trimmed);
       return true;
     } catch (_) {
       return false;

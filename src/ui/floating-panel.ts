@@ -5,13 +5,14 @@ import {
   msg,
   scrollToElement,
   cleanupOwnedElements,
-  isTocContentIdentical
+  isTocContentIdentical,
+  normalizeSide
 } from '../utils/toc-utils.js';
 
   /** Clear all children of an element using native replaceChildren(). */
   function clearChildren(el: HTMLElement): void {
     if (!el) return;
-    try { el.replaceChildren(); } catch (_) { while (el.firstChild) try { el.removeChild(el.firstChild); } catch (_) { break; } }
+    el.replaceChildren();
   }
 
   var CFG = {
@@ -69,7 +70,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var navLock = opts.navLock;
 
     // Remove any existing panel to prevent duplicates
-    if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
+    if (!embedded) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
     var panel = document.createElement('div');
     var listenersController = new AbortController();
@@ -118,22 +119,14 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       }, CFG.SCROLL_STOP_MS);
     };
 
-    // Set up scroll listener with AbortController if available
-    try {
-      if (listenersController) {
-        window.addEventListener('scroll', onScroll, { ...SCROLL_LISTENER_OPTS, signal: listenersController.signal });
-      } else {
-        window.addEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
-      }
-      removeScrollListener = function() {
-        window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false);
-      };
-    } catch (_) {
-      removeScrollListener = function() {};
-    }
+    // Set up scroll listener
+    window.addEventListener('scroll', onScroll, { ...SCROLL_LISTENER_OPTS, signal: listenersController.signal });
+    removeScrollListener = function() {
+      window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false);
+    };
 
     var cleanupLock = function() {
-      try { navLock && navLock.unlock(); } catch (_) {}
+      if (navLock) navLock.unlock();
       if (unlockTimer) { clearTimeout(unlockTimer); unlockTimer = null; }
       if (scrollStopTimer) { clearTimeout(scrollStopTimer); scrollStopTimer = null; }
       if (pendingRebuildTimer) { clearTimeout(pendingRebuildTimer); pendingRebuildTimer = null; }
@@ -141,7 +134,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     panel.className = embedded
       ? 'toc-floating-embedded'
-      : 'toc-floating toc-floating-docked toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
+      : 'toc-floating toc-floating-docked toc-floating-' + normalizeSide(side) + (skipAnimation ? '' : ' toc-floating-expand');
     if (!embedded) panel.setAttribute('data-toc-owner', 'web-toc-assistant');
     panel.setAttribute('role', embedded ? 'presentation' : 'dialog');
     if (!embedded) {
@@ -149,7 +142,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       panel.setAttribute('aria-label', msg('tocTitle'));
     }
     onPanelKeydown = function(e: KeyboardEvent) {
-      if (!e) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         onCollapse && onCollapse();
@@ -229,21 +221,15 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     };
 
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
-      if (e && e.preventDefault) e.preventDefault();
+      if (e) e.preventDefault();
       navLock && navLock.lock(undefined!);
       setActiveIndex(index);
       onNavigate && onNavigate(item, index);
 
       try {
-        if (scrollToElement) {
-          scrollToElement(item.el);
-        } else {
-          item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        scrollToElement(item.el);
       } catch (_) {
-        try { item.el.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (_2) {
-          try { item.el.scrollIntoView(true as any); } catch (_3) {}
-        }
+        try { item.el.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (_2) {}
       }
       unlockLater();
     };
@@ -265,7 +251,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     list.addEventListener('click', onListClick);
 
     onListKeydown = function(e: KeyboardEvent) {
-      if (!e) return;
       var key = e.key;
       var node = e.target && (e.target as HTMLElement).closest ? (e.target as HTMLElement).closest('.toc-item') as HTMLElement | null : null;
       // Find current index from dataset instead of querySelectorAll on every keypress

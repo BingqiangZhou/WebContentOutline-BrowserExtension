@@ -38,7 +38,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
   function notify(nextItem: { el: Element; text: string; level: number } | null) {
     if (nextItem === activeItem) return;
     activeItem = nextItem;
-    try { onChange && onChange(nextItem, nextItem ? items.indexOf(nextItem) : -1); } catch (_) {}
+    if (onChange) onChange(nextItem, nextItem ? items.indexOf(nextItem) : -1);
   }
 
   function disconnectObserver() {
@@ -177,7 +177,7 @@ export function createActiveItemTracker(options: { items?: Array<{ el: Element; 
       }
     }
     activeItem = null;
-    try { onChange && onChange(null, -1); } catch (_) {}
+    if (onChange) onChange(null, -1);
     if (!observer) observeItems(items.map(function(it) { return it && it.el; }).filter(Boolean));
   }
 

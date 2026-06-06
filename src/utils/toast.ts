@@ -50,24 +50,20 @@ export function showToast(text: string, opts?: { type?: 'info'|'success'|'warnin
           clearTimeout(timerId);
           timerId = null;
         }
-        try { toast.remove(); } catch (_) {}
-        try {
-          if (container.childElementCount === 0) container.remove();
-        } catch (_) {}
+        toast.remove();
+        if (container.childElementCount === 0) container.remove();
       };
 
       closeBtn.addEventListener('click', removeToast, { once: true });
       toast.addEventListener('click', function(e: MouseEvent) {
         // Allow clicking toast body to dismiss, but ignore text selection drags.
-        if (e && e.target && (e.target as HTMLElement).closest && (e.target as HTMLElement).closest('button')) return;
-        try {
-          var sel = window.getSelection && window.getSelection();
-          if (sel && !sel.isCollapsed) {
-            var a = sel.anchorNode;
-            var f = sel.focusNode;
-            if ((a && toast.contains(a)) || (f && toast.contains(f))) return;
-          }
-        } catch (_) {}
+        if ((e.target as HTMLElement).closest && (e.target as HTMLElement).closest('button')) return;
+        var sel = window.getSelection();
+        if (sel && !sel.isCollapsed) {
+          var a = sel.anchorNode;
+          var f = sel.focusNode;
+          if ((a && toast.contains(a)) || (f && toast.contains(f))) return;
+        }
         removeToast();
       });
 

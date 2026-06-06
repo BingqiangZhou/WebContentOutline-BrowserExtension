@@ -12,12 +12,7 @@ import { tryBuildChatbotTocItems, getChatbotSentinelSelector, getChatbotConfiden
     var COLLAPSE_WS_RE = /\s+/g;
 
     function getTrimmedText(el: Element) {
-      var rawText = '';
-      if (typeof getBoundedText === 'function') {
-        rawText = getBoundedText(el, { maxChars: TOC_TEXT_MAX_LEN * 4, maxNodes: 160, maxDepth: 8 });
-      } else {
-        try { rawText = String(el && el.textContent || '').slice(0, TOC_TEXT_MAX_LEN * 4); } catch (_) { rawText = ''; }
-      }
+      var rawText = getBoundedText(el, { maxChars: TOC_TEXT_MAX_LEN * 4, maxNodes: 160, maxDepth: 8 });
       rawText = rawText.trim();
       rawText = rawText.replace(COLLAPSE_WS_RE, ' ');
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;

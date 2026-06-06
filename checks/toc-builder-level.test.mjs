@@ -33,6 +33,7 @@ function loadBuilder(elements) {
     uiConst(name, fallback) { return fallback; },
     collectBySelector() { return elements; },
     uniqueInDocumentOrder(nodes) { return nodes; },
+    getBoundedText(el) { return el.textContent || ''; },
     document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
     window: {
       getComputedStyle() {

@@ -27,29 +27,23 @@ function isQuotaExceededError(err: unknown): boolean {
 }
 
 function touchObjectKey(map: Record<string, unknown>, key: string, value: unknown): void {
-  try {
-    if (!map || !key) return;
-    if (Object.prototype.hasOwnProperty.call(map, key)) {
-      try { delete map[key]; } catch (_) {}
-    }
-    map[key] = value;
-  } catch (_) {}
+  if (!map || !key) return;
+  if (Object.prototype.hasOwnProperty.call(map, key)) {
+    delete map[key];
+  }
+  map[key] = value;
 }
 
 function pruneObjectToLimit(map: Record<string, unknown>, maxKeys: number): Record<string, unknown> {
-  try {
-    if (!map || typeof map !== 'object') return map;
-    var limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
-    var keys = Object.keys(map);
-    if (keys.length <= limit) return map;
-    var removeCount = keys.length - limit;
-    for (var i = 0; i < removeCount; i++) {
-      try { delete map[keys[i]]; } catch (_) {}
-    }
-    return map;
-  } catch (_) {
-    return map;
+  if (!map || typeof map !== 'object') return map;
+  var limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
+  var keys = Object.keys(map);
+  if (keys.length <= limit) return map;
+  var removeCount = keys.length - limit;
+  for (var i = 0; i < removeCount; i++) {
+    delete map[keys[i]];
   }
+  return map;
 }
 
 // --- Config primitives ---

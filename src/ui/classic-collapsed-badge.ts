@@ -5,7 +5,8 @@ import {
   msg,
   getBadgePosByHost,
   setBadgePosByHost,
-  cleanupOwnedElements
+  cleanupOwnedElements,
+  normalizeSide
 } from '../utils/toc-utils.js';
 import { createDragController } from '../utils/drag-helper.js';
 
@@ -18,11 +19,11 @@ var CFG = {
 };
 
 export function renderClassicCollapsedBadge(side: string, onExpand: () => void, centerPos?: { x: number; y: number } | null) {
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
   var badge = document.createElement('button');
   badge.type = 'button';
-  badge.className = 'toc-collapsed-badge ' + (side === 'left' ? 'left' : 'right');
+  badge.className = 'toc-collapsed-badge ' + normalizeSide(side);
   badge.setAttribute('data-toc-owner', 'web-toc-assistant');
   badge.textContent = msg('tocTitle');
   badge.title = msg('badgeTitle');
@@ -55,7 +56,7 @@ export function renderClassicCollapsedBadge(side: string, onExpand: () => void, 
 
   if (centerPos) {
     applyPosition(centerPos);
-  } else if (getBadgePosByHost) {
+  } else {
     (async function() {
       try {
         var pos = await getBadgePosByHost(location.host);
@@ -64,12 +65,10 @@ export function renderClassicCollapsedBadge(side: string, onExpand: () => void, 
         applyPosition(null);
       }
     })();
-  } else {
-    applyPosition(null);
   }
 
   function persistPosition() {
-    if (!setBadgePosByHost || destroyed || !badge.isConnected) return;
+    if (destroyed || !badge.isConnected) return;
     var rect = badge.getBoundingClientRect();
     var x = rect.left + rect.width / 2;
     var y = rect.top + rect.height / 2;
@@ -81,7 +80,7 @@ export function renderClassicCollapsedBadge(side: string, onExpand: () => void, 
     });
   }
 
-  var dragController = createDragController ? createDragController({
+  var dragController = createDragController({
     element: badge,
     shouldStart: function(e: PointerEvent) { return e.target === badge; },
     onStart: function() {
@@ -109,10 +108,10 @@ export function renderClassicCollapsedBadge(side: string, onExpand: () => void, 
       }
       persistPosition();
     }
-  }) : null;
+  });
 
   function onKeydown(e: KeyboardEvent) {
-    if (!e || (e.key !== 'Enter' && e.key !== ' ')) return;
+    if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
     onExpand && onExpand();
   }
