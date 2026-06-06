@@ -8,7 +8,9 @@ import {
   findMatchingConfig,
   getFocusableWithin,
   msg,
-  validateSelectorExpression
+  validateSelectorExpression,
+  normalizeSide,
+  buildSitePattern
 } from '../utils/toc-utils.js';
 
   interface StoredConfig {
@@ -67,7 +69,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       }
 
       var configs = await getConfigs() as StoredConfig[];
-      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var urlPattern = buildSitePattern();
       var idx = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
       var list: Array<{ type: string; expr: string }> = (idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : null) || [];
 
@@ -97,12 +99,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       listDiv.className = 'toc-overlay-list';
 
       var refreshList = async function(selectors: Array<{ type: string; expr: string }>) {
-        try {
-          if (listDiv.replaceChildren) listDiv.replaceChildren();
-          else listDiv.textContent = '';
-        } catch (_) {
-          listDiv.textContent = '';
-        }
+        listDiv.replaceChildren();
         if (selectors && selectors.length) {
           selectors.forEach(function(s, sIndex) {
             var item = document.createElement('div');
@@ -136,20 +133,20 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
                 });
 
                 if (!result || !result.ok) {
-                  showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+                  showToast(msg('errorOperationFailed'), { type: 'error' });
                   return;
                 }
 
                 var updatedSelectors = selectorsFromMutationResult(result);
                 cfg.selectors = updatedSelectors;
-                if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+                if (cfg.__markConfigDirty) cfg.__markConfigDirty();
                 await refreshList(updatedSelectors);
                 countLabel.textContent = msg('configSavedSelectors') + ' (' + updatedSelectors.length + ')';
 
                 notifyConfigChanged();
               } catch (e2) {
                 console.warn(msg('logClearConfigFailed'), e2);
-                showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+                showToast(msg('errorOperationFailed'), { type: 'error' });
               }
             });
 
@@ -186,31 +183,30 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       box.appendChild(actions);
 
       var restoreFocus = function() {
-        try {
-          if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
-            prevFocus.focus({ preventScroll: true });
-          }
-        } catch (_) {}
+        if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
+          prevFocus.focus({ preventScroll: true });
+        }
       };
       var focusRaf: number | null = null;
       var close = function() {
-        if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
+        removeFocusTrap();
+        removeFocusTrap = function() {};
         if (focusRaf) {
           cancelAnimationFrame(focusRaf);
           focusRaf = null;
         }
-        try { if (box) box.remove(); } catch (_) {}
+        if (box) box.remove();
         restoreFocus();
       };
 
       var getFocusable = function(): Element[] {
         try {
-          if (typeof getFocusableWithin === 'function' && box) return getFocusableWithin(box);
+          if (box) return getFocusableWithin(box);
         } catch (_) {}
         return [];
       };
 
-      var removeFocusTrap: (() => void) | null = createFocusTrap ? createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable }) : null;
+      var removeFocusTrap: (() => void) = createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable });
 
       box.addEventListener('click', async function(e) {
         try {
@@ -225,11 +221,11 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
               urlPattern: urlPattern
             });
             if (!result || !result.ok) {
-              showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+              showToast(msg('errorOperationFailed'), { type: 'error' });
               return;
             }
             cfg.selectors = [];
-            if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+            if (cfg.__markConfigDirty) cfg.__markConfigDirty();
             await refreshList([]);
             countLabel.textContent = msg('configSavedSelectors') + ' (0)';
 
@@ -238,40 +234,38 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
           }
         } catch (e2) {
           console.error(msg('logClearConfigFailed'), e2);
-          if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
+          showToast(msg('errorOperationFailed'), { type: 'error' });
         }
       });
 
       document.documentElement.appendChild(box);
-      try {
-        focusRaf = requestAnimationFrame(function() {
-          focusRaf = null;
-          if (!box || !box.isConnected) return;
-          try { btnClose.focus({ preventScroll: true }); } catch (_) {}
-        });
-      } catch (_) {}
+      focusRaf = requestAnimationFrame(function() {
+        focusRaf = null;
+        if (!box || !box.isConnected) return;
+        btnClose.focus({ preventScroll: true });
+      });
     } catch (e) {
-      try { if (box && box.isConnected) box.remove(); } catch (_) {}
+      if (box && box.isConnected) box.remove();
       console.error(msg('logClearConfigFailed'), e);
-      if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
+      showToast(msg('errorOperationFailed'), { type: 'error' });
     }
   }
 
 export async function saveSelector(selector: string, cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     try {
       if (!cfg) {
-        showToast && showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
+        showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
         return false;
       }
       var expr = String(selector || '').trim();
-      if (!expr || (validateSelectorExpression && !validateSelectorExpression('css', expr))) {
-        showToast && showToast(msg('errorInvalidSelector'), { type: 'error' });
+      if (!expr || !validateSelectorExpression('css', expr)) {
+        showToast(msg('errorInvalidSelector'), { type: 'error' });
         return false;
       }
 
-      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var urlPattern = buildSitePattern();
       var entry = { type: 'css', expr: expr };
-      var sidePersist = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+      var sidePersist = normalizeSide(cfg.side);
 
       var result = await requestConfigMutation({
         operation: 'add-selector',
@@ -281,7 +275,7 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
       });
       if (result && result.ok) {
         cfg.selectors = selectorsFromMutationResult(result);
-        if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
+        if (cfg.__markConfigDirty) cfg.__markConfigDirty();
       }
       return !!(result && result.ok);
     } catch (e) {
@@ -293,7 +287,7 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
 export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     try {
       var configs = await getConfigs() as StoredConfig[];
-      var urlPattern = location.protocol + '//' + location.host + '/*';
+      var urlPattern = buildSitePattern();
       var latest = findMatchingConfig(configs, location.href) as StoredConfig | null;
       if (!latest) {
         latest = configs.find(function(c) { return c && c.urlPattern === urlPattern; }) || null;
@@ -301,7 +295,7 @@ export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: s
 
       if (latest) {
         cfg.selectors = Array.isArray(latest.selectors) ? latest.selectors.slice() : [];
-        cfg.side = (latest.side === 'left' || latest.side === 'right') ? latest.side : cfg.side;
+        cfg.side = latest.side === 'left' || latest.side === 'right' ? latest.side : cfg.side;
       } else {
         cfg.selectors = [];
       }

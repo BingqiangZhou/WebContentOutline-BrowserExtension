@@ -23,33 +23,56 @@ import {
 import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
 import {
   isContextInvalidatedError,
-  isExtensionContextInvalidated
+  isExtensionContextInvalidated,
+  normalizeSide,
+  isTocContentIdentical
 } from '../utils/core-utils.js';
-import * as NL from './nav-lock.js';
+
+  /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
+  interface NavLock {
+    lock: (durationMs?: number) => void;
+    unlock: () => void;
+    isLocked: () => boolean;
+    destroy: () => void;
+  }
+
+  function createNavLock(): NavLock {
+    var _locked = false;
+    var _timer: ReturnType<typeof setTimeout> | null = null;
+    return {
+      lock: function(durationMs?: number) {
+        _locked = true;
+        if (_timer != null) clearTimeout(_timer);
+        _timer = setTimeout(function() { _timer = null; _locked = false; }, durationMs && durationMs > 0 ? durationMs : 3000);
+      },
+      unlock: function() {
+        _locked = false;
+        if (_timer != null) { clearTimeout(_timer); _timer = null; }
+      },
+      isLocked: function() { return _locked; },
+      destroy: function() { _locked = false; if (_timer != null) { clearTimeout(_timer); _timer = null; } }
+    };
+  }
 
   // Config change callback — wired when initForConfig runs
   var _activeRebuild: (() => any) | null = null;
-  try {
-    if (setOnConfigChanged) {
-      setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
-    }
-  } catch (_) {}
+  setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
 
 export function initForConfig(cfg: any, options: any) {
     options = options || {};
     var uiMode = options.uiMode === 'classic' ? 'classic' : 'edge-dock';
     var onSwitchUiMode = options.onSwitchUiMode;
     var onDeactivate = options.onDeactivate;
-    var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
+    var side: string = normalizeSide(cfg.side);
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+    cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
     var destroyed = false;
 
     var buildNow = function() {
       try {
-        var res = buildTocItems ? buildTocItems(cfg, []) : null;
+        var res = buildTocItems(cfg, []);
         if (res && Array.isArray(res.items)) return res;
         if (Array.isArray(res)) return { items: res, meta: null };
       } catch (e) {
@@ -69,18 +92,9 @@ export function initForConfig(cfg: any, options: any) {
     var rebuildScheduler: any = null;
     var pickerInstance: any = null;
     var rebuildInFlight: Promise<any> | null = null;
+    var navLock = createNavLock();
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
-
-    var getNavLock = function() { return NL.isLocked(); };
-
-    var isContentIdentical = function(prevItems: any[], nextItems: any[]) {
-      if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
-      for (var i = 0; i < prevItems.length; i++) {
-        if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
-      }
-      return true;
-    };
 
     var findMatchingActiveIndex = function(nextItems: any[], previousItem: any, fallbackIndex: number) {
       if (!nextItems || !nextItems.length || !previousItem) return -1;
@@ -93,14 +107,14 @@ export function initForConfig(cfg: any, options: any) {
 
     var syncActiveIndex = function(nextIndex: number) {
       activeIndex = Number.isFinite(nextIndex) && nextIndex >= 0 && nextIndex < items.length ? nextIndex : -1;
-      try { if (dockInstance && dockInstance.setActiveIndex) dockInstance.setActiveIndex(activeIndex); } catch (_) {}
-      try { if (panelInstance && panelInstance.setActiveIndex) panelInstance.setActiveIndex(activeIndex); } catch (_) {}
+      if (dockInstance && dockInstance.setActiveIndex) dockInstance.setActiveIndex(activeIndex);
+      if (panelInstance && panelInstance.setActiveIndex) panelInstance.setActiveIndex(activeIndex);
     };
 
     var syncItemViews = function(previousItem: any, previousIndex: number) {
       var nextActiveIndex = findMatchingActiveIndex(items, previousItem, previousIndex);
-      try { if (dockInstance && dockInstance.setItems) dockInstance.setItems(items); } catch (_) {}
-      try { if (activeTracker && activeTracker.setItems) activeTracker.setItems(items); } catch (_) {}
+      if (dockInstance && dockInstance.setItems) dockInstance.setItems(items);
+      if (activeTracker && activeTracker.setItems) activeTracker.setItems(items);
       syncActiveIndex(nextActiveIndex);
     };
 
@@ -108,9 +122,9 @@ export function initForConfig(cfg: any, options: any) {
       if (destroyed) return false;
 
       // Early exit: if extension context is invalidated, stop all rebuilds
-      if (isExtensionContextInvalidated && isExtensionContextInvalidated()) {
+      if (isExtensionContextInvalidated()) {
         if (rebuildScheduler && rebuildScheduler.disconnect) {
-          try { rebuildScheduler.disconnect(); } catch (_) {}
+          rebuildScheduler.disconnect();
         }
         // Show notice on existing panel
         if (panelInstance && !document.querySelector('[data-toc-owner="web-toc-assistant"] .toc-ctx-invalidated-notice')) {
@@ -126,8 +140,8 @@ export function initForConfig(cfg: any, options: any) {
             refreshLink.href = '#';
             refreshLink.textContent = msg('ctxInvalidatedRefresh') || 'Refresh';
             refreshLink.addEventListener('click', function(ev) {
-              try { ev.preventDefault(); } catch (_) {}
-              try { location.reload(); } catch (_) {}
+              ev.preventDefault();
+              location.reload();
             });
 
             noticeEl.appendChild(noticeSpan);
@@ -142,7 +156,7 @@ export function initForConfig(cfg: any, options: any) {
       }
 
       try {
-        if (configDirty && updateConfigFromStorage) {
+        if (configDirty) {
           await updateConfigFromStorage(cfg);
           configDirty = false;
         }
@@ -156,13 +170,13 @@ export function initForConfig(cfg: any, options: any) {
         var newMeta = buildResult.meta;
 
         // Skip rebuild if content is identical
-        if (isContentIdentical(prevItems, newItems)) return true;
+        if (isTocContentIdentical(prevItems, newItems)) return true;
 
         items = newItems;
         tocMeta = newMeta;
 
         // Invalidate scroll caches since the DOM may have changed layout
-        try { invalidateScrollCaches(); } catch (_) {}
+        invalidateScrollCaches();
 
         // Badge mode: update in-memory items so next expand is fresh, but skip full UI rebuild.
         if (!panelInstance) {
@@ -198,16 +212,12 @@ export function initForConfig(cfg: any, options: any) {
 
         syncItemViews(previousActiveItem, previousActiveIndex);
       } catch (e) {
-        if (isContextInvalidatedError && isContextInvalidatedError(e)) {
+        if (isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
-          try { NL.unlock(); } catch (_) {}
-          try {
-            items.forEach(function(it) { it._userSelected = false; });
-          } catch (_) {}
+          navLock.unlock();
+          items.forEach(function(it: any) { it._userSelected = false; });
           if (rebuildScheduler && rebuildScheduler.disconnect) {
-            try {
-              rebuildScheduler.disconnect();
-            } catch (_) {}
+            rebuildScheduler.disconnect();
           }
           return false;
         }
@@ -241,8 +251,6 @@ export function initForConfig(cfg: any, options: any) {
         } catch (_) {}
       };
       try {
-        if (!createElementPicker || !showPickerResult) return;
-
         if (pickerInstance && pickerInstance.cleanup) {
           pickerInstance.cleanup();
           dispatchPickerEvent('toc-picker-end');
@@ -253,9 +261,9 @@ export function initForConfig(cfg: any, options: any) {
           dispatchPickerEvent('toc-picker-end');
           pickerInstance = null;
           var sel = '';
-          var cls = buildClassSelector ? buildClassSelector(el) : '';
+          var cls = buildClassSelector(el);
           if (cls && el && el.tagName) sel = String(el.tagName).toLowerCase() + cls;
-          if (!sel && cssPathFor) sel = cssPathFor(el);
+          if (!sel) sel = cssPathFor(el);
 
           showPickerResult(sel, async function(selector: string, onDone?: () => void) {
             try {
@@ -264,10 +272,10 @@ export function initForConfig(cfg: any, options: any) {
                 onDone && onDone();
                 await rebuild();
               } else {
-                showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
+                showToast(msg('errorOperationFailed'), { type: 'error' });
               }
             } catch (e) {
-              if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
+              if (!isContextInvalidatedError(e)) {
                 console.debug('[toc] save selector failed', e);
               }
             }
@@ -285,27 +293,26 @@ export function initForConfig(cfg: any, options: any) {
 
     function removePanelCard() {
       if (!panelInstance) return;
-      try { panelInstance.remove(); } catch (_) {}
+      panelInstance.remove();
       panelInstance = null;
     }
 
     function removeClassicBadge() {
       if (!badgeInstance) return;
-      try { badgeInstance.remove(); } catch (_) {}
+      badgeInstance.remove();
       badgeInstance = null;
     }
 
     function renderPanelCard(panelPos: any, panelSide: any, anchorPos: any) {
       if (destroyed || panelInstance) return panelInstance;
       if (uiMode === 'classic') {
-        if (!renderClassicFloatingPanel) return panelInstance;
         panelInstance = renderClassicFloatingPanel({
           side: panelSide || side,
           items: items,
           onCollapse: collapse,
           onRefresh: rebuild,
           onPick: startPick,
-          onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
+          onSiteConfig: function() { return siteConfig(cfg); },
           onSwitchUiMode: onSwitchUiMode,
           getPendingRebuild: rebuildScheduler ? rebuildScheduler.getPendingRebuild : function() { return false; },
           setPendingRebuild: rebuildScheduler ? rebuildScheduler.setPendingRebuild : function() {},
@@ -317,9 +324,10 @@ export function initForConfig(cfg: any, options: any) {
         });
         return panelInstance;
       }
-      if (!dockInstance || !renderFloatingPanel) return panelInstance;
+      if (!dockInstance) return panelInstance;
       var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
       panelInstance = renderFloatingPanel({
+        navLock: navLock,
         side: currentSide,
         items: items,
         onCollapse: function() { collapse({ focus: true }); },
@@ -345,7 +353,7 @@ export function initForConfig(cfg: any, options: any) {
         if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
         if (!panelInstance) renderPanelCard(null, null, null);
       } catch (e) {
-        if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
+        if (!isContextInvalidatedError(e)) {
           console.debug('[toc] dock mode update failed:', e);
         }
       }
@@ -355,14 +363,14 @@ export function initForConfig(cfg: any, options: any) {
       try {
         if (uiMode === 'classic') {
           var buttonCenter = panelInstance && panelInstance.getCollapseCenter ? panelInstance.getCollapseCenter() : null;
-          if (buttonCenter && setBadgePosByHost) {
-            try { setBadgePosByHost(location.host, buttonCenter); } catch (_) {}
+          if (buttonCenter) {
+            setBadgePosByHost(location.host, buttonCenter);
           }
           removePanelCard();
-          if (!badgeInstance && renderClassicCollapsedBadge) {
+          if (!badgeInstance) {
             badgeInstance = renderClassicCollapsedBadge(side, expand, buttonCenter);
           }
-          if ((!opts || opts.persist !== false) && setPanelExpandedByOrigin) {
+          if (!opts || opts.persist !== false) {
             setPanelExpandedByOrigin(location.origin, false);
           }
           return;
@@ -386,7 +394,7 @@ export function initForConfig(cfg: any, options: any) {
               savedPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
             }
           }
-          if (!savedPos && getBadgePosByHost) savedPos = await getBadgePosByHost(location.host);
+          if (!savedPos) savedPos = await getBadgePosByHost(location.host);
           if (savedPos && Number.isFinite(savedPos.x)) {
             expandSide = savedPos.x > window.innerWidth / 2 ? 'right' : 'left';
           }
@@ -400,12 +408,12 @@ export function initForConfig(cfg: any, options: any) {
           removeClassicBadge();
           await rebuild();
           if (!panelInstance) renderPanelCard(panelPos, expandSide, savedPos);
-          if (setPanelExpandedByOrigin) setPanelExpandedByOrigin(location.origin, true);
+          setPanelExpandedByOrigin(location.origin, true);
           return;
         }
         if (dockInstance) dockInstance.peek(opts || {});
       } catch (e) {
-        if (!isContextInvalidatedError || !isContextInvalidatedError(e)) {
+        if (!isContextInvalidatedError(e)) {
           console.debug('[toc] expand failed:', e);
         }
       }
@@ -415,35 +423,31 @@ export function initForConfig(cfg: any, options: any) {
       destroyed = true;
       items = [];
       rebuildInFlight = null;
-      NL.destroy();
+      navLock.destroy();
       removePanelCard();
       removeClassicBadge();
-      try { if (activeTracker && activeTracker.destroy) activeTracker.destroy(); } catch (_) {}
+      if (activeTracker && activeTracker.destroy) activeTracker.destroy();
       activeTracker = null;
-      try { if (dockInstance) dockInstance.destroy(); } catch (_) {}
+      if (dockInstance) dockInstance.destroy();
       dockInstance = null;
-      try { if (rebuildScheduler && rebuildScheduler.disconnect) rebuildScheduler.disconnect(); } catch (_) {}
+      if (rebuildScheduler && rebuildScheduler.disconnect) rebuildScheduler.disconnect();
       rebuildScheduler = null;
-      try {
-        if (pickerInstance && pickerInstance.cleanup) {
-          pickerInstance.cleanup();
-        }
-      } catch (_) {}
+      if (pickerInstance && pickerInstance.cleanup) {
+        pickerInstance.cleanup();
+      }
       pickerInstance = null;
       // Clear config change callback
-      try { if (clearOnConfigChanged) clearOnConfigChanged(); } catch (_) {}
+      clearOnConfigChanged();
       // Clear event handler
       _activeRebuild = null;
     };
 
     try {
-      if (createRebuildScheduler) {
-        rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; } });
-        rebuildScheduler.start(cfg);
-      }
+      rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; }, navLock: navLock });
+      rebuildScheduler.start(cfg);
       if (uiMode === 'classic') {
         collapse({ persist: false });
-      } else if (renderEdgeDock) {
+      } else {
         dockInstance = renderEdgeDock({
           side: side,
           initialMode: 'collapsed',
@@ -451,19 +455,14 @@ export function initForConfig(cfg: any, options: any) {
           onModeChange: onDockModeChange,
           onRefresh: rebuild,
           onPick: startPick,
-          onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
+          onSiteConfig: function() { return siteConfig(cfg); },
           onSwitchUiMode: onSwitchUiMode,
           onDeactivate: onDeactivate,
           onNavigate: function(item: any, index: number) {
             if (!item || !item.el) return;
             syncActiveIndex(index);
-            try { NL.lock(1000); } catch (_) {}
-            try {
-              if (scrollToElement) scrollToElement(item.el);
-              else item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } catch (_) {
-              try { item.el.scrollIntoView(true); } catch (_2) {}
-            }
+            navLock.lock(1000);
+            scrollToElement(item.el);
           },
           onSideChange: function(nextSide: string) {
             side = nextSide;
@@ -472,14 +471,12 @@ export function initForConfig(cfg: any, options: any) {
           }
         });
       }
-      if (createActiveItemTracker) {
-        activeTracker = createActiveItemTracker({
-          items: items,
-          onChange: function(_item: any, index: number) {
-            if (!rebuildInFlight && !getNavLock()) syncActiveIndex(index);
-          }
-        });
-      }
+      activeTracker = createActiveItemTracker({
+        items: items,
+        onChange: function(_item: any, index: number) {
+          if (!rebuildInFlight && !navLock.isLocked()) syncActiveIndex(index);
+        }
+      });
       syncActiveIndex(activeIndex);
 
       return {
@@ -490,7 +487,7 @@ export function initForConfig(cfg: any, options: any) {
         destroy: destroy
       };
     } catch (e) {
-      try { destroy(); } catch (_) {}
+      destroy();
       throw e;
     }
   }

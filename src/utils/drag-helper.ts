@@ -1,6 +1,6 @@
 'use strict';
 
-interface DragState {
+export interface DragState {
   active: boolean;
   destroyed: boolean;
   moved: boolean;
@@ -74,10 +74,10 @@ export function createDragController(options: DragControllerOptions) {
       }
 
       function removePointerListeners() {
-        try { element.removeEventListener('pointermove', handlePointerMove, true); } catch (_) {}
-        try { element.removeEventListener('pointerup', handlePointerUp, true); } catch (_) {}
-        try { element.removeEventListener('pointercancel', handlePointerCancel, true); } catch (_) {}
-        try { element.removeEventListener('lostpointercapture', handlePointerCancel, true); } catch (_) {}
+        element.removeEventListener('pointermove', handlePointerMove, true);
+        element.removeEventListener('pointerup', handlePointerUp, true);
+        element.removeEventListener('pointercancel', handlePointerCancel, true);
+        element.removeEventListener('lostpointercapture', handlePointerCancel, true);
         if (state.pointerId != null) {
           try { element.releasePointerCapture(state.pointerId); } catch (_) {}
         }
@@ -94,14 +94,12 @@ export function createDragController(options: DragControllerOptions) {
         } finally {
           state.active = false;
         }
-        try {
-          onEnd && onEnd(state, e);
-        } catch (_) {}
+        if (onEnd) onEnd(state, e);
         if (prevent) {
-          try { e && e.preventDefault && e.preventDefault(); } catch (_) {}
+          e.preventDefault();
         }
         if (stop) {
-          try { e && e.stopPropagation && e.stopPropagation(); } catch (_) {}
+          e.stopPropagation();
         }
       }
 
@@ -116,12 +114,8 @@ export function createDragController(options: DragControllerOptions) {
         if (!state.moved && (Math.abs(dx) > threshold || Math.abs(dy) > threshold)) {
           state.moved = true;
         }
-        try {
-          onMove && onMove(state, e);
-        } catch (_) {}
-        try {
-          e.preventDefault();
-        } catch (_) {}
+        if (onMove) onMove(state, e);
+        e.preventDefault();
       }
 
       function handlePointerUp(e: PointerEvent) {
@@ -154,14 +148,10 @@ export function createDragController(options: DragControllerOptions) {
         element.addEventListener('pointercancel', handlePointerCancel, true);
         element.addEventListener('lostpointercapture', handlePointerCancel, true);
 
-        try {
-          onStart && onStart(state, e);
-        } catch (_) {}
+        if (onStart) onStart(state, e);
 
-        try {
-          e.preventDefault();
-          e.stopPropagation();
-        } catch (_) {}
+        e.preventDefault();
+        e.stopPropagation();
       }
 
       element.addEventListener('pointerdown', handlePointerDown, true);

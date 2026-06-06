@@ -4,10 +4,16 @@
 import {
   msg,
   scrollToElement,
-  cleanupOwnedElements
+  cleanupOwnedElements,
+  isTocContentIdentical,
+  normalizeSide
 } from '../utils/toc-utils.js';
-import * as NL from '../core/nav-lock.js';
-import { clearChildren } from './floating-panel-helpers.js';
+
+  /** Clear all children of an element using native replaceChildren(). */
+  function clearChildren(el: HTMLElement): void {
+    if (!el) return;
+    el.replaceChildren();
+  }
 
   var CFG = {
     UNLOCK_AFTER_MS: 800,
@@ -44,6 +50,7 @@ interface FloatingPanelOpts {
   activeIndex?: number;
   onNavigate?: (item: TocItem, index: number) => void;
   embedded?: boolean;
+  navLock?: { lock: (durationMs?: number) => void; unlock: () => void; isLocked: () => boolean };
   [key: string]: any;
 }
 
@@ -60,12 +67,13 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var activeIndex: number = opts.activeIndex as number;
     var onNavigate: ((item: TocItem, index: number) => void) | undefined = opts.onNavigate;
     var embedded = !!opts.embedded;
+    var navLock = opts.navLock;
 
     // Remove any existing panel to prevent duplicates
-    if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
+    if (!embedded) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
     var panel = document.createElement('div');
-    var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var listenersController = new AbortController();
 
     // Simple timer IDs for cleanup
     var unlockTimer: ReturnType<typeof setTimeout> | null = null;
@@ -87,7 +95,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (unlockTimer) clearTimeout(unlockTimer);
       unlockTimer = setTimeout(function() {
         unlockTimer = null;
-        NL.unlock();
+        navLock && navLock.unlock();
 
         if (getPendingRebuild && getPendingRebuild()) {
           if (pendingRebuildTimer) clearTimeout(pendingRebuildTimer);
@@ -103,30 +111,22 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     };
 
     var onScroll = function() {
-      if (!NL.isLocked()) return;
+      if (!navLock || !navLock.isLocked()) return;
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
       scrollStopTimer = setTimeout(function() {
         scrollStopTimer = null;
-        NL.unlock();
+        navLock && navLock.unlock();
       }, CFG.SCROLL_STOP_MS);
     };
 
-    // Set up scroll listener with AbortController if available
-    try {
-      if (listenersController) {
-        window.addEventListener('scroll', onScroll, { ...SCROLL_LISTENER_OPTS, signal: listenersController.signal });
-      } else {
-        window.addEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS);
-      }
-      removeScrollListener = function() {
-        try { window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false); } catch (_) {}
-      };
-    } catch (_) {
-      removeScrollListener = function() {};
-    }
+    // Set up scroll listener
+    window.addEventListener('scroll', onScroll, { ...SCROLL_LISTENER_OPTS, signal: listenersController.signal });
+    removeScrollListener = function() {
+      window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false);
+    };
 
     var cleanupLock = function() {
-      try { NL.unlock(); } catch (_) {}
+      if (navLock) navLock.unlock();
       if (unlockTimer) { clearTimeout(unlockTimer); unlockTimer = null; }
       if (scrollStopTimer) { clearTimeout(scrollStopTimer); scrollStopTimer = null; }
       if (pendingRebuildTimer) { clearTimeout(pendingRebuildTimer); pendingRebuildTimer = null; }
@@ -134,7 +134,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     panel.className = embedded
       ? 'toc-floating-embedded'
-      : 'toc-floating toc-floating-docked toc-floating-' + (side === 'left' ? 'left' : 'right') + (skipAnimation ? '' : ' toc-floating-expand');
+      : 'toc-floating toc-floating-docked toc-floating-' + normalizeSide(side) + (skipAnimation ? '' : ' toc-floating-expand');
     if (!embedded) panel.setAttribute('data-toc-owner', 'web-toc-assistant');
     panel.setAttribute('role', embedded ? 'presentation' : 'dialog');
     if (!embedded) {
@@ -142,9 +142,8 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       panel.setAttribute('aria-label', msg('tocTitle'));
     }
     onPanelKeydown = function(e: KeyboardEvent) {
-      if (!e) return;
       if (e.key === 'Escape') {
-        try { e.preventDefault(); } catch (_) {}
+        e.preventDefault();
         onCollapse && onCollapse();
       }
     };
@@ -215,30 +214,22 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         if (!item._node) return;
         var isActive = index === activeIndex;
         item._node.classList.toggle('active', isActive);
-        try {
-          if (isActive) item._node.setAttribute('aria-current', 'location');
-          else item._node.removeAttribute('aria-current');
-          item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
-        } catch (_) {}
+        if (isActive) item._node.setAttribute('aria-current', 'location');
+        else item._node.removeAttribute('aria-current');
+        item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
       });
     };
 
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
-      if (e && e.preventDefault) e.preventDefault();
-      NL.lock(undefined!);
+      e.preventDefault();
+      navLock && navLock.lock(undefined!);
       setActiveIndex(index);
-      try { onNavigate && onNavigate(item, index); } catch (_) {}
+      onNavigate && onNavigate(item, index);
 
       try {
-        if (scrollToElement) {
-          scrollToElement(item.el);
-        } else {
-          item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+        scrollToElement(item.el);
       } catch (_) {
-        try { item.el.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (_2) {
-          try { item.el.scrollIntoView(true as any); } catch (_3) {}
-        }
+        try { item.el.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (_2) {}
       }
       unlockLater();
     };
@@ -260,7 +251,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     list.addEventListener('click', onListClick);
 
     onListKeydown = function(e: KeyboardEvent) {
-      if (!e) return;
       var key = e.key;
       var node = e.target && (e.target as HTMLElement).closest ? (e.target as HTMLElement).closest('.toc-item') as HTMLElement | null : null;
       // Find current index from dataset instead of querySelectorAll on every keypress
@@ -278,7 +268,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         setActiveIndex(nextIndex);
         var nextItem = items[nextIndex];
         if (nextItem && nextItem._node) {
-          try { (nextItem._node as HTMLElement).focus({ preventScroll: false }); } catch (_) { try { (nextItem._node as HTMLElement).focus(); } catch (_2) {} }
+          (nextItem._node as HTMLElement).focus({ preventScroll: false });
         }
         return;
       }
@@ -321,27 +311,23 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var cleanup = function() {
       if (cleanedUp) return;
       cleanedUp = true;
-      try { if (onListClick) list.removeEventListener('click', onListClick); } catch (_) {}
-      try { if (onListKeydown) list.removeEventListener('keydown', onListKeydown); } catch (_) {}
+      if (onListClick) list.removeEventListener('click', onListClick);
+      if (onListKeydown) list.removeEventListener('keydown', onListKeydown);
       onListClick = null;
       onListKeydown = null;
-      try { if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true); } catch (_) {}
+      if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true);
       onPanelKeydown = null;
-      try { removeScrollListener && removeScrollListener(); } catch (_) {}
-      try { listenersController && listenersController.abort && listenersController.abort(); } catch (_) {}
+      removeScrollListener && removeScrollListener();
+      listenersController.abort();
       cleanupLock();
       if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }
-      try {
-        if (showRaf != null) cancelAnimationFrame(showRaf);
-      } catch (_) {}
+      if (showRaf != null) cancelAnimationFrame(showRaf);
       showRaf = null;
     };
 
     panel.remove = function() {
       cleanup();
-      try {
-        if (panel && panel.isConnected) origRemove();
-      } catch (_) {}
+      if (panel && panel.isConnected) origRemove();
     };
 
     // Used by cleanupOwnedElements() for teardown
@@ -352,16 +338,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (!panel || !panel.isConnected) return false;
 
       // Check for identical content — no-op if nothing changed
-      if (items.length === newItems.length && items.length > 0) {
-        var identical = true;
-        for (var i = 0; i < items.length; i++) {
-          if (items[i].text !== newItems[i].text || items[i].el !== newItems[i].el) {
-            identical = false;
-            break;
-          }
-        }
-        if (identical) return false;
-      }
+      if (isTocContentIdentical(items, newItems)) return false;
 
       // Both empty — nothing to do
       if (items.length === 0 && newItems.length === 0) {

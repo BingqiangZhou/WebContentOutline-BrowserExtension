@@ -52,7 +52,8 @@ entrypoints/toc.content/index.ts
             ├── utils/toc-builder.ts → dom-utils.ts
             ├── ui/edge-dock.ts, ui/element-picker.ts, ui/floating-panel.ts
             ├── core/config-manager.ts → focus-trap.ts
-            └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, nav-lock.ts
+            └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
+            (inline nav-lock via createNavLock())
 ```
 
 Background script:
@@ -110,7 +111,7 @@ Selectors (CSS/XPath)
 ```
 
 **4. UI State Management (`core/toc-app.ts`)**
-- Uses nav-lock via ESM import for navigation locking
+- Uses inline nav-lock via createNavLock()
 - Active item restoration after rebuild
 - Pending rebuild queue (processes after navigation unlock)
 - Component lifecycle coordination with `destroy()` cleanup
@@ -119,7 +120,7 @@ Selectors (CSS/XPath)
 Split into three focused modules:
 - `core/dom-watcher.ts` — MutationObserver-based DOM change detection
 - `core/url-monitor.ts` — URL change detection via History API interception, popstate, and polling fallback
-- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock integration, retry logic, and circuit breaker (pauses after 5 consecutive failures)
+- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, inline nav-lock (via opts), retry logic, and circuit breaker (pauses after 5 consecutive failures)
 
 **6. Config Change Notification**
 - Callback pattern via `setOnConfigChanged()` in `core/config-manager.ts`
@@ -162,7 +163,7 @@ Split into three focused modules:
 
 3. **Error boundaries**: try/catch around all chrome API calls
 
-4. **Cleanup hooks**: `destroy()` methods on toc-app, nav-lock, rebuild-scheduler for full teardown
+4. **Cleanup hooks**: `destroy()` methods on toc-app, rebuild-scheduler for full teardown
 
 5. **CSS isolation**: All styles use `!important` with global reset
 
@@ -187,7 +188,7 @@ Split into three focused modules:
 **Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 8 seconds as a safety fallback.
 
 **Rebuild scheduling** (`core/rebuild-scheduler.ts`):
-- Dynamic debounce: `DEBOUNCE_MS * 1.3^consecutiveMutations`, capped at 1800ms
+- Fixed debounce: 400ms (normal), 1200ms (during streaming), with circuit breaker after 5 consecutive failures
 - Circuit breaker: pauses after 5 consecutive failures
 
 ## Manifest V3 Specifics
@@ -211,7 +212,7 @@ Split into three focused modules:
 Edit `utils/toc-builder.ts` - handles selector execution, filtering, and item mapping
 
 ### Modifying UI components
-- Floating panel: `ui/floating-panel.ts` (title-free TOC card rendering) + `ui/floating-panel-helpers.ts` (extracted helpers)
+- Floating panel: `ui/floating-panel.ts` (title-free TOC card rendering, inline helpers)
 - Edge dock: `ui/edge-dock.ts` (edge toolbar, live outline preview, hover preview, pinned state, vertical dragging)
 - Active item tracker: `core/active-item-tracker.ts` (shared reading-position observer for collapsed and expanded states)
 - Element picker: `ui/element-picker.ts` (hover highlighting, click selection)

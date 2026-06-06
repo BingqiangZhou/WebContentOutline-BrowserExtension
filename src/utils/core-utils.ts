@@ -1,8 +1,8 @@
 
 import { SELECTOR_EXPR_MAX_LENGTH } from './constants.js';
-import { isPlainObject, isHighRiskBroadCssSelector } from '../shared/primitives.js';
+import { isPlainObject, isHighRiskBroadCssSelector, normalizeSide } from '../shared/primitives.js';
 
-export { isPlainObject, isHighRiskBroadCssSelector };
+export { isPlainObject, isHighRiskBroadCssSelector, normalizeSide };
 
   /**
    * Check if the extension context is invalidated (e.g., after extension reload).
@@ -33,7 +33,6 @@ export function msg(key: string, substitutions?: string | string[]): string {
 
 export function isContextInvalidatedError(e: unknown): boolean {
     try {
-      if (!e) return false;
       var text = String(e && ((e as { message?: string }).message || ((e as { toString?: () => string }).toString && (e as { toString: () => string }).toString()) || e) || '');
       var lowered = text.toLowerCase();
       return lowered.indexOf('extension context invalidated') !== -1 || lowered.indexOf('context invalidated') !== -1;
@@ -43,8 +42,7 @@ export function isContextInvalidatedError(e: unknown): boolean {
   }
 
 export function getFocusableWithin(rootEl: Element | null): Element[] {
-    var root = rootEl ? rootEl : null;
-    if (!root) return [];
+    if (!rootEl) return [];
     var selector = [
       'button:not([disabled])',
       'textarea:not([disabled])',
@@ -54,7 +52,7 @@ export function getFocusableWithin(rootEl: Element | null): Element[] {
       '[tabindex]:not([tabindex="-1"])'
     ].join(',');
     try {
-      return Array.from(root.querySelectorAll(selector)).filter(function(el) {
+      return Array.from(rootEl.querySelectorAll(selector)).filter(function(el) {
         if (!el || !(el as HTMLElement).focus) return false;
         var style = window.getComputedStyle(el as Element);
         return style && style.visibility !== 'hidden' && style.display !== 'none';
@@ -78,16 +76,11 @@ export function isSafeXPathExpression(expr: string): boolean {
 
 function isValidCssSelector(expr: string): boolean {
     if (typeof expr !== 'string') return false;
-    if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
     if (!trimmed || trimmed.length > SELECTOR_EXPR_MAX_LENGTH) return false;
     if (isHighRiskBroadCssSelector(expr)) return false;
     try {
-      var frag = document.createDocumentFragment();
-      if (frag && frag.querySelector) {
-        frag.querySelector(trimmed);
-        return true;
-      }
+      document.createDocumentFragment().querySelector(trimmed);
       return true;
     } catch (_) {
       return false;
@@ -102,4 +95,16 @@ export function validateSelectorExpression(type: string, expr: string): boolean 
     } catch (_) {
       return false;
     }
+  }
+
+export function buildSitePattern(): string {
+    return location.protocol + '//' + location.host + '/*';
+  }
+
+export function isTocContentIdentical(prevItems: Array<{ text: string; el: Element }>, nextItems: Array<{ text: string; el: Element }>): boolean {
+    if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
+    for (var i = 0; i < prevItems.length; i++) {
+      if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
+    }
+    return true;
   }

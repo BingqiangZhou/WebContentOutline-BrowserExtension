@@ -29,6 +29,7 @@ function loadDomUtils(querySelectorAll = () => []) {
     XPathResult: { ORDERED_NODE_ITERATOR_TYPE: 1 },
     uiConst(_name, fallback) { return fallback; },
     isSafeXPathExpression() { return true; },
+    isHighRiskBroadCssSelector() { return false; },
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -290,16 +291,16 @@ test('default heading watcher ignores unrelated text but reacts to heading text'
 test('collapsed rebuilds skip view synchronization when content is identical', () => {
   const app = read('src/core/toc-app.ts');
 
-  // isContentIdentical is checked early, before the collapsed panelInstance branch
+  // isTocContentIdentical is checked early, before the collapsed panelInstance branch
   const rebuildOnce = app.slice(
     app.indexOf('var prevItems = items;'),
     app.indexOf('var incrementalDone = false;')
   );
 
-  assert.match(rebuildOnce, /isContentIdentical\(prevItems, newItems\)/);
+  assert.match(rebuildOnce, /isTocContentIdentical\(prevItems, newItems\)/);
   assert.ok(
-    rebuildOnce.indexOf('isContentIdentical(prevItems, newItems)') < rebuildOnce.indexOf('if (!panelInstance)'),
-    'isContentIdentical check should come before collapsed branch'
+    rebuildOnce.indexOf('isTocContentIdentical(prevItems, newItems)') < rebuildOnce.indexOf('if (!panelInstance)'),
+    'isTocContentIdentical check should come before collapsed branch'
   );
 });
 

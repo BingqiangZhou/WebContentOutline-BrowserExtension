@@ -7,11 +7,10 @@
    *
    * @param {object} opts
    * @param {function} [opts.checkAndReconnect] - Callback to reconnect DOM watcher
-   * @param {boolean} [opts.mutationObserverAvailable] - Whether MutationObserver is active
    * @returns {object}
    */
-export function createUrlMonitor(opts: { checkAndReconnect?: () => void; mutationObserverAvailable?: boolean }) {
-    var checkAndReconnect: (() => void) | null = (opts && opts.checkAndReconnect) || null;
+export function createUrlMonitor(opts: { checkAndReconnect?: () => void }) {
+    var checkAndReconnect: (() => void) | null = opts.checkAndReconnect || null;
 
     // State
     var lastKnownUrl = '';
@@ -70,9 +69,7 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void; mutatio
           else { startPolling(); }
         };
       }
-      if (typeof document !== 'undefined' && document.addEventListener) {
-        document.addEventListener('visibilitychange', visibilityHandler);
-      }
+      document.addEventListener('visibilitychange', visibilityHandler);
     }
 
     function stopPolling() {
@@ -99,11 +96,11 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void; mutatio
 
     function teardownUrlHooks() {
       if (popstateHandler) {
-        try { window.removeEventListener('popstate', popstateHandler); } catch (_) {}
+        window.removeEventListener('popstate', popstateHandler);
         popstateHandler = null;
       }
       if (hashchangeHandler) {
-        try { window.removeEventListener('hashchange', hashchangeHandler); } catch (_) {}
+        window.removeEventListener('hashchange', hashchangeHandler);
         hashchangeHandler = null;
       }
       if (urlChangeTimer) {
@@ -124,9 +121,7 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void; mutatio
       teardownUrlHooks();
       stopPolling();
       if (visibilityHandler) {
-        if (typeof document !== 'undefined' && document.removeEventListener) {
-          document.removeEventListener('visibilitychange', visibilityHandler);
-        }
+        document.removeEventListener('visibilitychange', visibilityHandler);
         visibilityHandler = null;
       }
       onChangeCallback = null;

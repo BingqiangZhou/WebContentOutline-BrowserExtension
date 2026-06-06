@@ -20,7 +20,9 @@ function loadCreateUrlMonitor() {
     document: {
       hidden: false,
       querySelector() { return null; },
-      querySelectorAll() { return []; }
+      querySelectorAll() { return []; },
+      addEventListener() {},
+      removeEventListener() {}
     },
     history: {
       pushState() {},
@@ -73,7 +75,9 @@ function loadCreateRebuildScheduler(hostname = 'example.com') {
       now() { return now; }
     },
     document: {
-      hidden: false
+      hidden: false,
+      addEventListener() {},
+      removeEventListener() {}
     },
     location: {
       hostname
@@ -104,6 +108,9 @@ function loadCreateRebuildScheduler(hostname = 'example.com') {
       onUnlock() {}
     },
     uiConst(name, fallback) { return fallback; },
+    getChatbotContainerSelector() { return null; },
+    invalidateChatbotCache() {},
+    isStreaming() { return false; },
     isContextInvalidatedError() { return false; },
     __exports: {}
   };

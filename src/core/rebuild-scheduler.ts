@@ -3,22 +3,18 @@
 
 import { createDomWatcher } from './dom-watcher.js';
 import { createUrlMonitor } from './url-monitor.js';
-import * as NL from './nav-lock.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
 import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from '../utils/chatbot-detector.js';
 
   var DEBOUNCE_MS = 400;
   var STREAMING_DEBOUNCE_MS = 1200;
   var MAX_CONSECUTIVE_FAILURES = 5;
-  var CIRCUIT_BREAKER_RESET_MS = 30000;
 
   /**
    * Get dynamic debounce interval: longer during streaming to reduce rebuild frequency.
    */
   function getDebounceMs() {
-    try {
-      if (typeof isStreaming === 'function' && isStreaming()) return STREAMING_DEBOUNCE_MS;
-    } catch (_) {}
+    if (isStreaming()) return STREAMING_DEBOUNCE_MS;
     return DEBOUNCE_MS;
   }
 
@@ -31,15 +27,15 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
    * @param {function} [opts.onConfigDirty] - Called when a URL change is detected.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: { onConfigDirty?: () => void }) {
+export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean } }) {
     opts = opts || {};
     var onConfigDirty: (() => void) | null = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
+    var navLock = opts.navLock;
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
     var rebuildInFlight: Promise<boolean | void> | null = null;
     var debounceTimer: ReturnType<typeof setTimeout> | null = null;
     var consecutiveFailures = 0;
-    var lastFailureTime = 0;
     var visibilityHandler: (() => void) | null = null;
 
     // Sub-components
@@ -48,18 +44,10 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
 
     var safeRebuild = async function(): Promise<boolean> {
       if (!isExtensionContextValid) return false;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        if (Date.now() - lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
-          consecutiveFailures = 0;
-          lastFailureTime = 0;
-        } else {
-          return false;
-        }
-      }
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return false;
       try {
         await onRebuild();
         consecutiveFailures = 0;
-        lastFailureTime = 0;
         return true;
       } catch (e) {
         if (isContextInvalidatedError(e)) {
@@ -73,7 +61,6 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         }
         console.warn('[toc] rebuild failed:', e);
         consecutiveFailures++;
-        lastFailureTime = Date.now();
         return false;
       }
     };
@@ -84,7 +71,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         hasPendingRebuild = true;
         return rebuildInFlight;
       }
-      if (NL.isLocked()) {
+      if (navLock && navLock.isLocked()) {
         hasPendingRebuild = true;
         return false;
       }
@@ -110,14 +97,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
 
     var scheduleRebuild = function(immediate?: boolean) {
       if (!isExtensionContextValid) return;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
-        if (Date.now() - lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
-          consecutiveFailures = 0;
-          lastFailureTime = 0;
-        } else {
-          return;
-        }
-      }
+      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return;
       if (document.hidden) { hasPendingRebuild = true; return; }
       if (immediate) {
         hasPendingRebuild = true;
@@ -139,7 +119,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
     var onUrlChange = function(immediate: boolean) {
       if (onConfigDirty) onConfigDirty();
       // Invalidate chatbot detection cache on URL change so new pages get re-detected
-      try { invalidateChatbotCache(); } catch (_) {}
+      invalidateChatbotCache();
       scheduleRebuild(immediate);
     };
 
@@ -149,15 +129,9 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       hasPendingRebuild = false;
       isExtensionContextValid = true;
       consecutiveFailures = 0;
-      lastFailureTime = 0;
 
       // Create dom-watcher with optional scope selector for chatbot pages
-      var scopeSelector: string | null = null;
-      try {
-        if (typeof getChatbotContainerSelector === 'function') {
-          scopeSelector = getChatbotContainerSelector();
-        }
-      } catch (_) {}
+      var scopeSelector: string | null = getChatbotContainerSelector() || null;
       domWatcher = createDomWatcher(onMutation, {
         selectors: cfg.selectors,
         scopeSelector: scopeSelector,
@@ -167,7 +141,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       // Create url-monitor
       var capturedDomWatcher = domWatcher;
       urlMonitor = createUrlMonitor({
-        checkAndReconnect: (capturedDomWatcher && typeof capturedDomWatcher.checkAndReconnect === 'function')
+        checkAndReconnect: capturedDomWatcher
           ? function() { capturedDomWatcher.checkAndReconnect(); }
           : undefined
       });
@@ -181,9 +155,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
           }
         };
       }
-      if (typeof document !== 'undefined' && document.addEventListener) {
-        document.addEventListener('visibilitychange', visibilityHandler);
-      }
+      document.addEventListener('visibilitychange', visibilityHandler);
 
       return handle;
     }
@@ -192,9 +164,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       start: start,
       disconnect: function() {
         if (visibilityHandler) {
-          if (typeof document !== 'undefined' && document.removeEventListener) {
-            document.removeEventListener('visibilitychange', visibilityHandler);
-          }
+          document.removeEventListener('visibilitychange', visibilityHandler);
         }
         if (domWatcher) { domWatcher.stop(); domWatcher = null; }
         if (urlMonitor) { urlMonitor.stop(); urlMonitor = null; }
@@ -203,16 +173,11 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         rebuildInFlight = null;
         isExtensionContextValid = false;
         consecutiveFailures = 0;
-        lastFailureTime = 0;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
       setPendingRebuild: function(val: boolean) {
         hasPendingRebuild = !!val;
         if (hasPendingRebuild) attemptRebuild();
-      },
-      resetCircuitBreaker: function() {
-        consecutiveFailures = 0;
-        lastFailureTime = 0;
       }
     };
 

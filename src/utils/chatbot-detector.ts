@@ -282,7 +282,7 @@ function detectByAria(): DetectionResult | null {
   // role="feed" — used by some chatbot platforms for message feeds
   try {
     var feedEl = document.querySelector('[role="feed"]');
-    if (feedEl && feedEl.children && feedEl.children.length >= 2) {
+    if (feedEl && feedEl.children.length >= 2) {
       return { container: feedEl as HTMLElement, source: 'aria' };
     }
   } catch (_) {}
@@ -293,7 +293,7 @@ function detectByAria(): DetectionResult | null {
     for (var i = 0; i < candidates.length; i++) {
       var label = (candidates[i].getAttribute('aria-label') || '').toLowerCase();
       if ((label.indexOf('chat') >= 0 || label.indexOf('conversation') >= 0 || label.indexOf('message') >= 0)
-        && candidates[i].children && candidates[i].children.length >= 2) {
+        && candidates[i].children.length >= 2) {
         return { container: candidates[i] as HTMLElement, source: 'aria' };
       }
     }
@@ -367,7 +367,7 @@ function detectByStructure(): DetectionResult | null {
     ];
     for (var i = 0; i < containerSelectors.length; i++) {
       var el = document.querySelector(containerSelectors[i]);
-      if (el && el.children && el.children.length >= 2) {
+      if (el && el.children.length >= 2) {
         hasMessageContainer = true;
         break;
       }
@@ -1438,7 +1438,7 @@ export function tryBuildChatbotTocItems() {
 
 /**
  * Check if the current page is detected as a chatbot page.
- * Used by the DOM watcher to decide whether to use heading-only filtering.
+ * Test-only convenience wrapper — used by VM-based tests via __exports.
  */
 export function isChatbotPage() {
   return detectChatPage() !== null;

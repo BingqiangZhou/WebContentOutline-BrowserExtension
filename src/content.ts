@@ -10,7 +10,8 @@ import {
   normalizeUiMode,
   isContextInvalidatedError,
   cleanupOwnedElements,
-  STORAGE_KEYS
+  STORAGE_KEYS,
+  buildSitePattern
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
 
@@ -35,13 +36,6 @@ export function startTocContent(ctx: any) {
   if (window.__TOC_ASSISTANT_LOADED__) return;
   window.__TOC_ASSISTANT_LOADED__ = true;
 
-  if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) {
-    console.error(msg('logPrefix') + ' ' + msg('logMissingDependencies'));
-    return;
-  }
-
-  var hasChrome = (typeof chrome !== 'undefined');
-
   var appInstance: TocAppInstance | null = null;
   var currentEnabled = false;
   var currentUiMode = 'edge-dock';
@@ -55,12 +49,12 @@ export function startTocContent(ctx: any) {
     if (!listenersAttached) return;
     listenersAttached = false;
     try {
-      if (messageListener && hasChrome && chrome.runtime?.onMessage?.removeListener) {
+      if (messageListener && chrome.runtime?.onMessage?.removeListener) {
         chrome.runtime.onMessage.removeListener(messageListener);
       }
     } catch (_) {}
     try {
-      if (storageListener && hasChrome && chrome.storage?.onChanged?.removeListener) {
+      if (storageListener && chrome.storage?.onChanged?.removeListener) {
         chrome.storage.onChanged.removeListener(storageListener);
       }
     } catch (_) {}
@@ -73,9 +67,9 @@ export function startTocContent(ctx: any) {
     disposed = true;
     currentEnabled = false;
     detachListeners();
-    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
+    if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
-    if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
+    cleanupOwnedElements(undefined as any);
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
     if (opts?.reason) console.debug(msg('logPrefix') + ' disposed:', opts.reason);
@@ -86,7 +80,7 @@ export function startTocContent(ctx: any) {
 
   function getDefaultConfig() {
     return {
-      urlPattern: location.protocol + '//' + location.host + '/*',
+      urlPattern: buildSitePattern(),
       side: 'right',
       selectors: [] as Array<{ type: string; expr: string }>
     };
@@ -95,9 +89,9 @@ export function startTocContent(ctx: any) {
   async function startApp() {
     try {
       if (disposed) return;
-      var results = await Promise.all([getConfigs(), getUiMode ? getUiMode() : 'edge-dock']);
+      var results = await Promise.all([getConfigs(), getUiMode()]);
       var configs = results[0];
-      currentUiMode = normalizeUiMode ? normalizeUiMode(results[1]) : 'edge-dock';
+      currentUiMode = normalizeUiMode(results[1]);
       if (disposed) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
@@ -112,7 +106,7 @@ export function startTocContent(ctx: any) {
         onDeactivate: function() {
           // Page-side "Close TOC" → persist disabled state to background, then self-disable
           try {
-            if (hasChrome && chrome.runtime?.sendMessage) {
+            if (chrome.runtime?.sendMessage) {
               chrome.runtime.sendMessage(
                 { type: 'toc:persistActiveState', enabled: false, origin: location.origin },
                 function() { void chrome.runtime.lastError; }
@@ -123,7 +117,7 @@ export function startTocContent(ctx: any) {
         }
       }) as TocAppInstance | null;
     } catch (err) {
-      if (isContextInvalidatedError && isContextInvalidatedError(err)) {
+      if (isContextInvalidatedError(err)) {
         dispose({ reason: 'context-invalidated' });
         return;
       }
@@ -132,21 +126,21 @@ export function startTocContent(ctx: any) {
   }
 
   function stopApp() {
-    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
+    if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
-    if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
+    cleanupOwnedElements(undefined as any);
   }
 
   async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
     opts = opts || {};
-    var normalized = normalizeUiMode ? normalizeUiMode(nextMode) : 'edge-dock';
+    var normalized = normalizeUiMode(nextMode);
     if (normalized === currentUiMode && appInstance) return;
     currentUiMode = normalized;
-    if (opts.persist !== false && saveUiMode) await saveUiMode(normalized);
+    if (opts.persist !== false) await saveUiMode(normalized);
     if (!currentEnabled || disposed) return;
-    try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
+    if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
-    if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
+    cleanupOwnedElements(undefined as any);
     await startApp();
     await applyExpandState({});
   }
@@ -159,7 +153,7 @@ export function startTocContent(ctx: any) {
       } else if (currentUiMode !== 'classic') {
         if (appInstance.collapse) appInstance.collapse();
       } else {
-        var expanded = getPanelExpandedByOrigin ? await getPanelExpandedByOrigin(undefined as any) : false;
+        var expanded = await getPanelExpandedByOrigin(undefined as any);
         if (expanded && appInstance.expand) await appInstance.expand();
         else if (appInstance.collapse) appInstance.collapse();
       }
@@ -200,7 +194,7 @@ export function startTocContent(ctx: any) {
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
     } catch (e) {
-      if (isContextInvalidatedError && isContextInvalidatedError(e)) {
+      if (isContextInvalidatedError(e)) {
         dispose({ reason: 'context-invalidated' });
         return;
       }
@@ -218,7 +212,7 @@ export function startTocContent(ctx: any) {
         var respondOnce = function(payload: any) {
           if (responded) return;
           responded = true;
-          try { sendResponse && sendResponse(payload); } catch (_) {}
+          try { sendResponse(payload); } catch (_) {}
         };
         try {
           if (!msgObj?.type) return;
@@ -260,10 +254,10 @@ export function startTocContent(ctx: any) {
           }
         } catch (err) {
           respondOnce({ ok: false, error: String(err) });
-          if (isContextInvalidatedError && isContextInvalidatedError(err)) dispose({ reason: 'context-invalidated' });
+          if (isContextInvalidatedError(err)) dispose({ reason: 'context-invalidated' });
         }
       };
-      if (hasChrome && chrome.runtime?.onMessage?.addListener) {
+      if (chrome.runtime?.onMessage?.addListener) {
         chrome.runtime.onMessage.addListener(messageListener);
       }
     } catch (_) {}
@@ -280,7 +274,7 @@ export function startTocContent(ctx: any) {
           Promise.resolve(appInstance.refreshConfig()).catch(function() {});
         }
       };
-      if (hasChrome && chrome.storage?.onChanged?.addListener) {
+      if (chrome.storage?.onChanged?.addListener) {
         chrome.storage.onChanged.addListener(storageListener);
       }
     } catch (_) {}

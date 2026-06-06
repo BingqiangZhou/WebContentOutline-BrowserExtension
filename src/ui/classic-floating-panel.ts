@@ -3,14 +3,29 @@
 import {
   msg,
   setBadgePosByHost,
-  cleanupOwnedElements
+  cleanupOwnedElements,
+  normalizeSide
 } from '../utils/toc-utils.js';
 import { createDragController } from '../utils/drag-helper.js';
 import { renderFloatingPanel } from './floating-panel.js';
-import {
-  setFixedPosition,
-  clampPanelPosition
-} from './floating-panel-helpers.js';
+
+  /** Set element to a fixed position with !important. */
+  function setFixedPosition(el: HTMLElement, left: number, top: number): void {
+    el.style.setProperty('left', left + 'px', 'important');
+    el.style.setProperty('top', top + 'px', 'important');
+    el.style.setProperty('right', 'auto', 'important');
+    el.style.setProperty('bottom', 'auto', 'important');
+  }
+
+  /** Clamp position to keep element within viewport bounds. */
+  function clampPanelPosition(left: number, top: number, width: number, height: number, margin: number): { left: number; top: number } {
+    var maxLeft = window.innerWidth - width - margin;
+    var maxTop = window.innerHeight - height - margin;
+    return {
+      left: Math.max(margin, Math.min(maxLeft, left)),
+      top: Math.max(margin, Math.min(maxTop, top))
+    };
+  }
 
 var CFG = {
   PANEL_WIDTH: 280,
@@ -33,10 +48,10 @@ interface ClassicPanelOptions {
 
 export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   options = options || {};
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
   var shell = document.createElement('div');
-  shell.className = 'toc-floating toc-floating-classic toc-floating-' + (options.side === 'left' ? 'left' : 'right');
+  shell.className = 'toc-floating toc-floating-classic toc-floating-' + normalizeSide(options.side);
   shell.setAttribute('data-toc-owner', 'web-toc-assistant');
   shell.setAttribute('role', 'dialog');
   shell.setAttribute('aria-modal', 'false');
@@ -66,11 +81,11 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   shell.setAttribute('aria-labelledby', title.id);
 
   var btnCollapse = createAction('buttonCollapse', 'buttonCollapseTitle', function() {
-    try { options.onCollapse && options.onCollapse(); } catch (_) {}
+    if (options.onCollapse) options.onCollapse();
   });
   btnCollapse.setAttribute('data-role', 'collapse');
   var btnSwitchToModern = createAction('classicSwitchToModern', 'classicSwitchToModernTitle', function() {
-    try { options.onSwitchUiMode && options.onSwitchUiMode('edge-dock'); } catch (_) {}
+    if (options.onSwitchUiMode) options.onSwitchUiMode('edge-dock');
   });
   btnSwitchToModern.classList.add('toc-classic-switch-mode');
   titleGroup.appendChild(title);
@@ -105,7 +120,7 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
 
   var destroyed = false;
   var resizeRaf: number | null = null;
-  var dragController = createDragController ? createDragController({
+  var dragController = createDragController({
     element: header,
     shouldStart: function(e: PointerEvent) { return !(e.target as Element).closest('button'); },
     getRect: function() { return shell.getBoundingClientRect(); },
@@ -118,12 +133,12 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
     },
     onEnd: function(drag: { cancelled: boolean; moved: boolean }) {
       header.style.cursor = '';
-      if (!drag.cancelled && drag.moved && setBadgePosByHost) {
+      if (!drag.cancelled && drag.moved) {
         var center = getCollapseCenter();
         if (center) setBadgePosByHost(location.host, center);
       }
     }
-  }) : null;
+  });
 
   function createAction(labelKey: string, titleKey: string, callback: (() => void) | undefined) {
     var button = document.createElement('button');
@@ -133,7 +148,7 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
     button.title = msg(titleKey) || button.textContent;
     button.setAttribute('aria-label', button.title || button.textContent);
     button.addEventListener('click', function() {
-      try { callback && callback(); } catch (_) {}
+      if (callback) callback();
     });
     return button;
   }
@@ -186,11 +201,11 @@ export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   function remove() {
     if (destroyed) return;
     destroyed = true;
-    try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
-    try { window.removeEventListener('resize', onResize); } catch (_) {}
+    dragController.destroy();
+    window.removeEventListener('resize', onResize);
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-    try { panel && panel.remove && panel.remove(); } catch (_) {}
-    try { shell.remove(); } catch (_) {}
+    panel && panel.remove && panel.remove();
+    shell.remove();
   }
 
   (shell as any).__TOC_CLEANUP__ = remove;

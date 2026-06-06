@@ -6,17 +6,12 @@ import { SELECTOR_EXPR_MAX_LENGTH } from '../utils/constants.js';
 
 // --- Storage primitives ---
 
-var writeQueues: Record<string, Promise<void>> = {};
+var _prev: Record<string, Promise<void>> = {};
 
 function serializedWrite(key: string, asyncFn: () => Promise<unknown>): Promise<unknown> {
-  var prev: Promise<void> = writeQueues[key] || Promise.resolve();
-  var run = function() { return asyncFn(); };
-  var next = prev.then(run, run) as Promise<unknown>;
-  var stored = next.catch(function() {}) as Promise<void>;
-  writeQueues[key] = stored;
-  stored.finally(function() {
-    if (writeQueues[key] === stored) delete writeQueues[key];
-  });
+  var prev = _prev[key] || Promise.resolve();
+  var next = prev.then(asyncFn, asyncFn) as Promise<unknown>;
+  _prev[key] = next.catch(function() {}) as Promise<void>;
   return next;
 }
 
@@ -32,29 +27,23 @@ function isQuotaExceededError(err: unknown): boolean {
 }
 
 function touchObjectKey(map: Record<string, unknown>, key: string, value: unknown): void {
-  try {
-    if (!map || !key) return;
-    if (Object.prototype.hasOwnProperty.call(map, key)) {
-      try { delete map[key]; } catch (_) {}
-    }
-    map[key] = value;
-  } catch (_) {}
+  if (!map || !key) return;
+  if (Object.prototype.hasOwnProperty.call(map, key)) {
+    delete map[key];
+  }
+  map[key] = value;
 }
 
 function pruneObjectToLimit(map: Record<string, unknown>, maxKeys: number): Record<string, unknown> {
-  try {
-    if (!map || typeof map !== 'object') return map;
-    var limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
-    var keys = Object.keys(map);
-    if (keys.length <= limit) return map;
-    var removeCount = keys.length - limit;
-    for (var i = 0; i < removeCount; i++) {
-      try { delete map[keys[i]]; } catch (_) {}
-    }
-    return map;
-  } catch (_) {
-    return map;
+  if (!map || typeof map !== 'object') return map;
+  var limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
+  var keys = Object.keys(map);
+  if (keys.length <= limit) return map;
+  var removeCount = keys.length - limit;
+  for (var i = 0; i < removeCount; i++) {
+    delete map[keys[i]];
   }
+  return map;
 }
 
 // --- Config primitives ---
@@ -145,7 +134,7 @@ function normalizeConfigs(configs: unknown, limits: ConfigLimits | null): Normal
     if (!urlPattern) continue;
     var cfg = Object.assign({}, raw, {
       urlPattern: urlPattern,
-      side: raw.side === 'left' ? 'left' : 'right',
+      side: normalizeSide(raw.side),
       selectors: normalizeSelectors(raw.selectors, maxSels),
       updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0
     }) as NormalizedConfig;
@@ -215,7 +204,7 @@ function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number
   var maxSels = positiveLimit(limits ? limits.maxSelectorsPerSite as number : 0, 50);
   var current: NormalizedConfig = index >= 0 ? normalized[index] : {
     urlPattern: urlPattern,
-    side: mut.side === 'left' ? 'left' : 'right',
+    side: normalizeSide(mut.side),
     selectors: [],
     updatedAt: 0
   };
@@ -226,7 +215,7 @@ function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number
   nextSels = nextSels.slice(0, maxSels);
   var nextConfig = Object.assign({}, current, {
     urlPattern: urlPattern,
-    side: current.side === 'left' ? 'left' : 'right',
+    side: normalizeSide(current.side),
     selectors: nextSels,
     updatedAt: timestamp
   }) as NormalizedConfig;
@@ -316,11 +305,18 @@ function applyUiStateMutation(currentMap: unknown, mutation: unknown, maxKeys: n
   return { ok: true, reason: null, map: map, value: map[key] };
 }
 
-// --- Exports (globalThis) ---
+// --- Shared helpers ---
+
+function normalizeSide(side: unknown): 'left' | 'right' {
+  return side === 'left' ? 'left' : 'right';
+}
+
+// --- Exports ---
 
 export {
   serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit,
   isPlainObject, isHighRiskBroadCssSelector,
+  normalizeSide,
   applyTocConfigMutation,
   validateUiStateMutationSource, applyUiStateMutation
 };

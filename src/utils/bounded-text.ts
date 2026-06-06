@@ -23,15 +23,13 @@ export function getBoundedText(root: Node, opts?: { maxChars?: number; maxNodes?
     visited++;
 
     if (node.nodeType === 3 || node.nodeType === 4) {
-      var value = '';
-      try { value = String(node.nodeValue || ''); } catch (_) { value = ''; }
+      var value = String(node.nodeValue || '');
       if (value) text += value.slice(0, maxChars - text.length);
       continue;
     }
 
     if ((depth as number) >= maxDepth) continue;
-    var children: NodeListOf<ChildNode> | null = null;
-    try { children = node.childNodes; } catch (_) { children = null; }
+    var children: NodeListOf<ChildNode> | null = node.childNodes;
     if (!children || !children.length) continue;
 
     for (var i = children.length - 1; i >= 0; i--) {

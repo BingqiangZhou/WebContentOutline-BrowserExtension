@@ -129,7 +129,7 @@ export function collectBySelector(selector: { type: string; expr: string; _root?
         }
       }
       try {
-        if (typeof isHighRiskBroadCssSelector === 'function' && isHighRiskBroadCssSelector(selector.expr)) return [];
+        if (isHighRiskBroadCssSelector(selector.expr)) return [];
         var nodeList = queryRoot.querySelectorAll(selector.expr);
         var len = Math.min(nodeList.length, limit);
         var result = new Array<Element>(len);
@@ -299,7 +299,7 @@ export function cleanupOwnedElements(selectorFallback: string) {
             var cleanup = (el as any).__TOC_CLEANUP__;
             if (typeof cleanup === 'function') cleanup();
           } catch (_) {}
-          try { el.remove(); } catch (_) {}
+          el.remove();
         });
       } catch (_) {}
     }

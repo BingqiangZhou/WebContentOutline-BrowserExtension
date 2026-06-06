@@ -64,24 +64,23 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
     wrap.appendChild(actions);
 
     var restoreFocus = function() {
-      try {
-        if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
-          (prevFocus as HTMLElement).focus({ preventScroll: true });
-        }
-      } catch (_) {}
+      if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
+        (prevFocus as HTMLElement).focus({ preventScroll: true });
+      }
     };
     var focusRaf: number | null = null;
     var close = function() {
-      if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
+      removeFocusTrap();
+      removeFocusTrap = function() {};
       if (focusRaf) {
         cancelAnimationFrame(focusRaf);
         focusRaf = null;
       }
-      try { wrap.remove(); } catch (_) {}
+      wrap.remove();
       restoreFocus();
     };
 
-    var removeFocusTrap = createFocusTrap ? createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin }) : null;
+    var removeFocusTrap = createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin });
     wrap.addEventListener('click', function(e) {
       var target = e && e.target;
       var btn = target && (target as HTMLElement).closest ? (target as HTMLElement).closest('[data-act]') : null;
@@ -91,13 +90,11 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
       if (act === 'save') { try { saveCb && saveCb(selector, close); } catch (e) { console.warn('[toc] saveCb error:', e); } }
     });
     document.documentElement.appendChild(wrap);
-    try {
-      focusRaf = requestAnimationFrame(function() {
-        focusRaf = null;
-        if (!wrap || !wrap.isConnected) return;
-        try { btnSave.focus({ preventScroll: true }); } catch (_) {}
-      });
-    } catch (_) {}
+    focusRaf = requestAnimationFrame(function() {
+      focusRaf = null;
+      if (!wrap || !wrap.isConnected) return;
+      btnSave.focus({ preventScroll: true });
+    });
     return { close: close };
   }
 
@@ -135,15 +132,13 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
       if (finished) return;
       if (!highlight) return;
       if (!el || typeof el.getBoundingClientRect !== 'function') return;
-      try {
-        var r = el.getBoundingClientRect();
-        var left = r.left;
-        var top = r.top;
-        highlight.style.left = left + 'px';
-        highlight.style.top = top + 'px';
-        highlight.style.width = Math.max(0, r.width) + 'px';
-        highlight.style.height = Math.max(0, r.height) + 'px';
-      } catch (_) {}
+      var r = el.getBoundingClientRect();
+      var left = r.left;
+      var top = r.top;
+      highlight.style.left = left + 'px';
+      highlight.style.top = top + 'px';
+      highlight.style.width = Math.max(0, r.width) + 'px';
+      highlight.style.height = Math.max(0, r.height) + 'px';
     }
 
     var moveRaf: number | null = null;
@@ -191,9 +186,9 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
     }
 
     function click(e: MouseEvent): void {
-      try { e.preventDefault(); } catch (_) {}
-      try { e.stopPropagation(); } catch (_) {}
-      try { e.stopImmediatePropagation(); } catch (_) {}
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
       if (finished) return;
       var el = getElementNode(e.target as Node);
       if (isUiElement(el)) {
@@ -216,8 +211,8 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
 
     function key(e: KeyboardEvent): void {
       if (e.key === 'Escape' || e.key === 'Tab') {
-        try { e.preventDefault(); } catch (_) {}
-        try { e.stopPropagation(); } catch (_) {}
+        e.preventDefault();
+        e.stopPropagation();
         cancelPick();
       }
     }
@@ -225,30 +220,28 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
     document.addEventListener('mousemove', move, true);
     document.addEventListener('click', click, true);
     var onCtx = function(e: MouseEvent): void {
-      try { e.preventDefault(); } catch (_) {}
-      try { e.stopPropagation(); } catch (_) {}
-      try { e.stopImmediatePropagation(); } catch (_) {}
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
       cancelPick();
     };
     document.addEventListener('contextmenu', onCtx, true);
     document.addEventListener('keydown', key, true);
 
     var onPageHide = function() { cancelPick(); };
-    try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
+    window.addEventListener('pagehide', onPageHide, true);
 
     var timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(function() { cancelPick(); }, CFG.PICKER_TIMEOUT_MS);
 
     function cleanup() {
       finished = true;
       // Restore cursor first, before removing listeners that might reference it
-      try {
-        if (document.body) document.body.style.cursor = prevCursor || '';
-      } catch (_) {}
-      try { document.removeEventListener('mousemove', move, true); } catch (_) {}
-      try { document.removeEventListener('click', click, true); } catch (_) {}
-      try { document.removeEventListener('keydown', key, true); } catch (_) {}
-      try { document.removeEventListener('contextmenu', onCtx, true); } catch (_) {}
-      try { window.removeEventListener('pagehide', onPageHide, true); } catch (_) {}
+      document.body.style.cursor = prevCursor || '';
+      document.removeEventListener('mousemove', move, true);
+      document.removeEventListener('click', click, true);
+      document.removeEventListener('keydown', key, true);
+      document.removeEventListener('contextmenu', onCtx, true);
+      window.removeEventListener('pagehide', onPageHide, true);
       if (moveRaf) {
         cancelAnimationFrame(moveRaf);
         moveRaf = null;
@@ -257,13 +250,9 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
       if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
       var h = highlight;
       highlight = null;
-      try {
-        if (h) {
-          if (h.parentNode && document.contains(h)) {
-            h.parentNode.removeChild(h);
-          }
-        }
-      } catch (_) {}
+      if (h && h.parentNode && document.contains(h)) {
+        h.parentNode.removeChild(h);
+      }
     }
 
     return { cleanup: cleanup };

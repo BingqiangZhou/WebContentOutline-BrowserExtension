@@ -1,8 +1,8 @@
 
 'use strict';
 
-import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements } from '../utils/toc-utils.js';
-import { createDragController } from '../utils/drag-helper.js';
+import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements, normalizeSide } from '../utils/toc-utils.js';
+import { createDragController, DragState } from '../utils/drag-helper.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -91,7 +91,7 @@ function createDockStateController(options: DockStateControllerOptions) {
     if (next === mode) return mode;
     var prev = mode;
     mode = next;
-    try { onChange && onChange(next, prev); } catch (_) {}
+    if (onChange) onChange(next, prev);
     return mode;
   }
 
@@ -194,23 +194,11 @@ interface EdgeDockOptions {
   onDeactivate?: () => void;
 }
 
-interface DragState {
-  active: boolean;
-  destroyed: boolean;
-  moved: boolean;
-  cancelled: boolean;
-  startX: number;
-  startY: number;
-  offsetX: number;
-  offsetY: number;
-  pointerId: number | null;
-}
-
 export function renderEdgeDock(options: EdgeDockOptions) {
   options = options || {};
-  if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
 
-  var side: string = options.side === 'left' ? 'left' : 'right';
+  var side: string = normalizeSide(options.side);
   var destroyed = false;
   var lastPointerType: string = 'mouse';
   var suppressClick = false;
@@ -221,7 +209,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var activeIndex = -1;
 
   var root = document.createElement('aside');
-  var ac = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var ac = new AbortController();
   root.className = 'toc-edge-dock toc-edge-dock-' + side;
   root.setAttribute('data-toc-owner', 'web-toc-assistant');
   root.setAttribute('aria-label', msg('dockLabel') || 'TOC tools');
@@ -268,12 +256,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var previewWindowSize = 0;
 
   function renderPreview() {
-    // Use replaceChildren() for efficient clear
-    if (typeof preview.replaceChildren === 'function') {
-      preview.replaceChildren();
-    } else {
-      while (preview.firstChild) preview.removeChild(preview.firstChild);
-    }
+    preview.replaceChildren();
     var subset = selectPreviewItems(dockItems, activeIndex, 12);
     // Track the window range for incremental updates
     if (subset.length > 0 && subset.length < dockItems.length) {
@@ -333,7 +316,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   function navigatePreviewItem(index: number): void {
     var item = dockItems[index];
     if (!item) return;
-    try { options.onNavigate && options.onNavigate(item, index); } catch (_) {}
+    options.onNavigate && options.onNavigate(item, index);
   }
 
   function onPreviewClick(e: MouseEvent): void {
@@ -379,7 +362,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function runMenuAction(callback: (() => void) | undefined): void {
     closeMenu();
-    try { callback && callback(); } catch (_) {}
+    if (callback) callback();
   }
 
   function createMenuButton(labelKey: string, fallbackText: string, callback: (() => void) | undefined): HTMLButtonElement {
@@ -402,12 +385,10 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     updateSide(side === 'left' ? 'right' : 'left', true);
   });
   createMenuButton('dockSwitchToClassic', 'Switch to classic mode', function() {
-    try {
-      options.onSwitchUiMode && options.onSwitchUiMode('classic');
-    } catch (_) {}
+    options.onSwitchUiMode && options.onSwitchUiMode('classic');
   });
   createMenuButton('dockDeactivate', 'Close TOC', function() {
-    try { options.onDeactivate && options.onDeactivate(); } catch (_) {}
+    options.onDeactivate && options.onDeactivate();
   });
 
   var controller = createDockStateController({
@@ -417,7 +398,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       root.setAttribute('data-mode', next);
       tocButton.setAttribute('aria-expanded', next === 'collapsed' ? 'false' : 'true');
       panelHost.hidden = next === 'collapsed';
-      try { options.onModeChange && options.onModeChange(next, prev); } catch (_) {}
+      options.onModeChange && options.onModeChange(next, prev);
     }
   });
   root.setAttribute('data-mode', controller.getMode());
@@ -434,7 +415,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     sideButton.textContent = (text && text !== key) ? text : fallback;
     if (persist) {
       persistPosition();
-      try { options.onSideChange && options.onSideChange(side); } catch (_) {}
+      options.onSideChange && options.onSideChange(side);
     }
   }
 
@@ -456,19 +437,14 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   }
 
   function persistPosition() {
-    if (!setBadgePosByHost) return;
     var y = centerY();
     var x = side === 'left' ? 0 : window.innerWidth;
-    try { setBadgePosByHost(location.host, { x: x, y: y, anchorX: side }); } catch (_) {}
+    setBadgePosByHost(location.host, { x: x, y: y, anchorX: side });
   }
 
   async function restorePosition() {
     var fallbackTop = Math.max(CFG.DEFAULT_TOP_MIN, window.innerHeight / 4);
     setTop(fallbackTop);
-    if (!getBadgePosByHost) {
-      root.style.removeProperty('visibility');
-      return;
-    }
     try {
       var pos = await getBadgePosByHost(location.host);
       if (destroyed || !root.isConnected) return;
@@ -483,7 +459,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   updateSide(side, false);
   restorePosition();
 
-  var dragController = createDragController ? createDragController({
+  var dragController = createDragController({
     element: toolbar,
     shouldStart: function(e: PointerEvent): boolean {
       var t = e && (e.target as HTMLElement);
@@ -508,7 +484,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       setTimeout(function() { suppressClick = false; }, 0);
       persistPosition();
     }
-  }) : null;
+  });
 
   function onRootPointerEnter() {
     controller.cancelCollapse();
@@ -582,11 +558,11 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     if (!e || e.key !== 'Escape') return;
     if (!quickMenu.hidden) {
       closeMenu();
-      try { settingsButton.focus(); } catch (_) {}
+      settingsButton.focus();
       return;
     }
     controller.collapse();
-    try { tocButton.focus(); } catch (_) {}
+    tocButton.focus();
   }
 
   function onDocumentPointerDown(e: PointerEvent): void {
@@ -617,30 +593,30 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     });
   }
 
-  root.addEventListener('pointerenter', onRootPointerEnter, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('pointerleave', onRootPointerLeave, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('focusin', onRootFocusIn, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('focusout', onRootFocusOut, ac ? { signal: ac.signal } : undefined);
-  root.addEventListener('keydown', onRootKeydown, ac ? { signal: ac.signal } : undefined);
-  tocButton.addEventListener('pointerenter', onTocPointerEnter, ac ? { signal: ac.signal } : undefined);
-  tocButton.addEventListener('pointerdown', onTocPointerDown, ac ? { signal: ac.signal } : undefined);
-  tocButton.addEventListener('click', onTocClick, ac ? { signal: ac.signal } : undefined);
-  preview.addEventListener('click', onPreviewClick, ac ? { signal: ac.signal } : undefined);
-  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter, ac ? { signal: ac.signal } : undefined);
-  settingsButton.addEventListener('click', onSettingsClick, ac ? { signal: ac.signal } : undefined);
-  document.addEventListener('pointerdown', onDocumentPointerDown, ac ? { capture: true, signal: ac.signal } : true);
-  window.addEventListener('resize', onResize, ac ? { passive: true, signal: ac.signal } : { passive: true });
+  root.addEventListener('pointerenter', onRootPointerEnter, { signal: ac.signal });
+  root.addEventListener('pointerleave', onRootPointerLeave, { signal: ac.signal });
+  root.addEventListener('focusin', onRootFocusIn, { signal: ac.signal });
+  root.addEventListener('focusout', onRootFocusOut, { signal: ac.signal });
+  root.addEventListener('keydown', onRootKeydown, { signal: ac.signal });
+  tocButton.addEventListener('pointerenter', onTocPointerEnter, { signal: ac.signal });
+  tocButton.addEventListener('pointerdown', onTocPointerDown, { signal: ac.signal });
+  tocButton.addEventListener('click', onTocClick, { signal: ac.signal });
+  preview.addEventListener('click', onPreviewClick, { signal: ac.signal });
+  settingsButton.addEventListener('pointerenter', onSettingsPointerEnter, { signal: ac.signal });
+  settingsButton.addEventListener('click', onSettingsClick, { signal: ac.signal });
+  document.addEventListener('pointerdown', onDocumentPointerDown, { capture: true, signal: ac.signal });
+  window.addEventListener('resize', onResize, { passive: true, signal: ac.signal });
 
   function destroy() {
     if (destroyed) return;
     destroyed = true;
     controller.destroy();
-    try { dragController && dragController.destroy && dragController.destroy(); } catch (_) {}
+    dragController.destroy();
     if (persistTimer) clearTimeout(persistTimer);
     cancelMenuClose();
     if (resizeRaf != null) cancelAnimationFrame(resizeRaf);
-    try { ac && ac.abort && ac.abort(); } catch (_) {}
-    try { root.remove(); } catch (_) {}
+    ac.abort();
+    root.remove();
   }
 
   root.__TOC_CLEANUP__ = destroy;
@@ -650,7 +626,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       closeMenu();
       controller.collapse();
       if (opts && opts.focus) {
-        try { tocButton.focus(); } catch (_) {}
+        tocButton.focus();
       }
     },
     destroy: destroy,
