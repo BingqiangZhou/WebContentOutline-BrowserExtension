@@ -51,6 +51,7 @@ function getPreviewLineMetrics(level: number): { width: number; inset: number } 
 interface DockItem {
   text: string;
   level: number;
+  source?: string;
 }
 
 function selectPreviewItems(items: DockItem[], activeIndex: number, limit: number): DockItem[] {
@@ -293,6 +294,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       line.setAttribute('aria-label', item && item.text ? item.text : 'TOC item');
       if (index === activeIndex) line.classList.add('toc-edge-dock-preview-line-active');
       line.dataset.level = String(Math.max(1, Math.min(6, Number(item && item.level) || 2)));
+      if (item && item.source) line.dataset.source = item.source;
       line.style.setProperty('width', metrics.width + 'px', 'important');
       line.style.setProperty('margin-left', metrics.inset + 'px', 'important');
       preview.appendChild(line);

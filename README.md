@@ -433,15 +433,18 @@ Issues and Pull Requests are welcome!
 
 ## 🗺️ Roadmap
 
-### ✅ Smart Auto-Detection (v1.3.0)
+### 🔮 v2.0 — AI-Powered Smart TOC
 
-The extension now includes intelligent auto-detection capabilities:
+The next major version is being planned. Core goals:
 
-- **✅ Automatic Content Region Detection**: Automatically identifies the main content area of a page, filtering out navigation bars, sidebars, and footers
-- **✅ Chatbot Page Detection**: Automatically recognizes AI chatbot pages (ChatGPT, Claude, Gemini, DeepSeek, Kimi, etc.) and generates conversation-turn-based TOC
-- **Adaptive Recognition**: Future improvements will learn from common page layouts and frameworks to improve detection accuracy
+- **Remove Classic UI** — Keep only Edge Dock as the single UI mode for a streamlined experience
+- **AI-Powered Content Detection** — Leverage on-device AI models to automatically identify the main content region and generate TOC, replacing manual CSS/XPath selector configuration. This eliminates the need for API keys or cloud services — all AI processing runs locally in the browser
+- **Simplified UI** — Remove manual configuration UI (element picker, site config, action buttons) — the TOC panel becomes a pure navigation tool
+- **Zero-Config Experience** — Install and use immediately, no setup required
 
-Manual CSS/XPath selector configuration remains available as an advanced option for edge cases.
+> **AI Approach**: We are evaluating on-device AI options that run entirely within the browser — no API keys, no cloud services, no data leaves your machine. The specific technology choice (e.g., Chrome's built-in AI APIs, WebAssembly-based models, or other local inference approaches) is still under investigation to ensure broad compatibility and reliable performance.
+
+📄 Detailed design document: [v2 Roadmap](docs/v2-roadmap.md)
 
 ## 📝 Changelog
 
