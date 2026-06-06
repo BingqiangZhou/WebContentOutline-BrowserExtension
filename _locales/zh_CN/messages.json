@@ -152,12 +152,12 @@
     "description": "清空配置失败时的错误消息"
   },
   "titleDisabled": {
-    "message": "网页目录助手：禁用（按站点，点击启用）",
-    "description": "扩展禁用时的图标标题"
+    "message": "网页目录：已禁用（点击启用）",
+    "description": "当前站点禁用时的图标标题"
   },
   "titleEnabled": {
-    "message": "网页目录助手：启用（按站点，点击禁用）",
-    "description": "扩展启用时的图标标题"
+    "message": "网页目录：已启用（点击禁用）",
+    "description": "当前站点启用时的图标标题"
   },
   "titleDisabledFallback": {
     "message": "网页目录：禁用（按站点，点击启用）",
@@ -240,5 +240,13 @@
   "classicSwitchToModernTitle": {
     "message": "切换到新版界面",
     "description": "从经典面板切换到新版贴边工具条界面的提示"
+  },
+  "deactivateToc": {
+    "message": "关闭 TOC",
+    "description": "停用当前站点目录的菜单项"
+  },
+  "dockDeactivate": {
+    "message": "关闭 TOC",
+    "description": "快捷设置中停用当前站点目录的操作"
   }
 }

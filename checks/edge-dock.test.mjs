@@ -271,13 +271,13 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(css, /\.toc-edge-dock-panel-host\s*\{[^}]*display:\s*block/s);
   assert.match(css, /\.toc-edge-dock\s*\{[^}]*--toc-dock-color:\s*#202124[^}]*--toc-dock-hover:\s*#f3f4f6/s);
   assert.doesNotMatch(css, /#ec4899|rgba\(236,\s*72,\s*153|#f472b6|rgba\(244,\s*114,\s*182/);
-  assert.match(css, /\.toc-edge-dock-settings\s*\{[^}]*width:\s*32px[^}]*height:\s*32px[^}]*border-radius:\s*999px[^}]*margin-right:\s*8px/s);
-  assert.match(css, /\.toc-edge-dock-left \.toc-edge-dock-settings\s*\{[^}]*margin-left:\s*8px[^}]*margin-right:\s*0/s);
+  assert.match(css, /\.toc-edge-dock-settings\s*\{[^}]*width:\s*28px[^}]*height:\s*28px[^}]*border-radius:\s*999px[^}]*margin-right:\s*6px/s);
+  assert.match(css, /\.toc-edge-dock-left \.toc-edge-dock-settings\s*\{[^}]*margin-left:\s*6px[^}]*margin-right:\s*0/s);
   assert.match(css, /\.toc-edge-dock-settings-icon\s*\{[^}]*display:\s*flex[^}]*width:\s*14px[^}]*height:\s*12px/s);
   assert.match(css, /\.toc-edge-dock-settings-bullet\s*\{[^}]*width:\s*3px[^}]*height:\s*3px[^}]*background:\s*currentColor/s);
   assert.match(css, /\.toc-edge-dock-settings-line\s*\{[^}]*width:\s*9px[^}]*height:\s*2px[^}]*background:\s*currentColor/s);
   assert.match(css, /@media \(prefers-color-scheme:\s*dark\)[\s\S]*?\.toc-edge-dock\s*\{[^}]*--toc-dock-bg:\s*#242424[^}]*--toc-dock-color:\s*#e5e7eb[^}]*--toc-dock-hover:\s*#303030/s);
-  assert.match(css, /\.toc-edge-dock-toolbar\s*\{[^}]*gap:\s*4px/s);
+  assert.match(css, /\.toc-edge-dock-toolbar\s*\{[^}]*gap:\s*3px/s);
   assert.doesNotMatch(css, /\.toc-edge-dock-toc\s*\{[^}]*min-height:\s*236px/s);
   assert.match(css, /\.toc-edge-dock-toc\s*\{[^}]*min-height:\s*40px/s);
   assert.match(css, /\.toc-edge-dock-toc\s*\{[^}]*padding:\s*6px/s);

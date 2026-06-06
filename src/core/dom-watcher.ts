@@ -18,8 +18,12 @@
    * Creates a MutationObserver-based DOM watcher that detects meaningful
    * changes in the document and invokes a callback. Ignores changes
    * originating from extension-owned elements.
+   *
+   * When scopeSelector is provided, only mutations inside elements matching
+   * that selector are considered meaningful. This reduces noise from
+   * unrelated page elements (notifications, tooltips, etc.).
    */
-export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Array<{ type: string; expr: string }> }) {
+export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Array<{ type: string; expr: string }>; scopeSelector?: string | null }) {
     var observerRef: MutationObserver | null = null;
     var isContextValid = true;
     var ownedRoots = new WeakSet();
@@ -76,6 +80,15 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
         var m = mutations[i];
         var t = m.target;
         if (isOwnedNode(t)) continue;
+
+        // Scope check: if a scope selector is configured, only trigger for
+        // mutations inside the scoped container
+        if (cfg && cfg.scopeSelector) {
+          try {
+            var scopedContainer = document.querySelector(cfg.scopeSelector);
+            if (scopedContainer && !scopedContainer.contains(t as Node)) continue;
+          } catch (_) {} // Invalid selector — skip scope check
+        }
 
         if (m.type === 'childList') {
           var hasNodes = (m.addedNodes && m.addedNodes.length) || (m.removedNodes && m.removedNodes.length);

@@ -4,7 +4,7 @@
 import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
 import { getBoundedText } from './bounded-text.js';
 import { detectContentRegion } from './content-region.js';
-import { tryBuildChatbotTocItems, getChatbotSentinelSelector } from './chatbot-detector.js';
+import { tryBuildChatbotTocItems, getChatbotSentinelSelector, getChatbotConfidence } from './chatbot-detector.js';
 
     var TOC_TEXT_MAX_LEN = 200;
     var TOC_MAX_ITEMS = 400;
@@ -49,7 +49,47 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       var allUniq = uniqueInDocumentOrder(elements);
       var truncated = false;
 
+      // Heading level selection: when all 6 heading levels are present on the page,
+      // keep only the 3 most representative levels (adapted from Smart TOC).
+      // This filters out noise like site-wide h1s, rarely-used h5/h6, etc.
+      // Only activates for standard heading selectors (not chatbot or custom selectors).
       var candidates = allUniq;
+      if (candidates.length > 0) {
+        var levelCounts: Record<string, number> = { H1: 0, H2: 0, H3: 0, H4: 0, H5: 0, H6: 0 };
+        var levelWeights: Record<string, number> = { H1: 40, H2: 100, H3: 80, H4: 60, H5: 20, H6: 10 };
+        for (var lc = 0; lc < candidates.length; lc++) {
+          var tag = candidates[lc].tagName;
+          if (levelCounts[tag] !== undefined) levelCounts[tag]++;
+        }
+        // Count how many distinct heading levels are present
+        var presentLevels = 0;
+        for (var lv in levelCounts) {
+          if (levelCounts[lv] > 0) presentLevels++;
+        }
+        // Only filter when 5+ levels are present (strong signal of noise headings)
+        if (presentLevels >= 5) {
+          // Score each level: count × weight, pick top 3
+          var levelScores: Array<{ level: string; score: number }> = [];
+          for (var ls in levelCounts) {
+            if (levelCounts[ls] > 0) {
+              levelScores.push({ level: ls, score: levelCounts[ls] * (levelWeights[ls] || 0) });
+            }
+          }
+          levelScores.sort(function(a, b) { return b.score - a.score; });
+          var keepLevels = new Set<string>();
+          for (var kl = 0; kl < Math.min(3, levelScores.length); kl++) {
+            keepLevels.add(levelScores[kl].level);
+          }
+          // Filter candidates to only include selected levels
+          var filtered: Element[] = [];
+          for (var fc = 0; fc < candidates.length; fc++) {
+            if (keepLevels.has(candidates[fc].tagName)) {
+              filtered.push(candidates[fc]);
+            }
+          }
+          if (filtered.length > 0) candidates = filtered;
+        }
+      }
       if (candidates.length > TOC_MAX_CANDIDATES) {
         candidates = candidates.slice(0, TOC_MAX_CANDIDATES);
         truncated = true;
@@ -197,7 +237,15 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
 export function buildTocItems(cfg: { selectors: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>) {
       // Chatbot pages: build conversation-aware TOC (user prompts as level-1)
       var chatbotResult = null;
-      try { chatbotResult = tryBuildChatbotTocItems(); } catch (_) {}
+      try {
+        var chatConfidence = getChatbotConfidence();
+        // Only use chatbot TOC for high-confidence detections (>= 0.7).
+        // Lower scores may be embedded chat widgets (Intercom, Crisp, Drift)
+        // on otherwise regular pages.
+        if (chatConfidence >= 0.7) {
+          chatbotResult = tryBuildChatbotTocItems();
+        }
+      } catch (_) {}
       if (chatbotResult !== null) {
         // Inject sentinel selector so DOM watcher monitors all mutations
         // (not heading-only) on subsequent rebuilds

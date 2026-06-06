@@ -124,7 +124,7 @@
   top: 120px !important;
   z-index: var(--toc-z-index) !important;
   display: block !important;
-  width: 48px !important;
+  width: 40px !important;
   height: auto !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
   color: var(--toc-dock-color) !important;
@@ -144,8 +144,8 @@
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-toolbar {
   display: flex !important;
   flex-direction: column !important;
-  gap: 4px !important;
-  width: 48px !important;
+  gap: 3px !important;
+  width: 40px !important;
   cursor: grab !important;
   user-select: none !important;
 }
@@ -158,8 +158,8 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  width: 48px !important;
-  height: 48px !important;
+  width: 40px !important;
+  height: 40px !important;
   border: 1px solid var(--toc-dock-border) !important;
   background: var(--toc-dock-bg) !important;
   color: var(--toc-dock-color) !important;
@@ -169,21 +169,21 @@
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-right .toc-edge-dock-button {
   border-right: 0 !important;
-  border-radius: 16px 0 0 16px !important;
+  border-radius: 12px 0 0 12px !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-left .toc-edge-dock-button {
   border-left: 0 !important;
-  border-radius: 0 16px 16px 0 !important;
+  border-radius: 0 12px 12px 0 !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-settings {
   align-self: flex-end !important;
-  width: 32px !important;
-  height: 32px !important;
+  width: 28px !important;
+  height: 28px !important;
   border: 1px solid var(--toc-dock-border) !important;
   border-radius: 999px !important;
-  margin-right: 8px !important;
+  margin-right: 6px !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-right .toc-edge-dock-settings {
@@ -195,7 +195,7 @@
   align-self: flex-start !important;
   border-left: 1px solid var(--toc-dock-border) !important;
   border-radius: 999px !important;
-  margin-left: 8px !important;
+  margin-left: 6px !important;
   margin-right: 0 !important;
 }
 
@@ -205,8 +205,8 @@
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-button svg {
-  width: 23px !important;
-  height: 23px !important;
+  width: 20px !important;
+  height: 20px !important;
   fill: none !important;
   stroke: currentColor !important;
   stroke-linecap: round !important;
