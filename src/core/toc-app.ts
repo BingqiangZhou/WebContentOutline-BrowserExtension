@@ -25,7 +25,32 @@ import {
   isContextInvalidatedError,
   isExtensionContextInvalidated
 } from '../utils/core-utils.js';
-import * as NL from './nav-lock.js';
+
+  /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
+  interface NavLock {
+    lock: (durationMs?: number) => void;
+    unlock: () => void;
+    isLocked: () => boolean;
+    destroy: () => void;
+  }
+
+  function createNavLock(): NavLock {
+    var _locked = false;
+    var _timer: ReturnType<typeof setTimeout> | null = null;
+    return {
+      lock: function(durationMs?: number) {
+        _locked = true;
+        if (_timer != null) clearTimeout(_timer);
+        _timer = setTimeout(function() { _timer = null; _locked = false; }, durationMs && durationMs > 0 ? durationMs : 3000);
+      },
+      unlock: function() {
+        _locked = false;
+        if (_timer != null) { clearTimeout(_timer); _timer = null; }
+      },
+      isLocked: function() { return _locked; },
+      destroy: function() { _locked = false; if (_timer != null) { clearTimeout(_timer); _timer = null; } }
+    };
+  }
 
   // Config change callback — wired when initForConfig runs
   var _activeRebuild: (() => any) | null = null;
@@ -69,10 +94,11 @@ export function initForConfig(cfg: any, options: any) {
     var rebuildScheduler: any = null;
     var pickerInstance: any = null;
     var rebuildInFlight: Promise<any> | null = null;
+    var navLock = createNavLock();
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
-    var getNavLock = function() { return NL.isLocked(); };
+    var getNavLock = function() { return navLock.isLocked(); };
 
     var isContentIdentical = function(prevItems: any[], nextItems: any[]) {
       if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
@@ -200,7 +226,7 @@ export function initForConfig(cfg: any, options: any) {
       } catch (e) {
         if (isContextInvalidatedError && isContextInvalidatedError(e)) {
           console.debug('[toc] Extension context invalidated, stop TOC operations');
-          try { NL.unlock(); } catch (_) {}
+          try { navLock.unlock(); } catch (_) {}
           try {
             items.forEach(function(it) { it._userSelected = false; });
           } catch (_) {}
@@ -320,6 +346,7 @@ export function initForConfig(cfg: any, options: any) {
       if (!dockInstance || !renderFloatingPanel) return panelInstance;
       var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
       panelInstance = renderFloatingPanel({
+        navLock: navLock,
         side: currentSide,
         items: items,
         onCollapse: function() { collapse({ focus: true }); },
@@ -415,7 +442,7 @@ export function initForConfig(cfg: any, options: any) {
       destroyed = true;
       items = [];
       rebuildInFlight = null;
-      NL.destroy();
+      navLock.destroy();
       removePanelCard();
       removeClassicBadge();
       try { if (activeTracker && activeTracker.destroy) activeTracker.destroy(); } catch (_) {}
@@ -438,7 +465,7 @@ export function initForConfig(cfg: any, options: any) {
 
     try {
       if (createRebuildScheduler) {
-        rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; } });
+        rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; }, navLock: navLock });
         rebuildScheduler.start(cfg);
       }
       if (uiMode === 'classic') {
@@ -457,7 +484,7 @@ export function initForConfig(cfg: any, options: any) {
           onNavigate: function(item: any, index: number) {
             if (!item || !item.el) return;
             syncActiveIndex(index);
-            try { NL.lock(1000); } catch (_) {}
+            try { navLock.lock(1000); } catch (_) {}
             try {
               if (scrollToElement) scrollToElement(item.el);
               else item.el.scrollIntoView({ behavior: 'smooth', block: 'start' });

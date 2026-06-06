@@ -6,8 +6,12 @@ import {
   scrollToElement,
   cleanupOwnedElements
 } from '../utils/toc-utils.js';
-import * as NL from '../core/nav-lock.js';
-import { clearChildren } from './floating-panel-helpers.js';
+
+  /** Clear all children of an element using native replaceChildren(). */
+  function clearChildren(el: HTMLElement): void {
+    if (!el) return;
+    try { el.replaceChildren(); } catch (_) { while (el.firstChild) try { el.removeChild(el.firstChild); } catch (_) { break; } }
+  }
 
   var CFG = {
     UNLOCK_AFTER_MS: 800,
@@ -44,6 +48,7 @@ interface FloatingPanelOpts {
   activeIndex?: number;
   onNavigate?: (item: TocItem, index: number) => void;
   embedded?: boolean;
+  navLock?: { lock: (durationMs?: number) => void; unlock: () => void; isLocked: () => boolean };
   [key: string]: any;
 }
 
@@ -60,6 +65,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var activeIndex: number = opts.activeIndex as number;
     var onNavigate: ((item: TocItem, index: number) => void) | undefined = opts.onNavigate;
     var embedded = !!opts.embedded;
+    var navLock = opts.navLock;
 
     // Remove any existing panel to prevent duplicates
     if (!embedded && cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
@@ -87,7 +93,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (unlockTimer) clearTimeout(unlockTimer);
       unlockTimer = setTimeout(function() {
         unlockTimer = null;
-        NL.unlock();
+        navLock && navLock.unlock();
 
         if (getPendingRebuild && getPendingRebuild()) {
           if (pendingRebuildTimer) clearTimeout(pendingRebuildTimer);
@@ -103,11 +109,11 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     };
 
     var onScroll = function() {
-      if (!NL.isLocked()) return;
+      if (!navLock || !navLock.isLocked()) return;
       if (scrollStopTimer) clearTimeout(scrollStopTimer);
       scrollStopTimer = setTimeout(function() {
         scrollStopTimer = null;
-        NL.unlock();
+        navLock && navLock.unlock();
       }, CFG.SCROLL_STOP_MS);
     };
 
@@ -126,7 +132,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     }
 
     var cleanupLock = function() {
-      try { NL.unlock(); } catch (_) {}
+      try { navLock && navLock.unlock(); } catch (_) {}
       if (unlockTimer) { clearTimeout(unlockTimer); unlockTimer = null; }
       if (scrollStopTimer) { clearTimeout(scrollStopTimer); scrollStopTimer = null; }
       if (pendingRebuildTimer) { clearTimeout(pendingRebuildTimer); pendingRebuildTimer = null; }
@@ -225,7 +231,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
       if (e && e.preventDefault) e.preventDefault();
-      NL.lock(undefined!);
+      navLock && navLock.lock(undefined!);
       setActiveIndex(index);
       try { onNavigate && onNavigate(item, index); } catch (_) {}
 

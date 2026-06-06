@@ -2,7 +2,7 @@
 'use strict';
 
 import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements } from '../utils/toc-utils.js';
-import { createDragController } from '../utils/drag-helper.js';
+import { createDragController, DragState } from '../utils/drag-helper.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -192,18 +192,6 @@ interface EdgeDockOptions {
   onSideChange?: (side: string) => void;
   onModeChange?: (next: string, prev: string) => void;
   onDeactivate?: () => void;
-}
-
-interface DragState {
-  active: boolean;
-  destroyed: boolean;
-  moved: boolean;
-  cancelled: boolean;
-  startX: number;
-  startY: number;
-  offsetX: number;
-  offsetY: number;
-  pointerId: number | null;
 }
 
 export function renderEdgeDock(options: EdgeDockOptions) {

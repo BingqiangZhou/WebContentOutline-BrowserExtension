@@ -6,17 +6,12 @@ import { SELECTOR_EXPR_MAX_LENGTH } from '../utils/constants.js';
 
 // --- Storage primitives ---
 
-var writeQueues: Record<string, Promise<void>> = {};
+var _prev: Record<string, Promise<void>> = {};
 
 function serializedWrite(key: string, asyncFn: () => Promise<unknown>): Promise<unknown> {
-  var prev: Promise<void> = writeQueues[key] || Promise.resolve();
-  var run = function() { return asyncFn(); };
-  var next = prev.then(run, run) as Promise<unknown>;
-  var stored = next.catch(function() {}) as Promise<void>;
-  writeQueues[key] = stored;
-  stored.finally(function() {
-    if (writeQueues[key] === stored) delete writeQueues[key];
-  });
+  var prev = _prev[key] || Promise.resolve();
+  var next = prev.then(asyncFn, asyncFn) as Promise<unknown>;
+  _prev[key] = next.catch(function() {}) as Promise<void>;
   return next;
 }
 

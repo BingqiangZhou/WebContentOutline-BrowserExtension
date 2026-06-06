@@ -61,7 +61,6 @@ test('classic renderers preserve the original free floating badge and panel inte
   const badge = read('src/ui/classic-collapsed-badge.ts');
   const classicPanel = read('src/ui/classic-floating-panel.ts');
   const panel = read('src/ui/floating-panel.ts');
-  const helpers = read('src/ui/floating-panel-helpers.ts');
 
   assert.match(badge, /export function renderClassicCollapsedBadge/);
   assert.match(badge, /toc-collapsed-badge/);
@@ -73,8 +72,9 @@ test('classic renderers preserve the original free floating badge and panel inte
   assert.match(classicPanel, /createDragController/);
   assert.doesNotMatch(panel, /toc-header/);
   assert.doesNotMatch(panel, /createDragController/);
-  assert.match(helpers, /export function setFixedPosition/);
-  assert.match(helpers, /export function clampPanelPosition/);
+  // setFixedPosition and clampPanelPosition are inlined as private helpers in classic-floating-panel.ts
+  assert.match(classicPanel, /function setFixedPosition/);
+  assert.match(classicPanel, /function clampPanelPosition/);
 });
 
 test('classic panel restores the original structured header and actions styles', () => {

@@ -7,10 +7,24 @@ import {
 } from '../utils/toc-utils.js';
 import { createDragController } from '../utils/drag-helper.js';
 import { renderFloatingPanel } from './floating-panel.js';
-import {
-  setFixedPosition,
-  clampPanelPosition
-} from './floating-panel-helpers.js';
+
+  /** Set element to a fixed position with !important. */
+  function setFixedPosition(el: HTMLElement, left: number, top: number): void {
+    el.style.setProperty('left', left + 'px', 'important');
+    el.style.setProperty('top', top + 'px', 'important');
+    el.style.setProperty('right', 'auto', 'important');
+    el.style.setProperty('bottom', 'auto', 'important');
+  }
+
+  /** Clamp position to keep element within viewport bounds. */
+  function clampPanelPosition(left: number, top: number, width: number, height: number, margin: number): { left: number; top: number } {
+    var maxLeft = window.innerWidth - width - margin;
+    var maxTop = window.innerHeight - height - margin;
+    return {
+      left: Math.max(margin, Math.min(maxLeft, left)),
+      top: Math.max(margin, Math.min(maxTop, top))
+    };
+  }
 
 var CFG = {
   PANEL_WIDTH: 280,

@@ -235,7 +235,7 @@ test('toc app orchestrates the edge dock instead of the collapsed badge', () => 
   assert.doesNotMatch(app, /renderCollapsedBadge/);
   assert.match(app, /getPanelHost/);
   assert.match(app, /dockInstance\.getMode\(\) === 'collapsed'/);
-  assert.match(app, /onNavigate:\s*function\(item[^)]*\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?NL\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
+  assert.match(app, /onNavigate:\s*function\(item[^)]*\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?navLock\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
 });
 
 test('floating panel mounts inside the edge dock and no longer owns dragging', () => {

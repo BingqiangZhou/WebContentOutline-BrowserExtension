@@ -92,23 +92,16 @@ function normalizeStorageValue(key: string, value: unknown) {
 async function getStorage<T>(key: string, fallback: T): Promise<T> {
     if (isExtensionContextInvalidated()) return fallback;
     try {
-      if (chrome && chrome.storage && chrome.storage.local) {
-        try {
-          var res = await chrome.storage.local.get([key]);
-          var value = res[key];
-          if (value !== undefined && validateStorageValue(key, value)) {
-            return normalizeStorageValue(key, value) as T;
-          }
-          return fallback;
-        } catch (e) {
-          if (isContextInvalidatedError(e)) return fallback;
-          return fallback;
-        }
+      var res = await chrome.storage.local.get([key]);
+      var value = res[key];
+      if (value !== undefined && validateStorageValue(key, value)) {
+        return normalizeStorageValue(key, value) as T;
       }
+      return fallback;
     } catch (e) {
       if (isContextInvalidatedError(e)) return fallback;
+      return fallback;
     }
-    return fallback;
   }
 
   /**
@@ -118,22 +111,15 @@ async function setStorage(key: string, value: unknown): Promise<boolean> {
     if (isExtensionContextInvalidated()) return false;
     var normalized = normalizeStorageValue(key, value);
     try {
-      if (chrome && chrome.storage && chrome.storage.local) {
-        var obj: Record<string, unknown> = {};
-        obj[key] = normalized;
-        try {
-          await chrome.storage.local.set(obj);
-          return true;
-        } catch (e) {
-          if (isContextInvalidatedError(e)) return false;
-          console.warn('[toc] storage write failed:', key, e);
-          return false;
-        }
-      }
+      var obj: Record<string, unknown> = {};
+      obj[key] = normalized;
+      await chrome.storage.local.set(obj);
+      return true;
     } catch (e) {
       if (isContextInvalidatedError(e)) return false;
+      console.warn('[toc] storage write failed:', key, e);
+      return false;
     }
-    return false;
   }
 
   // Convenience accessors
@@ -144,10 +130,6 @@ export function getConfigs() {
 
 export function getEnabledMap() {
     return getStorage<Record<string, boolean>>(STORAGE_KEYS.SITE_ENABLE_MAP, {});
-  }
-
-function saveEnabledMap(map: Record<string, boolean>) {
-    return setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
   }
 
 export function getPanelStateMap() {

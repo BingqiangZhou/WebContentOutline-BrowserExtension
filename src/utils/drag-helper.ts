@@ -1,6 +1,6 @@
 'use strict';
 
-interface DragState {
+export interface DragState {
   active: boolean;
   destroyed: boolean;
   moved: boolean;

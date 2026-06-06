@@ -32,12 +32,11 @@ src/
 │   ├── floating-panel-helpers.ts # 浮动面板辅助函数
 │   └── floating-panel.ts       # 轻量目录卡片
 └── core/                       # 核心逻辑
-    ├── toc-app.ts              # 主应用协调器
+    ├── toc-app.ts              # 主应用协调器（含导航锁）
     ├── config-manager.ts       # 配置管理
     ├── rebuild-scheduler.ts    # 重建调度器
     ├── url-monitor.ts          # URL变化监测
-    ├── dom-watcher.ts          # DOM变化监测
-    └── nav-lock.ts             # 导航锁
+    └── dom-watcher.ts          # DOM变化监测
 ```
 
 ## 🔧 模块加载机制
@@ -193,11 +192,6 @@ if (isExtensionContextInvalidated()) {
 **dom-watcher.ts** — DOM变化监测
 - MutationObserver 监听 DOM 变更
 - 上下文失效检测和自动断开
-
-**nav-lock.ts** — 导航锁
-- `lock(durationMs)`, `unlock()`, `isLocked()`, `onUnlock(callback)`, `destroy()`
-- 防止 IntersectionObserver 在用户点击 TOC 项时干扰
-- 自动超时解锁
 
 ## 🛡️ 样式保护机制
 

@@ -1439,6 +1439,7 @@ export function tryBuildChatbotTocItems() {
 /**
  * Check if the current page is detected as a chatbot page.
  * Used by the DOM watcher to decide whether to use heading-only filtering.
+ * @deprecated Not used in production code. Test-only.
  */
 export function isChatbotPage() {
   return detectChatPage() !== null;
