@@ -190,6 +190,7 @@ interface EdgeDockOptions {
   onSwitchUiMode?: (mode: string) => void;
   onSideChange?: (side: string) => void;
   onModeChange?: (next: string, prev: string) => void;
+  onDeactivate?: () => void;
 }
 
 interface DragState {
@@ -402,6 +403,9 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     try {
       options.onSwitchUiMode && options.onSwitchUiMode('classic');
     } catch (_) {}
+  });
+  createMenuButton('dockDeactivate', 'Close TOC', function() {
+    try { options.onDeactivate && options.onDeactivate(); } catch (_) {}
   });
 
   var controller = createDockStateController({

@@ -152,11 +152,11 @@
     "description": "清空配置失败时的错误消息"
   },
   "titleDisabled": {
-    "message": "网页目录助手：禁用（按站点，点击启用）",
-    "description": "扩展禁用时的图标标题"
+    "message": "网页目录助手：待机（点击启用）",
+    "description": "扩展待机时的图标标题"
   },
   "titleEnabled": {
-    "message": "网页目录助手：启用（按站点，点击禁用）",
+    "message": "网页目录助手：已启用（点击关闭）",
     "description": "扩展启用时的图标标题"
   },
   "titleDisabledFallback": {
@@ -240,5 +240,17 @@
   "classicSwitchToModernTitle": {
     "message": "切换到新版界面",
     "description": "从经典面板切换到新版贴边工具条界面的提示"
+  },
+  "deactivateToc": {
+    "message": "关闭 TOC",
+    "description": "停用目录并返回待机模式的菜单项"
+  },
+  "standbyTooltip": {
+    "message": "点击启用 TOC",
+    "description": "待机状态的贴边图标提示"
+  },
+  "dockDeactivate": {
+    "message": "关闭 TOC",
+    "description": "快捷设置中停用目录并返回待机模式的操作"
   }
 }

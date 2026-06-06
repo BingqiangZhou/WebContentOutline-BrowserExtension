@@ -39,6 +39,7 @@ export function initForConfig(cfg: any, options: any) {
     options = options || {};
     var uiMode = options.uiMode === 'classic' ? 'classic' : 'edge-dock';
     var onSwitchUiMode = options.onSwitchUiMode;
+    var onDeactivate = options.onDeactivate;
     var side = (cfg.side === 'left' || cfg.side === 'right') ? cfg.side : 'right';
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
@@ -452,6 +453,7 @@ export function initForConfig(cfg: any, options: any) {
           onPick: startPick,
           onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
           onSwitchUiMode: onSwitchUiMode,
+          onDeactivate: onDeactivate,
           onNavigate: function(item: any, index: number) {
             if (!item || !item.el) return;
             syncActiveIndex(index);
