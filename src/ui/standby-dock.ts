@@ -36,16 +36,6 @@ function createTocIcon(): SVGSVGElement {
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
 
-  // Three small squares (bullets)
-  var paths = [
-    'M4 6h2v2H4V6z',   // bullet 1
-    'M4 11h2v2H4v-2z', // bullet 2
-    'M4 16h2v2H4v-2z', // bullet 3
-    'M10 7h10v0.5H10V7z', // line 1 (thin)
-    'M10 12h8v0.5h-8V12z', // line 2
-    'M10 17h10v0.5H10V17z' // line 3
-  ];
-
   // Use stroke-based lines for a cleaner look matching the extension icon style
   var svgContent = '<rect x="4" y="5" width="3" height="3" rx="0.5"/>'
     + '<rect x="4" y="10.5" width="3" height="3" rx="0.5"/>'

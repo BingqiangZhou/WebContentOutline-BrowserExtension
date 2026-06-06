@@ -78,6 +78,7 @@ export function startTocContent(ctx: any) {
   function dispose(opts?: { reason?: string }) {
     if (disposed) return;
     disposed = true;
+    currentEnabled = false;
     detachListeners();
     try { if (appInstance?.destroy) appInstance.destroy(); } catch (_) {}
     appInstance = null;
@@ -117,7 +118,7 @@ export function startTocContent(ctx: any) {
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
         onSwitchUiMode: applyUiMode,
-        onDeactivate: function() { toggleActive(); }
+        onDeactivate: function() { toggleActive().catch(function() {}); }
       }) as TocAppInstance | null;
     } catch (err) {
       if (isContextInvalidatedError && isContextInvalidatedError(err)) {
@@ -147,24 +148,34 @@ export function startTocContent(ctx: any) {
     destroyStandby();
     standbyInstance = renderStandbyDock({
       side: lastSide,
-      onActivate: function() { toggleActive(); }
+      onActivate: function() { toggleActive().catch(function() {}); }
     });
   }
 
+  var togglePromise: Promise<void> | null = null;
+
   async function toggleActive() {
-    var nextEnabled = !currentEnabled;
-    // Persist to storage via background
-    try {
-      if (hasChrome && chrome.runtime?.sendMessage) {
-        await new Promise<void>(function(resolve) {
-          chrome.runtime.sendMessage(
-            { type: 'toc:persistActiveState', enabled: nextEnabled, origin: location.origin },
-            function() { void chrome.runtime.lastError; resolve(); }
-          );
-        });
+    if (togglePromise) return togglePromise;
+    togglePromise = (async () => {
+      try {
+        var nextEnabled = !currentEnabled;
+        // Persist to storage via background
+        try {
+          if (hasChrome && chrome.runtime?.sendMessage) {
+            await new Promise<void>(function(resolve) {
+              chrome.runtime.sendMessage(
+                { type: 'toc:persistActiveState', enabled: nextEnabled, origin: location.origin },
+                function() { void chrome.runtime.lastError; resolve(); }
+              );
+            });
+          }
+        } catch (_) {}
+        await applyEnabledState(nextEnabled);
+      } finally {
+        togglePromise = null;
       }
-    } catch (_) {}
-    await applyEnabledState(nextEnabled);
+    })();
+    return togglePromise;
   }
 
   async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
@@ -198,8 +209,7 @@ export function startTocContent(ctx: any) {
 
   async function applyEnabledState(want: boolean, opts?: { expandPanel?: boolean }) {
     if (want === currentEnabled) {
-      if (want) {
-        await startApp();
+      if (want && opts?.expandPanel && appInstance) {
         await applyExpandState(opts);
       }
       return;
@@ -320,27 +330,15 @@ export function startTocContent(ctx: any) {
     } catch (_) {}
 
     try {
-      var KEY = STORAGE_KEYS?.SITE_ENABLE_MAP || 'tocSiteEnabledMap';
       var UI_MODE_KEY = STORAGE_KEYS?.UI_MODE || 'tocUiMode';
       var TOC_CONFIGS_KEY = STORAGE_KEYS?.TOC_CONFIGS || 'tocConfigs';
       storageListener = function(changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) {
         if (disposed || areaName !== 'local') return;
         var uiModeChange = changes?.[UI_MODE_KEY];
-        if (uiModeChange) applyUiMode(uiModeChange.newValue as any, { persist: false });
+        if (uiModeChange) applyUiMode(uiModeChange.newValue as any, { persist: false }).catch(function() {});
         var configChange = changes?.[TOC_CONFIGS_KEY];
         if (configChange && currentEnabled && appInstance?.refreshConfig) {
           Promise.resolve(appInstance.refreshConfig()).catch(function() {});
-        }
-        var ch = changes?.[KEY];
-        if (!ch) return;
-        try {
-          var map: Record<string, boolean> = (ch.newValue as any) || {};
-          var originKey = location?.origin && location.origin !== 'null' ? location.origin : null;
-          if (!originKey) return;
-          var next = !!map[originKey];
-          if (next !== currentEnabled) applyEnabledState(next, undefined as any);
-        } catch (e) {
-          if (isContextInvalidatedError?.(e)) dispose({ reason: 'context-invalidated' });
         }
       };
       if (hasChrome && chrome.storage?.onChanged?.addListener) {
