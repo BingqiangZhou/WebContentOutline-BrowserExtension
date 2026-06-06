@@ -129,8 +129,6 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
       ownedRoots = new WeakSet();
       scanOwnedRoots();
 
-      if (typeof MutationObserver === 'undefined') return false;
-
       var root = document.documentElement;
       if (!root) return false;
 

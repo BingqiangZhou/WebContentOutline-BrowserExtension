@@ -514,7 +514,7 @@ export function detectContentRegion(): ContentRegionResult {
 
 /**
  * Explicitly invalidate the content region cache.
- * Call this when the page undergoes a major structural change not triggered by URL change.
+ * Test-only — used by VM-based tests to verify cache behavior.
  */
 export function invalidateContentRegionCache() {
   _cachedResult = null;

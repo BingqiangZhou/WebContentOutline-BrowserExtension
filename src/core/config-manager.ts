@@ -234,7 +234,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
           }
         } catch (e2) {
           console.error(msg('logClearConfigFailed'), e2);
-          if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
+          showToast(msg('errorOperationFailed'), { type: 'error' });
         }
       });
 
@@ -258,7 +258,7 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
         return false;
       }
       var expr = String(selector || '').trim();
-      if (!expr || (validateSelectorExpression && !validateSelectorExpression('css', expr))) {
+      if (!expr || !validateSelectorExpression('css', expr)) {
         showToast(msg('errorInvalidSelector'), { type: 'error' });
         return false;
       }

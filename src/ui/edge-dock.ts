@@ -445,10 +445,6 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   async function restorePosition() {
     var fallbackTop = Math.max(CFG.DEFAULT_TOP_MIN, window.innerHeight / 4);
     setTop(fallbackTop);
-    if (!getBadgePosByHost) {
-      root.style.removeProperty('visibility');
-      return;
-    }
     try {
       var pos = await getBadgePosByHost(location.host);
       if (destroyed || !root.isConnected) return;
