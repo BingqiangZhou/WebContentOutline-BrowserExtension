@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#130-pre---2026-06-06)
+[Table of Contents](#table-of-contents) • [Latest](#131---2026-06-06)
 
 ---
 
 ## Table of Contents
 
+- [1.3.1](#131---2026-06-06) - 2026-06-06
 - [1.3.0-pre](#130-pre---2026-06-06) - 2026-06-06
 - [1.2.0](#120---2026-06-05) - 2026-06-05
 - [1.1.0](#110---2026-06-05) - 2026-06-05
@@ -33,6 +34,15 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.3.1] - 2026-06-06
+
+### 🔧 Internal Improvements
+- **TypeScript strict mode** — Enabled `strict: true` across the entire codebase, adding explicit type annotations to all source files for stronger type safety and earlier error detection
+- **Test infrastructure** — Replaced fragile regex-based TypeScript syntax stripping with the TypeScript compiler API (`ts.transpileModule`) for reliable test execution
+- **Cross-platform compatibility** — Fixed test file paths on Windows using `fileURLToPath`, added CRLF-aware patterns throughout the test suite
 
 ---
 
