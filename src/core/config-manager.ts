@@ -247,7 +247,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
     } catch (e) {
       if (box && box.isConnected) box.remove();
       console.error(msg('logClearConfigFailed'), e);
-      if (showToast) showToast(msg('errorOperationFailed'), { type: 'error' });
+      showToast(msg('errorOperationFailed'), { type: 'error' });
     }
   }
 
