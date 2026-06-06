@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#150---2026-06-06)
+[Table of Contents](#table-of-contents) • [Latest](#151---2026-06-06)
 
 ---
 
 ## Table of Contents
 
+- [1.5.1](#151---2026-06-06) - 2026-06-06
 - [1.5.0](#150---2026-06-06) - 2026-06-06
 - [1.4.0](#140---2026-06-06) - 2026-06-06
 - [1.3.1](#131---2026-06-06) - 2026-06-06
@@ -35,6 +36,22 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.5.1] - 2026-06-06
+
+### 🔧 Internal
+- **Codebase simplification** — Removed ~200 lines of unnecessary defensive code across 30+ files:
+  - Removed dead import guards (`typeof fn === 'function'`, `if (importedFunc)`) for statically imported ES modules
+  - Removed unnecessary `try/catch` around non-throwing DOM APIs (`el.remove()`, `observer.disconnect()`, `cancelAnimationFrame`, `e.preventDefault()`, `replaceChildren()`, etc.)
+  - Removed dead code branches (platform checks for APIs available since Chrome 26–86, fallback branches for `replaceChildren`, redundant `else` branches)
+  - Removed redundant null guards for always-defined variables (`AbortController`, `createDragController`, `createFocusTrap`)
+  - Unified shared helpers (`normalizeSide`, `isTocContentIdentical`) replacing inline duplicate logic
+  - Deleted 2 unnecessary files (`nav-lock.ts`, `floating-panel-helpers.ts`) — inlined into consumers
+  - Simplified storage try/catch nesting and circuit breaker complexity
+- **Content script bundle** reduced from 95.27 kB to 94.85 kB
+- No user-facing changes — behavior is identical to v1.5.0
 
 ---
 
