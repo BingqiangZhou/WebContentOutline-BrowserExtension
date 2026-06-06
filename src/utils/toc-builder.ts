@@ -11,7 +11,7 @@ import { tryBuildChatbotTocItems, getChatbotSentinelSelector } from './chatbot-d
     var TOC_MAX_CANDIDATES = 1200;
     var COLLAPSE_WS_RE = /\s+/g;
 
-    function getTrimmedText(el) {
+    function getTrimmedText(el: Element) {
       var rawText = '';
       if (typeof getBoundedText === 'function') {
         rawText = getBoundedText(el, { maxChars: TOC_TEXT_MAX_LEN * 4, maxNodes: 160, maxDepth: 8 });
@@ -23,13 +23,13 @@ import { tryBuildChatbotTocItems, getChatbotSentinelSelector } from './chatbot-d
       return rawText.length > TOC_TEXT_MAX_LEN ? rawText.substring(0, TOC_TEXT_MAX_LEN) + '...' : rawText;
     }
 
-function getTocItemLevel(el) {
+function getTocItemLevel(el: Element) {
       var match = el && /^H([1-6])$/.exec(el.tagName || '');
       return match ? parseInt(match[1], 10) : 2;
     }
 
-function buildTocItemsFromSelectors(selectors, cfg) {
-      var elements = [];
+function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: string; _root?: Element | Document }>, cfg: { keepEmptyText?: boolean }) {
+      var elements: Element[] = [];
       var list = Array.isArray(selectors) ? selectors : [];
       var perSelectorLimit = Math.max(1, Math.floor(TOC_MAX_CANDIDATES / Math.max(1, list.length)));
 
@@ -57,24 +57,24 @@ function buildTocItemsFromSelectors(selectors, cfg) {
 
       // Phase 1: Batch-read all geometry in a tight loop (avoids forced reflows)
       // Order: cheap property reads first, expensive getComputedStyle last
-      var geoData = [];
+      var geoData: Array<{ el: Element; rect: DOMRect } | null> = [];
       var docEl = document.documentElement;
       var docScrollW = (docEl && docEl.scrollWidth) || 0;
       var docScrollH = (docEl && docEl.scrollHeight) || 0;
       for (var m = 0; m < candidates.length; m++) {
-        var el = candidates[m];
+        var el = candidates[m] as HTMLElement;
         if (!el || !el.isConnected) { geoData.push(null); continue; }
         // aria-hidden="true" — element is semantically hidden
         try { if (el.getAttribute('aria-hidden') === 'true') { geoData.push(null); continue; } } catch (_) {}
         // Cheap dimension check — eliminates most hidden elements without getComputedStyle
-        var ow, oh;
+        var ow: number, oh: number;
         try { ow = el.offsetWidth; oh = el.offsetHeight; } catch (_) { geoData.push(null); continue; }
         if (ow === 0 || oh === 0) { geoData.push(null); continue; }
         // Cheap offsetParent check — catches display:none ancestors in most cases
-        var offsetParent;
+        var offsetParent: Element | null;
         try { offsetParent = el.offsetParent; } catch (_) { geoData.push(null); continue; }
         // Now do the expensive style recalculation only for survivors
-        var style;
+        var style: CSSStyleDeclaration;
         try { style = window.getComputedStyle(el); } catch (_) { geoData.push(null); continue; }
         if (!style || style.display === 'none') { geoData.push(null); continue; }
         if (offsetParent === null && style.position !== 'fixed') { geoData.push(null); continue; }
@@ -84,7 +84,7 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         // clip-path hiding (clip-path: inset(100%), polygon(0…), etc.)
         var clipPath = style.clipPath;
         if (clipPath && clipPath !== 'none') { geoData.push(null); continue; }
-        var rect;
+        var rect: DOMRect;
         try { rect = el.getBoundingClientRect(); } catch (_) { geoData.push(null); continue; }
         if (!rect || rect.width === 0 || rect.height === 0) { geoData.push(null); continue; }
         // Too small to be a visible heading — catches .sr-only (1×1 px) tricks
@@ -97,12 +97,12 @@ function buildTocItemsFromSelectors(selectors, cfg) {
       }
 
       // Phase 2: Filter using cached geometry — parent clipping + text extraction only for survivors
-      var items = [];
+      var items: Array<{ id: string; el: Element; text: string; level: number }> = [];
       for (var g = 0; g < geoData.length; g++) {
         var entry = geoData[g];
         if (!entry) continue;
-        var el = entry.el;
-        var rect = entry.rect;
+        var el2 = entry.el;
+        var rect2 = entry.rect;
 
         // Parent clipping check (only for survivors that passed cheap checks)
         // Excludes headings truly hidden by collapsed/zero-size containers,
@@ -110,8 +110,8 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         // Single-pass ancestor scan: build chain once, then scan linearly
         // instead of nested while-loops with O(depth²) getComputedStyle calls.
         var clipped = false;
-        var ancestors = [];
-        var ancNode = el.parentElement;
+        var ancestors: Element[] = [];
+        var ancNode = el2.parentElement;
         for (var ai = 0; ai < 6 && ancNode; ai++) {
           ancestors.push(ancNode);
           ancNode = ancNode.parentElement;
@@ -119,8 +119,8 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         // Track if any ancestor between el and a clipping parent is scrollable
         var scrollableBelow = false;
         for (var ai2 = 0; ai2 < ancestors.length; ai2++) {
-          var ancestor = ancestors[ai2];
-          var ancStyle;
+          var ancestor = ancestors[ai2] as HTMLElement;
+          var ancStyle: CSSStyleDeclaration;
           try { ancStyle = window.getComputedStyle(ancestor); } catch (_) { break; }
           if (!ancStyle) continue;
           // Check if this ancestor is scrollable (with actual overflow)
@@ -139,13 +139,13 @@ function buildTocItemsFromSelectors(selectors, cfg) {
           if (clips) {
             // Only clip if no scrollable ancestor sits between el and this clipping parent
             if (!scrollableBelow) {
-              var parentRect;
+              var parentRect: DOMRect;
               try { parentRect = ancestor.getBoundingClientRect(); } catch (_) { break; }
               // Only clip if heading is completely outside AND the clipping parent
               // has negligible height (collapsed/tab) — not a full-height layout container
               var isCollapsed = ancestor.clientHeight < 10 || ancestor.offsetWidth < 10;
-              if (isCollapsed && (rect.right <= parentRect.left || rect.left >= parentRect.right
-                  || rect.bottom <= parentRect.top || rect.top >= parentRect.bottom)) {
+              if (isCollapsed && (rect2.right <= parentRect.left || rect2.left >= parentRect.right
+                  || rect2.bottom <= parentRect.top || rect2.top >= parentRect.bottom)) {
                 clipped = true;
                 break;
               }
@@ -156,10 +156,10 @@ function buildTocItemsFromSelectors(selectors, cfg) {
         }
         if (clipped) continue;
 
-        var text = getTrimmedText(el);
+        var text = getTrimmedText(el2);
         if (!keepEmpty && (!text || text.length === 0)) continue;
 
-        items.push({ id: 'toc-item-' + items.length, el: el, text: text, level: getTocItemLevel(el) });
+        items.push({ id: 'toc-item-' + items.length, el: el2, text: text, level: getTocItemLevel(el2) });
         if (items.length >= TOC_MAX_ITEMS) {
           truncated = true;
           break;
@@ -170,8 +170,8 @@ function buildTocItemsFromSelectors(selectors, cfg) {
       // position (e.g. headings duplicated in sidebar + main content via
       // aria-hidden or SR-only mirrors that survived the filter above).
       if (items.length > 1) {
-        var seenTexts = new Set();
-        var deduped = [];
+        var seenTexts = new Set<string>();
+        var deduped: Array<{ id: string; el: Element; text: string; level: number }> = [];
         for (var d = 0; d < items.length; d++) {
           var key = items[d].text;
           if (!seenTexts.has(key)) {
@@ -194,7 +194,7 @@ function buildTocItemsFromSelectors(selectors, cfg) {
       };
     }
 
-export function buildTocItems(cfg, extraSelectors) {
+export function buildTocItems(cfg: { selectors: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>) {
       // Chatbot pages: build conversation-aware TOC (user prompts as level-1)
       var chatbotResult = null;
       try { chatbotResult = tryBuildChatbotTocItems(); } catch (_) {}
@@ -211,10 +211,10 @@ export function buildTocItems(cfg, extraSelectors) {
       }
 
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
-      var combined = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
+      var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
 
       if (combined.length === 0) {
-        var region = null;
+        var region: { root?: Element | null } | null = null;
         try { region = detectContentRegion(); } catch (_) {}
         if (region && region.root) {
           combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6', _root: region.root }];

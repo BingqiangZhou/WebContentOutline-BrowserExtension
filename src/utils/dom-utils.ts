@@ -10,7 +10,7 @@ import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.
      * @param {string} pattern e.g., https://example.com/articles/* or *://*.example.com/*
      * @param {string} text URL to test
      */
-function matchWildcard(pattern, text) {
+function matchWildcard(pattern: string, text: string) {
       if (typeof pattern !== 'string' || typeof text !== 'string') return false;
       if (pattern === '*') return true;
       var parts = pattern.split('*');
@@ -47,7 +47,7 @@ function matchWildcard(pattern, text) {
      * @param {Array} configs
      * @param {string} url
      */
-export function findMatchingConfig(configs, url) {
+export function findMatchingConfig(configs: Array<{ urlPattern?: string; selectors?: Array<{ type: string; expr: string }>; side?: string }>, url: string) {
       return configs.find(function(cfg) {
         if (!cfg || !cfg.urlPattern) return false;
         return matchWildcard(cfg.urlPattern, url);
@@ -59,34 +59,34 @@ export function findMatchingConfig(configs, url) {
      * @param {string} [origin]
      * @returns {Promise<boolean>}
      */
-export async function getSiteEnabledByOrigin(origin) {
-      var map = await getEnabledMap();
+export async function getSiteEnabledByOrigin(origin: string) {
+      var map: Record<string, boolean> = await getEnabledMap();
       var key = origin || (typeof location !== 'undefined' ? location.origin : '');
       return !!(key && map[key]);
     }
 
-export async function getPanelExpandedByOrigin(origin) {
-      var doRead = function(map) {
+export async function getPanelExpandedByOrigin(origin: string) {
+      var doRead = function(map: Record<string, boolean>) {
         var key = origin || (typeof location !== 'undefined' ? location.origin : '');
         return !!(key && map && map[key]);
       };
 
-      var map = await getPanelStateMap();
+      var map: Record<string, boolean> = await getPanelStateMap();
       return doRead(map);
     }
 
-export async function setPanelExpandedByOrigin(origin, expanded) {
+export async function setPanelExpandedByOrigin(origin: string, expanded: boolean) {
       var key = origin || (typeof location !== 'undefined' ? location.origin : '');
       if (!key) return false;
       try {
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-          return await new Promise(function(resolve) {
+          return await new Promise<boolean>(function(resolve) {
             chrome.runtime.sendMessage({
               type: 'toc:mutateUiState',
               operation: 'set-panel-expanded',
               key: key,
               value: !!expanded
-            }, function(response) {
+            }, function(response: { ok?: boolean }) {
               if (chrome.runtime.lastError) { resolve(false); return; }
               resolve(!!(response && response.ok));
             });
@@ -94,7 +94,7 @@ export async function setPanelExpandedByOrigin(origin, expanded) {
         }
       } catch (_) {}
       return serializedWrite('tocPanelExpandedMap', async function() {
-        var map = await getPanelStateMap();
+        var map: Record<string, boolean> = await getPanelStateMap();
         map = map || {};
         map[key] = !!expanded;
         pruneObjectToLimit(map, 400);
@@ -107,21 +107,21 @@ export async function setPanelExpandedByOrigin(origin, expanded) {
      * @param {{type: 'css'|'xpath', expr: string}} selector
      * @returns {Element[]}
      */
-export function collectBySelector(selector, maxCandidates) {
+export function collectBySelector(selector: { type: string; expr: string; _root?: Element | Document }, maxCandidates: number) {
       if (!selector || !selector.expr) return [];
       var limit = 1200;
       if (Number.isFinite(maxCandidates) && maxCandidates > 0) limit = Math.min(limit, Math.floor(maxCandidates));
-      var queryRoot = selector._root || document;
+      var queryRoot: Element | Document = selector._root || document;
       if (selector.type === 'xpath') {
         if (!isSafeXPathExpression(selector.expr)) return [];
         try {
-          var contextNode = (selector._root && selector._root.ownerDocument) || document;
+          var contextNode: Document = (selector._root && (selector._root as Element).ownerDocument) || document;
           var iterator = contextNode.evaluate(selector.expr, queryRoot, null, XPathResult.ORDERED_NODE_ITERATOR_TYPE, null);
-          var nodes = [];
+          var nodes: Element[] = [];
           for (var i = 0; i < limit; i++) {
             var node = iterator.iterateNext();
             if (!node) break;
-            if (node.nodeType === 1) nodes.push(node);
+            if (node.nodeType === 1) nodes.push(node as Element);
           }
           return nodes;
         } catch (e) {
@@ -132,7 +132,7 @@ export function collectBySelector(selector, maxCandidates) {
         if (typeof isHighRiskBroadCssSelector === 'function' && isHighRiskBroadCssSelector(selector.expr)) return [];
         var nodeList = queryRoot.querySelectorAll(selector.expr);
         var len = Math.min(nodeList.length, limit);
-        var result = new Array(len);
+        var result = new Array<Element>(len);
         for (var j = 0; j < len; j++) result[j] = nodeList[j];
         return result;
       } catch (e) {
@@ -144,9 +144,9 @@ export function collectBySelector(selector, maxCandidates) {
      * Deduplicate elements preserving first-occurrence order
      * @param {Element[]} list
      */
-export function uniqueInDocumentOrder(list) {
-      var seen = new Set();
-      var result = [];
+export function uniqueInDocumentOrder(list: Element[]) {
+      var seen = new Set<Element>();
+      var result: Element[] = [];
       for (var i = 0; i < list.length; i++) {
         var el = list[i];
         if (el && !seen.has(el)) {
@@ -179,7 +179,7 @@ export function uniqueInDocumentOrder(list) {
     var _cachedHeaderHeight = 0;
     var _cachedHeaderTime = 0;
     var HEADER_CACHE_TTL = 5000; // ms
-    var _reduceMotion = null; // cached boolean
+    var _reduceMotion: boolean | null = null; // cached boolean
 
     /**
      * Invalidate the cached fixed-header height (call after DOM rebuilds).
@@ -195,8 +195,8 @@ export function uniqueInDocumentOrder(list) {
      * (scrollHeight > clientHeight or scrollWidth > clientWidth).
      * Returns null if the document root is the scroll container (normal pages).
      */
-    function findScrollableAncestor(el) {
-      var node = el.parentElement;
+    function findScrollableAncestor(el: HTMLElement) {
+      var node: HTMLElement | null = el.parentElement;
       while (node && node !== document.documentElement && node !== document.body) {
         try {
           var style = window.getComputedStyle(node);
@@ -251,7 +251,7 @@ export function uniqueInDocumentOrder(list) {
      * an internal scrollable container (e.g. ChatGPT, Claude, Gemini).
      * @param {Element} el
      */
-export function scrollToElement(el) {
+export function scrollToElement(el: HTMLElement) {
       try {
         // Cache prefers-reduced-motion — it doesn't change during a session
         if (_reduceMotion == null) {
@@ -277,7 +277,7 @@ export function scrollToElement(el) {
         } else {
           // Document-level scroll: use window.scrollTo
           var rect = el.getBoundingClientRect();
-          var scrollY = window.scrollY;
+          var scrollY: number = window.scrollY;
           if (typeof scrollY !== 'number' || !Number.isFinite(scrollY)) {
             scrollY = window.pageYOffset || 0;
           }
@@ -290,13 +290,13 @@ export function scrollToElement(el) {
       }
     }
 
-export function cleanupOwnedElements(selectorFallback) {
+export function cleanupOwnedElements(selectorFallback: string) {
       var fallback = selectorFallback || '.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-overlay[data-toc-owner="web-toc-assistant"], .toc-toast-container[data-toc-owner="web-toc-assistant"]';
       var selector = selectorFallback || fallback;
       try {
         document.querySelectorAll(selector).forEach(function(el) {
           try {
-            var cleanup = el && el.__TOC_CLEANUP__;
+            var cleanup = (el as any).__TOC_CLEANUP__;
             if (typeof cleanup === 'function') cleanup();
           } catch (_) {}
           try { el.remove(); } catch (_) {}

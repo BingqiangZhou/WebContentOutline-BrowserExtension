@@ -11,10 +11,16 @@ import {
   validateSelectorExpression
 } from '../utils/toc-utils.js';
 
-  // Callback set by toc-app.js via setOnConfigChanged()
-  var _onConfigChanged = null;
+  interface StoredConfig {
+    urlPattern?: string;
+    selectors?: Array<{ type: string; expr: string }>;
+    side?: string;
+  }
 
-  export function setOnConfigChanged(fn) {
+  // Callback set by toc-app.js via setOnConfigChanged()
+  var _onConfigChanged: (() => void) | null = null;
+
+  export function setOnConfigChanged(fn: (() => void) | null) {
     _onConfigChanged = typeof fn === 'function' ? fn : null;
   }
 
@@ -26,7 +32,7 @@ import {
     if (_onConfigChanged) _onConfigChanged();
   }
 
-  function requestConfigMutation(mutation) {
+  function requestConfigMutation(mutation: Record<string, unknown>): Promise<{ ok: boolean; reason?: string; config?: { selectors?: Array<{ type: string; expr: string }> } }> {
     return new Promise(function(resolve) {
       try {
         if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
@@ -41,30 +47,31 @@ import {
           resolve(response && typeof response === 'object' ? response : { ok: false, reason: 'empty-response' });
         });
       } catch (e) {
-        resolve({ ok: false, reason: String(e && e.message || e) });
+        resolve({ ok: false, reason: String((e as Error).message || e) });
       }
     });
   }
 
-  function selectorsFromMutationResult(result) {
+  function selectorsFromMutationResult(result: { ok: boolean; reason?: string; config?: { selectors?: Array<{ type: string; expr: string }> } }) {
     var entry = result && result.config;
     return entry && Array.isArray(entry.selectors) ? entry.selectors.slice() : [];
   }
 
-export async function siteConfig(cfg) {
+export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
+    var box: HTMLDivElement | undefined;
     try {
-      var prevFocus = document.activeElement;
+      var prevFocus = document.activeElement as HTMLElement | null;
       var existing = document.querySelector('.toc-overlay[data-toc-owner="web-toc-assistant"]');
       if (existing) {
         existing.remove();
       }
 
-      var configs = await getConfigs();
+      var configs = await getConfigs() as StoredConfig[];
       var urlPattern = location.protocol + '//' + location.host + '/*';
       var idx = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
-      var list = idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : [];
+      var list: Array<{ type: string; expr: string }> = (idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : null) || [];
 
-      var box = document.createElement('div');
+      box = document.createElement('div');
       box.className = 'toc-overlay';
       box.setAttribute('data-toc-owner', 'web-toc-assistant');
       box.setAttribute('role', 'dialog');
@@ -89,7 +96,7 @@ export async function siteConfig(cfg) {
       var listDiv = document.createElement('div');
       listDiv.className = 'toc-overlay-list';
 
-      var refreshList = async function(selectors) {
+      var refreshList = async function(selectors: Array<{ type: string; expr: string }>) {
         try {
           if (listDiv.replaceChildren) listDiv.replaceChildren();
           else listDiv.textContent = '';
@@ -128,7 +135,7 @@ export async function siteConfig(cfg) {
                   selector: { type: selType, expr: selExpr }
                 });
 
-                if (!result || !(result as any).ok) {
+                if (!result || !result.ok) {
                   showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
                   return;
                 }
@@ -180,30 +187,30 @@ export async function siteConfig(cfg) {
 
       var restoreFocus = function() {
         try {
-          if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
-            (prevFocus as HTMLElement).focus({ preventScroll: true });
+          if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
+            prevFocus.focus({ preventScroll: true });
           }
         } catch (_) {}
       };
-      var focusRaf = null;
+      var focusRaf: number | null = null;
       var close = function() {
         if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
         if (focusRaf) {
           cancelAnimationFrame(focusRaf);
           focusRaf = null;
         }
-        try { box.remove(); } catch (_) {}
+        try { if (box) box.remove(); } catch (_) {}
         restoreFocus();
       };
 
-      var getFocusable = function() {
+      var getFocusable = function(): Element[] {
         try {
-          if (typeof getFocusableWithin === 'function') return getFocusableWithin(box);
+          if (typeof getFocusableWithin === 'function' && box) return getFocusableWithin(box);
         } catch (_) {}
         return [];
       };
 
-      var removeFocusTrap = createFocusTrap ? createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable }) : null;
+      var removeFocusTrap: (() => void) | null = createFocusTrap ? createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable }) : null;
 
       box.addEventListener('click', async function(e) {
         try {
@@ -217,7 +224,7 @@ export async function siteConfig(cfg) {
               operation: 'clear-site',
               urlPattern: urlPattern
             });
-            if (!result || !(result as any).ok) {
+            if (!result || !result.ok) {
               showToast && showToast(msg('errorOperationFailed'), { type: 'error' });
               return;
             }
@@ -250,7 +257,7 @@ export async function siteConfig(cfg) {
     }
   }
 
-export async function saveSelector(selector, cfg) {
+export async function saveSelector(selector: string, cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     try {
       if (!cfg) {
         showToast && showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
@@ -272,22 +279,22 @@ export async function saveSelector(selector, cfg) {
         selector: entry,
         side: sidePersist
       });
-      if (result && (result as any).ok) {
+      if (result && result.ok) {
         cfg.selectors = selectorsFromMutationResult(result);
         if (cfg && cfg.__markConfigDirty) cfg.__markConfigDirty();
       }
-      return !!(result && (result as any).ok);
+      return !!(result && result.ok);
     } catch (e) {
       console.error(msg('logSaveConfigFailed'), e);
       return false;
     }
   }
 
-export async function updateConfigFromStorage(cfg) {
+export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     try {
-      var configs = await getConfigs();
+      var configs = await getConfigs() as StoredConfig[];
       var urlPattern = location.protocol + '//' + location.host + '/*';
-      var latest = findMatchingConfig(configs, location.href);
+      var latest = findMatchingConfig(configs, location.href) as StoredConfig | null;
       if (!latest) {
         latest = configs.find(function(c) { return c && c.urlPattern === urlPattern; }) || null;
       }

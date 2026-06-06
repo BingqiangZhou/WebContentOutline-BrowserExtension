@@ -9,7 +9,7 @@ import { createFocusTrap } from '../utils/focus-trap.js';
     MAX_Z_INDEX: 2147483647,
   };
 
-export function showPickerResult(selector, saveCb) {
+export function showPickerResult(selector: string, saveCb: ((selector: string, close: () => void) => void) | undefined) {
     var prevFocus = document.activeElement;
     var existing = document.querySelector('.toc-overlay[data-toc-owner="web-toc-assistant"]');
     if (existing) {
@@ -70,7 +70,7 @@ export function showPickerResult(selector, saveCb) {
         }
       } catch (_) {}
     };
-    var focusRaf = null;
+    var focusRaf: number | null = null;
     var close = function() {
       if (removeFocusTrap) { removeFocusTrap(); removeFocusTrap = null; }
       if (focusRaf) {
@@ -101,37 +101,37 @@ export function showPickerResult(selector, saveCb) {
     return { close: close };
   }
 
-export function createElementPicker(onPicked, onCancel) {
+export function createElementPicker(onPicked: ((el: HTMLElement) => void) | undefined, onCancel: (() => void) | undefined) {
     if (!document.body) {
       console.warn('[toc] DOM not ready, cannot start element picker');
       onCancel && onCancel();
       return { cleanup: function() {} };
     }
 
-    var highlight = document.createElement('div');
+    var highlight: HTMLDivElement | null = document.createElement('div');
     highlight.style.cssText = 'position:fixed;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:' + CFG.MAX_Z_INDEX + ';left:0;top:0;width:0;height:0;';
     document.documentElement.appendChild(highlight);
 
     var prevCursor = document.body.style.cursor;
     document.body.style.cursor = 'crosshair';
 
-    function getElementNode(node) {
+    function getElementNode(node: Node | null): HTMLElement | null {
       if (!node) return null;
       if (node.nodeType === Node.TEXT_NODE) {
-        return node.parentElement;
+        return node.parentElement as HTMLElement | null;
       }
       if (node.nodeType === Node.ELEMENT_NODE) {
-        return node;
+        return node as HTMLElement;
       }
       return null;
     }
 
-    function isUiElement(el) {
+    function isUiElement(el: HTMLElement | null): boolean {
       if (!el) return false;
-      return el.closest && el.closest('[data-toc-owner="web-toc-assistant"]');
+      return !!(el.closest && el.closest('[data-toc-owner="web-toc-assistant"]'));
     }
 
-    function box(el) {
+    function box(el: HTMLElement): void {
       if (finished) return;
       if (!highlight) return;
       if (!el || typeof el.getBoundingClientRect !== 'function') return;
@@ -146,8 +146,8 @@ export function createElementPicker(onPicked, onCancel) {
       } catch (_) {}
     }
 
-    var moveRaf = null;
-    var pendingMove = null;
+    var moveRaf: number | null = null;
+    var pendingMove: MouseEvent | null = null;
     var finished = false;
     var cancelPick = function() {
       if (finished) return;
@@ -164,12 +164,12 @@ export function createElementPicker(onPicked, onCancel) {
       }
     };
 
-    function processMove(e) {
+    function processMove(e: MouseEvent): void {
       if (finished) return;
-      var el = getElementNode(e.target);
+      var el = getElementNode(e.target as Node);
       if (isUiElement(el)) {
         try {
-          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
+          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY) as Node | null);
         } catch (_) {
           el = null;
         }
@@ -178,7 +178,7 @@ export function createElementPicker(onPicked, onCancel) {
       if (el && el !== highlight) box(el);
     }
 
-    function move(e) {
+    function move(e: MouseEvent): void {
       if (finished) return;
       pendingMove = e;
       if (moveRaf) return;
@@ -190,15 +190,15 @@ export function createElementPicker(onPicked, onCancel) {
       });
     }
 
-    function click(e) {
+    function click(e: MouseEvent): void {
       try { e.preventDefault(); } catch (_) {}
       try { e.stopPropagation(); } catch (_) {}
       try { e.stopImmediatePropagation(); } catch (_) {}
       if (finished) return;
-      var el = getElementNode(e.target);
+      var el = getElementNode(e.target as Node);
       if (isUiElement(el)) {
         try {
-          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY));
+          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY) as Node | null);
         } catch (_) {
           el = null;
         }
@@ -214,7 +214,7 @@ export function createElementPicker(onPicked, onCancel) {
       if (onPicked) onPicked(el);
     }
 
-    function key(e) {
+    function key(e: KeyboardEvent): void {
       if (e.key === 'Escape' || e.key === 'Tab') {
         try { e.preventDefault(); } catch (_) {}
         try { e.stopPropagation(); } catch (_) {}
@@ -224,7 +224,7 @@ export function createElementPicker(onPicked, onCancel) {
 
     document.addEventListener('mousemove', move, true);
     document.addEventListener('click', click, true);
-    var onCtx = function(e) {
+    var onCtx = function(e: MouseEvent): void {
       try { e.preventDefault(); } catch (_) {}
       try { e.stopPropagation(); } catch (_) {}
       try { e.stopImmediatePropagation(); } catch (_) {}
@@ -236,7 +236,7 @@ export function createElementPicker(onPicked, onCancel) {
     var onPageHide = function() { cancelPick(); };
     try { window.addEventListener('pagehide', onPageHide, true); } catch (_) {}
 
-    var timeoutId = setTimeout(function() { cancelPick(); }, CFG.PICKER_TIMEOUT_MS);
+    var timeoutId: ReturnType<typeof setTimeout> | null = setTimeout(function() { cancelPick(); }, CFG.PICKER_TIMEOUT_MS);
 
     function cleanup() {
       finished = true;

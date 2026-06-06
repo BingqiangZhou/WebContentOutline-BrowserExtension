@@ -4,7 +4,7 @@
 /**
  * Automatic content region detection for TOC generation.
  *
- * Four-layer detection strategy (fast → slow, high accuracy → fallback):
+ * Four-layer detection strategy (fast -> slow, high accuracy -> fallback):
  *   Layer 1: Semantic HTML landmarks (main, article, [role="main"])
  *   Layer 2: Class/ID heuristics (.content, .post-body, etc.)
  *   Layer 3: Ancestor scoring from headings (adapted from Smart TOC)
@@ -15,11 +15,24 @@
  */
 
 // ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ContentRegionResult {
+  root: Element | null;
+  source: string;
+}
+
+interface CandidateEntry {
+  el: Element;
+  score: number;
+}
+
+// ---------------------------------------------------------------------------
 // Cache
 // ---------------------------------------------------------------------------
 
-/** @type {{ root: Element|null, source: string }|null} */
-var _cachedResult = null;
+var _cachedResult: ContentRegionResult | null = null;
 var _cachedUrl = '';
 
 // ---------------------------------------------------------------------------
@@ -63,14 +76,14 @@ var NEGATIVE_WORDS = [
 ];
 
 /** Heading weights for ancestor scoring */
-var HEADING_WEIGHTS = {
+var HEADING_WEIGHTS: Record<string, number> = {
   H2: 100,
   H3: 80,
   H4: 60,
 };
 
 /** Tag bonuses for ancestor scoring */
-var TAG_BONUSES = {
+var TAG_BONUSES: Record<string, number> = {
   ARTICLE: 200,
   MAIN: 200,
   SECTION: 50,
@@ -90,11 +103,11 @@ var MAX_SAMPLED_HEADINGS = 100;
 /**
  * Check if an element is visible (has non-zero dimensions and is in the document).
  */
-function isVisibleElement(el) {
+function isVisibleElement(el: Element): boolean {
   if (!el || !el.isConnected) return false;
   try {
-    var w = el.offsetWidth;
-    var h = el.offsetHeight;
+    var w = (el as HTMLElement).offsetWidth;
+    var h = (el as HTMLElement).offsetHeight;
     return w > 0 && h > 0;
   } catch (_) {
     return false;
@@ -104,7 +117,7 @@ function isVisibleElement(el) {
 /**
  * Check if an element contains any heading (h1-h6).
  */
-function containsHeading(el) {
+function containsHeading(el: Element): boolean {
   try {
     return el.querySelector('h1, h2, h3, h4, h5, h6') !== null;
   } catch (_) {
@@ -116,7 +129,7 @@ function containsHeading(el) {
  * Evaluate class/id patterns on an element.
  * Returns a positive score for content-like names, negative for non-content.
  */
-function evaluatePatterns(el) {
+function evaluatePatterns(el: Element): number {
   var classStr = ' ' + (el.getAttribute('class') || '') + ' ';
   var idStr = ' ' + (el.id || '') + ' ';
   var combined = classStr.toLowerCase() + ' ' + idStr.toLowerCase();
@@ -139,7 +152,7 @@ function evaluatePatterns(el) {
 /**
  * Count h2-h4 headings inside an element (used for scoring).
  */
-function countHeadings(el) {
+function countHeadings(el: Element): { h2: number; h3: number; h4: number } {
   var counts = { h2: 0, h3: 0, h4: 0 };
   try {
     var headings = el.querySelectorAll('h2, h3, h4');
@@ -162,12 +175,12 @@ function countHeadings(el) {
  * most relevant content child. Avoids mixing headings from the main
  * article, comments, sidebar, and related sections into one TOC.
  */
-function drillToPrimaryContent(container) {
+function drillToPrimaryContent(container: Element): Element {
   // Collect direct children that look like content areas
   var children = container.children;
   if (!children || children.length === 0) return container;
 
-  var candidates = [];
+  var candidates: CandidateEntry[] = [];
   for (var i = 0; i < children.length; i++) {
     var child = children[i];
     if (!child.isConnected || !isVisibleElement(child)) continue;
@@ -203,7 +216,7 @@ function drillToPrimaryContent(container) {
   return container;
 }
 
-function detectByLandmark() {
+function detectByLandmark(): ContentRegionResult | null {
   for (var i = 0; i < LANDMARK_SELECTORS.length; i++) {
     try {
       var el = document.querySelector(LANDMARK_SELECTORS[i]);
@@ -223,7 +236,7 @@ function detectByLandmark() {
           var allArticles = document.querySelectorAll(LANDMARK_SELECTORS[i]);
           if (allArticles.length > 1) {
             // Pick the article with the most h2-h4 headings
-            var bestArticle = null;
+            var bestArticle: Element | null = null;
             var bestCount = 0;
             for (var a = 0; a < allArticles.length; a++) {
               var c = countHeadings(allArticles[a]);
@@ -252,8 +265,8 @@ function detectByLandmark() {
 // Layer 2: Class/ID heuristics
 // ---------------------------------------------------------------------------
 
-function detectByClassHeuristic() {
-  var best = null;
+function detectByClassHeuristic(): ContentRegionResult | null {
+  var best: Element | null = null;
   var bestScore = 0;
 
   for (var i = 0; i < CONTENT_SELECTORS.length; i++) {
@@ -297,9 +310,9 @@ function detectByClassHeuristic() {
 // Layer 3: Ancestor scoring from headings (adapted from Smart TOC)
 // ---------------------------------------------------------------------------
 
-function detectByAncestorScoring() {
+function detectByAncestorScoring(): ContentRegionResult | null {
   // Step 1: Collect headings
-  var headings;
+  var headings: Element[];
   try {
     headings = Array.from(document.querySelectorAll('h2, h3, h4'));
   } catch (_) {
@@ -311,7 +324,7 @@ function detectByAncestorScoring() {
   // Sample if too many
   if (headings.length > 200) {
     var step = headings.length / MAX_SAMPLED_HEADINGS;
-    var sampled = [];
+    var sampled: Element[] = [];
     for (var s = 0; s < MAX_SAMPLED_HEADINGS; s++) {
       sampled.push(headings[Math.floor(s * step)]);
     }
@@ -319,8 +332,8 @@ function detectByAncestorScoring() {
   }
 
   // Step 2: Score ancestors
-  var ancestorScores = new Map();
-  var patternCache = new Map();
+  var ancestorScores = new Map<Element, number>();
+  var patternCache = new Map<Element, number>();
 
   for (var i = 0; i < headings.length; i++) {
     var heading = headings[i];
@@ -351,7 +364,7 @@ function detectByAncestorScoring() {
   }
 
   // Step 3: Get top candidates
-  var candidates = [];
+  var candidates: CandidateEntry[] = [];
   ancestorScores.forEach(function(score, el) {
     if (score > 100) {
       candidates.push({ el: el, score: score });
@@ -374,7 +387,7 @@ function detectByAncestorScoring() {
 
     try {
       // Width check
-      var width = el.offsetWidth;
+      var width = (el as HTMLElement).offsetWidth;
       if (width > 400) baseScore += 100;
       if (width > viewportWidth * 0.6) baseScore += 50;
 
@@ -394,7 +407,7 @@ function detectByAncestorScoring() {
       }
 
       // Vertical space
-      if (el.offsetHeight > viewportHeight * 0.3) baseScore += 50;
+      if ((el as HTMLElement).offsetHeight > viewportHeight * 0.3) baseScore += 50;
 
       // Penalize body/html
       if (el === document.body || el === document.documentElement) {
@@ -423,7 +436,7 @@ function detectByAncestorScoring() {
  * Returns { root, source } where root is the content container, or null for full-page fallback.
  * Result is cached by URL — free on repeated calls with the same location.href.
  */
-export function detectContentRegion() {
+export function detectContentRegion(): ContentRegionResult {
   var url = '';
   try { url = location.href; } catch (_) {}
 

@@ -8,7 +8,7 @@ export { isPlainObject, isHighRiskBroadCssSelector };
    * Check if the extension context is invalidated (e.g., after extension reload).
    * @returns {boolean}
    */
-export function isExtensionContextInvalidated() {
+export function isExtensionContextInvalidated(): boolean {
     try {
       if (typeof chrome === 'undefined') return false;
       return !chrome.runtime || !chrome.runtime.id;
@@ -23,7 +23,7 @@ export function isExtensionContextInvalidated() {
    * @param {string|string[]} [substitutions]
    * @returns {string}
    */
-export function msg(key, substitutions?) {
+export function msg(key: string, substitutions?: string | string[]): string {
     try {
       return chrome.i18n.getMessage(key, substitutions) || key;
     } catch (_) {
@@ -31,10 +31,10 @@ export function msg(key, substitutions?) {
     }
   }
 
-export function isContextInvalidatedError(e) {
+export function isContextInvalidatedError(e: unknown): boolean {
     try {
       if (!e) return false;
-      var text = String(e && (e.message || (e.toString && e.toString()) || e) || '');
+      var text = String(e && ((e as { message?: string }).message || ((e as { toString?: () => string }).toString && (e as { toString: () => string }).toString()) || e) || '');
       var lowered = text.toLowerCase();
       return lowered.indexOf('extension context invalidated') !== -1 || lowered.indexOf('context invalidated') !== -1;
     } catch (_) {
@@ -42,8 +42,8 @@ export function isContextInvalidatedError(e) {
     }
   }
 
-export function getFocusableWithin(rootEl) {
-    var root = rootEl && rootEl.querySelectorAll ? rootEl : null;
+export function getFocusableWithin(rootEl: Element | null): Element[] {
+    var root = rootEl ? rootEl : null;
     if (!root) return [];
     var selector = [
       'button:not([disabled])',
@@ -64,7 +64,7 @@ export function getFocusableWithin(rootEl) {
     }
   }
 
-export function isSafeXPathExpression(expr) {
+export function isSafeXPathExpression(expr: string): boolean {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
     if (!trimmed || trimmed.length > SELECTOR_EXPR_MAX_LENGTH) return false;
@@ -76,7 +76,7 @@ export function isSafeXPathExpression(expr) {
     return true;
   }
 
-function isValidCssSelector(expr) {
+function isValidCssSelector(expr: string): boolean {
     if (typeof expr !== 'string') return false;
     if (typeof document === 'undefined' || !document) return false;
     var trimmed = expr.trim();
@@ -94,7 +94,7 @@ function isValidCssSelector(expr) {
     }
   }
 
-export function validateSelectorExpression(type, expr) {
+export function validateSelectorExpression(type: string, expr: string): boolean {
     try {
       if (type === 'xpath') return isSafeXPathExpression(expr);
       if (type === 'css') return isValidCssSelector(expr);

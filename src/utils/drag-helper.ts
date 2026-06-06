@@ -1,7 +1,28 @@
-
 'use strict';
 
-export function createDragController(options) {
+interface DragState {
+  active: boolean;
+  destroyed: boolean;
+  moved: boolean;
+  cancelled: boolean;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  pointerId: number | null;
+}
+
+interface DragControllerOptions {
+  element: HTMLElement;
+  shouldStart?: (e: PointerEvent) => boolean;
+  getRect?: () => DOMRect | null;
+  onStart?: (state: DragState, e: PointerEvent) => void;
+  onMove?: (state: DragState, e: PointerEvent) => void;
+  onEnd?: (state: DragState, e: PointerEvent) => void;
+  thresholdPx?: number;
+}
+
+export function createDragController(options: DragControllerOptions) {
       var element = options && options.element;
       var shouldStart = options && options.shouldStart;
       var getRect = options && options.getRect;
@@ -10,13 +31,13 @@ export function createDragController(options) {
       var onEnd = options && options.onEnd;
       var thresholdPx = options && options.thresholdPx;
 
-      var threshold = Number.isFinite(thresholdPx) ? thresholdPx : 3;
+      var threshold: number = Number.isFinite(thresholdPx) ? thresholdPx! : 3;
 
       if (!element) {
         return { destroy: function() {}, isActive: function() { return false; } };
       }
 
-      var state = {
+      var state: DragState = {
         active: false,
         destroyed: false,
         moved: false,
@@ -40,7 +61,7 @@ export function createDragController(options) {
         }
       }
 
-      function canStart(e) {
+      function canStart(e: PointerEvent) {
         if (state.active) return false;
         if (typeof shouldStart === 'function') {
           try {
@@ -63,7 +84,7 @@ export function createDragController(options) {
         state.pointerId = null;
       }
 
-      function endDrag(e, opts) {
+      function endDrag(e: PointerEvent, opts?: { preventDefault?: boolean; stopPropagation?: boolean }) {
         opts = opts || {};
         var prevent = !!opts.preventDefault;
         var stop = !!opts.stopPropagation;
@@ -84,7 +105,7 @@ export function createDragController(options) {
         }
       }
 
-      function handlePointerMove(e) {
+      function handlePointerMove(e: PointerEvent) {
         if (!state.active || state.destroyed) return;
         if (!element || !element.isConnected) {
           endDrag(e, { preventDefault: false, stopPropagation: false });
@@ -103,16 +124,16 @@ export function createDragController(options) {
         } catch (_) {}
       }
 
-      function handlePointerUp(e) {
+      function handlePointerUp(e: PointerEvent) {
         endDrag(e, { preventDefault: true, stopPropagation: true });
       }
 
-      function handlePointerCancel(e) {
+      function handlePointerCancel(e: PointerEvent) {
         state.cancelled = true;
         endDrag(e, { preventDefault: false, stopPropagation: false });
       }
 
-      function handlePointerDown(e) {
+      function handlePointerDown(e: PointerEvent) {
         if (state.destroyed) return;
         if (e.button !== 0) return;
         if (!canStart(e)) return;

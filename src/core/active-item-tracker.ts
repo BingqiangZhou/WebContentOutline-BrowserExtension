@@ -5,8 +5,8 @@
  * Find the visible item closest to the viewport top using a linear scan.
  * O(n) instead of sort + pick — avoids O(n log n) and intermediate allocations.
  */
-function selectActiveItem(visibleTops) {
-  var bestItem = null;
+function selectActiveItem(visibleTops: Map<{ el: Element; text: string; level: number }, number>): { el: Element; text: string; level: number } | null {
+  var bestItem: { el: Element; text: string; level: number } | null = null;
   var bestTop = Infinity;
   visibleTops.forEach(function(top, item) {
     if (top < bestTop) {
@@ -17,25 +17,25 @@ function selectActiveItem(visibleTops) {
   return bestItem;
 }
 
-export function createActiveItemTracker(options) {
+export function createActiveItemTracker(options: { items?: Array<{ el: Element; text: string; level: number }>; onChange?: (item: { el: Element; text: string; level: number } | null, index: number) => void }) {
   options = options || {};
-  var items = [];
-  var onChange = options.onChange;
-  var observer = null;
-  var observeRaf = null;
-  var processRaf = null;
-  var pendingEntries = [];
-  var visibleTops = new Map();
-  var itemByElement = new Map();
-  var activeItem = null;
+  var items: Array<{ el: Element; text: string; level: number }> = [];
+  var onChange: ((item: { el: Element; text: string; level: number } | null, index: number) => void) | null = options.onChange || null;
+  var observer: IntersectionObserver | null = null;
+  var observeRaf: number | null = null;
+  var processRaf: number | null = null;
+  var pendingEntries: IntersectionObserverEntry[] = [];
+  var visibleTops = new Map<{ el: Element; text: string; level: number }, number>();
+  var itemByElement = new Map<Element, { el: Element; text: string; level: number }>();
+  var activeItem: { el: Element; text: string; level: number } | null = null;
   var destroyed = false;
 
-  function cancelRaf(id) {
+  function cancelRaf(id: number | null) {
     if (id == null) return;
     try { cancelAnimationFrame(id); } catch (_) {}
   }
 
-  function notify(nextItem) {
+  function notify(nextItem: { el: Element; text: string; level: number } | null) {
     if (nextItem === activeItem) return;
     activeItem = nextItem;
     try { onChange && onChange(nextItem, nextItem ? items.indexOf(nextItem) : -1); } catch (_) {}
@@ -55,7 +55,7 @@ export function createActiveItemTracker(options) {
     itemByElement.clear();
   }
 
-  function processEntries(entries) {
+  function processEntries(entries: IntersectionObserverEntry[]) {
     if (destroyed) return;
     for (var i = 0; i < entries.length; i++) {
       var entry = entries[i];
@@ -75,7 +75,7 @@ export function createActiveItemTracker(options) {
     if (nextItem) notify(nextItem);
   }
 
-  function observeItems(newEls) {
+  function observeItems(newEls?: (Element | null | false | undefined)[]) {
     if (destroyed || typeof IntersectionObserver === 'undefined') return;
     if (!observer) {
       observer = new IntersectionObserver(function(entries) {
@@ -119,7 +119,7 @@ export function createActiveItemTracker(options) {
     });
   }
 
-  function setItems(nextItems) {
+  function setItems(nextItems: Array<{ el: Element; text: string; level: number }>) {
     var previousActiveEl = activeItem && activeItem.el;
     cancelRaf(observeRaf);
     observeRaf = null;
@@ -129,8 +129,9 @@ export function createActiveItemTracker(options) {
 
     // Diff-based update: unobserve removed elements, observe added ones
     if (observer) {
+      var capturedObserver = observer;
       var oldElementsByItem = itemByElement;
-      var newElementsByItem = new Map();
+      var newElementsByItem = new Map<Element, { el: Element; text: string; level: number }>();
       for (var i = 0; i < newItems.length; i++) {
         if (newItems[i] && newItems[i].el) newElementsByItem.set(newItems[i].el, newItems[i]);
       }
@@ -138,7 +139,7 @@ export function createActiveItemTracker(options) {
       // Unobserve elements that are no longer in the new set
       oldElementsByItem.forEach(function(_item, el) {
         if (!newElementsByItem.has(el)) {
-          try { observer.unobserve(el); } catch (_) {}
+          try { capturedObserver.unobserve(el); } catch (_) {}
         }
       });
 
@@ -153,7 +154,7 @@ export function createActiveItemTracker(options) {
       items = newItems;
 
       // Observe newly added elements incrementally
-      var addedEls = [];
+      var addedEls: Element[] = [];
       newElementsByItem.forEach(function(_item, el) {
         if (!oldElementsByItem.has(el)) addedEls.push(el);
       });
@@ -193,7 +194,7 @@ export function createActiveItemTracker(options) {
     activeItem = null;
   }
 
-  setItems(options.items);
+  setItems(options.items || []);
 
   return {
     destroy: destroy,

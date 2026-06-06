@@ -4,33 +4,40 @@
 import { getBadgePosMap, saveBadgePosMap } from './storage.js';
 import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/primitives.js';
 
-export async function getBadgePosByHost(host) {
-  var map = await getBadgePosMap();
+interface BadgePos {
+  x: number;
+  y: number;
+  anchorX?: string;
+  updatedAt?: number;
+}
+
+export async function getBadgePosByHost(host: string) {
+  var map: Record<string, BadgePos> | null = await getBadgePosMap();
   return (map && map[host]) || null;
 }
 
-export async function setBadgePosByHost(host, pos) {
+export async function setBadgePosByHost(host: string, pos: { x: number; y: number; anchorX?: string; updatedAt?: number }) {
   if (!host || !pos) return null;
 
-  var enriched: { x: number; y: number; updatedAt?: number; anchorX?: string } = {
+  var enriched: BadgePos = {
     x: Number(pos.x),
     y: Number(pos.y),
-    updatedAt: typeof (pos as any).updatedAt === 'number' ? (pos as any).updatedAt : Date.now()
+    updatedAt: typeof (pos as Record<string, unknown>).updatedAt === 'number' ? (pos as Record<string, unknown>).updatedAt as number : Date.now()
   };
-  if ((pos as any).anchorX === 'left' || (pos as any).anchorX === 'right') enriched.anchorX = (pos as any).anchorX;
+  if ((pos as Record<string, unknown>).anchorX === 'left' || (pos as Record<string, unknown>).anchorX === 'right') enriched.anchorX = (pos as Record<string, unknown>).anchorX as string;
 
   // Try background message first for cross-tab consistency
   try {
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      return await new Promise(function(resolve) {
+      return await new Promise<BadgePos | null>(function(resolve) {
         chrome.runtime.sendMessage({
           type: 'toc:mutateUiState',
           operation: 'set-badge-position',
           key: host,
           value: enriched
-        }, function(response) {
+        }, function(response: { ok?: boolean; value?: BadgePos } | undefined) {
           if (chrome.runtime.lastError) { resolve(null); return; }
-          resolve(response && response.ok ? response.value : null);
+          resolve(response && response.ok ? response.value as BadgePos : null);
         });
       });
     }
@@ -38,7 +45,7 @@ export async function setBadgePosByHost(host, pos) {
 
   // Fallback: direct storage write
   return serializedWrite('tocBadgePosMap', async function() {
-    var map = await getBadgePosMap();
+    var map: Record<string, BadgePos> = await getBadgePosMap();
     map = map || {};
     touchObjectKey(map, host, enriched);
     pruneObjectToLimit(map, 400);

@@ -17,7 +17,7 @@ var CFG = {
   DEFAULT_TOP_MIN: 120
 };
 
-export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
+export function renderClassicCollapsedBadge(side: string, onExpand: () => void, centerPos?: { x: number; y: number } | null) {
   if (cleanupOwnedElements) cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
 
   var badge = document.createElement('button');
@@ -36,9 +36,9 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
 
   var destroyed = false;
   var userMoved = false;
-  var resizeRaf = null;
+  var resizeRaf: number | null = null;
 
-  function applyPosition(pos) {
+  function applyPosition(pos: { x: number; y: number } | null) {
     if (destroyed || !badge.isConnected) return;
     if (!userMoved && pos && Number.isFinite(pos.x)) {
       var width = badge.offsetWidth || CFG.BADGE_WIDTH;
@@ -83,13 +83,13 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
 
   var dragController = createDragController ? createDragController({
     element: badge,
-    shouldStart: function(e) { return e.target === badge; },
+    shouldStart: function(e: PointerEvent) { return e.target === badge; },
     onStart: function() {
       userMoved = true;
       badge.style.cursor = 'grabbing';
       badge.style.userSelect = 'none';
     },
-    onMove: function(drag, e) {
+    onMove: function(drag: { offsetX: number; offsetY: number }, e: PointerEvent) {
       var width = badge.offsetWidth || CFG.BADGE_WIDTH;
       var height = badge.offsetHeight || CFG.BADGE_HEIGHT;
       var left = Math.max(CFG.DRAG_MARGIN_PX, Math.min(window.innerWidth - width - CFG.DRAG_MARGIN_PX, e.clientX - drag.offsetX));
@@ -99,7 +99,7 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
       badge.style.setProperty('right', 'auto', 'important');
       badge.style.setProperty('bottom', 'auto', 'important');
     },
-    onEnd: function(drag) {
+    onEnd: function(drag: { cancelled: boolean; moved: boolean }) {
       badge.style.cursor = '';
       badge.style.userSelect = '';
       if (drag.cancelled) return;
@@ -111,7 +111,7 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
     }
   }) : null;
 
-  function onKeydown(e) {
+  function onKeydown(e: KeyboardEvent) {
     if (!e || (e.key !== 'Enter' && e.key !== ' ')) return;
     e.preventDefault();
     onExpand && onExpand();
@@ -138,7 +138,7 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
   badge.addEventListener('keydown', onKeydown);
   window.addEventListener('resize', onResize, { passive: true });
 
-  function cleanup(opts) {
+  function cleanup(opts?: { removedExternally?: boolean }) {
     opts = opts || {};
     if (destroyed) return;
     destroyed = true;
@@ -151,6 +151,6 @@ export function renderClassicCollapsedBadge(side, onExpand, centerPos) {
     }
   }
 
-  badge.__TOC_CLEANUP__ = function() { cleanup({ removedExternally: true }); };
+  (badge as any).__TOC_CLEANUP__ = function() { cleanup({ removedExternally: true }); };
   return { remove: function() { cleanup({ removedExternally: false }); } };
 }

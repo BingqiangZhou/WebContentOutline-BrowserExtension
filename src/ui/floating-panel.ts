@@ -16,18 +16,48 @@ import { clearChildren } from './floating-panel-helpers.js';
     PENDING_REBUILD_RECHECK_MS: 100,
   };
 
-export function renderFloatingPanel(opts) {
-    var items = opts.items;
-    var side = opts.side;
-    var onCollapse = opts.onCollapse;
-    var onRefresh = opts.onRefresh;
-    var mountTarget = opts.mountTarget;
-    var getPendingRebuild = opts.getPendingRebuild;
-    var setPendingRebuild = opts.setPendingRebuild;
-    var tocMeta = opts.tocMeta;
-    var skipAnimation = opts.skipAnimation;
-    var activeIndex = opts.activeIndex;
-    var onNavigate = opts.onNavigate;
+interface TocItem {
+  id: string;
+  el: HTMLElement;
+  text: string;
+  level: number;
+  _node?: HTMLElement;
+}
+
+interface TocMeta {
+  truncated: boolean;
+  maxItems: number;
+  totalCandidates: number;
+}
+
+interface FloatingPanelOpts {
+  items?: TocItem[];
+  side?: string;
+  onCollapse?: () => void;
+  onRefresh?: () => void;
+  mountTarget?: HTMLElement;
+  getPendingRebuild?: () => boolean;
+  setPendingRebuild?: (v: boolean) => void;
+  tocMeta?: TocMeta | null;
+  skipAnimation?: boolean;
+  activeIndex?: number;
+  onNavigate?: (item: TocItem, index: number) => void;
+  embedded?: boolean;
+  [key: string]: any;
+}
+
+export function renderFloatingPanel(opts: FloatingPanelOpts) {
+    var items: TocItem[] = opts.items || [];
+    var side: string | undefined = opts.side;
+    var onCollapse: (() => void) | undefined = opts.onCollapse;
+    var onRefresh: (() => void) | undefined = opts.onRefresh;
+    var mountTarget: HTMLElement | undefined = opts.mountTarget;
+    var getPendingRebuild: (() => boolean) | undefined = opts.getPendingRebuild;
+    var setPendingRebuild: ((v: boolean) => void) | undefined = opts.setPendingRebuild;
+    var tocMeta: TocMeta | null | undefined = opts.tocMeta;
+    var skipAnimation: boolean | undefined = opts.skipAnimation;
+    var activeIndex: number = opts.activeIndex as number;
+    var onNavigate: ((item: TocItem, index: number) => void) | undefined = opts.onNavigate;
     var embedded = !!opts.embedded;
 
     // Remove any existing panel to prevent duplicates
@@ -37,17 +67,17 @@ export function renderFloatingPanel(opts) {
     var listenersController = (typeof AbortController !== 'undefined') ? new AbortController() : null;
 
     // Simple timer IDs for cleanup
-    var unlockTimer = null;
-    var scrollStopTimer = null;
-    var pendingRebuildTimer = null;
-    var expandAnimTimer = null;
+    var unlockTimer: ReturnType<typeof setTimeout> | null = null;
+    var scrollStopTimer: ReturnType<typeof setTimeout> | null = null;
+    var pendingRebuildTimer: ReturnType<typeof setTimeout> | null = null;
+    var expandAnimTimer: ReturnType<typeof setTimeout> | null = null;
 
-    var showRaf = null;
+    var showRaf: number | null = null;
     var cleanedUp = false;
-    var onPanelKeydown = null;
-    var onListClick = null;
-    var onListKeydown = null;
-    var removeScrollListener = null;
+    var onPanelKeydown: ((e: KeyboardEvent) => void) | null = null;
+    var onListClick: ((e: MouseEvent) => void) | null = null;
+    var onListKeydown: ((e: KeyboardEvent) => void) | null = null;
+    var removeScrollListener: (() => void) | null = null;
 
     panel.style.setProperty('visibility', 'hidden', 'important');
     var SCROLL_LISTENER_OPTS: { passive: boolean; capture?: boolean } = { passive: true };
@@ -64,7 +94,7 @@ export function renderFloatingPanel(opts) {
             pendingRebuildTimer = null;
             if (getPendingRebuild && getPendingRebuild()) {
               setPendingRebuild && setPendingRebuild(false);
-              try { onRefresh(); } catch (e) { console.warn('[toc] refresh after unlock failed', e); }
+              try { onRefresh && onRefresh(); } catch (e) { console.warn('[toc] refresh after unlock failed', e); }
             }
           }, CFG.PENDING_REBUILD_RECHECK_MS);
         }
@@ -110,7 +140,7 @@ export function renderFloatingPanel(opts) {
       panel.setAttribute('aria-modal', 'false');
       panel.setAttribute('aria-label', msg('tocTitle'));
     }
-    onPanelKeydown = function(e) {
+    onPanelKeydown = function(e: KeyboardEvent) {
       if (!e) return;
       if (e.key === 'Escape') {
         try { e.preventDefault(); } catch (_) {}
@@ -128,7 +158,7 @@ export function renderFloatingPanel(opts) {
     // --- Incremental update helpers ---
     var currentTocMeta = tocMeta || null;
 
-    var renderListItems = function() {
+    var renderListItems = function(): void {
       clearChildren(list);
 
       if (currentTocMeta && currentTocMeta.truncated) {
@@ -156,9 +186,9 @@ export function renderFloatingPanel(opts) {
       }
     };
 
-    var renderItemButtons = function() {
+    var renderItemButtons = function(): void {
       var frag = document.createDocumentFragment();
-      items.forEach(function(item, index) {
+      items.forEach(function(item: TocItem, index: number) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'toc-item';
@@ -177,9 +207,9 @@ export function renderFloatingPanel(opts) {
       list.appendChild(frag);
     };
 
-    var setActiveIndex = function(nextIndex) {
+    var setActiveIndex = function(nextIndex: number): void {
       activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
-      items.forEach(function(item, index) {
+      items.forEach(function(item: TocItem, index: number) {
         if (!item._node) return;
         var isActive = index === activeIndex;
         item._node.classList.toggle('active', isActive);
@@ -191,7 +221,7 @@ export function renderFloatingPanel(opts) {
       });
     };
 
-    var handleItemClick = function(item, node, index, e) {
+    var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
       if (e && e.preventDefault) e.preventDefault();
       NL.lock(undefined!);
       setActiveIndex(index);
@@ -205,7 +235,7 @@ export function renderFloatingPanel(opts) {
         }
       } catch (_) {
         try { item.el.scrollIntoView({ behavior: 'auto', block: 'start' }); } catch (_2) {
-          try { item.el.scrollIntoView(true); } catch (_3) {}
+          try { item.el.scrollIntoView(true as any); } catch (_3) {}
         }
       }
       unlockLater();
@@ -216,23 +246,23 @@ export function renderFloatingPanel(opts) {
       renderItemButtons();
     }
 
-    onListClick = function(e) {
-      var target = e && e.target;
-      var node = target && target.closest ? target.closest('.toc-item') : null;
+    onListClick = function(e: MouseEvent) {
+      var target = e && e.target as HTMLElement | null;
+      var node: HTMLElement | null = target && target.closest ? target.closest('.toc-item') as HTMLElement | null : null;
       if (!node || !list.contains(node)) return;
-      var idx = parseInt(node.dataset.index, 10);
+      var idx = parseInt(node.dataset.index || '0', 10);
       var item = items[idx];
       if (!item) return;
       handleItemClick(item, node, idx, e);
     };
     list.addEventListener('click', onListClick);
 
-    onListKeydown = function(e) {
+    onListKeydown = function(e: KeyboardEvent) {
       if (!e) return;
       var key = e.key;
-      var node = e.target && e.target.closest ? e.target.closest('.toc-item') : null;
+      var node = e.target && (e.target as HTMLElement).closest ? (e.target as HTMLElement).closest('.toc-item') as HTMLElement | null : null;
       // Find current index from dataset instead of querySelectorAll on every keypress
-      var currentIndex = node ? parseInt((node as HTMLElement).dataset.index || '0', 10) : -1;
+      var currentIndex = node ? parseInt(node.dataset.index || '0', 10) : -1;
 
       if (key === 'ArrowDown' || key === 'ArrowUp' || key === 'Home' || key === 'End') {
         if (!items.length) return;
@@ -253,7 +283,7 @@ export function renderFloatingPanel(opts) {
 
       if (key !== 'Enter' && key !== ' ') return;
       if (!node || !list.contains(node)) return;
-      var idx = parseInt(node.dataset.index, 10);
+      var idx = parseInt(node.dataset.index || '0', 10);
       var item = items[idx];
       if (!item) return;
       e.preventDefault();
@@ -315,7 +345,7 @@ export function renderFloatingPanel(opts) {
     // Used by cleanupOwnedElements() for teardown
     panel.__TOC_CLEANUP__ = function() { cleanup(); };
 
-    var updateItems = function(newItems, newTocMeta) {
+    var updateItems = function(newItems: TocItem[], newTocMeta: TocMeta | null): boolean {
       if (cleanedUp) return false;
       if (!panel || !panel.isConnected) return false;
 

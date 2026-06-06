@@ -6,13 +6,13 @@ import { SELECTOR_EXPR_MAX_LENGTH } from '../utils/constants.js';
 
 // --- Storage primitives ---
 
-var writeQueues = {};
+var writeQueues: Record<string, Promise<void>> = {};
 
-function serializedWrite(key, asyncFn) {
-  var prev = writeQueues[key] || Promise.resolve();
+function serializedWrite(key: string, asyncFn: () => Promise<unknown>): Promise<unknown> {
+  var prev: Promise<void> = writeQueues[key] || Promise.resolve();
   var run = function() { return asyncFn(); };
-  var next = prev.then(run, run);
-  var stored = next.catch(function() {});
+  var next = prev.then(run, run) as Promise<unknown>;
+  var stored = next.catch(function() {}) as Promise<void>;
   writeQueues[key] = stored;
   stored.finally(function() {
     if (writeQueues[key] === stored) delete writeQueues[key];
@@ -20,18 +20,18 @@ function serializedWrite(key, asyncFn) {
   return next;
 }
 
-function isQuotaExceededError(err) {
+function isQuotaExceededError(err: unknown): boolean {
   try {
     if (!err) return false;
-    if (err.name === 'QuotaExceededError') return true;
-    var text = String(err && (err.message || err.toString && err.toString() || err) || '');
+    if ((err as { name?: string }).name === 'QuotaExceededError') return true;
+    var text = String(err && ((err as { message?: string }).message || (err as { toString?: () => string }).toString && (err as { toString: () => string }).toString() || err) || '');
     return /quota/i.test(text) || /QUOTA_BYTES/i.test(text) || /MAX_WRITE_OPERATIONS/i.test(text);
   } catch (_) {
     return false;
   }
 }
 
-function touchObjectKey(map, key, value) {
+function touchObjectKey(map: Record<string, unknown>, key: string, value: unknown): void {
   try {
     if (!map || !key) return;
     if (Object.prototype.hasOwnProperty.call(map, key)) {
@@ -41,7 +41,7 @@ function touchObjectKey(map, key, value) {
   } catch (_) {}
 }
 
-function pruneObjectToLimit(map, maxKeys) {
+function pruneObjectToLimit(map: Record<string, unknown>, maxKeys: number): Record<string, unknown> {
   try {
     if (!map || typeof map !== 'object') return map;
     var limit = Number.isFinite(maxKeys) ? Math.max(1, Math.floor(maxKeys)) : 400;
@@ -59,17 +59,17 @@ function pruneObjectToLimit(map, maxKeys) {
 
 // --- Config primitives ---
 
-function isPlainObject(value) {
+function isPlainObject(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
   var proto = Object.getPrototypeOf(value);
   return proto === null || Object.prototype.toString.call(value) === '[object Object]';
 }
 
-function positiveLimit(value, fallback) {
+function positiveLimit(value: number, fallback: number): number {
   return Number.isFinite(value) && value > 0 ? Math.max(1, Math.floor(value)) : fallback;
 }
 
-function isHighRiskBroadCssSelector(expr) {
+function isHighRiskBroadCssSelector(expr: string): boolean {
   if (typeof expr !== 'string') return false;
   var parts = expr.split(',');
   for (var i = 0; i < parts.length; i++) {
@@ -79,7 +79,7 @@ function isHighRiskBroadCssSelector(expr) {
   return false;
 }
 
-function isHighRiskBroadXPathExpression(expr) {
+function isHighRiskBroadXPathExpression(expr: string): boolean {
   var normalized = String(expr || '').trim().replace(/\s+/g, '').toLowerCase();
   if (!normalized) return false;
   if (/^\/\/*\*/.test(normalized) || /^\.\/\*/.test(normalized)) return true;
@@ -88,20 +88,26 @@ function isHighRiskBroadXPathExpression(expr) {
   return false;
 }
 
-function normalizeSelector(selector) {
+interface NormalizedSelector {
+  type: string;
+  expr: string;
+}
+
+function normalizeSelector(selector: unknown): NormalizedSelector | null {
   if (!isPlainObject(selector)) return null;
-  var type = selector.type === 'css' || selector.type === 'xpath' ? selector.type : null;
-  var expr = String(selector.expr || '').trim();
+  var sel = selector as Record<string, unknown>;
+  var type = sel.type === 'css' || sel.type === 'xpath' ? sel.type as string : null;
+  var expr = String(sel.expr || '').trim();
   if (!type || !expr || expr.length > SELECTOR_EXPR_MAX_LENGTH) return null;
   if (type === 'css' && isHighRiskBroadCssSelector(expr)) return null;
   if (type === 'xpath' && isHighRiskBroadXPathExpression(expr)) return null;
-  return Object.assign({}, selector, { type: type, expr: expr });
+  return Object.assign({}, sel, { type: type, expr: expr }) as NormalizedSelector;
 }
 
-function normalizeSelectors(selectors, maxSelectors) {
+function normalizeSelectors(selectors: unknown, maxSelectors: number): NormalizedSelector[] {
   var list = Array.isArray(selectors) ? selectors : [];
-  var seen = new Set();
-  var out = [];
+  var seen = new Set<string>();
+  var out: NormalizedSelector[] = [];
   for (var i = 0; i < list.length; i++) {
     var sel = normalizeSelector(list[i]);
     if (!sel) continue;
@@ -114,13 +120,26 @@ function normalizeSelectors(selectors, maxSelectors) {
   return out;
 }
 
-function normalizeConfigs(configs, limits) {
-  var maxSites = positiveLimit(limits && limits.maxSites, 200);
-  var maxSels = positiveLimit(limits && limits.maxSelectorsPerSite, 50);
+interface ConfigLimits {
+  maxSites?: number;
+  maxSelectorsPerSite?: number;
+}
+
+interface NormalizedConfig {
+  urlPattern: string;
+  side: string;
+  selectors: NormalizedSelector[];
+  updatedAt: number;
+  [key: string]: unknown;
+}
+
+function normalizeConfigs(configs: unknown, limits: ConfigLimits | null): NormalizedConfig[] {
+  var maxSites = positiveLimit(limits ? limits.maxSites as number : 0, 200);
+  var maxSels = positiveLimit(limits ? limits.maxSelectorsPerSite as number : 0, 50);
   var list = Array.isArray(configs) ? configs : [];
-  var byPattern = new Map();
+  var byPattern = new Map<string, { cfg: NormalizedConfig; index: number }>();
   for (var i = 0; i < list.length; i++) {
-    var raw = list[i];
+    var raw = list[i] as Record<string, unknown>;
     if (!isPlainObject(raw)) continue;
     var urlPattern = String(raw.urlPattern || '').trim();
     if (!urlPattern) continue;
@@ -129,7 +148,7 @@ function normalizeConfigs(configs, limits) {
       side: raw.side === 'left' ? 'left' : 'right',
       selectors: normalizeSelectors(raw.selectors, maxSels),
       updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0
-    });
+    }) as NormalizedConfig;
     var previous = byPattern.get(urlPattern);
     if (!previous || cfg.updatedAt >= previous.cfg.updatedAt) {
       byPattern.set(urlPattern, { cfg: cfg, index: i });
@@ -144,16 +163,25 @@ function normalizeConfigs(configs, limits) {
     .map(function(item) { return item.cfg; });
 }
 
-function applyTocConfigMutation(configs, mutation, now, limits) {
-  var original = Array.isArray(configs) ? configs : [];
+interface ConfigMutationResult {
+  ok: boolean;
+  reason: string | null;
+  configs: NormalizedConfig[];
+  config: NormalizedConfig | null;
+  changed: boolean;
+}
+
+function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number, limits: ConfigLimits | null): ConfigMutationResult {
+  var original = Array.isArray(configs) ? configs as NormalizedConfig[] : [];
   var normalized = normalizeConfigs(configs, limits);
-  var unchanged = function(reason) {
+  var unchanged = function(reason: string): ConfigMutationResult {
     return { ok: false, reason: reason, configs: original, config: null, changed: false };
   };
   if (!isPlainObject(mutation)) return unchanged('invalid-mutation');
 
-  var operation = mutation.operation;
-  var urlPattern = String(mutation.urlPattern || '').trim();
+  var mut = mutation as Record<string, unknown>;
+  var operation = mut.operation as string;
+  var urlPattern = String(mut.urlPattern || '').trim();
   if (!urlPattern) return unchanged('invalid-url-pattern');
   if (operation !== 'add-selector' && operation !== 'remove-selector' && operation !== 'clear-site') {
     return unchanged('invalid-operation');
@@ -165,34 +193,34 @@ function applyTocConfigMutation(configs, mutation, now, limits) {
     return { ok: true, reason: null, configs: cleared, config: null, changed: cleared.length !== normalized.length };
   }
 
-  var selector = normalizeSelector(mutation.selector);
+  var selector = normalizeSelector(mut.selector);
   if (!selector) return unchanged('invalid-selector');
   var index = normalized.findIndex(function(cfg) { return cfg.urlPattern === urlPattern; });
 
   if (operation === 'remove-selector') {
     if (index < 0) return { ok: true, reason: null, configs: normalized, config: null, changed: false };
     var existing = normalized[index];
-    var sels = existing.selectors.filter(function(item) {
-      return !(item.type === selector.type && item.expr === selector.expr);
+    var sels = existing.selectors.filter(function(item: NormalizedSelector) {
+      return !(item.type === selector!.type && item.expr === selector!.expr);
     });
     var removed = sels.length !== existing.selectors.length;
     var updated = removed
-      ? Object.assign({}, existing, { selectors: sels, updatedAt: timestamp })
+      ? Object.assign({}, existing, { selectors: sels, updatedAt: timestamp }) as NormalizedConfig
       : existing;
     var afterRemove = normalized.slice();
     afterRemove[index] = updated;
     return { ok: true, reason: null, configs: normalizeConfigs(afterRemove, limits), config: updated, changed: removed };
   }
 
-  var maxSels = positiveLimit(limits && limits.maxSelectorsPerSite, 50);
-  var current = index >= 0 ? normalized[index] : {
+  var maxSels = positiveLimit(limits ? limits.maxSelectorsPerSite as number : 0, 50);
+  var current: NormalizedConfig = index >= 0 ? normalized[index] : {
     urlPattern: urlPattern,
-    side: mutation.side === 'left' ? 'left' : 'right',
+    side: mut.side === 'left' ? 'left' : 'right',
     selectors: [],
     updatedAt: 0
   };
-  var nextSels = current.selectors.filter(function(item) {
-    return !(item.type === selector.type && item.expr === selector.expr);
+  var nextSels = current.selectors.filter(function(item: NormalizedSelector) {
+    return !(item.type === selector!.type && item.expr === selector!.expr);
   });
   nextSels.unshift(selector);
   nextSels = nextSels.slice(0, maxSels);
@@ -201,7 +229,7 @@ function applyTocConfigMutation(configs, mutation, now, limits) {
     side: current.side === 'left' ? 'left' : 'right',
     selectors: nextSels,
     updatedAt: timestamp
-  });
+  }) as NormalizedConfig;
   var afterAdd = normalized.slice();
   if (index >= 0) afterAdd[index] = nextConfig;
   else afterAdd.push(nextConfig);
@@ -212,29 +240,43 @@ function applyTocConfigMutation(configs, mutation, now, limits) {
 
 // --- UI state primitives ---
 
-function normalizePosition(value) {
+interface NormalizedPosition {
+  x: number;
+  y: number;
+  updatedAt?: number;
+  anchorX?: string;
+}
+
+function normalizePosition(value: unknown): NormalizedPosition | null {
   if (!isPlainObject(value)) return null;
-  var x = Number(value.x);
-  var y = Number(value.y);
+  var val = value as Record<string, unknown>;
+  var x = Number(val.x);
+  var y = Number(val.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  var result: { x: number; y: number; updatedAt?: number; anchorX?: string } = { x: x, y: y };
-  var updatedAt = Number(value.updatedAt);
+  var result: NormalizedPosition = { x: x, y: y };
+  var updatedAt = Number(val.updatedAt);
   if (Number.isFinite(updatedAt)) result.updatedAt = updatedAt;
-  if (value.anchorX === 'left' || value.anchorX === 'right') result.anchorX = value.anchorX;
+  if (val.anchorX === 'left' || val.anchorX === 'right') result.anchorX = val.anchorX as string;
   return result;
 }
 
-function validateUiStateMutationSource(mutation, senderUrl) {
+interface UiStateValidationResult {
+  ok: boolean;
+  reason: string | null;
+}
+
+function validateUiStateMutationSource(mutation: unknown, senderUrl: string): UiStateValidationResult {
   if (!isPlainObject(mutation)) return { ok: false, reason: 'bad-site' };
+  var mut = mutation as Record<string, unknown>;
   try {
     var parsed = new URL(senderUrl);
     if (!/^https?:$/.test(parsed.protocol)) return { ok: false, reason: 'bad-site' };
-    var expectedKey = mutation.operation === 'set-badge-position'
+    var expectedKey = mut.operation === 'set-badge-position'
       ? parsed.host
-      : mutation.operation === 'set-panel-expanded'
+      : mut.operation === 'set-panel-expanded'
         ? parsed.origin
         : '';
-    return expectedKey && String(mutation.key || '').trim() === expectedKey
+    return expectedKey && String(mut.key || '').trim() === expectedKey
       ? { ok: true, reason: null }
       : { ok: false, reason: 'bad-site' };
   } catch (_) {
@@ -242,20 +284,28 @@ function validateUiStateMutationSource(mutation, senderUrl) {
   }
 }
 
-function applyUiStateMutation(currentMap, mutation, maxKeys) {
-  var map = isPlainObject(currentMap) ? Object.assign({}, currentMap) : {};
+interface UiStateMutationResult {
+  ok: boolean;
+  reason: string | null;
+  map: Record<string, unknown>;
+  value?: unknown;
+}
+
+function applyUiStateMutation(currentMap: unknown, mutation: unknown, maxKeys: number): UiStateMutationResult {
+  var map = isPlainObject(currentMap) ? Object.assign({}, currentMap) as Record<string, unknown> : {} as Record<string, unknown>;
   if (!isPlainObject(mutation)) return { ok: false, reason: 'invalid-mutation', map: map };
-  var operation = mutation.operation;
-  var key = String(mutation.key || '').trim();
+  var mut = mutation as Record<string, unknown>;
+  var operation = mut.operation as string;
+  var key = String(mut.key || '').trim();
   if (!key || key.length > 2048) return { ok: false, reason: 'invalid-key', map: map };
 
-  var value;
+  var value: unknown;
   if (operation === 'set-badge-position') {
-    value = normalizePosition(mutation.value);
+    value = normalizePosition(mut.value);
     if (!value) return { ok: false, reason: 'invalid-position', map: map };
   } else if (operation === 'set-panel-expanded') {
-    if (typeof mutation.value !== 'boolean') return { ok: false, reason: 'invalid-expanded', map: map };
-    value = mutation.value;
+    if (typeof mut.value !== 'boolean') return { ok: false, reason: 'invalid-expanded', map: map };
+    value = mut.value;
   } else {
     return { ok: false, reason: 'invalid-operation', map: map };
   }

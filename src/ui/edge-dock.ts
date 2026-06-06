@@ -14,22 +14,28 @@ var CFG = {
   DEFAULT_HEIGHT: 104
 };
 
-function normalizeMode(mode) {
+function normalizeMode(mode: string): string {
   return mode === 'peek' ? mode : 'collapsed';
 }
 
-function clampDockTop(top, viewportHeight, dockHeight, safeMargin) {
+function clampDockTop(top: number, viewportHeight: number, dockHeight: number, safeMargin: number): number {
   var max = Math.max(safeMargin, viewportHeight - dockHeight - safeMargin);
   return Math.max(safeMargin, Math.min(max, top));
 }
 
-function resolveDockSide(pos, viewportWidth, fallbackSide) {
+interface BadgePos {
+  x: number;
+  y: number;
+  anchorX?: string;
+}
+
+function resolveDockSide(pos: BadgePos | null, viewportWidth: number, fallbackSide: string): string {
   if (pos && (pos.anchorX === 'left' || pos.anchorX === 'right')) return pos.anchorX;
   if (pos && Number.isFinite(pos.x)) return pos.x <= viewportWidth / 2 ? 'left' : 'right';
   return fallbackSide === 'left' ? 'left' : 'right';
 }
 
-function getPreviewLineMetrics(level) {
+function getPreviewLineMetrics(level: number): { width: number; inset: number } {
   var metrics = [
     { width: 26, inset: 0 },
     { width: 23, inset: 2 },
@@ -42,7 +48,12 @@ function getPreviewLineMetrics(level) {
   return metrics[safeLevel - 1];
 }
 
-function selectPreviewItems(items, activeIndex, limit) {
+interface DockItem {
+  text: string;
+  level: number;
+}
+
+function selectPreviewItems(items: DockItem[], activeIndex: number, limit: number): DockItem[] {
   var list = Array.isArray(items) ? items : [];
   var size = Math.max(1, limit || 12);
   if (list.length <= size) return list.slice();
@@ -51,12 +62,18 @@ function selectPreviewItems(items, activeIndex, limit) {
   return list.slice(start, start + size);
 }
 
-function createDockStateController(options) {
+interface DockStateControllerOptions {
+  initialMode?: string;
+  closeDelayMs?: number;
+  onChange?: (next: string, prev: string) => void;
+}
+
+function createDockStateController(options: DockStateControllerOptions) {
   options = options || {};
-  var mode = normalizeMode(options.initialMode);
+  var mode = normalizeMode(options.initialMode || '');
   var closeDelayMs = Number.isFinite(options.closeDelayMs) ? options.closeDelayMs : CFG.CLOSE_DELAY_MS;
   var onChange = options.onChange;
-  var closeTimer = null;
+  var closeTimer: ReturnType<typeof setTimeout> | null = null;
   var destroyed = false;
 
   function cancelCollapse() {
@@ -66,7 +83,7 @@ function createDockStateController(options) {
     }
   }
 
-  function setMode(next) {
+  function setMode(next: string): string {
     if (destroyed) return mode;
     next = normalizeMode(next);
     if (next !== 'peek') cancelCollapse();
@@ -90,7 +107,7 @@ function createDockStateController(options) {
     return mode === 'peek' ? collapse() : peek();
   }
 
-  function scheduleCollapse(delayMs) {
+  function scheduleCollapse(delayMs?: number): void {
     cancelCollapse();
     if (destroyed || mode !== 'peek') return;
     var finalDelayMs = Number.isFinite(delayMs) ? delayMs : closeDelayMs;
@@ -117,17 +134,17 @@ function createDockStateController(options) {
   };
 }
 
-function createSvgIcon(paths) {
+function createSvgIcon(paths: string[]): SVGSVGElement {
   var svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
-  paths.forEach(function(d) {
+  paths.forEach(function(d: string) {
     var path = document.createElementNS(SVG_NS, 'path');
     path.setAttribute('d', d);
     svg.appendChild(path);
   });
-  return svg;
+  return svg as SVGSVGElement;
 }
 
 function createSettingsIcon() {
@@ -150,7 +167,7 @@ function createSettingsIcon() {
   return icon;
 }
 
-function createButton(className, titleKey, fallbackText, iconPaths) {
+function createButton(className: string, titleKey: string, fallbackText: string, iconPaths: string[] | undefined): HTMLButtonElement {
   var button = document.createElement('button');
   button.type = 'button';
   button.className = className;
@@ -161,18 +178,44 @@ function createButton(className, titleKey, fallbackText, iconPaths) {
   return button;
 }
 
-export function renderEdgeDock(options) {
+interface EdgeDockOptions {
+  side?: string;
+  items?: DockItem[];
+  initialMode?: string;
+  closeDelayMs?: number;
+  onNavigate?: (item: DockItem, index: number) => void;
+  onRefresh?: () => void;
+  onPick?: () => void;
+  onSiteConfig?: () => void;
+  onSwitchUiMode?: (mode: string) => void;
+  onSideChange?: (side: string) => void;
+  onModeChange?: (next: string, prev: string) => void;
+}
+
+interface DragState {
+  active: boolean;
+  destroyed: boolean;
+  moved: boolean;
+  cancelled: boolean;
+  startX: number;
+  startY: number;
+  offsetX: number;
+  offsetY: number;
+  pointerId: number | null;
+}
+
+export function renderEdgeDock(options: EdgeDockOptions) {
   options = options || {};
   if (cleanupOwnedElements) cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
 
-  var side = options.side === 'left' ? 'left' : 'right';
+  var side: string = options.side === 'left' ? 'left' : 'right';
   var destroyed = false;
-  var lastPointerType = 'mouse';
+  var lastPointerType: string = 'mouse';
   var suppressClick = false;
-  var persistTimer = null;
-  var resizeRaf = null;
-  var menuCloseTimer = null;
-  var dockItems = Array.isArray(options.items) ? options.items : [];
+  var persistTimer: ReturnType<typeof setTimeout> | null = null;
+  var resizeRaf: number | null = null;
+  var menuCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  var dockItems: DockItem[] = Array.isArray(options.items) ? options.items : [];
   var activeIndex = -1;
 
   var root = document.createElement('aside');
@@ -259,7 +302,7 @@ export function renderEdgeDock(options) {
    * Update the active highlight without re-rendering the entire preview.
    * Falls back to full render if the window needs to slide.
    */
-  function updatePreviewActive(nextIndex) {
+  function updatePreviewActive(nextIndex: number): void {
     if (previewWindowStart < 0 || !preview.children.length) {
       renderPreview();
       return;
@@ -284,18 +327,18 @@ export function renderEdgeDock(options) {
   }
   renderPreview();
 
-  function navigatePreviewItem(index) {
+  function navigatePreviewItem(index: number): void {
     var item = dockItems[index];
     if (!item) return;
     try { options.onNavigate && options.onNavigate(item, index); } catch (_) {}
   }
 
-  function onPreviewClick(e) {
-    var line = e && e.target && e.target.closest ? e.target.closest('.toc-edge-dock-preview-line') : null;
+  function onPreviewClick(e: MouseEvent): void {
+    var line = e && e.target && (e.target as HTMLElement).closest ? (e.target as HTMLElement).closest('.toc-edge-dock-preview-line') : null;
     if (!line || !preview.contains(line)) return;
     e.preventDefault();
     e.stopPropagation();
-    navigatePreviewItem(parseInt(line.dataset.index, 10));
+    navigatePreviewItem(parseInt((line as HTMLElement).dataset.index || '0', 10));
   }
 
   toolbar.appendChild(settingsButton);
@@ -331,12 +374,12 @@ export function renderEdgeDock(options) {
     settingsButton.setAttribute('aria-expanded', 'true');
   }
 
-  function runMenuAction(callback) {
+  function runMenuAction(callback: (() => void) | undefined): void {
     closeMenu();
     try { callback && callback(); } catch (_) {}
   }
 
-  function createMenuButton(labelKey, fallbackText, callback) {
+  function createMenuButton(labelKey: string, fallbackText: string, callback: (() => void) | undefined): HTMLButtonElement {
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'toc-edge-dock-menu-item';
@@ -364,7 +407,7 @@ export function renderEdgeDock(options) {
   var controller = createDockStateController({
     initialMode: options.initialMode,
     closeDelayMs: options.closeDelayMs,
-    onChange: function(next, prev) {
+    onChange: function(next: string, prev: string): void {
       root.setAttribute('data-mode', next);
       tocButton.setAttribute('aria-expanded', next === 'collapsed' ? 'false' : 'true');
       panelHost.hidden = next === 'collapsed';
@@ -375,7 +418,7 @@ export function renderEdgeDock(options) {
   tocButton.setAttribute('aria-expanded', controller.getMode() === 'collapsed' ? 'false' : 'true');
   panelHost.hidden = controller.getMode() === 'collapsed';
 
-  function updateSide(nextSide, persist) {
+  function updateSide(nextSide: string, persist: boolean): void {
     side = nextSide === 'left' ? 'left' : 'right';
     root.classList.toggle('toc-edge-dock-left', side === 'left');
     root.classList.toggle('toc-edge-dock-right', side === 'right');
@@ -393,11 +436,11 @@ export function renderEdgeDock(options) {
     return toolbar.offsetHeight || CFG.DEFAULT_HEIGHT;
   }
 
-  function clampTop(top) {
+  function clampTop(top: number): number {
     return clampDockTop(top, window.innerHeight, dockHeight(), CFG.SAFE_MARGIN_PX);
   }
 
-  function setTop(top) {
+  function setTop(top: number): void {
     root.style.setProperty('top', clampTop(top) + 'px', 'important');
   }
 
@@ -436,23 +479,23 @@ export function renderEdgeDock(options) {
 
   var dragController = createDragController ? createDragController({
     element: toolbar,
-    shouldStart: function(e) {
+    shouldStart: function(e: PointerEvent): boolean {
+      var t = e && (e.target as HTMLElement);
       return !!(
-        e &&
-        e.target &&
-        e.target.closest &&
-        e.target.closest('.toc-edge-dock-button') &&
-        !e.target.closest('.toc-edge-dock-preview-line')
+        t &&
+        t.closest &&
+        t.closest('.toc-edge-dock-button') &&
+        !t.closest('.toc-edge-dock-preview-line')
       );
     },
     getRect: function() { return toolbar.getBoundingClientRect(); },
     onStart: function() {
       toolbar.classList.add('toc-edge-dock-dragging');
     },
-    onMove: function(drag, e) {
+    onMove: function(drag: DragState, e: PointerEvent): void {
       setTop(e.clientY - drag.offsetY);
     },
-    onEnd: function(drag) {
+    onEnd: function(drag: DragState): void {
       toolbar.classList.remove('toc-edge-dock-dragging');
       if (!drag.moved || drag.cancelled) return;
       suppressClick = true;
@@ -466,13 +509,13 @@ export function renderEdgeDock(options) {
     cancelMenuClose();
   }
 
-  function onRootPointerLeave(e) {
-    if (e && e.relatedTarget && root.contains(e.relatedTarget)) return;
+  function onRootPointerLeave(e: PointerEvent): void {
+    if (e && e.relatedTarget && root.contains(e.relatedTarget as Node)) return;
     if (lastPointerType !== 'touch') controller.scheduleCollapse(undefined!);
     scheduleMenuClose();
   }
 
-  function onTocPointerEnter(e) {
+  function onTocPointerEnter(e: PointerEvent): void {
     lastPointerType = (e && e.pointerType) || 'mouse';
     if (lastPointerType !== 'touch') {
       closeMenu();
@@ -480,11 +523,11 @@ export function renderEdgeDock(options) {
     }
   }
 
-  function onTocPointerDown(e) {
+  function onTocPointerDown(e: PointerEvent): void {
     lastPointerType = (e && e.pointerType) || 'mouse';
   }
 
-  function onSettingsPointerEnter(e) {
+  function onSettingsPointerEnter(e: PointerEvent): void {
     lastPointerType = (e && e.pointerType) || 'mouse';
     if (lastPointerType !== 'touch') openMenu();
   }
@@ -500,16 +543,17 @@ export function renderEdgeDock(options) {
     openMenu();
   }
 
-  function onRootFocusIn(e) {
+  function onRootFocusIn(e: FocusEvent): void {
     controller.cancelCollapse();
     cancelMenuClose();
-    if (e && e.target === settingsButton) {
+    var t = e && (e.target as HTMLElement | null);
+    if (t === settingsButton) {
       openMenu();
     } else if (
-      e &&
+      t &&
       (
-        e.target === tocButton ||
-        (e.target.closest && e.target.closest('.toc-edge-dock-preview-line'))
+        t === tocButton ||
+        (t.closest && t.closest('.toc-edge-dock-preview-line'))
       )
     ) {
       closeMenu();
@@ -517,13 +561,13 @@ export function renderEdgeDock(options) {
     }
   }
 
-  function onRootFocusOut(e) {
-    if (e && e.relatedTarget && root.contains(e.relatedTarget)) return;
+  function onRootFocusOut(e: FocusEvent): void {
+    if (e && e.relatedTarget && root.contains(e.relatedTarget as Node)) return;
     controller.scheduleCollapse(undefined!);
     scheduleMenuClose();
   }
 
-  function onRootKeydown(e) {
+  function onRootKeydown(e: KeyboardEvent): void {
     if (e && (e.key === 'Enter' || e.key === ' ') && e.target === tocButton) {
       e.preventDefault();
       onTocClick();
@@ -539,13 +583,15 @@ export function renderEdgeDock(options) {
     try { tocButton.focus(); } catch (_) {}
   }
 
-  function onDocumentPointerDown(e) {
-    if (!quickMenu.hidden && e && !root.contains(e.target)) closeMenu();
+  function onDocumentPointerDown(e: PointerEvent): void {
+    var t = e && (e.target as Node | null);
+    if (!quickMenu.hidden && e && t && !root.contains(t)) closeMenu();
     if (
       lastPointerType === 'touch' &&
       controller.getMode() === 'peek' &&
       e &&
-      !root.contains(e.target)
+      t &&
+      !root.contains(t)
     ) {
       controller.collapse();
     }
@@ -594,7 +640,7 @@ export function renderEdgeDock(options) {
   root.__TOC_CLEANUP__ = destroy;
 
   return {
-    collapse: function(opts) {
+    collapse: function(opts?: { focus?: boolean }) {
       closeMenu();
       controller.collapse();
       if (opts && opts.focus) {
@@ -605,20 +651,20 @@ export function renderEdgeDock(options) {
     getMode: controller.getMode,
     getPanelHost: function() { return panelHost; },
     getSide: function() { return side; },
-    peek: function(opts) {
+    peek: function(opts?: { autoCollapse?: boolean }) {
       closeMenu();
       controller.peek();
       if (opts && opts.autoCollapse) controller.scheduleCollapse(CFG.PROGRAMMATIC_CLOSE_DELAY_MS);
     },
-    setActiveIndex: function(nextIndex) {
+    setActiveIndex: function(nextIndex: number) {
       activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
       updatePreviewActive(activeIndex);
     },
-    setItems: function(nextItems) {
+    setItems: function(nextItems: DockItem[]) {
       dockItems = Array.isArray(nextItems) ? nextItems : [];
       if (activeIndex >= dockItems.length) activeIndex = -1;
       renderPreview();
     },
-    setSide: function(nextSide) { updateSide(nextSide, true); }
+    setSide: function(nextSide: string) { updateSide(nextSide, true); }
   };
 }

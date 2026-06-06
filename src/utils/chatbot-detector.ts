@@ -18,6 +18,40 @@
  */
 
 // ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface DetectionResult {
+  container: HTMLElement | null;
+  source: string;
+  signalSelector?: string;
+}
+
+interface SelectorResult {
+  userSelector: string;
+  assistantSelector: string;
+  sentinelSelector: string;
+  source?: string;
+  _needsUserSelectorHint?: boolean;
+}
+
+interface ChatbotProfile {
+  userSelector: string;
+  assistantSelector: string;
+  headingContainer: string;
+  sentinelSelector: string;
+  source: string;
+  _rootEl: Element | null;
+}
+
+interface TocItem {
+  id: string;
+  el: HTMLElement;
+  text: string;
+  level: number;
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -34,8 +68,7 @@ var MAX_ITEMS = 400;
 // Cache
 // ---------------------------------------------------------------------------
 
-/** @type {{ userSelector: string, assistantSelector: string, headingContainer: string, sentinelSelector: string, source: string, _rootEl: Element|null }|null} */
-var _cachedProfile = null;
+var _cachedProfile: ChatbotProfile | null = null;
 var _cachedUrl = '';
 
 /**
@@ -60,7 +93,7 @@ export function invalidateChatbotCache() {
  */
 var CHATBOT_HINTS = [
   {
-    match: function(hostname) {
+    match: function(hostname: string) {
       return hostname === 'chatgpt.com' || hostname.endsWith('.chatgpt.com')
         || hostname === 'chat.openai.com' || hostname.endsWith('.chat.openai.com');
     },
@@ -71,7 +104,7 @@ var CHATBOT_HINTS = [
   {
     // DeepSeek: hashed class names are unstable; use .ds-markdown heuristic via auto-detection.
     // Hint entries are last-resort only.
-    match: function(hostname) {
+    match: function(hostname: string) {
       return hostname === 'chat.deepseek.com' || hostname.endsWith('.chat.deepseek.com');
     },
     userSelector: '.ds-chat-user-message, [data-role="user"]',
@@ -80,7 +113,7 @@ var CHATBOT_HINTS = [
   },
   {
     // Claude: uses data-testid="user-message" (not "human-message") as of 2026
-    match: function(hostname) {
+    match: function(hostname: string) {
       return hostname === 'claude.ai' || hostname.endsWith('.claude.ai');
     },
     userSelector: '[data-testid="user-message"], [data-testid="human-message"]',
@@ -88,7 +121,7 @@ var CHATBOT_HINTS = [
     sentinelSelector: '[data-testid="user-message"], [data-testid="human-message"], [data-testid="assistant-message"], .row-start-2',
   },
   {
-    match: function(hostname) {
+    match: function(hostname: string) {
       return hostname === 'gemini.google.com' || hostname.endsWith('.gemini.google.com');
     },
     userSelector: '.query-content, [data-turn-role="user"], .user-query-bubble-with-background',
@@ -96,7 +129,7 @@ var CHATBOT_HINTS = [
     sentinelSelector: '.query-content, .response-container, [data-turn-role], ms-chat-turn, .chat-turn-container',
   },
   {
-    match: function(hostname) {
+    match: function(hostname: string) {
       return hostname === 'kimi.moonshot.cn' || hostname.endsWith('.kimi.moonshot.cn')
         || hostname === 'kimi.ai' || hostname.endsWith('.kimi.ai');
     },
@@ -120,18 +153,18 @@ var GENERIC_HEADING_CONTAINER = '.markdown-body, .prose, [class*="markdown"], [c
  * Check for ARIA semantic signals that indicate a chat interface.
  * Returns a chat container element if found, or null.
  */
-function detectByAria() {
+function detectByAria(): DetectionResult | null {
   // role="log" is the W3C ARIA23 standard for chat interfaces
   try {
     var logEl = document.querySelector('[role="log"]');
-    if (logEl) return { container: logEl, source: 'aria' };
+    if (logEl) return { container: logEl as HTMLElement, source: 'aria' };
   } catch (_) {}
 
   // role="feed" — used by some chatbot platforms for message feeds
   try {
     var feedEl = document.querySelector('[role="feed"]');
     if (feedEl && feedEl.children && feedEl.children.length >= 2) {
-      return { container: feedEl, source: 'aria' };
+      return { container: feedEl as HTMLElement, source: 'aria' };
     }
   } catch (_) {}
 
@@ -142,7 +175,7 @@ function detectByAria() {
       var label = (candidates[i].getAttribute('aria-label') || '').toLowerCase();
       if ((label.indexOf('chat') >= 0 || label.indexOf('conversation') >= 0 || label.indexOf('message') >= 0)
         && candidates[i].children && candidates[i].children.length >= 2) {
-        return { container: candidates[i], source: 'aria' };
+        return { container: candidates[i] as HTMLElement, source: 'aria' };
       }
     }
   } catch (_) {}
@@ -154,7 +187,7 @@ function detectByAria() {
 // Layer 2: Data attribute detection
 // ---------------------------------------------------------------------------
 
-/** Data-attribute selectors that signal chat messages (need ≥ 1 matching element) */
+/** Data-attribute selectors that signal chat messages (need >= 1 matching element) */
 var DATA_ATTR_SIGNALS = [
   '[data-message-author-role]',
   '[data-testid^="conversation-turn"]',
@@ -173,7 +206,7 @@ var DATA_ATTR_SIGNALS = [
  * Check for data attribute signals that indicate chat messages.
  * Returns a result object if found, or null.
  */
-function detectByDataAttrs() {
+function detectByDataAttrs(): DetectionResult | null {
   for (var i = 0; i < DATA_ATTR_SIGNALS.length; i++) {
     var sel = DATA_ATTR_SIGNALS[i];
     try {
@@ -199,7 +232,7 @@ function detectByDataAttrs() {
  *   - score >= 3: high confidence (full message content exists)
  *   - score >= 2 with input+send: "chat landing page" (no messages yet, but clearly a chat UI)
  */
-function detectByStructure() {
+function detectByStructure(): DetectionResult | null {
   var hasMessageContainer = false;
   var hasRepeatedBlocks = false;
   var hasInputArea = false;
@@ -222,7 +255,7 @@ function detectByStructure() {
     }
   } catch (_) {}
 
-  // 2. Repeated message-like blocks (≥ 3 similar siblings)
+  // 2. Repeated message-like blocks (>= 3 similar siblings)
   try {
     var blockSelectors = [
       '[data-message-author-role]',
@@ -247,7 +280,7 @@ function detectByStructure() {
   try {
     var textareas = document.querySelectorAll('textarea');
     var contentEditables = document.querySelectorAll('[contenteditable="true"], [contenteditable="plaintext-only"]');
-    var chatInputs = document.querySelectorAll('input[type="text"]');
+    var chatInputs = document.querySelectorAll('input[type="text"]') as NodeListOf<HTMLInputElement>;
     hasInputArea = textareas.length > 0 || contentEditables.length > 0
       || (chatInputs.length > 0 && hasChatSignalsNearby(chatInputs));
   } catch (_) {}
@@ -286,7 +319,7 @@ function detectByStructure() {
 /**
  * Check if any of the text input elements has chat-related signals nearby.
  */
-function hasChatSignalsNearby(inputs) {
+function hasChatSignalsNearby(inputs: NodeListOf<HTMLInputElement>) {
   for (var i = 0; i < inputs.length; i++) {
     var el = inputs[i];
     try {
@@ -327,7 +360,7 @@ function hasChatSignalsNearby(inputs) {
  * Strategy A: Explicit role attributes.
  * Checks multiple attribute patterns for user/assistant role identification.
  */
-function discoverByExplicitRole() {
+function discoverByExplicitRole(): SelectorResult | null {
   // data-message-author-role="user" / "assistant" (ChatGPT, and others)
   try {
     var userEls = document.querySelectorAll('[data-message-author-role="user"]');
@@ -387,7 +420,7 @@ function discoverByExplicitRole() {
  * Strategy B: testid pattern matching.
  * Look for data-testid containing "user"/"human" and "assistant"/"model".
  */
-function discoverByTestId() {
+function discoverByTestId(): SelectorResult | null {
   var userPatterns = [
     '[data-testid*="user-message"]',
     '[data-testid*="human-message"]',
@@ -399,8 +432,8 @@ function discoverByTestId() {
     '[data-testid*="conversation-turn-assistant"]',
   ];
 
-  var userSel = null;
-  var assistantSel = null;
+  var userSel: string | null = null;
+  var assistantSel: string | null = null;
 
   for (var i = 0; i < userPatterns.length && !userSel; i++) {
     try {
@@ -430,10 +463,10 @@ function discoverByTestId() {
 }
 
 /**
- * Strategy C: class name pattern matching.
+ * Strategy C: Class name pattern matching.
  * Look for classes containing user/assistant role patterns.
  */
-function discoverByClassPattern() {
+function discoverByClassPattern(): SelectorResult | null {
   var userPatterns = [
     '[class*="user-message"]',
     '[class*="human-message"]',
@@ -452,8 +485,8 @@ function discoverByClassPattern() {
     '.message-assistant',
   ];
 
-  var userSel = null;
-  var assistantSel = null;
+  var userSel: string | null = null;
+  var assistantSel: string | null = null;
 
   for (var i = 0; i < userPatterns.length && !userSel; i++) {
     try {
@@ -486,7 +519,7 @@ function discoverByClassPattern() {
  * Strategy D: Gemini web component analysis.
  * Gemini uses custom web components (ms-chat-turn) with .chat-turn-container.model/.user classes.
  */
-function discoverByGeminiWebComponent() {
+function discoverByGeminiWebComponent(): SelectorResult | null {
   try {
     var turns = document.querySelectorAll('ms-chat-turn');
     if (turns.length < 1) return null;
@@ -517,7 +550,7 @@ function discoverByGeminiWebComponent() {
  * DeepSeek uses hashed class names that change with each build.
  * Heuristic: elements containing .ds-markdown children are assistant responses.
  */
-function discoverByDeepSeekMarkdown() {
+function discoverByDeepSeekMarkdown(): SelectorResult | null {
   try {
     var dsMarkdowns = document.querySelectorAll('.ds-markdown');
     if (dsMarkdowns.length < 1) return null;
@@ -525,7 +558,7 @@ function discoverByDeepSeekMarkdown() {
     // The parent chain of a .ds-markdown element is the assistant response container.
     // Walk up to find a reasonable container (typically 2-4 levels up).
     var firstMarkdown = dsMarkdowns[0];
-    var assistantContainer = firstMarkdown;
+    var assistantContainer: Element = firstMarkdown;
     for (var up = 0; up < 4 && assistantContainer.parentElement; up++) {
       assistantContainer = assistantContainer.parentElement;
     }
@@ -549,16 +582,16 @@ function discoverByDeepSeekMarkdown() {
  * Strategy F: ARIA log child analysis.
  * For [role="log"] containers, analyze direct children for role indicators.
  */
-function discoverByAriaLogAnalysis() {
-  var logEl = null;
+function discoverByAriaLogAnalysis(): SelectorResult | null {
+  var logEl: Element | null = null;
   try { logEl = document.querySelector('[role="log"]'); } catch (_) {}
   if (!logEl || !logEl.children || logEl.children.length < 2) return null;
 
-  var children = Array.prototype.slice.call(logEl.children);
+  var children: Element[] = Array.prototype.slice.call(logEl.children);
 
   // Try to classify children by data attributes
-  var userGroup = [];
-  var assistantGroup = [];
+  var userGroup: Element[] = [];
+  var assistantGroup: Element[] = [];
 
   for (var i = 0; i < children.length; i++) {
     var child = children[i];
@@ -625,7 +658,7 @@ function discoverByAriaLogAnalysis() {
  * Derive a CSS selector from a group of elements.
  * Tries to find a common attribute pattern.
  */
-function deriveSelectorFromElements(elements, roleHint) {
+function deriveSelectorFromElements(elements: Element[], roleHint: string): string | null {
   if (!elements || elements.length === 0) return null;
 
   var first = elements[0];
@@ -680,8 +713,8 @@ function deriveSelectorFromElements(elements, roleHint) {
  * Run selector discovery cascade.
  * Returns { userSelector, assistantSelector, sentinelSelector } or null.
  */
-function discoverSelectors() {
-  var result;
+function discoverSelectors(): SelectorResult | null {
+  var result: SelectorResult | null;
 
   result = discoverByExplicitRole();
   if (result) return result;
@@ -712,7 +745,7 @@ function discoverSelectors() {
  * Try to match current hostname against the hint table and validate selectors.
  * Only used when auto-detection fails or returns incomplete selectors.
  */
-function tryHintFallback(needsUserSelectorOnly) {
+function tryHintFallback(needsUserSelectorOnly: boolean): SelectorResult | null {
   var hostname = '';
   try { hostname = location.hostname; } catch (_) { return null; }
 
@@ -754,18 +787,18 @@ function tryHintFallback(needsUserSelectorOnly) {
 // Utility: find common ancestor of two elements
 // ---------------------------------------------------------------------------
 
-function findCommonAncestor(a, b) {
+function findCommonAncestor(a: Element, b: Element): HTMLElement | null {
   if (!a || !b) return null;
   try {
-    var ancestors = new Set();
-    var walk = a;
+    var ancestors = new Set<Element>();
+    var walk: Element | null = a;
     while (walk) {
       ancestors.add(walk);
       walk = walk.parentElement;
     }
     walk = b;
     while (walk) {
-      if (ancestors.has(walk)) return walk;
+      if (ancestors.has(walk)) return walk as HTMLElement;
       walk = walk.parentElement;
     }
   } catch (_) {}
@@ -781,7 +814,7 @@ function findCommonAncestor(a, b) {
  * Returns a profile object or null.
  * Uses URL-based cache.
  */
-function detectChatPage() {
+function detectChatPage(): ChatbotProfile | null {
   // Check cache
   var currentUrl = '';
   try { currentUrl = location.href; } catch (_) {}
@@ -798,7 +831,7 @@ function detectChatPage() {
 
   // --- Page detection cascade ---
 
-  var detectionResult = null;
+  var detectionResult: DetectionResult | null = null;
 
   // Layer 1: ARIA semantic signals
   try { detectionResult = detectByAria(); } catch (_) {}
@@ -815,7 +848,7 @@ function detectChatPage() {
 
   // --- Selector discovery ---
 
-  var selectors = null;
+  var selectors: SelectorResult | null = null;
 
   if (detectionResult) {
     // Auto-detection confirmed chat page; discover selectors
@@ -824,7 +857,7 @@ function detectChatPage() {
     // If discovery returned incomplete selectors (e.g., DeepSeek heuristic found
     // assistant via .ds-markdown but couldn't find user), try hint for the missing part
     if (selectors && selectors._needsUserSelectorHint) {
-      var hintResult = null;
+      var hintResult: SelectorResult | null = null;
       try { hintResult = tryHintFallback(true); } catch (_) {}
       if (hintResult && hintResult.userSelector) {
         selectors.userSelector = hintResult.userSelector;
@@ -845,7 +878,7 @@ function detectChatPage() {
   if (!selectors) return null;
 
   // Build and cache profile
-  var profile = {
+  var profile: ChatbotProfile = {
     userSelector: selectors.userSelector,
     assistantSelector: selectors.assistantSelector,
     headingContainer: GENERIC_HEADING_CONTAINER,
@@ -867,7 +900,7 @@ function detectChatPage() {
 /**
  * Extract display text from a user message element.
  */
-function extractUserText(el) {
+function extractUserText(el: HTMLElement): string {
   var text = '';
   try {
     var textEl = el.querySelector('p, .whitespace-pre-wrap, [class*="text"]') || el;
@@ -885,7 +918,7 @@ function extractUserText(el) {
 /**
  * Check if an element is visible (lightweight check).
  */
-function isVisible(el) {
+function isVisible(el: HTMLElement): boolean {
   if (!el || !el.isConnected) return false;
   try {
     var w = el.offsetWidth;
@@ -903,7 +936,7 @@ function isVisible(el) {
 /**
  * Get heading level from an element's tag name (1-6), default 2.
  */
-function getHeadingLevel(el) {
+function getHeadingLevel(el: Element): number {
   var match = el && /^H([1-6])$/.exec(el.tagName || '');
   return match ? parseInt(match[1], 10) : 2;
 }
@@ -911,7 +944,7 @@ function getHeadingLevel(el) {
 /**
  * Extract trimmed text from a heading element.
  */
-function getHeadingText(el) {
+function getHeadingText(el: Element): string {
   var text = '';
   try { text = (el.textContent || '').trim(); } catch (_) { return ''; }
   text = text.replace(/\s+/g, ' ');
@@ -927,16 +960,16 @@ function getHeadingText(el) {
  * Build TOC items for a detected chatbot page.
  * User prompts become level-1 items, assistant headings get level + 1.
  */
-function buildChatbotTocItems(profile) {
-  var userMessages = [];
-  try { userMessages = Array.from(document.querySelectorAll(profile.userSelector)); } catch (_) { return null; }
+function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta: { truncated: boolean; maxItems: number; totalCandidates: number } } | null {
+  var userMessages: HTMLElement[] = [];
+  try { userMessages = Array.from(document.querySelectorAll(profile.userSelector)) as HTMLElement[]; } catch (_) { return null; }
 
   if (userMessages.length === 0) return null;
 
   // Deduplicate user messages by element reference (a single DOM element may match
   // multiple selector paths, e.g. when hint selectors overlap with auto-detected ones)
-  var seenUserEls = new Set();
-  var uniqueUserMessages = [];
+  var seenUserEls = new Set<HTMLElement>();
+  var uniqueUserMessages: HTMLElement[] = [];
   for (var d = 0; d < userMessages.length; d++) {
     if (!seenUserEls.has(userMessages[d])) {
       seenUserEls.add(userMessages[d]);
@@ -950,14 +983,14 @@ function buildChatbotTocItems(profile) {
     userMessages = userMessages.slice(userMessages.length - MAX_TURNS);
   }
 
-  var items = [];
+  var items: TocItem[] = [];
   var itemId = 0;
-  var seenEls = new Set();
+  var seenEls = new Set<HTMLElement>();
 
   // Query assistant messages ONCE, then use a forward cursor to match
   // each user message to the next assistant message in document order.
-  var allAssistants = [];
-  try { allAssistants = Array.from(document.querySelectorAll(profile.assistantSelector)); } catch (_) {}
+  var allAssistants: HTMLElement[] = [];
+  try { allAssistants = Array.from(document.querySelectorAll(profile.assistantSelector)) as HTMLElement[]; } catch (_) {}
   var assistantIdx = 0; // forward cursor into allAssistants
 
   for (var i = 0; i < userMessages.length && items.length < MAX_ITEMS; i++) {
@@ -978,7 +1011,7 @@ function buildChatbotTocItems(profile) {
     });
 
     // Find nearest following assistant message using forward cursor — O(N+M) total
-    var assistantEl = null;
+    var assistantEl: HTMLElement | null = null;
     while (assistantIdx < allAssistants.length) {
       var cand = allAssistants[assistantIdx];
       // If this assistant is before or at the user message, advance past it
@@ -1000,7 +1033,7 @@ function buildChatbotTocItems(profile) {
     if (!assistantEl) continue;
 
     // Find headings within the assistant response
-    var headings = [];
+    var headings: Element[] = [];
     try {
       // First try to find headings within markdown containers
       var containers = assistantEl.querySelectorAll(profile.headingContainer);
@@ -1017,7 +1050,7 @@ function buildChatbotTocItems(profile) {
     } catch (_) {}
 
     for (var j = 0; j < headings.length && items.length < MAX_ITEMS; j++) {
-      var hEl = headings[j];
+      var hEl = headings[j] as HTMLElement;
       if (!isVisible(hEl)) continue;
       if (seenEls.has(hEl)) continue;
 
@@ -1042,8 +1075,8 @@ function buildChatbotTocItems(profile) {
   // Deduplicate items with identical text (e.g. same heading text repeated
   // across multiple markdown containers or mirrored sidebar content).
   if (items.length > 1) {
-    var seenTexts = new Set();
-    var dedupedItems = [];
+    var seenTexts = new Set<string>();
+    var dedupedItems: TocItem[] = [];
     for (var di = 0; di < items.length; di++) {
       var tKey = items[di].text;
       if (!seenTexts.has(tKey)) {

@@ -28,14 +28,14 @@ import {
 import * as NL from './nav-lock.js';
 
   // Config change callback — wired when initForConfig runs
-  var _activeRebuild = null;
+  var _activeRebuild: (() => any) | null = null;
   try {
     if (setOnConfigChanged) {
       setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
     }
   } catch (_) {}
 
-export function initForConfig(cfg, options) {
+export function initForConfig(cfg: any, options: any) {
     options = options || {};
     var uiMode = options.uiMode === 'classic' ? 'classic' : 'edge-dock';
     var onSwitchUiMode = options.onSwitchUiMode;
@@ -58,22 +58,22 @@ export function initForConfig(cfg, options) {
     };
 
     var buildResult = buildNow();
-    var items = buildResult.items;
-    var tocMeta = buildResult.meta;
-    var dockInstance = null;
-    var badgeInstance = null;
-    var panelInstance = null;
-    var activeTracker = null;
+    var items: any[] = buildResult.items;
+    var tocMeta: any = buildResult.meta;
+    var dockInstance: any = null;
+    var badgeInstance: any = null;
+    var panelInstance: any = null;
+    var activeTracker: any = null;
     var activeIndex = -1;
-    var rebuildScheduler = null;
-    var pickerInstance = null;
-    var rebuildInFlight = null;
+    var rebuildScheduler: any = null;
+    var pickerInstance: any = null;
+    var rebuildInFlight: Promise<any> | null = null;
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
     var getNavLock = function() { return NL.isLocked(); };
 
-    var isContentIdentical = function(prevItems, nextItems) {
+    var isContentIdentical = function(prevItems: any[], nextItems: any[]) {
       if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
       for (var i = 0; i < prevItems.length; i++) {
         if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
@@ -81,22 +81,22 @@ export function initForConfig(cfg, options) {
       return true;
     };
 
-    var findMatchingActiveIndex = function(nextItems, previousItem, fallbackIndex) {
+    var findMatchingActiveIndex = function(nextItems: any[], previousItem: any, fallbackIndex: number) {
       if (!nextItems || !nextItems.length || !previousItem) return -1;
-      var byElement = nextItems.findIndex(function(item) { return item.el === previousItem.el; });
+      var byElement = nextItems.findIndex(function(item: any) { return item.el === previousItem.el; });
       if (byElement >= 0) return byElement;
-      var byText = nextItems.findIndex(function(item) { return item.text === previousItem.text; });
+      var byText = nextItems.findIndex(function(item: any) { return item.text === previousItem.text; });
       if (byText >= 0) return byText;
       return fallbackIndex >= 0 && fallbackIndex < nextItems.length ? fallbackIndex : -1;
     };
 
-    var syncActiveIndex = function(nextIndex) {
+    var syncActiveIndex = function(nextIndex: number) {
       activeIndex = Number.isFinite(nextIndex) && nextIndex >= 0 && nextIndex < items.length ? nextIndex : -1;
       try { if (dockInstance && dockInstance.setActiveIndex) dockInstance.setActiveIndex(activeIndex); } catch (_) {}
       try { if (panelInstance && panelInstance.setActiveIndex) panelInstance.setActiveIndex(activeIndex); } catch (_) {}
     };
 
-    var syncItemViews = function(previousItem, previousIndex) {
+    var syncItemViews = function(previousItem: any, previousIndex: number) {
       var nextActiveIndex = findMatchingActiveIndex(items, previousItem, previousIndex);
       try { if (dockInstance && dockInstance.setItems) dockInstance.setItems(items); } catch (_) {}
       try { if (activeTracker && activeTracker.setItems) activeTracker.setItems(items); } catch (_) {}
@@ -234,7 +234,7 @@ export function initForConfig(cfg, options) {
     _activeRebuild = rebuild;
 
     function startPick() {
-      var dispatchPickerEvent = function(type) {
+      var dispatchPickerEvent = function(type: string) {
         try {
           window.dispatchEvent(new CustomEvent(type));
         } catch (_) {}
@@ -248,7 +248,7 @@ export function initForConfig(cfg, options) {
         }
 
         dispatchPickerEvent('toc-picker-start');
-        pickerInstance = createElementPicker(function(el) {
+        pickerInstance = createElementPicker(function(el: any) {
           dispatchPickerEvent('toc-picker-end');
           pickerInstance = null;
           var sel = '';
@@ -256,7 +256,7 @@ export function initForConfig(cfg, options) {
           if (cls && el && el.tagName) sel = String(el.tagName).toLowerCase() + cls;
           if (!sel && cssPathFor) sel = cssPathFor(el);
 
-          showPickerResult(sel, async function(selector, onDone) {
+          showPickerResult(sel, async function(selector: string, onDone?: () => void) {
             try {
               var success = await saveSelector(selector, cfg);
               if (success) {
@@ -294,7 +294,7 @@ export function initForConfig(cfg, options) {
       badgeInstance = null;
     }
 
-    function renderPanelCard(panelPos, panelSide, anchorPos) {
+    function renderPanelCard(panelPos: any, panelSide: any, anchorPos: any) {
       if (destroyed || panelInstance) return panelInstance;
       if (uiMode === 'classic') {
         if (!renderClassicFloatingPanel) return panelInstance;
@@ -312,7 +312,7 @@ export function initForConfig(cfg, options) {
           anchorPos: anchorPos,
           tocMeta: tocMeta,
           activeIndex: activeIndex,
-          onNavigate: function(_item, index) { syncActiveIndex(index); }
+          onNavigate: function(_item: any, index: number) { syncActiveIndex(index); }
         });
         return panelInstance;
       }
@@ -328,12 +328,12 @@ export function initForConfig(cfg, options) {
         mountTarget: dockInstance.getPanelHost(),
         tocMeta: tocMeta,
         activeIndex: activeIndex,
-        onNavigate: function(_item, index) { syncActiveIndex(index); },
+        onNavigate: function(_item: any, index: number) { syncActiveIndex(index); },
       });
       return panelInstance;
     }
 
-    async function onDockModeChange(next, prev) {
+    async function onDockModeChange(next: string, prev: string) {
       try {
         if (next === 'collapsed') {
           removePanelCard();
@@ -350,7 +350,7 @@ export function initForConfig(cfg, options) {
       }
     }
 
-    function collapse(opts) {
+    function collapse(opts?: any) {
       try {
         if (uiMode === 'classic') {
           var buttonCenter = panelInstance && panelInstance.getCollapseCenter ? panelInstance.getCollapseCenter() : null;
@@ -373,7 +373,7 @@ export function initForConfig(cfg, options) {
       }
     }
 
-    async function expand(opts) {
+    async function expand(opts?: any) {
       try {
         if (uiMode === 'classic') {
           var savedPos = null;
@@ -452,7 +452,7 @@ export function initForConfig(cfg, options) {
           onPick: startPick,
           onSiteConfig: function() { return siteConfig && siteConfig(cfg); },
           onSwitchUiMode: onSwitchUiMode,
-          onNavigate: function(item, index) {
+          onNavigate: function(item: any, index: number) {
             if (!item || !item.el) return;
             syncActiveIndex(index);
             try { NL.lock(1000); } catch (_) {}
@@ -463,7 +463,7 @@ export function initForConfig(cfg, options) {
               try { item.el.scrollIntoView(true); } catch (_2) {}
             }
           },
-          onSideChange: function(nextSide) {
+          onSideChange: function(nextSide: string) {
             side = nextSide;
             cfg.side = nextSide;
             removePanelCard();
@@ -473,7 +473,7 @@ export function initForConfig(cfg, options) {
       if (createActiveItemTracker) {
         activeTracker = createActiveItemTracker({
           items: items,
-          onChange: function(_item, index) {
+          onChange: function(_item: any, index: number) {
             if (!rebuildInFlight && !getNavLock()) syncActiveIndex(index);
           }
         });

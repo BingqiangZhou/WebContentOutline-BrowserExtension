@@ -1,4 +1,3 @@
-
 'use strict';
 
 import {
@@ -19,7 +18,20 @@ var CFG = {
   DRAG_MARGIN_PX: 4
 };
 
-export function renderClassicFloatingPanel(options) {
+interface ClassicPanelOptions {
+  side?: string;
+  panelPos?: { left: number; top: number };
+  anchorPos?: { x: number; y: number };
+  items?: any[];
+  onCollapse?: () => void;
+  onSwitchUiMode?: (mode: string) => void;
+  onPick?: () => void;
+  onSiteConfig?: () => void;
+  onRefresh?: () => void;
+  [key: string]: any;
+}
+
+export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   options = options || {};
   if (cleanupOwnedElements) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
 
@@ -82,29 +94,29 @@ export function renderClassicFloatingPanel(options) {
   shell.appendChild(header);
 
   var panel = renderFloatingPanel({
-    ...options,
+    ...options as any,
     mountTarget: shell,
     skipAnimation: true,
     embedded: true
-  });
+  } as any);
   document.documentElement.appendChild(shell);
   alignToAnchor(options.anchorPos);
   shell.style.removeProperty('visibility');
 
   var destroyed = false;
-  var resizeRaf = null;
+  var resizeRaf: number | null = null;
   var dragController = createDragController ? createDragController({
     element: header,
-    shouldStart: function(e) { return !e.target.closest('button'); },
+    shouldStart: function(e: PointerEvent) { return !(e.target as Element).closest('button'); },
     getRect: function() { return shell.getBoundingClientRect(); },
     onStart: function() { header.style.cursor = 'grabbing'; },
-    onMove: function(drag, e) {
+    onMove: function(drag: { offsetX: number; offsetY: number }, e: PointerEvent) {
       var width = shell.offsetWidth || CFG.PANEL_WIDTH;
       var height = shell.offsetHeight || CFG.PANEL_HEIGHT;
       var pos = clampPanelPosition(e.clientX - drag.offsetX, e.clientY - drag.offsetY, width, height, CFG.DRAG_MARGIN_PX);
       setFixedPosition(shell, pos.left, pos.top);
     },
-    onEnd: function(drag) {
+    onEnd: function(drag: { cancelled: boolean; moved: boolean }) {
       header.style.cursor = '';
       if (!drag.cancelled && drag.moved && setBadgePosByHost) {
         var center = getCollapseCenter();
@@ -113,7 +125,7 @@ export function renderClassicFloatingPanel(options) {
     }
   }) : null;
 
-  function createAction(labelKey, titleKey, callback) {
+  function createAction(labelKey: string, titleKey: string, callback: (() => void) | undefined) {
     var button = document.createElement('button');
     button.type = 'button';
     button.className = 'toc-btn';
@@ -135,7 +147,7 @@ export function renderClassicFloatingPanel(options) {
     return { x: x, y: y, anchorX: x > window.innerWidth / 2 ? 'right' : 'left' };
   }
 
-  function alignToAnchor(anchorPos) {
+  function alignToAnchor(anchorPos: { x: number; y: number } | undefined) {
     if (!anchorPos || !Number.isFinite(anchorPos.x) || !Number.isFinite(anchorPos.y)) return;
     var center = getCollapseCenter();
     if (!center) return;
@@ -181,11 +193,11 @@ export function renderClassicFloatingPanel(options) {
     try { shell.remove(); } catch (_) {}
   }
 
-  shell.__TOC_CLEANUP__ = remove;
+  (shell as any).__TOC_CLEANUP__ = remove;
   return {
     getCollapseCenter: getCollapseCenter,
     remove: remove,
-    setActiveIndex: function(index) { return panel && panel.setActiveIndex && panel.setActiveIndex(index); },
-    updateItems: function(items, tocMeta) { return panel && panel.updateItems && panel.updateItems(items, tocMeta); }
+    setActiveIndex: function(index: number) { return panel && panel.setActiveIndex && panel.setActiveIndex(index); },
+    updateItems: function(items: any[], tocMeta: any) { return panel && panel.updateItems && panel.updateItems(items, tocMeta); }
   };
 }

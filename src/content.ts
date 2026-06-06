@@ -14,7 +14,14 @@ import {
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
 
-export function startTocContent(ctx) {
+interface TocAppInstance {
+  destroy?: () => void;
+  expand?: (opts?: any) => Promise<void>;
+  collapse?: () => void;
+  refreshConfig?: () => Promise<void>;
+}
+
+export function startTocContent(ctx: any) {
   void ctx;
   'use strict';
 
@@ -35,14 +42,14 @@ export function startTocContent(ctx) {
 
   var hasChrome = (typeof chrome !== 'undefined');
 
-  var appInstance = null;
+  var appInstance: TocAppInstance | null = null;
   var currentEnabled = false;
   var currentUiMode = 'edge-dock';
   var disposed = false;
   var listenersAttached = false;
 
-  var messageListener = null;
-  var storageListener = null;
+  var messageListener: ((msgObj: any, sender: any, sendResponse: (response?: any) => void) => boolean | void) | null = null;
+  var storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => void) | null = null;
 
   function detachListeners() {
     if (!listenersAttached) return;
@@ -61,7 +68,7 @@ export function startTocContent(ctx) {
     storageListener = null;
   }
 
-  function dispose(opts) {
+  function dispose(opts?: { reason?: string }) {
     if (disposed) return;
     disposed = true;
     detachListeners();
@@ -69,7 +76,7 @@ export function startTocContent(ctx) {
     appInstance = null;
     if (cleanupOwnedElements) cleanupOwnedElements(undefined as any);
     window.__TOC_ASSISTANT_LOADED__ = false;
-    window.__TOC_ASSISTANT_CLEANUP__ = null;
+    window.__TOC_ASSISTANT_CLEANUP__ = undefined;
     if (opts?.reason) console.debug(msg('logPrefix') + ' disposed:', opts.reason);
   }
 
@@ -80,7 +87,7 @@ export function startTocContent(ctx) {
     return {
       urlPattern: location.protocol + '//' + location.host + '/*',
       side: 'right',
-      selectors: []
+      selectors: [] as Array<{ type: string; expr: string }>
     };
   }
 
@@ -101,7 +108,7 @@ export function startTocContent(ctx) {
       appInstance = initForConfig(cfg, {
         uiMode: currentUiMode,
         onSwitchUiMode: applyUiMode
-      });
+      }) as TocAppInstance | null;
     } catch (err) {
       if (isContextInvalidatedError && isContextInvalidatedError(err)) {
         dispose({ reason: 'context-invalidated' });
@@ -115,7 +122,7 @@ export function startTocContent(ctx) {
     dispose({ reason: 'stopApp' });
   }
 
-  async function applyUiMode(nextMode, opts) {
+  async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
     opts = opts || {};
     var normalized = normalizeUiMode ? normalizeUiMode(nextMode) : 'edge-dock';
     if (normalized === currentUiMode && appInstance) return;
@@ -129,7 +136,7 @@ export function startTocContent(ctx) {
     await applyExpandState({});
   }
 
-  async function applyExpandState(opts?) {
+  async function applyExpandState(opts?: { expandPanel?: boolean }) {
     if (!appInstance) return;
     try {
       if (opts?.expandPanel) {
@@ -144,7 +151,7 @@ export function startTocContent(ctx) {
     } catch (_) {}
   }
 
-  async function applyEnabledState(want, opts?) {
+  async function applyEnabledState(want: boolean, opts?: { expandPanel?: boolean }) {
     if (want === currentEnabled) {
       if (want) {
         await startApp();
@@ -187,9 +194,9 @@ export function startTocContent(ctx) {
     listenersAttached = true;
 
     try {
-      messageListener = function(msgObj, sender, sendResponse) {
+      messageListener = function(msgObj: any, sender: any, sendResponse: (response?: any) => void) {
         var responded = false;
-        var respondOnce = function(payload) {
+        var respondOnce = function(payload: any) {
           if (responded) return;
           responded = true;
           try { sendResponse && sendResponse(payload); } catch (_) {}
@@ -244,10 +251,10 @@ export function startTocContent(ctx) {
       var KEY = STORAGE_KEYS?.SITE_ENABLE_MAP || 'tocSiteEnabledMap';
       var UI_MODE_KEY = STORAGE_KEYS?.UI_MODE || 'tocUiMode';
       var TOC_CONFIGS_KEY = STORAGE_KEYS?.TOC_CONFIGS || 'tocConfigs';
-      storageListener = function(changes, areaName) {
+      storageListener = function(changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) {
         if (disposed || areaName !== 'local') return;
         var uiModeChange = changes?.[UI_MODE_KEY];
-        if (uiModeChange) applyUiMode(uiModeChange.newValue, { persist: false });
+        if (uiModeChange) applyUiMode(uiModeChange.newValue as any, { persist: false });
         var configChange = changes?.[TOC_CONFIGS_KEY];
         if (configChange && currentEnabled && appInstance?.refreshConfig) {
           Promise.resolve(appInstance.refreshConfig()).catch(function() {});
@@ -255,7 +262,7 @@ export function startTocContent(ctx) {
         var ch = changes?.[KEY];
         if (!ch) return;
         try {
-          var map = ch.newValue || {};
+          var map: Record<string, boolean> = (ch.newValue as any) || {};
           var originKey = location?.origin && location.origin !== 'null' ? location.origin : null;
           if (!originKey) return;
           var next = !!map[originKey];
@@ -275,9 +282,9 @@ export function startTocContent(ctx) {
   // Wait for DOM to be stable before initializing TOC
   async function initWhenStable() {
     if (document.readyState === 'loading') {
-      await new Promise(function(r) { document.addEventListener('DOMContentLoaded', r, { once: true }); });
+      await new Promise<void>(function(r: () => void) { document.addEventListener('DOMContentLoaded', r, { once: true }); });
     }
-    await new Promise(function(r) { setTimeout(r, 50); });
+    await new Promise<void>(function(r: () => void) { setTimeout(r, 50); });
     await main();
   }
 

@@ -1,4 +1,3 @@
-
 import { msg } from './core-utils.js';
 
   var TOAST_DURATION_MS = 3000;
@@ -20,11 +19,11 @@ function ensureToastContainer() {
    * @param {string} text
    * @param {{type?: 'info'|'success'|'warning'|'error', durationMs?: number}} [opts]
    */
-export function showToast(text, opts?) {
+export function showToast(text: string, opts?: { type?: 'info'|'success'|'warning'|'error'; durationMs?: number }) {
     if (!opts) opts = {};
     try {
       var type = opts.type || 'info';
-      var durationMs = Number.isFinite(opts.durationMs) ? opts.durationMs : TOAST_DURATION_MS;
+      var durationMs: number = Number.isFinite(opts.durationMs) ? opts.durationMs! : TOAST_DURATION_MS;
       var container = ensureToastContainer();
 
       var toast = document.createElement('div');
@@ -42,7 +41,7 @@ export function showToast(text, opts?) {
       closeBtn.textContent = msg('symbolClose');
       closeBtn.setAttribute('aria-label', msg('buttonClose'));
 
-      var timerId = null;
+      var timerId: ReturnType<typeof setTimeout> | null = null;
       var removed = false;
       var removeToast = function() {
         if (removed) return;
@@ -58,7 +57,7 @@ export function showToast(text, opts?) {
       };
 
       closeBtn.addEventListener('click', removeToast, { once: true });
-      toast.addEventListener('click', function(e) {
+      toast.addEventListener('click', function(e: MouseEvent) {
         // Allow clicking toast body to dismiss, but ignore text selection drags.
         if (e && e.target && (e.target as HTMLElement).closest && (e.target as HTMLElement).closest('button')) return;
         try {
