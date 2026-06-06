@@ -10,21 +10,21 @@
    * @param {boolean} [opts.mutationObserverAvailable] - Whether MutationObserver is active
    * @returns {object}
    */
-export function createUrlMonitor(opts) {
-    var checkAndReconnect = (opts && opts.checkAndReconnect) || null;
+export function createUrlMonitor(opts: { checkAndReconnect?: () => void; mutationObserverAvailable?: boolean }) {
+    var checkAndReconnect: (() => void) | null = (opts && opts.checkAndReconnect) || null;
 
     // State
     var lastKnownUrl = '';
-    var urlChangeTimer = null;
-    var popstateHandler = null;
-    var hashchangeHandler = null;
+    var urlChangeTimer: ReturnType<typeof setTimeout> | null = null;
+    var popstateHandler: ((this: Window, ev: PopStateEvent) => void) | null = null;
+    var hashchangeHandler: ((this: Window, ev: HashChangeEvent) => void) | null = null;
 
     // Polling fallback state
-    var pollTimer = null;
-    var visibilityHandler = null;
+    var pollTimer: ReturnType<typeof setTimeout> | null = null;
+    var visibilityHandler: (() => void) | null = null;
 
     var isContextValid = true;
-    var onChangeCallback = null;
+    var onChangeCallback: ((immediate: boolean) => void) | null = null;
 
     var POLL_INTERVAL_MS = 3000;
 
@@ -112,7 +112,7 @@ export function createUrlMonitor(opts) {
       }
     }
 
-    function start(cfg, onChange) {
+    function start(cfg: unknown, onChange: (immediate: boolean) => void) {
       stop();
       isContextValid = true;
       onChangeCallback = onChange || null;

@@ -2,9 +2,9 @@
 'use strict';
 
   var _locked = false;
-  var _timer = null;
+  var _timer: ReturnType<typeof setTimeout> | null = null;
 
-  var lock = function(durationMs) {
+  var lock = function(durationMs?: number) {
     _locked = true;
     if (_timer != null) clearTimeout(_timer);
     if (durationMs && durationMs > 0) {

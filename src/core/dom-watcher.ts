@@ -19,8 +19,8 @@
    * changes in the document and invokes a callback. Ignores changes
    * originating from extension-owned elements.
    */
-export function createDomWatcher(onMutation, cfg) {
-    var observerRef = null;
+export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Array<{ type: string; expr: string }> }) {
+    var observerRef: MutationObserver | null = null;
     var isContextValid = true;
     var ownedRoots = new WeakSet();
 
@@ -37,9 +37,9 @@ export function createDomWatcher(onMutation, cfg) {
       return !cfg || !Array.isArray(cfg.selectors) || cfg.selectors.length === 0;
     }
 
-    function isOwnedNode(node) {
+    function isOwnedNode(node: Node) {
       try {
-        var element = node && node.nodeType === 3 ? node.parentElement : node;
+        var element: Element | null = node && node.nodeType === 3 ? (node as Text).parentElement : node as Element;
         if (!element) return false;
         if (ownedRoots.has(element)) return true;
         return !!(element.closest && element.closest(OWNED_SELECTOR));
@@ -48,9 +48,9 @@ export function createDomWatcher(onMutation, cfg) {
       }
     }
 
-    function touchesDefaultHeading(node, scanDescendants) {
+    function touchesDefaultHeading(node: Node, scanDescendants: boolean) {
       try {
-        var element = node && node.nodeType === 3 ? node.parentElement : node;
+        var element: Element | null = node && node.nodeType === 3 ? (node as Text).parentElement : node as Element;
         if (!element) return false;
         if (element.closest && element.closest(DEFAULT_HEADING_SELECTOR)) return true;
         return !!(scanDescendants && element.querySelector && element.querySelector(DEFAULT_HEADING_SELECTOR));
@@ -59,7 +59,7 @@ export function createDomWatcher(onMutation, cfg) {
       }
     }
 
-    function childListTouchesDefaultHeading(mutation) {
+    function childListTouchesDefaultHeading(mutation: MutationRecord) {
       if (touchesDefaultHeading(mutation.target, false)) return true;
       var lists = [mutation.addedNodes, mutation.removedNodes];
       for (var i = 0; i < lists.length; i++) {
@@ -71,7 +71,7 @@ export function createDomWatcher(onMutation, cfg) {
       return false;
     }
 
-    function hasMeaningfulChange(mutations) {
+    function hasMeaningfulChange(mutations: MutationRecord[]) {
       for (var i = 0; i < mutations.length; i++) {
         var m = mutations[i];
         var t = m.target;

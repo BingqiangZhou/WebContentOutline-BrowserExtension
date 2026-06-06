@@ -17,6 +17,8 @@ A web table of contents generator that automatically creates interactive floatin
 
 ### 🎯 TOC Generation
 - **Default Header Recognition**: Automatically uses page header structure (h1-h6 tags) when no selectors are configured
+- **Automatic Content Region Detection**: Intelligently identifies the main content area of a page, filtering out navigation bars, sidebars, and footers for more accurate TOC headings
+- **Chatbot Page Detection**: Automatically recognizes ChatGPT, Claude, Gemini, DeepSeek, Kimi and other AI chatbot pages, generating conversation-turn-based TOC
 - **Enhanced Visibility Detection**: Advanced element filtering using computed styles, bounding rects, and parent clipping detection to ensure only truly visible elements are included
 - **Automatic Filtering**: Automatically filters hidden elements (display:none, visibility:hidden, opacity:0), zero-size elements, and overflow-clipped content
 - **Custom Selectors**: Supports CSS and XPath selectors to adapt to various website structures
@@ -431,15 +433,15 @@ Issues and Pull Requests are welcome!
 
 ## 🗺️ Roadmap
 
-### Smart Auto-Detection (Planned)
+### ✅ Smart Auto-Detection (v1.3.0)
 
-Currently, the TOC relies on default h1-h6 heading recognition or manually configured CSS/XPath selectors via the element picker. Future versions plan to introduce intelligent auto-detection capabilities:
+The extension now includes intelligent auto-detection capabilities:
 
-- **Automatic Content Structure Analysis**: Automatically identify the main content area and heading structure of a page, reducing the need for manual selector configuration
-- **Adaptive Recognition**: Learn from common page layouts and frameworks to improve detection accuracy across different websites
-- **Gradual Selector Deprecation**: As auto-detection matures, the manual selector list will gradually become a fallback for edge cases rather than the primary configuration method
+- **✅ Automatic Content Region Detection**: Automatically identifies the main content area of a page, filtering out navigation bars, sidebars, and footers
+- **✅ Chatbot Page Detection**: Automatically recognizes AI chatbot pages (ChatGPT, Claude, Gemini, DeepSeek, Kimi, etc.) and generates conversation-turn-based TOC
+- **Adaptive Recognition**: Future improvements will learn from common page layouts and frameworks to improve detection accuracy
 
-The goal is to make the TOC "just work" out of the box for the vast majority of websites, while keeping manual customization available as an advanced option.
+Manual CSS/XPath selector configuration remains available as an advanced option for edge cases.
 
 ## 📝 Changelog
 

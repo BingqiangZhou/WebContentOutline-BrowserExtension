@@ -3,9 +3,10 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 
-const ROOT = path.resolve(new URL('..', import.meta.url).pathname);
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function readPngSize(buffer) {
   assert.equal(buffer.toString('ascii', 1, 4), 'PNG');

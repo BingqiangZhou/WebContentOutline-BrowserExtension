@@ -1,22 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
-
-const TS_STRIP_RE = [
-  [/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, ''],
-  [/(\w+)!([,);}\]\n])/g, '$1$2'],
-  [/(\w+)\?([,)=\n])/g, '$1$2'],
-  [/Promise<\w+>/g, 'Promise'],
-  [/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =']
-];
-function stripTsSyntax(source) {
-  for (const [re, repl] of TS_STRIP_RE) source = source.replace(re, repl);
-  return source;
-}
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -25,7 +15,7 @@ function read(relativePath) {
 function loadDomUtils(querySelectorAll = () => []) {
   const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -56,7 +46,7 @@ function loadConfigPrimitives() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -77,7 +67,7 @@ function loadConfigPrimitives() {
 function loadUrlMonitor() {
   const file = path.join(repoRoot, 'src/core/url-monitor.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace('export function createUrlMonitor', 'function createUrlMonitor'));
   const delays = [];
   const timers = [];
@@ -325,5 +315,5 @@ test('project exposes WXT build scripts and keeps package versions aligned', () 
   assert.match(packageJson.version, /^\d+\.\d+\.\d+$/);
   assert.equal(packageLock.version, packageJson.version);
   assert.equal(packageLock.packages[''].version, packageJson.version);
-  assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}\\] - \\d{4}-\\d{2}-\\d{2}`));
+  assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}(-[\\w.]+)?\\] - \\d{4}-\\d{2}-\\d{2}`));
 });

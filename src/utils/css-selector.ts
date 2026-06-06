@@ -1,12 +1,12 @@
 
 // src/utils/css-selector.ts - CSS selector generation
 
-function escapeCssIdentifier(ident) {
+function escapeCssIdentifier(ident: string): string {
   if (typeof ident !== 'string') return '';
   return ident.replace(/([^\w-])/g, '\\$1');
 }
 
-export function buildClassSelector(el) {
+export function buildClassSelector(el: Element): string {
   if (!el || !el.classList || !el.classList.length) return '';
   var meaningful = (Array.from(el.classList) as string[]).filter(function(cls) {
     return !/^(toc-|data-)/.test(cls);
@@ -15,10 +15,10 @@ export function buildClassSelector(el) {
   return '.' + meaningful.map(function(c) { return escapeCssIdentifier(c); }).join('.');
 }
 
-export function cssPathFor(el) {
+export function cssPathFor(el: Element): string {
   if (!el || el.nodeType !== 1) return '';
-  var path = [];
-  var current = el;
+  var path: string[] = [];
+  var current: Element | null = el;
   while (current && current.nodeType === 1 && path.length < 20) {
     var selector = current.tagName.toLowerCase();
     if (current.id) {

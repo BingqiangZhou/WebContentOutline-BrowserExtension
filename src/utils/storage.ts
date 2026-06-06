@@ -8,7 +8,7 @@ import {
 } from './core-utils.js';
 import { serializedWrite, pruneObjectToLimit } from '../shared/primitives.js';
 
-function normalizeSelectorEntry(entry) {
+function normalizeSelectorEntry(entry: any) {
     if (!entry || typeof entry !== 'object') return null;
     var type = entry.type === 'css' || entry.type === 'xpath' ? entry.type : null;
     if (!type) return null;
@@ -24,17 +24,17 @@ function normalizeSelectorEntry(entry) {
     return Object.assign({}, entry, { type: type, expr: expr });
   }
 
-export function normalizeUiMode(mode) {
+export function normalizeUiMode(mode: string) {
     return mode === 'classic' ? 'classic' : 'edge-dock';
   }
 
-function normalizeTocConfigs(value) {
-    var list = Array.isArray(value) ? value : [];
+function normalizeTocConfigs(value: unknown) {
+    var list: any[] = Array.isArray(value) ? value : [];
     var maxSites = 200;
     var maxSelectorsPerSite = 50;
 
-    var normalized = [];
-    var seen = new Set();
+    var normalized: any[] = [];
+    var seen = new Set<string>();
     for (var i = 0; i < list.length; i++) {
       var raw = list[i];
       if (!raw || typeof raw !== 'object') continue;
@@ -45,9 +45,9 @@ function normalizeTocConfigs(value) {
       seen.add(urlPattern);
 
       var side = raw.side === 'left' || raw.side === 'right' ? raw.side : 'right';
-      var selectorsRaw = Array.isArray(raw.selectors) ? raw.selectors : [];
-      var selectors = [];
-      var selSeen = new Set();
+      var selectorsRaw: any[] = Array.isArray(raw.selectors) ? raw.selectors : [];
+      var selectors: any[] = [];
+      var selSeen = new Set<string>();
       for (var si = 0; si < selectorsRaw.length; si++) {
         var norm = normalizeSelectorEntry(selectorsRaw[si]);
         if (!norm) continue;
@@ -67,7 +67,7 @@ function normalizeTocConfigs(value) {
     return normalized;
   }
 
-function validateStorageValue(key, value) {
+function validateStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return Array.isArray(value);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.PANEL_STATE_MAP) return isPlainObject(value);
@@ -76,12 +76,12 @@ function validateStorageValue(key, value) {
     return true;
   }
 
-function normalizeStorageValue(key, value) {
+function normalizeStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value);
-    if (key === STORAGE_KEYS.UI_MODE) return normalizeUiMode(value);
+    if (key === STORAGE_KEYS.UI_MODE) return normalizeUiMode(value as string);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       var map = isPlainObject(value) ? Object.assign({}, value) : {};
-      return pruneObjectToLimit(map, 400);
+      return pruneObjectToLimit(map as Record<string, unknown>, 400);
     }
     return value;
   }
@@ -89,7 +89,7 @@ function normalizeStorageValue(key, value) {
   /**
    * Read a value from chrome.storage.local with fallback.
    */
-async function getStorage(key, fallback) {
+async function getStorage<T>(key: string, fallback: T): Promise<T> {
     if (isExtensionContextInvalidated()) return fallback;
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
@@ -97,7 +97,7 @@ async function getStorage(key, fallback) {
           var res = await chrome.storage.local.get([key]);
           var value = res[key];
           if (value !== undefined && validateStorageValue(key, value)) {
-            return normalizeStorageValue(key, value);
+            return normalizeStorageValue(key, value) as T;
           }
           return fallback;
         } catch (e) {
@@ -114,12 +114,12 @@ async function getStorage(key, fallback) {
   /**
    * Write a value to chrome.storage.local.
    */
-async function setStorage(key, value) {
+async function setStorage(key: string, value: unknown): Promise<boolean> {
     if (isExtensionContextInvalidated()) return false;
     var normalized = normalizeStorageValue(key, value);
     try {
       if (chrome && chrome.storage && chrome.storage.local) {
-        var obj = {};
+        var obj: Record<string, unknown> = {};
         obj[key] = normalized;
         try {
           await chrome.storage.local.set(obj);
@@ -139,22 +139,22 @@ async function setStorage(key, value) {
   // Convenience accessors
 
 export function getConfigs() {
-    return getStorage(STORAGE_KEYS.TOC_CONFIGS, []);
+    return getStorage<Array<{ urlPattern?: string; selectors?: Array<{ type: string; expr: string }>; side?: string }>>(STORAGE_KEYS.TOC_CONFIGS, []);
   }
 
 export function getEnabledMap() {
-    return getStorage(STORAGE_KEYS.SITE_ENABLE_MAP, {});
+    return getStorage<Record<string, boolean>>(STORAGE_KEYS.SITE_ENABLE_MAP, {});
   }
 
-function saveEnabledMap(map) {
+function saveEnabledMap(map: Record<string, boolean>) {
     return setStorage(STORAGE_KEYS.SITE_ENABLE_MAP, map);
   }
 
 export function getPanelStateMap() {
-    return getStorage(STORAGE_KEYS.PANEL_STATE_MAP, {});
+    return getStorage<Record<string, boolean>>(STORAGE_KEYS.PANEL_STATE_MAP, {});
   }
 
-export function savePanelStateMap(map) {
+export function savePanelStateMap(map: Record<string, boolean>) {
     return setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
   }
 
@@ -162,7 +162,7 @@ export function getBadgePosMap() {
     return getStorage(STORAGE_KEYS.BADGE_POS_MAP, {});
   }
 
-export function saveBadgePosMap(map) {
+export function saveBadgePosMap(map: Record<string, unknown>) {
     return setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
   }
 
@@ -170,6 +170,6 @@ export function getUiMode() {
     return getStorage(STORAGE_KEYS.UI_MODE, 'edge-dock');
   }
 
-export function saveUiMode(mode) {
+export function saveUiMode(mode: string) {
     return setStorage(STORAGE_KEYS.UI_MODE, normalizeUiMode(mode));
   }

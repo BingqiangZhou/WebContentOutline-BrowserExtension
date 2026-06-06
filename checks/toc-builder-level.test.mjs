@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function createVisibleElement(tagName, text) {
   return {
@@ -23,14 +25,15 @@ function createVisibleElement(tagName, text) {
 
 function loadBuilder(elements) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/export function /g, 'function '));
   const sandbox = {
     console,
     uiConst(name, fallback) { return fallback; },
     collectBySelector() { return elements; },
     uniqueInDocumentOrder(nodes) { return nodes; },
+    document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
     window: {
       getComputedStyle() {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };

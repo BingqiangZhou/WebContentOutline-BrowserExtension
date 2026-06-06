@@ -1,15 +1,17 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function loadSelector() {
   const file = path.join(repoRoot, 'src/core/active-item-tracker.ts');
   assert.equal(fs.existsSync(file), true, 'src/core/active-item-tracker.ts should exist');
-  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8').replace(/export function /g, 'function '));
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
@@ -22,7 +24,7 @@ function loadSelector() {
 
 function loadTrackerEnvironment() {
   const file = path.join(repoRoot, 'src/core/active-item-tracker.ts');
-  const source = fs.readFileSync(file, 'utf8').replace(/export function /g, 'function ');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8').replace(/export function /g, 'function '));
   const rafQueue = [];
   const observerInstances = [];
   class FakeIntersectionObserver {
@@ -64,16 +66,17 @@ test('active item selector chooses the topmost visible outline item', () => {
   const first = { id: 'first' };
   const second = { id: 'second' };
 
-  assert.equal(selectActiveItem([
-    { item: first, top: 240 },
-    { item: second, top: 90 }
-  ]), second);
+  const map = new Map();
+  map.set(first, 240);
+  map.set(second, 90);
+
+  assert.equal(selectActiveItem(map), second);
 });
 
 test('active item selector returns null when nothing is visible', () => {
   const selectActiveItem = loadSelector();
 
-  assert.equal(selectActiveItem([]), null);
+  assert.equal(selectActiveItem(new Map()), null);
 });
 
 test('active tracker retains the previous item while scrolling between headings', () => {
@@ -112,8 +115,8 @@ test('toc app owns active tracking and synchronizes the collapsed preview', () =
 test('floating panel consumes shared active state instead of creating its own observer', () => {
   const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.ts'), 'utf8');
 
-  assert.match(panel, /var activeIndex = opts\.activeIndex/);
-  assert.match(panel, /var onNavigate = opts\.onNavigate/);
+  assert.match(panel, /var activeIndex[^=]*= opts\.activeIndex/);
+  assert.match(panel, /var onNavigate[\s\S]*?= opts\.onNavigate/);
   assert.match(panel, /setActiveIndex/);
   assert.doesNotMatch(panel, /new IntersectionObserver/);
 });

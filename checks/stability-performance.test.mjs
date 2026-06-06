@@ -1,22 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
-
-const TS_STRIP_RE = [
-  [/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, ''],
-  [/(\w+)!([,);}\]\n])/g, '$1$2'],
-  [/(\w+)\?([,)=\n])/g, '$1$2'],
-  [/Promise<\w+>/g, 'Promise'],
-  [/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =']
-];
-function stripTsSyntax(source) {
-  for (const [re, repl] of TS_STRIP_RE) source = source.replace(re, repl);
-  return source;
-}
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function read(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), 'utf8');
@@ -62,7 +52,7 @@ function loadDomWatcher() {
 function loadTocBuilder(options = {}) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export function /g, 'function '));
   const requestedLimits = [];
   const elements = options.elements || null;
@@ -75,6 +65,7 @@ function loadTocBuilder(options = {}) {
     },
     getBoundedText: options.getBoundedText || function() { return ''; },
     uniqueInDocumentOrder(nodes) { return nodes; },
+    document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
     window: {
       getComputedStyle: options.getComputedStyle || function() {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };
@@ -108,11 +99,11 @@ function loadBoundedText() {
 function loadCoreUtilsForValidation() {
   const file = path.join(repoRoot, 'src/utils/core-utils.ts');
   const primitives = stripTsSyntax(fs.readFileSync(path.join(repoRoot, 'src/shared/primitives.ts'), 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export \{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -144,7 +135,7 @@ __exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,
 function loadDomUtilsForCollection(options = {}) {
   const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function '));
   const calls = [];
@@ -189,7 +180,7 @@ function loadConfigPrimitivesForSelectors() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -210,7 +201,7 @@ function loadConfigPrimitivesForSelectors() {
 function loadStorageForNormalization() {
   const file = path.join(repoRoot, 'src/utils/storage.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import[\s\S]*?from .+;\n/gm, '')
+    .replace(/^import[\s\S]*?from .+;\r?\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -247,7 +238,7 @@ function loadStorageForNormalization() {
 function loadUrlMonitorForPolling() {
   const file = path.join(repoRoot, 'src/core/url-monitor.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace('export function createUrlMonitor', 'function createUrlMonitor'));
   const timers = [];
   const sandbox = {
@@ -274,7 +265,7 @@ function loadUrlMonitorForPolling() {
 function loadBadgePositionForWrites(options = {}) {
   const file = path.join(repoRoot, 'src/utils/badge-position.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export function /g, 'function '));
   const calls = [];
@@ -311,7 +302,7 @@ function loadUiStatePrimitives() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -334,8 +325,8 @@ __exports.validateUiStateMutationSource = validateUiStateMutationSource;`,
 async function loadContentScriptForConfigChanges(options = {}) {
   const file = path.join(repoRoot, 'src/content.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\n/, '')
-    .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\n/, '')
+    .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\r?\n/, '')
+    .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\r?\n/, '')
     .replace('export function startTocContent', 'function startTocContent'));
   const timers = [];
   const storageListeners = [];
@@ -479,7 +470,7 @@ function loadStoragePrimitives() {
   const file = path.join(repoRoot, 'src/shared/primitives.ts');
   assert.equal(fs.existsSync(file), true, 'src/shared/primitives.ts should exist');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
+    .replace(/^import .+;\r?\n/gm, '')
     .replace(/export\s+\{[^}]*\};?\n?/g, '')
     .replace(/export function /g, 'function '));
   const sandbox = {
@@ -924,7 +915,7 @@ test('background owns UI state writes and removes CSS when disabling tabs', () =
 test('origin-wide background fan-out iterates sequentially with for-of', () => {
   const background = read('entrypoints/background.ts');
 
-  assert.match(background, /async function broadcastEnabledToOrigin\(origin,\s*enabled,\s*exceptTabId\)[\s\S]*?for \(const t of tabs\)/);
+  assert.match(background, /async function broadcastEnabledToOrigin\(origin[^,]*,\s*enabled[^,]*,\s*exceptTabId[^)]*\)[\s\S]*?for \(const t of tabs\)/);
   assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id\)\.map\(t => queueIconUpdate/);
   assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id && \(!exceptTabId \|\| t\.id !== exceptTabId\)\)\.map/);
 });
@@ -965,7 +956,7 @@ test('release workflow builds and publishes without stale file references', () =
   // Release verifies and publishes the package
   assert.match(workflow, /Verify package asset/);
   assert.match(workflow, /content-scripts\/toc\.js/);
-  assert.match(workflow, /steps\.package\.outputs\.file/);
+  assert.match(workflow, /steps\.version\.outputs\.zip_file/);
   assert.match(workflow, /webtoc-assistant-v/);
   assert.match(workflow, /action-gh-release/);
 });

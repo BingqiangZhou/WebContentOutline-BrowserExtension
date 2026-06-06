@@ -5,6 +5,7 @@ import { createDomWatcher } from './dom-watcher.js';
 import { createUrlMonitor } from './url-monitor.js';
 import * as NL from './nav-lock.js';
 import { isContextInvalidatedError } from '../utils/core-utils.js';
+import { invalidateChatbotCache } from '../utils/chatbot-detector.js';
 
   var DEBOUNCE_MS = 400;
   var MAX_CONSECUTIVE_FAILURES = 5;
@@ -19,22 +20,22 @@ import { isContextInvalidatedError } from '../utils/core-utils.js';
    * @param {function} [opts.onConfigDirty] - Called when a URL change is detected.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-export function createRebuildScheduler(onRebuild, opts) {
+export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: { onConfigDirty?: () => void }) {
     opts = opts || {};
-    var onConfigDirty = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
+    var onConfigDirty: (() => void) | null = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
-    var rebuildInFlight = null;
-    var debounceTimer = null;
+    var rebuildInFlight: Promise<boolean | void> | null = null;
+    var debounceTimer: ReturnType<typeof setTimeout> | null = null;
     var consecutiveFailures = 0;
     var lastFailureTime = 0;
-    var visibilityHandler = null;
+    var visibilityHandler: (() => void) | null = null;
 
     // Sub-components
-    var domWatcher = null;
-    var urlMonitor = null;
+    var domWatcher: ReturnType<typeof createDomWatcher> | null = null;
+    var urlMonitor: ReturnType<typeof createUrlMonitor> | null = null;
 
-    var safeRebuild = async function() {
+    var safeRebuild = async function(): Promise<boolean> {
       if (!isExtensionContextValid) return false;
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         if (Date.now() - lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
@@ -66,7 +67,7 @@ export function createRebuildScheduler(onRebuild, opts) {
       }
     };
 
-    var attemptRebuild = async function() {
+    var attemptRebuild = async function(): Promise<boolean | void> {
       if (!isExtensionContextValid) return false;
       if (rebuildInFlight) {
         hasPendingRebuild = true;
@@ -79,7 +80,7 @@ export function createRebuildScheduler(onRebuild, opts) {
       if (!hasPendingRebuild) return true;
 
       hasPendingRebuild = false;
-      rebuildInFlight = (async () => {
+      rebuildInFlight = (async (): Promise<boolean> => {
         try {
           var ok = await safeRebuild();
           rebuildInFlight = null;
@@ -96,7 +97,7 @@ export function createRebuildScheduler(onRebuild, opts) {
       return rebuildInFlight;
     };
 
-    var scheduleRebuild = function(immediate) {
+    var scheduleRebuild = function(immediate?: boolean) {
       if (!isExtensionContextValid) return;
       if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
         if (Date.now() - lastFailureTime >= CIRCUIT_BREAKER_RESET_MS) {
@@ -124,12 +125,14 @@ export function createRebuildScheduler(onRebuild, opts) {
       scheduleRebuild(false);
     };
 
-    var onUrlChange = function(immediate) {
+    var onUrlChange = function(immediate: boolean) {
       if (onConfigDirty) onConfigDirty();
+      // Invalidate chatbot detection cache on URL change so new pages get re-detected
+      try { invalidateChatbotCache(); } catch (_) {}
       scheduleRebuild(immediate);
     };
 
-    function start(cfg) {
+    function start(cfg: { selectors?: Array<{ type: string; expr: string }> }) {
       // Stop any previous instance
       handle.disconnect();
       hasPendingRebuild = false;
@@ -142,10 +145,11 @@ export function createRebuildScheduler(onRebuild, opts) {
       var watcherOk = domWatcher.start();
 
       // Create url-monitor
+      var capturedDomWatcher = domWatcher;
       urlMonitor = createUrlMonitor({
-        checkAndReconnect: (domWatcher && typeof domWatcher.checkAndReconnect === 'function')
-          ? function() { domWatcher.checkAndReconnect(); }
-          : null
+        checkAndReconnect: (capturedDomWatcher && typeof capturedDomWatcher.checkAndReconnect === 'function')
+          ? function() { capturedDomWatcher.checkAndReconnect(); }
+          : undefined
       });
       urlMonitor.start(cfg, onUrlChange);
 
@@ -182,7 +186,7 @@ export function createRebuildScheduler(onRebuild, opts) {
         lastFailureTime = 0;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
-      setPendingRebuild: function(val) {
+      setPendingRebuild: function(val: boolean) {
         hasPendingRebuild = !!val;
         if (hasPendingRebuild) attemptRebuild();
       },

@@ -1,18 +1,18 @@
 
 // src/utils/focus-trap.ts - Shared keyboard focus trap utility
 
-export function createFocusTrap(container, opts) {
+export function createFocusTrap(container: HTMLElement, opts?: { onClose?: () => void; getFocusableWithin?: (container: HTMLElement) => Element[] }): () => void {
   var onClose = opts && opts.onClose;
-  var getFocusableWithin = opts && opts.getFocusableWithin;
+  var getFocusableWithinFn = opts && opts.getFocusableWithin;
 
-  var getFocusable = function() {
+  var getFocusable = function(): Element[] {
     try {
-      if (typeof getFocusableWithin === 'function') return getFocusableWithin(container);
+      if (typeof getFocusableWithinFn === 'function') return getFocusableWithinFn(container);
     } catch (_) {}
     return [];
   };
 
-  var handleKeydown = function(e) {
+  var handleKeydown = function(e: KeyboardEvent) {
     if (!e) return;
     if (e.key === 'Tab') {
       var focusables = getFocusable();
@@ -21,8 +21,8 @@ export function createFocusTrap(container, opts) {
         try { container.focus({ preventScroll: true }); } catch (_) {}
         return;
       }
-      var first = focusables[0];
-      var last = focusables[focusables.length - 1];
+      var first = focusables[0] as HTMLElement;
+      var last = focusables[focusables.length - 1] as HTMLElement;
       var active = document.activeElement;
       if (e.shiftKey && active === first) {
         try { e.preventDefault(); } catch (_) {}

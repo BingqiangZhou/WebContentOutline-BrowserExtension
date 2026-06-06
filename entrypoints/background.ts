@@ -20,7 +20,7 @@ const BG_STORAGE_KEYS = {
 };
 
 // Duplicated from core-utils.js (service worker cannot use ES module system)
-function originFromUrl(url) {
+function originFromUrl(url: string): string {
   try {
     return new URL(url).origin;
   } catch {
@@ -31,7 +31,7 @@ function originFromUrl(url) {
 const CONTENT_SCRIPTS = ['content-scripts/toc.js'];
 const CONTENT_CSS = ['content-scripts/toc.css'];
 
-function isHttpUrl(url) {
+function isHttpUrl(url: string | undefined): boolean {
   return !!(url && /^https?:\/\//i.test(url));
 }
 
@@ -39,12 +39,12 @@ const BG_MAX_MAP_KEYS = 400;
 const BG_MAX_CONFIG_SITES = 200;
 const BG_MAX_SELECTORS_PER_SITE = 50;
 
-async function getEnabledMap() {
+async function getEnabledMap(): Promise<Record<string, boolean>> {
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
   try {
     if (browser?.storage?.local) {
       const res = await browser.storage.local.get([KEY]);
-      return res[KEY] || {};
+      return (res[KEY] as Record<string, boolean>) || {};
     }
   } catch (e) {
     console.warn('[toc] getEnabledMap failed:', e);
@@ -52,7 +52,7 @@ async function getEnabledMap() {
   return {};
 }
 
-async function saveEnabledMap(map) {
+async function saveEnabledMap(map: Record<string, boolean>): Promise<{ ok: boolean; pruned?: boolean; error?: Error }> {
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
   try {
     if (!browser?.storage?.local) return { ok: false, error: new Error('browser.storage.local unavailable') };
@@ -66,20 +66,20 @@ async function saveEnabledMap(map) {
         await browser.storage.local.set({ [KEY]: pruned });
         return { ok: true, pruned: true };
       } catch (e2) {
-        return { ok: false, error: e2 };
+        return { ok: false, error: e2 as Error };
       }
     }
     console.warn('[toc] saveEnabledMap failed:', e);
-    return { ok: false, error: e };
+    return { ok: false, error: e as Error };
   }
 }
 
-async function getEnabledByOrigin(origin) {
+async function getEnabledByOrigin(origin: string): Promise<boolean> {
   const map = await getEnabledMap();
   return !!(origin && map[origin]);
 }
 
-async function setEnabledByOrigin(origin, enabled) {
+async function setEnabledByOrigin(origin: string, enabled: boolean): Promise<{ ok: boolean; enabled: boolean; error: Error | null }> {
   if (!origin) return { ok: false, enabled: false, error: null };
   return serializedWrite('tocSiteEnabledMap', async () => {
     const map = await getEnabledMap();
@@ -88,13 +88,13 @@ async function setEnabledByOrigin(origin, enabled) {
     pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
     const res = await saveEnabledMap(map);
     if (!res || !res.ok) {
-      return { ok: false, enabled: prev, error: res && res.error };
+      return { ok: false, enabled: prev, error: res && res.error ? res.error : null };
     }
     return { ok: true, enabled: !!map[origin], error: null };
-  });
+  }) as Promise<{ ok: boolean; enabled: boolean; error: Error | null }>;
 }
 
-async function mutateTocConfigs(mutation) {
+async function mutateTocConfigs(mutation: { operation: string; urlPattern: string; selector?: any; side?: string }): Promise<any> {
   const KEY = BG_STORAGE_KEYS.TOC_CONFIGS;
   return serializedWrite('tocConfigs', async () => {
     try {
@@ -116,7 +116,7 @@ async function mutateTocConfigs(mutation) {
   });
 }
 
-async function mutateUiState(mutation) {
+async function mutateUiState(mutation: { operation: string; key: string; value: any }): Promise<any> {
   const storageKey = mutation.operation === 'set-badge-position'
     ? BG_STORAGE_KEYS.BADGE_POS_MAP
     : mutation.operation === 'set-panel-expanded'
@@ -138,7 +138,7 @@ async function mutateUiState(mutation) {
   });
 }
 
-function sitePatternFromUrl(url) {
+function sitePatternFromUrl(url: string): string {
   try {
     const parsed = new URL(url);
     if (!/^https?:$/.test(parsed.protocol)) return '';
@@ -148,7 +148,7 @@ function sitePatternFromUrl(url) {
   }
 }
 
-function getIconPathMap(enabled) {
+function getIconPathMap(enabled: boolean): Record<string, string> {
   const base = enabled ? 'icons/png/toc-enabled' : 'icons/png/toc-disabled';
   return {
     "16": `/${base}-16.png`,
@@ -158,13 +158,13 @@ function getIconPathMap(enabled) {
   };
 }
 
-async function setTabIcon(tabId, enabled) {
+async function setTabIcon(tabId: number, enabled: boolean): Promise<void> {
   try {
     await browser.action.setIcon({ tabId, path: getIconPathMap(enabled) });
-  } catch (e) {
+  } catch {
     try {
       const pathMap = getIconPathMap(enabled);
-      const absolute = {};
+      const absolute: Record<string, string> = {};
       for (const [size, p] of Object.entries(pathMap)) {
         absolute[size] = browser.runtime.getURL(p.replace(/^\/+/, '') as any);
       }
@@ -177,7 +177,11 @@ async function setTabIcon(tabId, enabled) {
   } catch (_) {}
 }
 
-async function updateIconForTab(tabId, url = '') {
+/**
+ * Update the icon for a tab using a pre-fetched enabled map when available.
+ * Falls back to reading storage if no map is provided.
+ */
+async function updateIconForTab(tabId: number, url: string = '', enabledMap: Record<string, boolean> | null = null): Promise<boolean | undefined> {
   if (!tabId) return;
   let finalUrl = url;
   if (!finalUrl || !isHttpUrl(finalUrl)) {
@@ -196,14 +200,16 @@ async function updateIconForTab(tabId, url = '') {
   }
 
   const origin = originFromUrl(finalUrl);
-  const enabled = await getEnabledByOrigin(origin);
+  // Use pre-fetched map if available, otherwise read from storage
+  const enabled = enabledMap != null ? !!(origin && enabledMap[origin]) : await getEnabledByOrigin(origin);
   try { await setTabIcon(tabId, enabled); } catch (e) { console.warn('[toc] updateIconForTab failed:', e); }
+  return enabled;
 }
 
-function pingContentScript(tabId) {
+function pingContentScript(tabId: number): Promise<boolean> {
   return new Promise((resolve) => {
     try {
-      browser.tabs.sendMessage(tabId, { type: 'toc:ping' }, (res) => {
+      browser.tabs.sendMessage(tabId, { type: 'toc:ping' }, (res: any) => {
         if (browser.runtime.lastError) resolve(false);
         else resolve(!!(res && res.ok));
       });
@@ -213,7 +219,7 @@ function pingContentScript(tabId) {
   });
 }
 
-async function injectIntoTab(tabId) {
+async function injectIntoTab(tabId: number): Promise<{ ok: boolean; step?: string; error?: any }> {
   // Inject CSS first
   try {
     if (CONTENT_CSS.length) {
@@ -239,17 +245,34 @@ async function injectIntoTab(tabId) {
   return { ok: true };
 }
 
-async function ensureContentScript(tabId, url) {
+// Per-tab injection lock to prevent concurrent ensureContentScript calls
+// from double-injecting when tabs.onActivated and tabs.onUpdated fire near-simultaneously.
+const injectionLocks = new Map<number, Promise<boolean>>();
+
+async function ensureContentScript(tabId: number, url: string): Promise<boolean> {
   if (!tabId || !isHttpUrl(url)) return false;
 
-  const pingOk = await pingContentScript(tabId);
-  if (pingOk) return true;
+  // If injection is already in-flight for this tab, await the existing promise
+  const existing = injectionLocks.get(tabId);
+  if (existing) return existing;
 
-  const result = await injectIntoTab(tabId);
-  return !!result.ok;
+  const promise = (async (): Promise<boolean> => {
+    try {
+      const pingOk = await pingContentScript(tabId);
+      if (pingOk) return true;
+
+      const result = await injectIntoTab(tabId);
+      return !!result.ok;
+    } finally {
+      injectionLocks.delete(tabId);
+    }
+  })();
+
+  injectionLocks.set(tabId, promise);
+  return promise;
 }
 
-async function maybeAutoInject(tabId, url) {
+async function maybeAutoInject(tabId: number, url: string): Promise<void> {
   if (!isHttpUrl(url)) return;
   const origin = originFromUrl(url);
   const enabled = await getEnabledByOrigin(origin);
@@ -257,12 +280,12 @@ async function maybeAutoInject(tabId, url) {
   await ensureContentScript(tabId, url);
 }
 
-async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
+async function broadcastEnabledToOrigin(origin: string, enabled: boolean, exceptTabId: number | undefined): Promise<void> {
   try {
     const tabs = await getTabsByOrigin(origin);
     for (const t of tabs) {
       if (!t.id || t.id === exceptTabId) continue;
-      if (enabled) await ensureContentScript(t.id, t.url);
+      if (enabled) await ensureContentScript(t.id, t.url!);
       try {
         browser.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void browser.runtime.lastError; });
       } catch (_) {}
@@ -275,7 +298,7 @@ async function broadcastEnabledToOrigin(origin, enabled, exceptTabId) {
   }
 }
 
-async function handleActionClick(tab) {
+async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
   const origin = originFromUrl(tab.url);
@@ -283,7 +306,7 @@ async function handleActionClick(tab) {
 
   const currentlyEnabled = await getEnabledByOrigin(origin);
   const nextEnabled = !currentlyEnabled;
-  const saved = await setEnabledByOrigin(origin, nextEnabled);
+  const saved: { ok: boolean; enabled: boolean; error: Error | null } = await setEnabledByOrigin(origin, nextEnabled);
 
   if (!saved || !saved.ok) {
     await updateIconForTab(tab.id, tab.url);
@@ -316,27 +339,30 @@ async function handleActionClick(tab) {
 function startBackground() {
 browser.action.onClicked.addListener(handleActionClick);
 
-browser.tabs.onActivated.addListener(async (activeInfo) => {
+browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowId: number }) => {
   try {
-    await updateIconForTab(activeInfo.tabId);
-  } catch (_) {}
-  try {
-    const tab = await browser.tabs.get(activeInfo.tabId);
-    if (!tab?.id || !tab.url || !isHttpUrl(tab.url)) return;
-    const origin = originFromUrl(tab.url);
-    const enabled = await getEnabledByOrigin(origin);
-    if (enabled) await ensureContentScript(tab.id, tab.url);
+    // Read the enabled map once and pass it to both icon update and injection check
+    const map = await getEnabledMap();
+    const enabled = await updateIconForTab(activeInfo.tabId, '', map);
+    if (enabled) {
+      try {
+        const tab = await browser.tabs.get(activeInfo.tabId);
+        if (tab?.id && tab.url && isHttpUrl(tab.url)) {
+          await ensureContentScript(tab.id, tab.url);
+        }
+      } catch (_) {}
+    }
   } catch (_) {}
 });
 
-browser.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+browser.tabs.onUpdated.addListener((tabId: number, changeInfo: any, tab: any) => {
   if (changeInfo.status === 'complete') {
     updateIconForTab(tabId, tab?.url || changeInfo.url).catch(() => {});
     if (tab?.url) maybeAutoInject(tabId, tab.url).catch(() => {});
   }
 });
 
-browser.tabs.onCreated.addListener((tab) => {
+browser.tabs.onCreated.addListener((tab: any) => {
   if (tab?.id) updateIconForTab(tab.id, tab.url).catch(() => {});
 });
 
@@ -345,7 +371,8 @@ async function processAllTabs() {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     const map = await getEnabledMap();
     for (const t of tabs) {
-      if (t.id) updateIconForTab(t.id, t.url).catch(() => {});
+      // Pass pre-fetched map to avoid O(n) storage reads
+      if (t.id) updateIconForTab(t.id, t.url, map).catch(() => {});
       if (t.id && t.url && isHttpUrl(t.url)) {
         const origin = originFromUrl(t.url);
         if (map[origin]) ensureContentScript(t.id, t.url).catch(() => {});
@@ -375,7 +402,7 @@ browser.runtime.onStartup.addListener(async () => {
 
 setGlobalDefaultIconDisabled().catch(() => {});
 
-browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any) => {
   try {
     if (!msg || !msg.type) return;
     if (sender?.id && sender.id !== browser.runtime.id) {
@@ -433,9 +460,9 @@ browser.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 });
 }
 
-async function getTabsByOrigin(origin) {
+async function getTabsByOrigin(origin: string): Promise<any[]> {
   const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
-  return tabs.filter((t) => t?.url && isHttpUrl(t.url) && originFromUrl(t.url) === origin);
+  return tabs.filter((t: any) => t?.url && isHttpUrl(t.url) && originFromUrl(t.url) === origin);
 }
 
 export default defineBackground(() => {

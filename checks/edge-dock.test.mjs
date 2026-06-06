@@ -1,19 +1,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
+import { stripTsSyntax } from './test-helpers.mjs';
 
-const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
-
-function stripTsSyntax(source) {
-  return source
-    .replace(/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, '')
-    .replace(/(\w+)!([,);}\]\n])/g, '$1$2')
-    .replace(/(\w+)\?([,)=\n])/g, '$1$2')
-    .replace(/Promise<\w+>/g, 'Promise')
-    .replace(/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =');
-}
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 function relativeLuminance(hex) {
   const channels = hex.slice(1).match(/.{2}/g).map((channel) => parseInt(channel, 16) / 255);
@@ -38,13 +31,9 @@ function extractCssVariable(css, variable) {
 function loadDockController() {
   const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
   assert.equal(fs.existsSync(file), true, 'src/ui/edge-dock.ts should exist');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ')
-    .replace(/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, '')
-    .replace(/(\w+)!([,);}\]\n])/g, '$1$2')
-    .replace(/Promise<\w+>/g, 'Promise')
-    .replace(/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/export function /g, 'function '));
 
   const timers = new Map();
   let nextTimerId = 0;
@@ -82,13 +71,9 @@ function loadDockController() {
 
 function loadDockClamp() {
   const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ')
-    .replace(/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, '')
-    .replace(/(\w+)!([,);}\]\n])/g, '$1$2')
-    .replace(/Promise<\w+>/g, 'Promise')
-    .replace(/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/export function /g, 'function '));
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
@@ -101,13 +86,9 @@ function loadDockClamp() {
 
 function loadDockSideResolver() {
   const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ')
-    .replace(/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, '')
-    .replace(/(\w+)!([,);}\]\n])/g, '$1$2')
-    .replace(/Promise<\w+>/g, 'Promise')
-    .replace(/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/export function /g, 'function '));
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
@@ -120,13 +101,9 @@ function loadDockSideResolver() {
 
 function loadDockPreviewHelpers() {
   const file = path.join(repoRoot, 'src/ui/edge-dock.ts');
-  const source = fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\n/gm, '')
-    .replace(/export function /g, 'function ')
-    .replace(/\s+as\s+\w+(\[\])?(\s*\|\s*\w+)*/g, '')
-    .replace(/(\w+)!([,);}\]\n])/g, '$1$2')
-    .replace(/Promise<\w+>/g, 'Promise')
-    .replace(/(var|let|const)\s+(\w+)\s*:\s*\{[^}]+\}\s*=/g, '$1 $2 =');
+  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/export function /g, 'function '));
   const sandbox = { console, __exports: {} };
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
@@ -258,7 +235,7 @@ test('toc app orchestrates the edge dock instead of the collapsed badge', () => 
   assert.doesNotMatch(app, /renderCollapsedBadge/);
   assert.match(app, /getPanelHost/);
   assert.match(app, /dockInstance\.getMode\(\) === 'collapsed'/);
-  assert.match(app, /onNavigate:\s*function\(item, index\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?NL\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
+  assert.match(app, /onNavigate:\s*function\(item[^)]*\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?NL\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
 });
 
 test('floating panel mounts inside the edge dock and no longer owns dragging', () => {
@@ -334,20 +311,20 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(dock, /line\.type = 'button'/);
   assert.match(dock, /line\.dataset\.index = String\(index\)/);
   assert.match(dock, /function navigatePreviewItem[\s\S]*?options\.onNavigate && options\.onNavigate\(item, index\)/);
-  assert.match(dock, /function onPreviewClick[\s\S]*?e\.stopPropagation\(\)[\s\S]*?navigatePreviewItem\(parseInt\(line\.dataset\.index, 10\)\)/);
+  assert.match(dock, /function onPreviewClick[\s\S]*?e\.stopPropagation\(\)[\s\S]*?navigatePreviewItem\(parseInt\([\s\S]*?dataset\.index/);
   assert.match(dock, /preview\.addEventListener\('click', onPreviewClick\b/);
   assert.doesNotMatch(dock, /preview\.setAttribute\('aria-hidden', 'true'\)/);
   assert.match(dock, /function onTocPointerEnter[\s\S]*?closeMenu\(\);[\s\S]*?controller\.peek\(\);/);
   assert.match(dock, /function onTocClick\(\)[\s\S]*?lastPointerType !== 'touch'[\s\S]*?controller\.activate\(\);/);
-  assert.match(dock, /function onRootPointerLeave\(e\)[\s\S]*?lastPointerType !== 'touch'[\s\S]*?controller\.scheduleCollapse\(.*?\);/);
-  assert.match(dock, /function onDocumentPointerDown\(e\)[\s\S]*?controller\.getMode\(\) === 'peek'[\s\S]*?controller\.collapse\(\);/);
+  assert.match(dock, /function onRootPointerLeave\(e[^)]*\)[\s\S]*?lastPointerType !== 'touch'[\s\S]*?controller\.scheduleCollapse\(/);
+  assert.match(dock, /function onDocumentPointerDown\(e[^)]*\)[\s\S]*?controller\.getMode\(\) === 'peek'[\s\S]*?controller\.collapse\(\);/);
   assert.doesNotMatch(dock, /controller\.pin\(\)|togglePinned|mode === 'pinned'|next === 'pinned'/);
   assert.match(dock, /function openMenu\(\)[\s\S]*?controller\.collapse\(\);[\s\S]*?quickMenu\.hidden = false;/);
   assert.match(dock, /function onSettingsPointerEnter[\s\S]*?lastPointerType !== 'touch'[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function scheduleMenuClose\(\)[\s\S]*?setTimeout\(closeMenu, CFG\.CLOSE_DELAY_MS\)/);
   assert.match(dock, /PROGRAMMATIC_CLOSE_DELAY_MS:\s*1800/);
-  assert.match(dock, /peek:\s*function\(opts\)\s*\{[\s\S]*?controller\.peek\(\);[\s\S]*?opts && opts\.autoCollapse[\s\S]*?controller\.scheduleCollapse\(CFG\.PROGRAMMATIC_CLOSE_DELAY_MS\)/);
-  assert.match(dock, /function onRootFocusIn[\s\S]*?e\.target === settingsButton[\s\S]*?openMenu\(\);/);
+  assert.match(dock, /peek:\s*function\(opts[^)]*\)\s*\{[\s\S]*?controller\.peek\(\);[\s\S]*?opts && opts\.autoCollapse[\s\S]*?controller\.scheduleCollapse\(CFG\.PROGRAMMATIC_CLOSE_DELAY_MS\)/);
+  assert.match(dock, /function onRootFocusIn[\s\S]*?settingsButton[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function onRootFocusOut[\s\S]*?scheduleMenuClose\(\);/);
   assert.doesNotMatch(dock, /function onSettingsClick\(\)[\s\S]*?var open = quickMenu\.hidden;/);
   assert.match(dock, /settingsButton\.addEventListener\('pointerenter', onSettingsPointerEnter\b/);

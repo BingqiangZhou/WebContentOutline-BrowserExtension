@@ -4,7 +4,7 @@
     "description": "扩展名称，显示在应用商店和浏览器中"
   },
   "extensionDescription": {
-    "message": "为网页内容自动生成可折叠目录，支持 CSS 选择器配置，并提供元素拾取，点击图标可按站点启用/禁用",
+    "message": "为网页自动生成可交互目录，支持智能内容检测、Chatbot 对话目录、CSS 选择器配置和元素拾取，点击图标可按站点启用/禁用",
     "description": "扩展功能和用途的简短描述"
   },
   "browserActionTitle": {

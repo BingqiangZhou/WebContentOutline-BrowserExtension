@@ -6,3 +6,5 @@ export * from './toast.js';
 export * from './storage.js';
 export * from './badge-position.js';
 export * from './dom-utils.js';
+export * from './content-region.js';
+export * from './chatbot-detector.js';
