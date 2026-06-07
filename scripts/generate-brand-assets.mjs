@@ -28,7 +28,6 @@ const COPY = {
   en: {
     name: 'Web TOC Assistant',
     tagline: 'Interactive outlines for long webpages',
-    version: 'Version 1.0',
     bullets: [
       { text: 'Live outline preview', color: C.indigo500 },
       { text: 'Hover-to-expand Edge Dock', color: C.emerald500 },
@@ -48,7 +47,6 @@ const COPY = {
   zh: {
     name: '网页目录助手',
     tagline: '为长网页生成可交互目录',
-    version: '1.0 正式版',
     bullets: [
       { text: '实时目录缩略预览', color: C.indigo500 },
       { text: '贴边悬停展开目录', color: C.emerald500 },
