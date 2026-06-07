@@ -1,6 +1,8 @@
 
 'use strict';
 
+  import { OWNED_SELECTOR } from '../utils/constants.js';
+
   var OBSERVED_ATTRIBUTES = [
     'hidden',
     'style',
@@ -12,7 +14,6 @@
   ];
   var OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
   var DEFAULT_HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
-  var OWNED_SELECTOR = '[data-toc-owner="web-toc-assistant"]';
 
   /**
    * Creates a MutationObserver-based DOM watcher that detects meaningful

@@ -8,3 +8,5 @@ export * from './badge-position.js';
 export * from './dom-utils.js';
 export * from './content-region.js';
 export * from './chatbot-detector.js';
+export * from './css-selector.js';
+export * from './toc-builder.js';

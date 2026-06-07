@@ -3,6 +3,7 @@
 
 import { msg, getFocusableWithin } from '../utils/toc-utils.js';
 import { createFocusTrap } from '../utils/focus-trap.js';
+import { EXTENSION_OWNER, OWNED_SELECTOR } from '../utils/constants.js';
 
   var CFG = {
     PICKER_TIMEOUT_MS: 20000,
@@ -11,14 +12,14 @@ import { createFocusTrap } from '../utils/focus-trap.js';
 
 export function showPickerResult(selector: string, saveCb: ((selector: string, close: () => void) => void) | undefined) {
     var prevFocus = document.activeElement;
-    var existing = document.querySelector('.toc-overlay[data-toc-owner="web-toc-assistant"]');
+    var existing = document.querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
     if (existing) {
       existing.remove();
     }
 
     var wrap = document.createElement('div');
     wrap.className = 'toc-overlay';
-    wrap.setAttribute('data-toc-owner', 'web-toc-assistant');
+    wrap.setAttribute('data-toc-owner', EXTENSION_OWNER);
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
     wrap.tabIndex = -1;
@@ -125,7 +126,17 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
 
     function isUiElement(el: HTMLElement | null): boolean {
       if (!el) return false;
-      return !!(el.closest && el.closest('[data-toc-owner="web-toc-assistant"]'));
+      return !!(el.closest && el.closest('[data-toc-owner="' + EXTENSION_OWNER + '"]'));
+    }
+
+    function resolveNonUiElement(el: HTMLElement | null, x: number, y: number): HTMLElement | null {
+      if (!isUiElement(el)) return el;
+      try {
+        el = getElementNode(document.elementFromPoint(x, y) as Node | null);
+      } catch (_) {
+        el = null;
+      }
+      return isUiElement(el) ? null : el;
     }
 
     function box(el: HTMLElement): void {
@@ -161,15 +172,7 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
 
     function processMove(e: MouseEvent): void {
       if (finished) return;
-      var el = getElementNode(e.target as Node);
-      if (isUiElement(el)) {
-        try {
-          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY) as Node | null);
-        } catch (_) {
-          el = null;
-        }
-        if (isUiElement(el)) return;
-      }
+      var el = resolveNonUiElement(getElementNode(e.target as Node), e.clientX, e.clientY);
       if (el && el !== highlight) box(el);
     }
 
@@ -190,23 +193,10 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
       e.stopPropagation();
       e.stopImmediatePropagation();
       if (finished) return;
-      var el = getElementNode(e.target as Node);
-      if (isUiElement(el)) {
-        try {
-          el = getElementNode(document.elementFromPoint(e.clientX, e.clientY) as Node | null);
-        } catch (_) {
-          el = null;
-        }
-        if (isUiElement(el)) return;
-      }
-      if (!el || el === highlight) {
-        finished = true;
-        cleanup();
-        return;
-      }
+      var el = resolveNonUiElement(getElementNode(e.target as Node), e.clientX, e.clientY);
       finished = true;
       cleanup();
-      if (onPicked) onPicked(el);
+      if (el && el !== highlight && onPicked) onPicked(el);
     }
 
     function key(e: KeyboardEvent): void {

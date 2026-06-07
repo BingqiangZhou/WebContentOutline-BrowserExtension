@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -14,8 +14,8 @@ function read(relativePath) {
 
 function loadDomWatcher() {
   const file = path.join(repoRoot, 'src/core/dom-watcher.ts');
-  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace('export function createDomWatcher', 'function createDomWatcher'));
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace('export function createDomWatcher', 'function createDomWatcher')));
   let observer = null;
   class FakeMutationObserver {
     constructor(callback) {
@@ -35,6 +35,7 @@ function loadDomWatcher() {
     Node: { ELEMENT_NODE: 1 },
     document: { documentElement },
     MutationObserver: FakeMutationObserver,
+    OWNED_SELECTOR: '[data-toc-owner="web-toc-assistant"]',
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -71,6 +72,10 @@ function loadTocBuilder(options = {}) {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };
       }
     },
+    TOC_MAX_CANDIDATES: 1200,
+    TOC_TEXT_MAX_LEN: 200,
+    TOC_MAX_ITEMS: 400,
+    HEADING_LEVEL_WEIGHTS: { H1: 40, H2: 100, H3: 80, H4: 60, H5: 20, H6: 10 },
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -165,6 +170,7 @@ function loadDomUtilsForCollection(options = {}) {
     isHighRiskBroadCssSelector(expr) {
       return ['*', 'body *', 'html *', ':root *'].includes(String(expr || '').trim().toLowerCase());
     },
+    TOC_MAX_CANDIDATES: 1200,
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -288,6 +294,7 @@ function loadBadgePositionForWrites(options = {}) {
       map[key] = value;
     },
     uiConst(_name, fallback) { return fallback; },
+    MAP_MAX_KEYS: 400,
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -935,11 +942,13 @@ test('extension DOM checks use owner attributes instead of generic host classes'
   const toast = read('src/utils/toast.ts');
   const constants = read('src/utils/constants.ts');
 
-  assert.match(watcher, /\[data-toc-owner="web-toc-assistant"\]/);
+  // All files use EXTENSION_OWNER / OWNED_SELECTOR from constants
+  assert.match(watcher, /OWNED_SELECTOR/);
   assert.doesNotMatch(watcher, /OWNED_SELECTOR = '\.toc-edge-dock/);
-  assert.match(config, /\.toc-overlay\[data-toc-owner="web-toc-assistant"\]/);
-  assert.match(picker, /closest\('\[data-toc-owner="web-toc-assistant"\]'\)/);
-  assert.match(toast, /\.toc-toast-container\[data-toc-owner="web-toc-assistant"\]/);
+  assert.match(config, /EXTENSION_OWNER/);
+  assert.match(picker, /EXTENSION_OWNER/);
+  assert.match(toast, /EXTENSION_OWNER/);
+  // Constants file defines the owner string but not a DOM selector pattern
   assert.doesNotMatch(constants, /\[data-toc-owner\](?![=])/);
 });
 

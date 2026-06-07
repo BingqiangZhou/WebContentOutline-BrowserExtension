@@ -307,6 +307,14 @@ function applyUiStateMutation(currentMap: unknown, mutation: unknown, maxKeys: n
 
 // --- Shared helpers ---
 
+function originFromUrl(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch (_) {
+    return '';
+  }
+}
+
 function normalizeSide(side: unknown): 'left' | 'right' {
   return side === 'left' ? 'left' : 'right';
 }
@@ -316,7 +324,7 @@ function normalizeSide(side: unknown): 'left' | 'right' {
 export {
   serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit,
   isPlainObject, isHighRiskBroadCssSelector,
-  normalizeSide,
+  normalizeSide, originFromUrl,
   applyTocConfigMutation,
   validateUiStateMutationSource, applyUiStateMutation
 };

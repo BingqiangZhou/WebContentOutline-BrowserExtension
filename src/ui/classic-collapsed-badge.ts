@@ -9,6 +9,7 @@ import {
   normalizeSide
 } from '../utils/toc-utils.js';
 import { createDragController } from '../utils/drag-helper.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
 var CFG = {
   BADGE_WIDTH: 80,
@@ -19,12 +20,12 @@ var CFG = {
 };
 
 export function renderClassicCollapsedBadge(side: string, onExpand: () => void, centerPos?: { x: number; y: number } | null) {
-  cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"]');
 
   var badge = document.createElement('button');
   badge.type = 'button';
   badge.className = 'toc-collapsed-badge ' + normalizeSide(side);
-  badge.setAttribute('data-toc-owner', 'web-toc-assistant');
+  badge.setAttribute('data-toc-owner', EXTENSION_OWNER);
   badge.textContent = msg('tocTitle');
   badge.title = msg('badgeTitle');
   badge.setAttribute('aria-label', msg('badgeTitle') || msg('tocTitle'));

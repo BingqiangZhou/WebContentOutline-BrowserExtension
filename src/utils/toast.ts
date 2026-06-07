@@ -1,13 +1,14 @@
 import { msg } from './core-utils.js';
+import { EXTENSION_OWNER } from './constants.js';
 
   var TOAST_DURATION_MS = 3000;
 
 function ensureToastContainer() {
-    var existing = document.querySelector('.toc-toast-container[data-toc-owner="web-toc-assistant"]');
+    var existing = document.querySelector('.toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]');
     if (existing) return existing;
     var container = document.createElement('div');
     container.className = 'toc-toast-container';
-    container.setAttribute('data-toc-owner', 'web-toc-assistant');
+    container.setAttribute('data-toc-owner', EXTENSION_OWNER);
     container.setAttribute('role', 'region');
     container.setAttribute('aria-label', msg('toastRegionLabel'));
     document.documentElement.appendChild(container);

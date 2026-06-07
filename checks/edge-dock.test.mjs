@@ -224,8 +224,9 @@ test('edge dock is included in cleanup, mutation filtering, and picker exclusion
   const domWatcher = fs.readFileSync(path.join(repoRoot, 'src/core/dom-watcher.ts'), 'utf8');
   const picker = fs.readFileSync(path.join(repoRoot, 'src/ui/element-picker.ts'), 'utf8');
 
-  assert.match(domWatcher, /\[data-toc-owner="web-toc-assistant"\]/);
-  assert.match(picker, /\[data-toc-owner="web-toc-assistant"\]/);
+  // Both files reference the extension owner via OWNED_SELECTOR or EXTENSION_OWNER
+  assert.match(domWatcher, /OWNED_SELECTOR/);
+  assert.match(picker, /EXTENSION_OWNER/);
 });
 
 test('toc app orchestrates the edge dock instead of the collapsed badge', () => {

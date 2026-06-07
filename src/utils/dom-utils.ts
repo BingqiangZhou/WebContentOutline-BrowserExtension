@@ -4,6 +4,7 @@
 import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';
 import { serializedWrite, pruneObjectToLimit } from '../shared/primitives.js';
 import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.js';
+import { TOC_MAX_CANDIDATES, SCROLL_TOP_PADDING, HEADER_CACHE_TTL, MAP_MAX_KEYS, EXTENSION_OWNER } from './constants.js';
 
     /**
      * Simple wildcard matcher: supports * as any chars
@@ -54,29 +55,29 @@ export function findMatchingConfig(configs: Array<{ urlPattern?: string; selecto
       }) || null;
     }
 
+    function originKey(origin?: string) {
+      return origin || (typeof location !== 'undefined' ? location.origin : '');
+    }
+
     /**
      * Whether current origin (or provided origin) is enabled. Default: disabled (false)
      * @param {string} [origin]
      * @returns {Promise<boolean>}
      */
-export async function getSiteEnabledByOrigin(origin: string) {
+    export async function getSiteEnabledByOrigin(origin?: string) {
       var map: Record<string, boolean> = await getEnabledMap();
-      var key = origin || (typeof location !== 'undefined' ? location.origin : '');
+      var key = originKey(origin);
       return !!(key && map[key]);
     }
 
-export async function getPanelExpandedByOrigin(origin: string) {
-      var doRead = function(map: Record<string, boolean>) {
-        var key = origin || (typeof location !== 'undefined' ? location.origin : '');
-        return !!(key && map && map[key]);
-      };
-
+    export async function getPanelExpandedByOrigin(origin?: string) {
+      var key = originKey(origin);
       var map: Record<string, boolean> = await getPanelStateMap();
-      return doRead(map);
+      return !!(key && map && map[key]);
     }
 
-export async function setPanelExpandedByOrigin(origin: string, expanded: boolean) {
-      var key = origin || (typeof location !== 'undefined' ? location.origin : '');
+    export async function setPanelExpandedByOrigin(origin: string | undefined, expanded: boolean) {
+      var key = originKey(origin);
       if (!key) return false;
       try {
         if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
@@ -97,7 +98,7 @@ export async function setPanelExpandedByOrigin(origin: string, expanded: boolean
         var map: Record<string, boolean> = await getPanelStateMap();
         map = map || {};
         map[key] = !!expanded;
-        pruneObjectToLimit(map, 400);
+        pruneObjectToLimit(map, MAP_MAX_KEYS);
         return savePanelStateMap(map);
       });
     }
@@ -109,7 +110,7 @@ export async function setPanelExpandedByOrigin(origin: string, expanded: boolean
      */
 export function collectBySelector(selector: { type: string; expr: string; _root?: Element | Document }, maxCandidates: number) {
       if (!selector || !selector.expr) return [];
-      var limit = 1200;
+      var limit = TOC_MAX_CANDIDATES;
       if (Number.isFinite(maxCandidates) && maxCandidates > 0) limit = Math.min(limit, Math.floor(maxCandidates));
       var queryRoot: Element | Document = selector._root || document;
       if (selector.type === 'xpath') {
@@ -167,18 +168,11 @@ export function uniqueInDocumentOrder(list: Element[]) {
       return result;
     }
 
-    /**
-     * Minimum gap (px) to leave above the target element when scrolling.
-     * Ensures the element does not sit flush against the viewport top.
-     */
-    var SCROLL_TOP_PADDING = 80;
-
-    // Cached fixed-header height: recomputed at most once per 5 seconds.
+    // Cached fixed-header height: recomputed at most once per HEADER_CACHE_TTL ms.
     // Header height rarely changes between clicks, so this avoids a
     // querySelectorAll + getComputedStyle per scroll-to-item click.
     var _cachedHeaderHeight = 0;
     var _cachedHeaderTime = 0;
-    var HEADER_CACHE_TTL = 5000; // ms
     var _reduceMotion: boolean | null = null; // cached boolean
 
     /**
@@ -290,9 +284,8 @@ export function scrollToElement(el: HTMLElement) {
       }
     }
 
-export function cleanupOwnedElements(selectorFallback: string) {
-      var fallback = selectorFallback || '.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-overlay[data-toc-owner="web-toc-assistant"], .toc-toast-container[data-toc-owner="web-toc-assistant"]';
-      var selector = selectorFallback || fallback;
+export function cleanupOwnedElements(selectorFallback?: string) {
+      var selector = selectorFallback || '.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]';
       try {
         document.querySelectorAll(selector).forEach(function(el) {
           try {

@@ -9,7 +9,9 @@ import {
   applyTocConfigMutation,
   applyUiStateMutation,
   validateUiStateMutationSource,
+  originFromUrl,
 } from '../src/shared/primitives.js';
+import { EXTENSION_OWNER, MAP_MAX_KEYS } from '../src/utils/constants.js';
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
@@ -19,15 +21,6 @@ const BG_STORAGE_KEYS = {
   BADGE_POS_MAP: 'tocBadgePosMap'
 };
 
-// Duplicated from core-utils.js (service worker cannot use ES module system)
-function originFromUrl(url: string): string {
-  try {
-    return new URL(url).origin;
-  } catch {
-    return '';
-  }
-}
-
 const CONTENT_SCRIPTS = ['content-scripts/toc.js'];
 const CONTENT_CSS = ['content-scripts/toc.css'];
 
@@ -35,7 +28,7 @@ function isHttpUrl(url: string | undefined): boolean {
   return !!(url && /^https?:\/\//i.test(url));
 }
 
-const BG_MAX_MAP_KEYS = 400;
+const BG_MAX_MAP_KEYS = MAP_MAX_KEYS;
 const BG_MAX_CONFIG_SITES = 200;
 const BG_MAX_SELECTORS_PER_SITE = 50;
 
@@ -386,13 +379,24 @@ setGlobalDefaultIcon().catch(() => {});
 browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any) => {
   try {
     if (!msg || !msg.type) return;
+    // Reject messages from other extensions
     if (sender?.id && sender.id !== browser.runtime.id) {
       sendResponse?.({ ok: false, reason: 'bad-sender' });
       return;
     }
+    // All internal messages require same-extension sender
+    const requireInternal = (): boolean => {
+      if (!sender || sender.id !== browser.runtime.id) {
+        sendResponse?.({ ok: false, reason: 'bad-sender' });
+        return false;
+      }
+      return true;
+    };
+    const senderUrl = (): string => sender?.tab?.url || sender?.url || '';
+
     if (msg.type === 'toc:ensureIcon') {
       const tabId = sender?.tab?.id;
-      const url = sender?.tab?.url || sender?.url || '';
+      const url = senderUrl();
       if (!tabId || !isHttpUrl(url)) { sendResponse?.({ ok: false, reason: 'no-tab' }); return; }
       (async () => {
         try { await updateIconForTab(tabId, url); sendResponse?.({ ok: true }); }
@@ -401,9 +405,8 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       return true;
     }
     if (msg.type === 'toc:mutateConfig') {
-      if (!sender || sender.id !== browser.runtime.id) { sendResponse?.({ ok: false, reason: 'bad-sender' }); return; }
-      const senderUrl = sender?.tab?.url || sender?.url || '';
-      const expectedPattern = sitePatternFromUrl(senderUrl);
+      if (!requireInternal()) return;
+      const expectedPattern = sitePatternFromUrl(senderUrl());
       if (!expectedPattern || msg.urlPattern !== expectedPattern) { sendResponse?.({ ok: false, reason: 'bad-site' }); return; }
       (async () => {
         try {
@@ -419,9 +422,8 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       return true;
     }
     if (msg.type === 'toc:mutateUiState') {
-      if (!sender || sender.id !== browser.runtime.id) { sendResponse?.({ ok: false, reason: 'bad-sender' }); return; }
-      const senderUrl = sender?.tab?.url || sender?.url || '';
-      const sourceValidation = validateUiStateMutationSource(msg, senderUrl);
+      if (!requireInternal()) return;
+      const sourceValidation = validateUiStateMutationSource(msg, senderUrl());
       if (!sourceValidation.ok) { sendResponse?.(sourceValidation); return; }
       (async () => {
         try {
@@ -437,10 +439,9 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
     }
     // Content script requests to persist enabled state to storage (e.g. page-side "Close TOC")
     if (msg.type === 'toc:persistActiveState') {
-      if (!sender || sender.id !== browser.runtime.id) { sendResponse?.({ ok: false, reason: 'bad-sender' }); return; }
+      if (!requireInternal()) return;
       const tabId = sender?.tab?.id;
-      const tabUrl = sender?.tab?.url || sender?.url || '';
-      const origin = msg.origin || originFromUrl(tabUrl);
+      const origin = msg.origin || originFromUrl(senderUrl());
       const enabled = !!msg.enabled;
       (async () => {
         try {

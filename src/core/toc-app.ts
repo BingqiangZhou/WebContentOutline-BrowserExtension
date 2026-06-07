@@ -27,6 +27,7 @@ import {
   normalizeSide,
   isTocContentIdentical
 } from '../utils/core-utils.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
   interface NavLock {
@@ -66,7 +67,7 @@ export function initForConfig(cfg: any, options: any) {
     var side: string = normalizeSide(cfg.side);
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"], .toc-floating[data-toc-owner="web-toc-assistant"], .toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+    cleanupOwnedElements('.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"]');
 
     var destroyed = false;
 
@@ -127,7 +128,7 @@ export function initForConfig(cfg: any, options: any) {
           rebuildScheduler.disconnect();
         }
         // Show notice on existing panel
-        if (panelInstance && !document.querySelector('[data-toc-owner="web-toc-assistant"] .toc-ctx-invalidated-notice')) {
+        if (panelInstance && !document.querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"] .toc-ctx-invalidated-notice')) {
           try {
             var noticeEl = document.createElement('div');
             noticeEl.className = 'toc-ctx-invalidated-notice';
@@ -147,7 +148,7 @@ export function initForConfig(cfg: any, options: any) {
             noticeEl.appendChild(noticeSpan);
             noticeEl.appendChild(document.createTextNode(' '));
             noticeEl.appendChild(refreshLink);
-            var panelEl = document.querySelector('.toc-floating[data-toc-owner="web-toc-assistant"]');
+            var panelEl = document.querySelector('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
             var listEl = panelEl && panelEl.querySelector('.toc-list');
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
           } catch (_) {}
@@ -198,7 +199,7 @@ export function initForConfig(cfg: any, options: any) {
           var preservedPanelPos = null;
           var preservedPanelSide = null;
           if (uiMode === 'classic') {
-            var classicPanelEl = document.querySelector('.toc-floating-classic[data-toc-owner="web-toc-assistant"]');
+            var classicPanelEl = document.querySelector('.toc-floating-classic[data-toc-owner="' + EXTENSION_OWNER + '"]');
             if (classicPanelEl) {
               var classicRect = classicPanelEl.getBoundingClientRect();
               preservedPanelPos = { left: classicRect.left, top: classicRect.top };
@@ -387,7 +388,7 @@ export function initForConfig(cfg: any, options: any) {
         if (uiMode === 'classic') {
           var savedPos = null;
           var expandSide = side;
-          var badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="web-toc-assistant"]');
+          var badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"]');
           if (badgeEl) {
             var rect = badgeEl.getBoundingClientRect();
             if (rect.width > 0 && rect.height > 0) {

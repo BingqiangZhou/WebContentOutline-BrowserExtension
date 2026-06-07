@@ -3,6 +3,7 @@
 
 import { getBadgePosMap, saveBadgePosMap } from './storage.js';
 import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/primitives.js';
+import { MAP_MAX_KEYS } from './constants.js';
 
 interface BadgePos {
   x: number;
@@ -48,7 +49,7 @@ export async function setBadgePosByHost(host: string, pos: { x: number; y: numbe
     var map: Record<string, BadgePos> = await getBadgePosMap();
     map = map || {};
     touchObjectKey(map, host, enriched);
-    pruneObjectToLimit(map, 400);
+    pruneObjectToLimit(map, MAP_MAX_KEYS);
     var ok = await saveBadgePosMap(map);
     return ok ? (map[host] || null) : null;
   });

@@ -5,10 +5,8 @@ import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
 import { getBoundedText } from './bounded-text.js';
 import { detectContentRegion } from './content-region.js';
 import { tryBuildChatbotTocItems, getChatbotSentinelSelector, getChatbotConfidence } from './chatbot-detector.js';
+import { TOC_TEXT_MAX_LEN, TOC_MAX_ITEMS, TOC_MAX_CANDIDATES, HEADING_LEVEL_WEIGHTS } from './constants.js';
 
-    var TOC_TEXT_MAX_LEN = 200;
-    var TOC_MAX_ITEMS = 400;
-    var TOC_MAX_CANDIDATES = 1200;
     var COLLAPSE_WS_RE = /\s+/g;
 
     function getTrimmedText(el: Element) {
@@ -51,7 +49,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       var candidates = allUniq;
       if (candidates.length > 0) {
         var levelCounts: Record<string, number> = { H1: 0, H2: 0, H3: 0, H4: 0, H5: 0, H6: 0 };
-        var levelWeights: Record<string, number> = { H1: 40, H2: 100, H3: 80, H4: 60, H5: 20, H6: 10 };
+        var levelWeights = HEADING_LEVEL_WEIGHTS;
         for (var lc = 0; lc < candidates.length; lc++) {
           var tag = candidates[lc].tagName;
           if (levelCounts[tag] !== undefined) levelCounts[tag]++;

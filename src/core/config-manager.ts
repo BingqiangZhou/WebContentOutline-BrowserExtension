@@ -12,6 +12,7 @@ import {
   normalizeSide,
   buildSitePattern
 } from '../utils/toc-utils.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
   interface StoredConfig {
     urlPattern?: string;
@@ -63,7 +64,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
     var box: HTMLDivElement | undefined;
     try {
       var prevFocus = document.activeElement as HTMLElement | null;
-      var existing = document.querySelector('.toc-overlay[data-toc-owner="web-toc-assistant"]');
+      var existing = document.querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
       if (existing) {
         existing.remove();
       }
@@ -75,7 +76,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
 
       box = document.createElement('div');
       box.className = 'toc-overlay';
-      box.setAttribute('data-toc-owner', 'web-toc-assistant');
+      box.setAttribute('data-toc-owner', EXTENSION_OWNER);
       box.setAttribute('role', 'dialog');
       box.setAttribute('aria-modal', 'true');
       box.tabIndex = -1;

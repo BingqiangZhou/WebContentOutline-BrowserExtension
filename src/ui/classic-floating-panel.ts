@@ -8,6 +8,7 @@ import {
 } from '../utils/toc-utils.js';
 import { createDragController } from '../utils/drag-helper.js';
 import { renderFloatingPanel } from './floating-panel.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
   /** Set element to a fixed position with !important. */
   function setFixedPosition(el: HTMLElement, left: number, top: number): void {
@@ -48,11 +49,11 @@ interface ClassicPanelOptions {
 
 export function renderClassicFloatingPanel(options: ClassicPanelOptions) {
   options = options || {};
-  cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
 
   var shell = document.createElement('div');
   shell.className = 'toc-floating toc-floating-classic toc-floating-' + normalizeSide(options.side);
-  shell.setAttribute('data-toc-owner', 'web-toc-assistant');
+  shell.setAttribute('data-toc-owner', EXTENSION_OWNER);
   shell.setAttribute('role', 'dialog');
   shell.setAttribute('aria-modal', 'false');
   shell.style.setProperty('visibility', 'hidden', 'important');

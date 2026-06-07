@@ -69,7 +69,7 @@ export function startTocContent(ctx: any) {
     detachListeners();
     if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
-    cleanupOwnedElements(undefined as any);
+    cleanupOwnedElements();
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
     if (opts?.reason) console.debug(msg('logPrefix') + ' disposed:', opts.reason);
@@ -128,7 +128,7 @@ export function startTocContent(ctx: any) {
   function stopApp() {
     if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
-    cleanupOwnedElements(undefined as any);
+    cleanupOwnedElements();
   }
 
   async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
@@ -140,7 +140,7 @@ export function startTocContent(ctx: any) {
     if (!currentEnabled || disposed) return;
     if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
-    cleanupOwnedElements(undefined as any);
+    cleanupOwnedElements();
     await startApp();
     await applyExpandState({});
   }
@@ -153,7 +153,7 @@ export function startTocContent(ctx: any) {
       } else if (currentUiMode !== 'classic') {
         if (appInstance.collapse) appInstance.collapse();
       } else {
-        var expanded = await getPanelExpandedByOrigin(undefined as any);
+        var expanded = await getPanelExpandedByOrigin();
         if (expanded && appInstance.expand) await appInstance.expand();
         else if (appInstance.collapse) appInstance.collapse();
       }
@@ -187,9 +187,9 @@ export function startTocContent(ctx: any) {
           chrome.runtime.sendMessage({ type: 'toc:ensureIcon' }, function() { void chrome.runtime.lastError; resolve(); });
         } catch (_) { resolve(); }
       });
-      var enabled = await getSiteEnabledByOrigin(undefined as any);
+      var enabled = await getSiteEnabledByOrigin();
       if (enabled) {
-        await applyEnabledState(true, undefined as any);
+        await applyEnabledState(true);
       } else {
         console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
@@ -244,7 +244,7 @@ export function startTocContent(ctx: any) {
             if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
             (async function() {
               try {
-                await applyEnabledState(enabled, undefined as any);
+                await applyEnabledState(enabled);
                 respondOnce({ ok: true });
               } catch (err) {
                 respondOnce({ ok: false, error: String(err) });

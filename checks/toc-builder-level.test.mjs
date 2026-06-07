@@ -40,6 +40,10 @@ function loadBuilder(elements) {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };
       }
     },
+    TOC_MAX_CANDIDATES: 1200,
+    TOC_TEXT_MAX_LEN: 200,
+    TOC_MAX_ITEMS: 400,
+    HEADING_LEVEL_WEIGHTS: { H1: 40, H2: 100, H3: 80, H4: 60, H5: 20, H6: 10 },
     __exports: {}
   };
   sandbox.globalThis = sandbox;

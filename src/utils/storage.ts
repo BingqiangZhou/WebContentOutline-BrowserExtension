@@ -1,5 +1,5 @@
 
-import { STORAGE_KEYS, SELECTOR_EXPR_MAX_LENGTH } from './constants.js';
+import { STORAGE_KEYS, SELECTOR_EXPR_MAX_LENGTH, MAP_MAX_KEYS } from './constants.js';
 import {
   isPlainObject,
   isExtensionContextInvalidated,
@@ -80,7 +80,7 @@ function normalizeStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.UI_MODE) return normalizeUiMode(value as string);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       var map = isPlainObject(value) ? Object.assign({}, value) : {};
-      return pruneObjectToLimit(map as Record<string, unknown>, 400);
+      return pruneObjectToLimit(map as Record<string, unknown>, MAP_MAX_KEYS);
     }
     return value;
   }

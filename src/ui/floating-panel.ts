@@ -8,6 +8,7 @@ import {
   isTocContentIdentical,
   normalizeSide
 } from '../utils/toc-utils.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
   /** Clear all children of an element using native replaceChildren(). */
   function clearChildren(el: HTMLElement): void {
@@ -70,7 +71,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var navLock = opts.navLock;
 
     // Remove any existing panel to prevent duplicates
-    if (!embedded) cleanupOwnedElements('.toc-floating[data-toc-owner="web-toc-assistant"]');
+    if (!embedded) cleanupOwnedElements('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
 
     var panel = document.createElement('div');
     var listenersController = new AbortController();
@@ -86,7 +87,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var onPanelKeydown: ((e: KeyboardEvent) => void) | null = null;
     var onListClick: ((e: MouseEvent) => void) | null = null;
     var onListKeydown: ((e: KeyboardEvent) => void) | null = null;
-    var removeScrollListener: (() => void) | null = null;
 
     panel.style.setProperty('visibility', 'hidden', 'important');
     var SCROLL_LISTENER_OPTS: { passive: boolean; capture?: boolean } = { passive: true };
@@ -121,9 +121,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     // Set up scroll listener
     window.addEventListener('scroll', onScroll, { ...SCROLL_LISTENER_OPTS, signal: listenersController.signal });
-    removeScrollListener = function() {
-      window.removeEventListener('scroll', onScroll, SCROLL_LISTENER_OPTS.capture || false);
-    };
 
     var cleanupLock = function() {
       if (navLock) navLock.unlock();
@@ -135,7 +132,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     panel.className = embedded
       ? 'toc-floating-embedded'
       : 'toc-floating toc-floating-docked toc-floating-' + normalizeSide(side) + (skipAnimation ? '' : ' toc-floating-expand');
-    if (!embedded) panel.setAttribute('data-toc-owner', 'web-toc-assistant');
+    if (!embedded) panel.setAttribute('data-toc-owner', EXTENSION_OWNER);
     panel.setAttribute('role', embedded ? 'presentation' : 'dialog');
     if (!embedded) {
       panel.setAttribute('aria-modal', 'false');
@@ -222,7 +219,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
       e.preventDefault();
-      navLock && navLock.lock(undefined!);
+      navLock && navLock.lock();
       setActiveIndex(index);
       onNavigate && onNavigate(item, index);
 
@@ -317,7 +314,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       onListKeydown = null;
       if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true);
       onPanelKeydown = null;
-      removeScrollListener && removeScrollListener();
       listenersController.abort();
       cleanupLock();
       if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }

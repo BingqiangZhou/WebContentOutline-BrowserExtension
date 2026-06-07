@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -30,6 +30,7 @@ function loadDomUtils(querySelectorAll = () => []) {
     uiConst(_name, fallback) { return fallback; },
     isSafeXPathExpression() { return true; },
     isHighRiskBroadCssSelector() { return false; },
+    TOC_MAX_CANDIDATES: 1200,
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -98,7 +99,7 @@ function loadUrlMonitor() {
 
 function loadDomWatcher() {
   const file = path.join(repoRoot, 'src/core/dom-watcher.ts');
-  const source = stripTsSyntax(fs.readFileSync(file, 'utf8').replace('export function createDomWatcher', 'function createDomWatcher'));
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8').replace('export function createDomWatcher', 'function createDomWatcher')));
   let observer = null;
   class FakeMutationObserver {
     constructor(callback) {
@@ -114,6 +115,7 @@ function loadDomWatcher() {
     Node: { ELEMENT_NODE: 1 },
     document: { documentElement: { nodeType: 1 } },
     MutationObserver: FakeMutationObserver,
+    OWNED_SELECTOR: '[data-toc-owner="web-toc-assistant"]',
     __exports: {}
   };
   sandbox.globalThis = sandbox;

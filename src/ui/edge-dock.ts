@@ -3,6 +3,7 @@
 
 import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements, normalizeSide } from '../utils/toc-utils.js';
 import { createDragController, DragState } from '../utils/drag-helper.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -196,7 +197,7 @@ interface EdgeDockOptions {
 
 export function renderEdgeDock(options: EdgeDockOptions) {
   options = options || {};
-  cleanupOwnedElements('.toc-edge-dock[data-toc-owner="web-toc-assistant"]');
+  cleanupOwnedElements('.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"]');
 
   var side: string = normalizeSide(options.side);
   var destroyed = false;
@@ -211,7 +212,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var root = document.createElement('aside');
   var ac = new AbortController();
   root.className = 'toc-edge-dock toc-edge-dock-' + side;
-  root.setAttribute('data-toc-owner', 'web-toc-assistant');
+  root.setAttribute('data-toc-owner', EXTENSION_OWNER);
   root.setAttribute('aria-label', msg('dockLabel') || 'TOC tools');
   root.style.setProperty('visibility', 'hidden', 'important');
 
@@ -493,7 +494,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function onRootPointerLeave(e: PointerEvent): void {
     if (e && e.relatedTarget && root.contains(e.relatedTarget as Node)) return;
-    if (lastPointerType !== 'touch') controller.scheduleCollapse(undefined!);
+    if (lastPointerType !== 'touch') controller.scheduleCollapse();
     scheduleMenuClose();
   }
 
@@ -545,7 +546,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function onRootFocusOut(e: FocusEvent): void {
     if (e && e.relatedTarget && root.contains(e.relatedTarget as Node)) return;
-    controller.scheduleCollapse(undefined!);
+    controller.scheduleCollapse();
     scheduleMenuClose();
   }
 
