@@ -285,7 +285,7 @@ export function scrollToElement(el: HTMLElement) {
     }
 
 export function cleanupOwnedElements(selectorFallback?: string) {
-      var selector = selectorFallback || '.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]';
+      var selector = selectorFallback || '.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]';
       try {
         document.querySelectorAll(selector).forEach(function(el) {
           try {

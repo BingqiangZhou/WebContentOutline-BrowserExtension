@@ -3,8 +3,6 @@
 
 import { buildTocItems } from '../utils/toc-builder.js';
 import { renderEdgeDock } from '../ui/edge-dock.js';
-import { renderClassicCollapsedBadge } from '../ui/classic-collapsed-badge.js';
-import { renderClassicFloatingPanel } from '../ui/classic-floating-panel.js';
 import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
 import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged, clearOnConfigChanged } from './config-manager.js';
@@ -14,10 +12,7 @@ import {
   msg,
   showToast,
   cleanupOwnedElements,
-  getBadgePosByHost,
-  setBadgePosByHost,
   scrollToElement,
-  setPanelExpandedByOrigin,
   invalidateScrollCaches
 } from '../utils/toc-utils.js';
 import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
@@ -61,13 +56,11 @@ import { EXTENSION_OWNER } from '../utils/constants.js';
 
 export function initForConfig(cfg: any, options: any) {
     options = options || {};
-    var uiMode = options.uiMode === 'classic' ? 'classic' : 'edge-dock';
-    var onSwitchUiMode = options.onSwitchUiMode;
     var onDeactivate = options.onDeactivate;
     var side: string = normalizeSide(cfg.side);
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
-    cleanupOwnedElements('.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"]');
+    cleanupOwnedElements('.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
 
     var destroyed = false;
 
@@ -86,7 +79,6 @@ export function initForConfig(cfg: any, options: any) {
     var items: any[] = buildResult.items;
     var tocMeta: any = buildResult.meta;
     var dockInstance: any = null;
-    var badgeInstance: any = null;
     var panelInstance: any = null;
     var activeTracker: any = null;
     var activeIndex = -1;
@@ -179,7 +171,7 @@ export function initForConfig(cfg: any, options: any) {
         // Invalidate scroll caches since the DOM may have changed layout
         invalidateScrollCaches();
 
-        // Badge mode: update in-memory items so next expand is fresh, but skip full UI rebuild.
+        // No panel yet: update in-memory items so next expand is fresh, but skip full UI rebuild.
         if (!panelInstance) {
           syncItemViews(previousActiveItem, previousActiveIndex);
           return true;
@@ -196,19 +188,9 @@ export function initForConfig(cfg: any, options: any) {
         }
 
         if (!incrementalDone) {
-          var preservedPanelPos = null;
-          var preservedPanelSide = null;
-          if (uiMode === 'classic') {
-            var classicPanelEl = document.querySelector('.toc-floating-classic[data-toc-owner="' + EXTENSION_OWNER + '"]');
-            if (classicPanelEl) {
-              var classicRect = classicPanelEl.getBoundingClientRect();
-              preservedPanelPos = { left: classicRect.left, top: classicRect.top };
-              preservedPanelSide = classicRect.right > window.innerWidth / 2 ? 'right' : 'left';
-            }
-          }
           panelInstance.remove();
           panelInstance = null;
-          renderPanelCard(preservedPanelPos, preservedPanelSide, null);
+          renderPanelCard();
         }
 
         syncItemViews(previousActiveItem, previousActiveIndex);
@@ -298,33 +280,8 @@ export function initForConfig(cfg: any, options: any) {
       panelInstance = null;
     }
 
-    function removeClassicBadge() {
-      if (!badgeInstance) return;
-      badgeInstance.remove();
-      badgeInstance = null;
-    }
-
-    function renderPanelCard(panelPos: any, panelSide: any, anchorPos: any) {
+    function renderPanelCard() {
       if (destroyed || panelInstance) return panelInstance;
-      if (uiMode === 'classic') {
-        panelInstance = renderClassicFloatingPanel({
-          side: panelSide || side,
-          items: items,
-          onCollapse: collapse,
-          onRefresh: rebuild,
-          onPick: startPick,
-          onSiteConfig: function() { return siteConfig(cfg); },
-          onSwitchUiMode: onSwitchUiMode,
-          getPendingRebuild: rebuildScheduler ? rebuildScheduler.getPendingRebuild : function() { return false; },
-          setPendingRebuild: rebuildScheduler ? rebuildScheduler.setPendingRebuild : function() {},
-          panelPos: panelPos,
-          anchorPos: anchorPos,
-          tocMeta: tocMeta,
-          activeIndex: activeIndex,
-          onNavigate: function(_item: any, index: number) { syncActiveIndex(index); }
-        });
-        return panelInstance;
-      }
       if (!dockInstance) return panelInstance;
       var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
       panelInstance = renderFloatingPanel({
@@ -352,7 +309,7 @@ export function initForConfig(cfg: any, options: any) {
 
         await rebuild();
         if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
-        if (!panelInstance) renderPanelCard(null, null, null);
+        if (!panelInstance) renderPanelCard();
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
           console.debug('[toc] dock mode update failed:', e);
@@ -362,20 +319,6 @@ export function initForConfig(cfg: any, options: any) {
 
     function collapse(opts?: any) {
       try {
-        if (uiMode === 'classic') {
-          var buttonCenter = panelInstance && panelInstance.getCollapseCenter ? panelInstance.getCollapseCenter() : null;
-          if (buttonCenter) {
-            setBadgePosByHost(location.host, buttonCenter);
-          }
-          removePanelCard();
-          if (!badgeInstance) {
-            badgeInstance = renderClassicCollapsedBadge(side, expand, buttonCenter);
-          }
-          if (!opts || opts.persist !== false) {
-            setPanelExpandedByOrigin(location.origin, false);
-          }
-          return;
-        }
         if (dockInstance) dockInstance.collapse(opts || {});
         else removePanelCard();
       } catch (e) {
@@ -385,33 +328,6 @@ export function initForConfig(cfg: any, options: any) {
 
     async function expand(opts?: any) {
       try {
-        if (uiMode === 'classic') {
-          var savedPos = null;
-          var expandSide = side;
-          var badgeEl = document.querySelector('.toc-collapsed-badge[data-toc-owner="' + EXTENSION_OWNER + '"]');
-          if (badgeEl) {
-            var rect = badgeEl.getBoundingClientRect();
-            if (rect.width > 0 && rect.height > 0) {
-              savedPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-            }
-          }
-          if (!savedPos) savedPos = await getBadgePosByHost(location.host);
-          if (savedPos && Number.isFinite(savedPos.x)) {
-            expandSide = savedPos.x > window.innerWidth / 2 ? 'right' : 'left';
-          }
-          var panelPos = null;
-          if (savedPos && Number.isFinite(savedPos.x) && Number.isFinite(savedPos.y)) {
-            panelPos = {
-              left: expandSide === 'right' ? savedPos.x - 280 : savedPos.x,
-              top: savedPos.y
-            };
-          }
-          removeClassicBadge();
-          await rebuild();
-          if (!panelInstance) renderPanelCard(panelPos, expandSide, savedPos);
-          setPanelExpandedByOrigin(location.origin, true);
-          return;
-        }
         if (dockInstance) dockInstance.peek(opts || {});
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
@@ -426,7 +342,6 @@ export function initForConfig(cfg: any, options: any) {
       rebuildInFlight = null;
       navLock.destroy();
       removePanelCard();
-      removeClassicBadge();
       if (activeTracker && activeTracker.destroy) activeTracker.destroy();
       activeTracker = null;
       if (dockInstance) dockInstance.destroy();
@@ -446,32 +361,27 @@ export function initForConfig(cfg: any, options: any) {
     try {
       rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; }, navLock: navLock });
       rebuildScheduler.start(cfg);
-      if (uiMode === 'classic') {
-        collapse({ persist: false });
-      } else {
-        dockInstance = renderEdgeDock({
-          side: side,
-          initialMode: 'collapsed',
-          items: items,
-          onModeChange: onDockModeChange,
-          onRefresh: rebuild,
-          onPick: startPick,
-          onSiteConfig: function() { return siteConfig(cfg); },
-          onSwitchUiMode: onSwitchUiMode,
-          onDeactivate: onDeactivate,
-          onNavigate: function(item: any, index: number) {
-            if (!item || !item.el) return;
-            syncActiveIndex(index);
-            navLock.lock(1000);
-            scrollToElement(item.el);
-          },
-          onSideChange: function(nextSide: string) {
-            side = nextSide;
-            cfg.side = nextSide;
-            removePanelCard();
-          }
-        });
-      }
+      dockInstance = renderEdgeDock({
+        side: side,
+        initialMode: 'collapsed',
+        items: items,
+        onModeChange: onDockModeChange,
+        onRefresh: rebuild,
+        onPick: startPick,
+        onSiteConfig: function() { return siteConfig(cfg); },
+        onDeactivate: onDeactivate,
+        onNavigate: function(item: any, index: number) {
+          if (!item || !item.el) return;
+          syncActiveIndex(index);
+          navLock.lock(1000);
+          scrollToElement(item.el);
+        },
+        onSideChange: function(nextSide: string) {
+          side = nextSide;
+          cfg.side = nextSide;
+          removePanelCard();
+        }
+      });
       activeTracker = createActiveItemTracker({
         items: items,
         onChange: function(_item: any, index: number) {

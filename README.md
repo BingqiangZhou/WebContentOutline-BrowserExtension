@@ -36,7 +36,6 @@ A web table of contents generator that automatically creates interactive floatin
 - **Hover Preview**: Hover over the outline bars to expand the TOC inward; moving away restores the bars automatically
 - **Vertical Dragging**: Drag the dock up and down with mouse, touch, or stylus
 - **Position Memory**: Remembers dock side and vertical position per domain and constrains the dock after window resize
-- **Classic Mode**: Switch globally to the classic text badge and freely draggable floating panel when preferred
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
 
 ### 🔄 Navigation Experience
@@ -157,16 +156,14 @@ A web table of contents generator that automatically creates interactive floatin
 - After dynamic page content changes
 - When suspecting TOC is inaccurate
 
-#### 8. Switch Interface Mode
+#### 8. Side Switching
 
 **How**:
-- Modern Edge Dock: open quick settings and click "Switch to classic mode"
-- Classic panel: click "Switch to Modern UI"
+- Open quick settings and click "Move to left side" or "Move to right side"
 
 **Effect**:
-- The preference is global and applies immediately across open tabs
-- Modern mode is the default
-- Classic mode keeps the classic text badge and freely draggable panel interaction
+- The dock moves to the selected side of the viewport
+- The side preference is remembered per domain
 
 ### Advanced Usage
 
@@ -208,9 +205,8 @@ For complex page structures, you can use XPath:
 - Clicking a collapsed outline bar navigates directly without pinning the card open
 - Moving away from the bars and list restores the collapsed outline automatically
 - Touch devices can temporarily toggle the card and dismiss it by tapping outside
-- Quick settings expose refresh, element picker, site configuration, and edge switching
+- Quick settings expose refresh, element picker, site configuration, and side switching
 - The detached circular settings button uses the extension's monochrome list mark
-- Quick settings can switch globally to the classic interface
 
 ## 🛠️ Technical Implementation
 
@@ -249,8 +245,6 @@ For complex page structures, you can use XPath:
 │   │   └── primitives.ts      # Shared storage, config, and UI state utilities
 │   ├── ui/                    # UI components
 │   │   ├── edge-dock.ts       # Edge-docked toolbar and hover-only TOC state
-│   │   ├── classic-collapsed-badge.ts # Original text badge interaction
-│   │   ├── classic-floating-panel.ts  # Original freely draggable panel shell
 │   │   ├── element-picker.ts  # Element picker
 │   │   └── floating-panel.ts  # Shared lightweight TOC list card (inline helpers)
 │   └── core/                  # Core logic
@@ -435,7 +429,7 @@ Issues and Pull Requests are welcome!
 
 The next major version is being planned. Core goals:
 
-- **Remove Classic UI** — Keep only Edge Dock as the single UI mode for a streamlined experience
+- **Remove Classic UI** — ~~Keep only Edge Dock as the single UI mode~~ *(Done — Classic UI removed)*
 - **AI-Powered Content Detection** — Leverage on-device AI models to automatically identify the main content region and generate TOC, replacing manual CSS/XPath selector configuration. This eliminates the need for API keys or cloud services — all AI processing runs locally in the browser
 - **Simplified UI** — Remove manual configuration UI (element picker, site config, action buttons) — the TOC panel becomes a pure navigation tool
 - **Zero-Config Experience** — Install and use immediately, no setup required

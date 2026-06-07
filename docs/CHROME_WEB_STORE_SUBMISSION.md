@@ -34,8 +34,7 @@ The "storage" permission is used to persist user preferences locally in chrome.s
 1. tocSiteEnabledMap — per-site (origin) enable/disable state, so the extension remembers whether the user has activated the TOC for a given website.
 2. tocConfigs — per-site selector configurations (CSS/XPath expressions and display side), saved when users customize which elements to include in the TOC via the built-in element picker.
 3. tocPanelExpandedMap — per-site panel expanded/collapsed state, so the TOC panel restores its last open/closed position on revisit.
-4. tocBadgePosMap — per-host floating badge position, so the collapsed TOC button remembers where the user last dragged it.
-5. tocUiMode — global UI mode preference ("edge-dock" or "classic"), so the user's chosen layout style persists across sessions.
+4. tocBadgePosMap — per-host dock position, so the edge dock remembers where the user last dragged it.
 
 All data is stored locally on the user's device. No data is sent to any external server or third party.
 ```
@@ -102,8 +101,7 @@ The extension stores only user preference data in chrome.storage.local on the us
 | `tocSiteEnabledMap` | Map of website origins to boolean (enabled/disabled) | Remember which sites the user has enabled the TOC for |
 | `tocConfigs` | Per-site CSS/XPath selector configurations and display side | Persist custom element selectors chosen via the element picker |
 | `tocPanelExpandedMap` | Map of website origins to boolean (expanded/collapsed) | Restore the TOC panel's last open/closed state per site |
-| `tocBadgePosMap` | Map of hosts to {x, y} coordinates | Remember the dragged position of the collapsed TOC button per site |
-| `tocUiMode` | String: "edge-dock" or "classic" | Persist the user's preferred UI layout mode |
+| `tocBadgePosMap` | Map of hosts to {x, y} coordinates | Remember the dragged position of the edge dock per site |
 
 ### Does your extension use analytics or tracking?
 

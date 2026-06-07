@@ -51,10 +51,6 @@
     "message": "No TOC items found. Try refreshing the page or clicking the Refresh button.",
     "description": "Message displayed when no TOC items are found"
   },
-  "badgeTitle": {
-    "message": "Expand TOC",
-    "description": "Tooltip for the collapsed badge button"
-  },
   "dockLabel": {
     "message": "TOC tools",
     "description": "Accessible label for the docked TOC toolbar"
@@ -228,18 +224,6 @@
   "warningStorageQuotaPruned": {
     "message": "Storage quota reached. Some older data was removed to save your changes.",
     "description": "Toast shown when data is pruned due to storage quota"
-  },
-  "dockSwitchToClassic": {
-    "message": "Switch to classic mode",
-    "description": "Quick settings action for switching to the classic floating TOC interface"
-  },
-  "classicSwitchToModern": {
-    "message": "Switch to Modern UI",
-    "description": "Classic panel action for switching to the modern edge dock interface"
-  },
-  "classicSwitchToModernTitle": {
-    "message": "Switch to Modern UI",
-    "description": "Tooltip for switching from the classic panel to the modern edge dock interface"
   },
   "deactivateToc": {
     "message": "Close TOC",

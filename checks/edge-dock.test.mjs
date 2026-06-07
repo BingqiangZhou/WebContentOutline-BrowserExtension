@@ -329,7 +329,8 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(dock, /function onRootFocusOut[\s\S]*?scheduleMenuClose\(\);/);
   assert.doesNotMatch(dock, /function onSettingsClick\(\)[\s\S]*?var open = quickMenu\.hidden;/);
   assert.match(dock, /settingsButton\.addEventListener\('pointerenter', onSettingsPointerEnter\b/);
-  assert.match(dock, /createMenuButton\('dockSwitchToClassic',\s*'Switch to classic mode',\s*function\(\) \{[\s\S]*?options\.onSwitchUiMode && options\.onSwitchUiMode\('classic'\)/);
+  assert.doesNotMatch(dock, /dockSwitchToClassic/);
+  assert.doesNotMatch(dock, /onSwitchUiMode/);
   for (const locale of [en, zh]) {
     assert.match(locale, /"dockSettingsTitle"/);
     assert.match(locale, /"dockMoveToLeft"/);

@@ -4,10 +4,6 @@ import {
   getConfigs,
   findMatchingConfig,
   getSiteEnabledByOrigin,
-  getPanelExpandedByOrigin,
-  getUiMode,
-  saveUiMode,
-  normalizeUiMode,
   isContextInvalidatedError,
   cleanupOwnedElements,
   STORAGE_KEYS,
@@ -38,7 +34,6 @@ export function startTocContent(ctx: any) {
 
   var appInstance: TocAppInstance | null = null;
   var currentEnabled = false;
-  var currentUiMode = 'edge-dock';
   var disposed = false;
   var listenersAttached = false;
 
@@ -89,9 +84,7 @@ export function startTocContent(ctx: any) {
   async function startApp() {
     try {
       if (disposed) return;
-      var results = await Promise.all([getConfigs(), getUiMode()]);
-      var configs = results[0];
-      currentUiMode = normalizeUiMode(results[1]);
+      var configs = await getConfigs();
       if (disposed) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
@@ -101,8 +94,6 @@ export function startTocContent(ctx: any) {
         console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
       appInstance = initForConfig(cfg, {
-        uiMode: currentUiMode,
-        onSwitchUiMode: applyUiMode,
         onDeactivate: function() {
           // Page-side "Close TOC" → persist disabled state to background, then self-disable
           try {
@@ -131,31 +122,13 @@ export function startTocContent(ctx: any) {
     cleanupOwnedElements();
   }
 
-  async function applyUiMode(nextMode: string, opts?: { persist?: boolean }) {
-    opts = opts || {};
-    var normalized = normalizeUiMode(nextMode);
-    if (normalized === currentUiMode && appInstance) return;
-    currentUiMode = normalized;
-    if (opts.persist !== false) await saveUiMode(normalized);
-    if (!currentEnabled || disposed) return;
-    if (appInstance?.destroy) appInstance.destroy();
-    appInstance = null;
-    cleanupOwnedElements();
-    await startApp();
-    await applyExpandState({});
-  }
-
   async function applyExpandState(opts?: { expandPanel?: boolean }) {
     if (!appInstance) return;
     try {
       if (opts?.expandPanel) {
-        if (appInstance.expand) await appInstance.expand({ autoCollapse: currentUiMode !== 'classic' });
-      } else if (currentUiMode !== 'classic') {
-        if (appInstance.collapse) appInstance.collapse();
+        if (appInstance.expand) await appInstance.expand({ autoCollapse: true });
       } else {
-        var expanded = await getPanelExpandedByOrigin();
-        if (expanded && appInstance.expand) await appInstance.expand();
-        else if (appInstance.collapse) appInstance.collapse();
+        if (appInstance.collapse) appInstance.collapse();
       }
     } catch (_) {}
   }
@@ -263,12 +236,9 @@ export function startTocContent(ctx: any) {
     } catch (_) {}
 
     try {
-      var UI_MODE_KEY = STORAGE_KEYS?.UI_MODE || 'tocUiMode';
       var TOC_CONFIGS_KEY = STORAGE_KEYS?.TOC_CONFIGS || 'tocConfigs';
       storageListener = function(changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) {
         if (disposed || areaName !== 'local') return;
-        var uiModeChange = changes?.[UI_MODE_KEY];
-        if (uiModeChange) applyUiMode(uiModeChange.newValue as any, { persist: false }).catch(function() {});
         var configChange = changes?.[TOC_CONFIGS_KEY];
         if (configChange && currentEnabled && appInstance?.refreshConfig) {
           Promise.resolve(appInstance.refreshConfig()).catch(function() {});

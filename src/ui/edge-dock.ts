@@ -189,7 +189,6 @@ interface EdgeDockOptions {
   onRefresh?: () => void;
   onPick?: () => void;
   onSiteConfig?: () => void;
-  onSwitchUiMode?: (mode: string) => void;
   onSideChange?: (side: string) => void;
   onModeChange?: (next: string, prev: string) => void;
   onDeactivate?: () => void;
@@ -243,7 +242,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   tocButton.className = 'toc-edge-dock-button toc-edge-dock-toc';
   tocButton.tabIndex = 0;
   tocButton.setAttribute('role', 'group');
-  tocButton.setAttribute('aria-label', msg('badgeTitle') || 'Expand TOC');
+  tocButton.setAttribute('aria-label', msg('dockLabel') || 'TOC tools');
   var preview = document.createElement('span');
   preview.className = 'toc-edge-dock-preview';
   preview.setAttribute('role', 'group');
@@ -384,9 +383,6 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   createMenuButton('buttonSiteConfig', 'Site settings', options.onSiteConfig);
   var sideButton = createMenuButton('dockMoveToLeft', 'Move to left', function() {
     updateSide(side === 'left' ? 'right' : 'left', true);
-  });
-  createMenuButton('dockSwitchToClassic', 'Switch to classic mode', function() {
-    options.onSwitchUiMode && options.onSwitchUiMode('classic');
   });
   createMenuButton('dockDeactivate', 'Close TOC', function() {
     options.onDeactivate && options.onDeactivate();

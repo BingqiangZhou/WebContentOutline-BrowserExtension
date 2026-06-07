@@ -26,8 +26,6 @@ src/
 │   └── toc-utils.ts            # barrel 重导出模块
 ├── ui/                         # UI组件
 │   ├── edge-dock.ts            # 吸附式工具条与纯 hover 目录状态
-│   ├── classic-collapsed-badge.ts # 经典文字徽章交互
-│   ├── classic-floating-panel.ts  # 经典自由拖拽面板壳层
 │   ├── element-picker.ts       # 元素拾取器
 │   └── floating-panel.ts       # 轻量目录卡片（内联辅助函数）
 └── core/                       # 核心逻辑
@@ -73,7 +71,7 @@ if (isExtensionContextInvalidated()) {
 ### 工具模块层
 
 **constants.ts** — 常量定义
-- `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap, tocUiMode）
+- `STORAGE_KEYS`: 存储键名（tocConfigs, tocSiteEnabledMap, tocPanelExpandedMap, tocBadgePosMap）
 - `UI_CONSTANTS`: UI 尺寸和布局常量
 - `CLEANUP_SELECTOR`: 扩展元素清理选择器
 
@@ -89,8 +87,7 @@ if (isExtensionContextInvalidated()) {
 - `getConfigs()` / `saveConfigs()`: TOC 配置管理
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
 - `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
-- `getBadgePosMap()` / `saveBadgePosMap()`: 工具条锚点位置（兼容旧徽标数据）
-- `getUiMode()` / `saveUiMode()`: 全局界面模式偏好，缺省为新版 Edge Dock
+- `getBadgePosMap()` / `saveBadgePosMap()`: 工具条锚点位置
 - 使用 `shared/primitives.ts` 的 `serializedWrite` 保证写入顺序
 
 **dom-utils.ts** — DOM操作
@@ -150,10 +147,6 @@ if (isExtensionContextInvalidated()) {
 - 挂载到 Edge Dock 并向页面内侧展开
 - 错误处理
 
-**classic-collapsed-badge.ts / classic-floating-panel.ts** — 经典界面
-- 保留经典文字徽章、自由拖拽面板和标题操作栏
-- 从经典面板可全局切换回新版 Edge Dock
-
 ### 核心逻辑层
 
 **active-item-tracker.ts** — 当前阅读位置跟踪
@@ -165,7 +158,6 @@ if (isExtensionContextInvalidated()) {
 - 状态同步和事件协调
 - 重建逻辑和优化
 - Edge Dock 与目录卡片状态同步
-- 根据全局 `tocUiMode` 偏好在 Edge Dock 与经典界面之间即时重建
 - 导航锁故障保护（8秒超时自动解锁）
 - 动画帧管理和资源清理
 

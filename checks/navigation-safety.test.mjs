@@ -210,8 +210,6 @@ test('extension-created buttons explicitly opt out of submit behavior', () => {
   const files = [
     'src/core/config-manager.ts',
     'src/ui/element-picker.ts',
-    'src/ui/classic-collapsed-badge.ts',
-    'src/ui/classic-floating-panel.ts',
     'src/ui/floating-panel.ts',
     'src/ui/edge-dock.ts',
     'src/utils/toast.ts'

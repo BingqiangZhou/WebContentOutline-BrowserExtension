@@ -216,8 +216,7 @@ function loadStorageForNormalization() {
       TOC_CONFIGS: 'tocConfigs',
       SITE_ENABLE_MAP: 'tocSiteEnabledMap',
       PANEL_STATE_MAP: 'tocPanelExpandedMap',
-      BADGE_POS_MAP: 'tocBadgePosMap',
-      UI_MODE: 'tocUiMode'
+      BADGE_POS_MAP: 'tocBadgePosMap'
     },
     SELECTOR_EXPR_MAX_LENGTH: 2000,
     uiConst(_name, fallback) { return fallback; },
@@ -410,9 +409,6 @@ async function loadContentScriptForConfigChanges(options = {}) {
     },
     getSiteEnabledByOrigin() { return Promise.resolve(options.enabled !== false); },
     getPanelExpandedByOrigin() { return Promise.resolve(false); },
-    getUiMode() { return Promise.resolve('edge-dock'); },
-    saveUiMode() { return Promise.resolve(true); },
-    normalizeUiMode(mode) { return mode === 'classic' ? 'classic' : 'edge-dock'; },
     getBadgePosByHost() { return Promise.resolve(null); },
     setBadgePosByHost(host, pos) {
       badgePositionWrites.push({ host, pos });
@@ -430,7 +426,6 @@ async function loadContentScriptForConfigChanges(options = {}) {
     uiConst(_name, fallback) { return fallback; },
     STORAGE_KEYS: {
       SITE_ENABLE_MAP: 'tocSiteEnabledMap',
-      UI_MODE: 'tocUiMode',
       TOC_CONFIGS: 'tocConfigs'
     },
     initForConfig(cfg) {

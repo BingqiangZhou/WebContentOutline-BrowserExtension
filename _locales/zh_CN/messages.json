@@ -51,10 +51,6 @@
     "message": "未找到目录项，请尝试刷新页面或点击刷新按钮",
     "description": "未找到目录项时显示的消息"
   },
-  "badgeTitle": {
-    "message": "展开目录",
-    "description": "折叠按钮的提示文本"
-  },
   "dockLabel": {
     "message": "目录工具",
     "description": "吸附式目录工具条的无障碍标签"
@@ -228,18 +224,6 @@
   "warningStorageQuotaPruned": {
     "message": "存储空间不足，已移除部分较旧数据以保存您的更改。",
     "description": "因存储配额执行数据修剪时显示的提示"
-  },
-  "dockSwitchToClassic": {
-    "message": "切换到经典模式",
-    "description": "快捷设置中切换到经典浮动目录界面的操作"
-  },
-  "classicSwitchToModern": {
-    "message": "切换到新版界面",
-    "description": "经典面板中切换到新版贴边工具条界面的操作"
-  },
-  "classicSwitchToModernTitle": {
-    "message": "切换到新版界面",
-    "description": "从经典面板切换到新版贴边工具条界面的提示"
   },
   "deactivateToc": {
     "message": "关闭 TOC",

@@ -93,11 +93,6 @@ Hover over the circular settings icon to open the quick menu:
 - Pick Element
 - Site Config
 - Move to the opposite edge
-- Switch to classic mode
-
-### Classic Mode
-
-Prefer the original interaction? Switch back to classic mode. It keeps the blue `TOC` floating badge and the freely draggable TOC panel. The UI-mode preference is global and synchronizes across open tabs.
 
 ### Key Features
 

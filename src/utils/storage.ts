@@ -23,9 +23,7 @@ function normalizeSelectorEntry(entry: any) {
     return Object.assign({}, entry, { type: type, expr: expr });
   }
 
-export function normalizeUiMode(mode: string) {
-    return mode === 'classic' ? 'classic' : 'edge-dock';
-  }
+
 
 function normalizeTocConfigs(value: unknown) {
     var list: any[] = Array.isArray(value) ? value : [];
@@ -71,13 +69,13 @@ function validateStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.PANEL_STATE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.BADGE_POS_MAP) return isPlainObject(value);
-    if (key === STORAGE_KEYS.UI_MODE) return typeof value === 'string';
+  
     return true;
   }
 
 function normalizeStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value);
-    if (key === STORAGE_KEYS.UI_MODE) return normalizeUiMode(value as string);
+  
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       var map = isPlainObject(value) ? Object.assign({}, value) : {};
       return pruneObjectToLimit(map as Record<string, unknown>, MAP_MAX_KEYS);
@@ -147,10 +145,3 @@ export function saveBadgePosMap(map: Record<string, unknown>) {
     return setStorage(STORAGE_KEYS.BADGE_POS_MAP, map);
   }
 
-export function getUiMode() {
-    return getStorage(STORAGE_KEYS.UI_MODE, 'edge-dock');
-  }
-
-export function saveUiMode(mode: string) {
-    return setStorage(STORAGE_KEYS.UI_MODE, normalizeUiMode(mode));
-  }

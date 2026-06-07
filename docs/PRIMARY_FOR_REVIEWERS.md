@@ -16,7 +16,7 @@ No user account or login is required. The extension works immediately after inst
 
 - Auto-generated TOC from page headings (h1–h6)
 - Custom CSS/XPath selectors via the element picker (gear icon → settings)
-- Edge Dock and Classic UI modes (gear icon → settings → UI mode)
+- Edge Dock as the single UI mode
 - Collapse/expand panel, vertical dock repositioning by dragging
 - Works on SPA sites (URL changes are detected automatically)
 
