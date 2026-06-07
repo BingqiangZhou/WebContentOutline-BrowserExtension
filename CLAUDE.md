@@ -145,9 +145,6 @@ Split into three focused modules:
   "tocSiteEnabledMap": {
     "https://example.com": true,
     "https://another.com": false
-  },
-  "tocPanelExpandedMap": {
-    "https://example.com": true
   }
 }
 ```

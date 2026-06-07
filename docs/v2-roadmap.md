@@ -7,10 +7,10 @@
 
 ## 1. 背景与动机
 
-Web TOC Assistant 当前版本 v1.4.0，已上线 Chrome Web Store。经过 9 个月、24 个版本的迭代，核心功能已经成熟。2.0 的核心目标是**大幅简化产品**：去掉老 UI、去掉手动配置，用 AI 自动检测取代，让插件变成"开箱即用的智能 TOC"。
+Web TOC Assistant 当前版本 v1.6.1，已上线 Chrome Web Store。经过 9 个月、24+ 个版本的迭代，核心功能已经成熟。2.0 的核心目标是**大幅简化产品**：去掉老 UI（已完成）、去掉手动配置，用 AI 自动检测取代，让插件变成"开箱即用的智能 TOC"。
 
 **设计目标：**
-1. 删除 Classic UI，Edge Dock 成为唯一 UI 模式
+1. ~~删除 Classic UI，Edge Dock 成为唯一 UI 模式~~ *(已完成 — v1.6.0)*
 2. 去掉所有手动配置（Element Picker、Site Config、选择器），AI 自动检测取代
 3. 简化 Edge Dock 为纯导航面板（去掉所有操作按钮）
 4. 利用 Chrome 内置 AI API 增强内容区域识别
@@ -276,29 +276,30 @@ async function isAIAvailable(): Promise<boolean> {
 
 ## 8. 分阶段发布计划
 
-### Phase 1: v1.5.0 — 删除 + 精简
+### Phase 1: v1.6.0 — 删除 + 精简 ✅ 已完成
 
-**目标：** 删除 Classic UI 和手动配置，简化为纯 Edge Dock + AI-ready 架构
+**目标：** 删除 Classic UI，简化为纯 Edge Dock + AI-ready 架构
 
-| 任务 | 预估 |
-|------|------|
-| 删除 Classic UI 文件和相关逻辑 | 2 天 |
-| 删除 Element Picker + Site Config | 2 天 |
-| 删除 Edge Dock 操作按钮菜单 | 1 天 |
-| 精简 toc-app.ts（移除 Classic/配置分支） | 3 天 |
-| 精简 CSS（移除 Classic/Picker/Config 样式） | 1 天 |
-| 存储版本化 + 迁移系统 | 2 天 |
-| 更新测试 | 3 天 |
-| 冒烟测试 + 回归验证 | 2 天 |
-| **合计** | **~2.5 周** |
+Classic UI 已在 v1.6.0 中移除（classic-floating-panel.ts、classic-collapsed-badge.ts、UI 模式切换逻辑）。以下为原计划中剩余的任务：
+
+| 任务 | 预估 | 状态 |
+|------|------|------|
+| 删除 Classic UI 文件和相关逻辑 | 2 天 | ✅ 已完成 |
+| 删除 Element Picker + Site Config | 2 天 | 待定 |
+| 删除 Edge Dock 操作按钮菜单 | 1 天 | 待定 |
+| 精简 toc-app.ts（移除 Classic/配置分支） | 3 天 | 部分完成 |
+| 精简 CSS（移除 Classic/Picker/Config 样式） | 1 天 | 部分完成 |
+| 存储版本化 + 迁移系统 | 2 天 | 待定 |
+| 更新测试 | 3 天 | 部分完成 |
+| 冒烟测试 + 回归验证 | 2 天 | ✅ 已完成 |
 
 **验证标准：**
-- Edge Dock 正常折叠/展开/拖拽/导航
-- 工具栏图标启用/禁用正常
-- chatbot 页面检测正常
-- 手动冒烟测试：5+ 不同类型网站
+- ✅ Edge Dock 正常折叠/展开/拖拽/导航
+- ✅ 工具栏图标启用/禁用正常
+- ✅ chatbot 页面检测正常
+- ✅ 手动冒烟测试：5+ 不同类型网站
 
-### Phase 2: v1.6.0 — AI 自动检测
+### Phase 2: v1.7/v2.0 — AI 自动检测
 
 **目标：** AI 自动识别内容区域，用户零配置
 

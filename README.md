@@ -297,7 +297,7 @@ entrypoints/toc.content/index.ts (runtime content script)
 - **Element Deduplication**: Set-based O(n) dedup preserving first-occurrence order
 - **Tiered Visibility Filtering**: Three-phase check — cheap DOM checks first, then style/geometry, then parent clipping — with short-circuit at item limit
 - **Hidden Element Filtering**: Checks `display:none`, `visibility:hidden`, `opacity:0`, zero dimensions
-- **Debounced Rebuild**: MutationObserver + dynamic debounce (500ms–1s) to avoid frequent updates
+- **Debounced Rebuild**: MutationObserver + fixed debounce (400ms normal, 1200ms during streaming) to avoid frequent updates
 - **Selector Generation**: Prioritizes class selector, falls back to path selector
 - **Navigation Lock**: Locks IntersectionObserver during user clicks to prevent jumping
 - **Navigation Lock Failsafe**: Auto-unlocks after timeout (8s) if stuck
@@ -325,9 +325,6 @@ Site configuration is stored in `chrome.storage.local`:
   "tocSiteEnabledMap": {
     "https://example.com": true,
     "https://another.com": false
-  },
-  "tocPanelExpandedMap": {
-    "https://example.com": true
   },
   "tocBadgePosMap": {
     "example.com": { "x": 100, "y": 200 }
