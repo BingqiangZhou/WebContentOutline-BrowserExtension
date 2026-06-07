@@ -3,7 +3,7 @@
 
 import { msg, getFocusableWithin } from '../utils/toc-utils.js';
 import { createFocusTrap } from '../utils/focus-trap.js';
-import { EXTENSION_OWNER, OWNED_SELECTOR } from '../utils/constants.js';
+import { EXTENSION_OWNER } from '../utils/constants.js';
 
   var CFG = {
     PICKER_TIMEOUT_MS: 20000,

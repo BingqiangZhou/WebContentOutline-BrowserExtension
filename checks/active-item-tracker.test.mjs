@@ -115,7 +115,7 @@ test('toc app owns active tracking and synchronizes the collapsed preview', () =
 test('floating panel consumes shared active state instead of creating its own observer', () => {
   const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.ts'), 'utf8');
 
-  assert.match(panel, /var activeIndex[^=]*= opts\.activeIndex/);
+  assert.match(panel, /var activeIndex[^=]*= typeof opts\.activeIndex/);
   assert.match(panel, /var onNavigate[\s\S]*?= opts\.onNavigate/);
   assert.match(panel, /setActiveIndex/);
   assert.doesNotMatch(panel, /new IntersectionObserver/);

@@ -1,10 +1,9 @@
 
 'use strict';
 
-import { getEnabledMap, getPanelStateMap, savePanelStateMap } from './storage.js';
-import { serializedWrite, pruneObjectToLimit } from '../shared/primitives.js';
+import { getEnabledMap } from './storage.js';
 import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.js';
-import { TOC_MAX_CANDIDATES, SCROLL_TOP_PADDING, HEADER_CACHE_TTL, MAP_MAX_KEYS, EXTENSION_OWNER } from './constants.js';
+import { TOC_MAX_CANDIDATES, SCROLL_TOP_PADDING, HEADER_CACHE_TTL, EXTENSION_OWNER } from './constants.js';
 
     /**
      * Simple wildcard matcher: supports * as any chars
@@ -68,39 +67,6 @@ export function findMatchingConfig(configs: Array<{ urlPattern?: string; selecto
       var map: Record<string, boolean> = await getEnabledMap();
       var key = originKey(origin);
       return !!(key && map[key]);
-    }
-
-    export async function getPanelExpandedByOrigin(origin?: string) {
-      var key = originKey(origin);
-      var map: Record<string, boolean> = await getPanelStateMap();
-      return !!(key && map && map[key]);
-    }
-
-    export async function setPanelExpandedByOrigin(origin: string | undefined, expanded: boolean) {
-      var key = originKey(origin);
-      if (!key) return false;
-      try {
-        if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-          return await new Promise<boolean>(function(resolve) {
-            chrome.runtime.sendMessage({
-              type: 'toc:mutateUiState',
-              operation: 'set-panel-expanded',
-              key: key,
-              value: !!expanded
-            }, function(response: { ok?: boolean }) {
-              if (chrome.runtime.lastError) { resolve(false); return; }
-              resolve(!!(response && response.ok));
-            });
-          });
-        }
-      } catch (_) {}
-      return serializedWrite('tocPanelExpandedMap', async function() {
-        var map: Record<string, boolean> = await getPanelStateMap();
-        map = map || {};
-        map[key] = !!expanded;
-        pruneObjectToLimit(map, MAP_MAX_KEYS);
-        return savePanelStateMap(map);
-      });
     }
 
     /**

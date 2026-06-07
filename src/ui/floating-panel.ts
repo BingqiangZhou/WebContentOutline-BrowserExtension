@@ -65,7 +65,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var setPendingRebuild: ((v: boolean) => void) | undefined = opts.setPendingRebuild;
     var tocMeta: TocMeta | null | undefined = opts.tocMeta;
     var skipAnimation: boolean | undefined = opts.skipAnimation;
-    var activeIndex: number = opts.activeIndex as number;
+    var activeIndex: number = typeof opts.activeIndex === 'number' && Number.isFinite(opts.activeIndex) ? opts.activeIndex : -1;
     var onNavigate: ((item: TocItem, index: number) => void) | undefined = opts.onNavigate;
     var embedded = !!opts.embedded;
     var navLock = opts.navLock;

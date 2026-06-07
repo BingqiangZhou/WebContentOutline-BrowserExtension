@@ -11,13 +11,12 @@ import {
   validateUiStateMutationSource,
   originFromUrl,
 } from '../src/shared/primitives.js';
-import { EXTENSION_OWNER, MAP_MAX_KEYS } from '../src/utils/constants.js';
+import { MAP_MAX_KEYS } from '../src/utils/constants.js';
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
   SITE_ENABLE_MAP: 'tocSiteEnabledMap',
   TOC_CONFIGS: 'tocConfigs',
-  PANEL_STATE_MAP: 'tocPanelExpandedMap',
   BADGE_POS_MAP: 'tocBadgePosMap'
 };
 
@@ -112,9 +111,7 @@ async function mutateTocConfigs(mutation: { operation: string; urlPattern: strin
 async function mutateUiState(mutation: { operation: string; key: string; value: any }): Promise<any> {
   const storageKey = mutation.operation === 'set-badge-position'
     ? BG_STORAGE_KEYS.BADGE_POS_MAP
-    : mutation.operation === 'set-panel-expanded'
-      ? BG_STORAGE_KEYS.PANEL_STATE_MAP
-      : '';
+    : '';
   if (!storageKey) return { ok: false, reason: 'invalid-operation' };
   return serializedWrite(storageKey, async () => {
     try {

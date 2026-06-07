@@ -86,7 +86,6 @@ if (isExtensionContextInvalidated()) {
 - 内部 `getStorage()` / `setStorage()`: 通用存储读写
 - `getConfigs()` / `saveConfigs()`: TOC 配置管理
 - `getEnabledMap()` / `saveEnabledMap()`: 站点启用状态
-- `getPanelStateMap()` / `savePanelStateMap()`: 面板展开状态
 - `getBadgePosMap()` / `saveBadgePosMap()`: 工具条锚点位置
 - 使用 `shared/primitives.ts` 的 `serializedWrite` 保证写入顺序
 

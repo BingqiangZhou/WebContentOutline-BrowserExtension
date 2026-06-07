@@ -1,5 +1,7 @@
 
 import { STORAGE_KEYS, SELECTOR_EXPR_MAX_LENGTH, MAP_MAX_KEYS } from './constants.js';
+// Note: PANEL_STATE_MAP ('tocPanelExpandedMap') is a legacy key from the removed Classic UI.
+// It is kept in STORAGE_KEYS only to silently clean up storage reads; no active code writes to it.
 import {
   isPlainObject,
   isExtensionContextInvalidated,
@@ -56,7 +58,7 @@ function normalizeTocConfigs(value: unknown) {
       }
 
       var cfg = Object.assign({}, raw, { urlPattern: urlPattern, side: side, selectors: selectors });
-      delete cfg.collapsedDefault;
+      delete cfg.collapsedDefault; // legacy Classic UI field cleanup
       normalized.push(cfg);
       if (normalized.length >= maxSites) break;
     }
@@ -67,16 +69,15 @@ function normalizeTocConfigs(value: unknown) {
 function validateStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return Array.isArray(value);
     if (key === STORAGE_KEYS.SITE_ENABLE_MAP) return isPlainObject(value);
-    if (key === STORAGE_KEYS.PANEL_STATE_MAP) return isPlainObject(value);
     if (key === STORAGE_KEYS.BADGE_POS_MAP) return isPlainObject(value);
-  
+
     return true;
   }
 
 function normalizeStorageValue(key: string, value: unknown) {
     if (key === STORAGE_KEYS.TOC_CONFIGS) return normalizeTocConfigs(value);
-  
-    if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.PANEL_STATE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
+
+    if (key === STORAGE_KEYS.SITE_ENABLE_MAP || key === STORAGE_KEYS.BADGE_POS_MAP) {
       var map = isPlainObject(value) ? Object.assign({}, value) : {};
       return pruneObjectToLimit(map as Record<string, unknown>, MAP_MAX_KEYS);
     }
@@ -127,14 +128,6 @@ export function getConfigs() {
 
 export function getEnabledMap() {
     return getStorage<Record<string, boolean>>(STORAGE_KEYS.SITE_ENABLE_MAP, {});
-  }
-
-export function getPanelStateMap() {
-    return getStorage<Record<string, boolean>>(STORAGE_KEYS.PANEL_STATE_MAP, {});
-  }
-
-export function savePanelStateMap(map: Record<string, boolean>) {
-    return setStorage(STORAGE_KEYS.PANEL_STATE_MAP, map);
   }
 
 export function getBadgePosMap() {
