@@ -20,7 +20,7 @@ const C = {
   emerald500: '#10B981', amber500: '#F59E0B', red500: '#EF4444',
   gray900: '#111827', gray700: '#374151', gray500: '#6B7280',
   gray400: '#9CA3AF', gray300: '#D1D5DB', gray200: '#E5E7EB',
-  gray100: '#F3F4F6', gray50: '#F9FAFB', white: '#FFFFFF',
+  gray100: '#F3F4F6', gray50: '#F9FAFB', white: '#ffffff',
   enabledMark: '#202124', outlineGray: '#737373',
 };
 
@@ -131,8 +131,7 @@ function indigoIconAt(x, y, size) {
   const svg = documentOutlineSvg('enabled')
     .replace(/^[\s\S]*?<g id="document-outline-icon">/, '<g id="document-outline-icon">')
     .replace(/<\/svg>\s*$/, '')
-    .replace(/#202124/g, C.indigo600)
-    .replace(/#ffffff/g, C.white);
+    .replace(/#202124/g, C.indigo600);
   return `<g transform="translate(${x} ${y}) scale(${scale})">${svg}</g>`;
 }
 

@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#151---2026-06-06)
+[Table of Contents](#table-of-contents) • [Latest](#160---2026-06-07)
 
 ---
 
 ## Table of Contents
 
+- [1.6.0](#160---2026-06-07) - 2026-06-07
 - [1.5.1](#151---2026-06-06) - 2026-06-06
 - [1.5.0](#150---2026-06-06) - 2026-06-06
 - [1.4.0](#140---2026-06-06) - 2026-06-06
@@ -36,6 +37,18 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.6.0] - 2026-06-07
+
+### 🔄 Changed
+- **Remove Classic UI mode** — Removed the legacy Classic floating panel and collapsed badge, keeping Edge Dock as the only UI mode. Simplifies the codebase by removing ~891 lines (2 source files, 149 lines of CSS, 16 i18n strings, UI mode switching logic).
+- **Centralize constants and eliminate duplicate code** — Extracted shared helpers (`originKey`, `resolveNonUiElement`, `getMeaningfulClasses`), centralized magic numbers into `constants.ts`, fixed all `undefined as any` type bypasses, moved `originFromUrl` to shared primitives.
+- **Redesign store promotional assets** — Rebuilt all Chrome Web Store images (small promo, marquee, screenshot cover) following official best practices: saturated backgrounds, full-bleed layouts, minimal text, brand-first design.
+
+### 🐛 Fixed
+- Shorten English locale description to 132 chars for Chrome Web Store compliance.
 
 ---
 
