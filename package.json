@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "assets:brand": "node scripts/generate-brand-assets.mjs",
+    "assets:intro": "node scripts/generate-intro-images.mjs",
     "dev": "wxt",
     "dev:edge": "wxt -b edge",
     "typecheck": "tsc --noEmit",
