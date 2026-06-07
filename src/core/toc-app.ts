@@ -5,7 +5,7 @@ import { buildTocItems } from '../utils/toc-builder.js';
 import { renderEdgeDock } from '../ui/edge-dock.js';
 import { createElementPicker, showPickerResult } from '../ui/element-picker.js';
 import { renderFloatingPanel } from '../ui/floating-panel.js';
-import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged, clearOnConfigChanged } from './config-manager.js';
+import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged } from './config-manager.js';
 import { createRebuildScheduler } from './rebuild-scheduler.js';
 import { createActiveItemTracker } from './active-item-tracker.js';
 import {
@@ -352,8 +352,10 @@ export function initForConfig(cfg: any, options: any) {
         pickerInstance.cleanup();
       }
       pickerInstance = null;
-      // Clear config change callback
-      clearOnConfigChanged();
+      // Do NOT call clearOnConfigChanged() here — the module-level callback
+      // registered at line 55 guards with `if (_activeRebuild)`, and setting
+      // _activeRebuild = null below makes it a safe no-op. Clearing would break
+      // config change notifications after reinit (disable → re-enable cycle).
       // Clear event handler
       _activeRebuild = null;
     };
