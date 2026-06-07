@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#160---2026-06-07)
+[Table of Contents](#table-of-contents) • [Latest](#161---2026-06-07)
 
 ---
 
 ## Table of Contents
 
+- [1.6.1](#161---2026-06-07) - 2026-06-07
 - [1.6.0](#160---2026-06-07) - 2026-06-07
 - [1.5.1](#151---2026-06-06) - 2026-06-06
 - [1.5.0](#150---2026-06-06) - 2026-06-06
@@ -37,6 +38,14 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.6.1] - 2026-06-07
+
+### 🐛 Fixed
+- **Config change notification broken after re-enable** — Removed `clearOnConfigChanged()` call in `destroy()` that permanently cleared the callback, preventing TOC rebuilds when config changed after a disable→re-enable cycle. The `_activeRebuild` null guard already prevents stale rebuilds safely.
+- **Dead code cleanup and type safety** — Removed orphaned `panel-expanded` storage path, dead imports (`debounce` in edge-dock, unused CSS function in floating-panel), and fixed unsafe `as number` cast on `activeIndex` to use proper type narrowing.
 
 ---
 
