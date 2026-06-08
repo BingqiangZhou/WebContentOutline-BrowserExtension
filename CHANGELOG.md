@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#161---2026-06-07)
+[Table of Contents](#table-of-contents) • [Latest](#162---2026-06-08)
 
 ---
 
 ## Table of Contents
 
+- [1.6.2](#162---2026-06-08) - 2026-06-08
 - [1.6.1](#161---2026-06-07) - 2026-06-07
 - [1.6.0](#160---2026-06-07) - 2026-06-07
 - [1.5.1](#151---2026-06-06) - 2026-06-06
@@ -38,6 +39,18 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.6.2] - 2026-06-08
+
+### 🐛 Fixed
+- **DeepSeek chatbot page detection and TOC extraction** — Updated detection to use stable `.ds-message` / `.ds-markdown` selectors, fixing empty TOC on DeepSeek pages. Added walk-up logic from `.ds-markdown` to parent `.ds-message` so AI response headings are correctly discovered.
+- **Gemini and DeepSeek screen reader label leakage** — Screen reader labels like "You said" and "Gemini said" (hidden via `.cdk-visually-hidden` clip-path technique) were appearing in the TOC. Added `getVisibleText()` helper that clones elements and strips visually-hidden descendants, and `closest()` check to skip heading elements that are themselves visually hidden.
+
+### ⚡ Technical Improvements
+- **Chatbot discovery source tracking** — All 8 chatbot discovery strategies now report a `source` field, enabling confidence scoring bonuses for framework-specific detection and improving diagnostic logging.
+- **Dead code removal in text extraction** — Removed unreachable `textEl = null` initialization and `if (!textEl)` guard in `extractUserText()`.
 
 ---
 
