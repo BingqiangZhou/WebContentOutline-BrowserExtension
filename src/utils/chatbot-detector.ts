@@ -1218,6 +1218,24 @@ function detectChatPage(): ChatbotProfile | null {
 // Text extraction helpers
 // ---------------------------------------------------------------------------
 
+/** Visually-hidden CSS class patterns used by various frameworks. */
+var VISUALLY_HIDDEN_SEL = '.cdk-visually-hidden, .sr-only, .visually-hidden, [aria-hidden="true"]';
+
+/**
+ * Return the element's text with visually-hidden nodes removed.
+ * Handles clip-path / offscreen techniques that innerText cannot filter.
+ */
+function getVisibleText(el: Element): string {
+  try {
+    var clone = el.cloneNode(true) as Element;
+    var hidden = clone.querySelectorAll(VISUALLY_HIDDEN_SEL);
+    for (var i = 0; i < hidden.length; i++) hidden[i].remove();
+    return (clone.textContent || '').trim();
+  } catch (_) {
+    return (el.textContent || '').trim();
+  }
+}
+
 /**
  * Extract display text from a user message element.
  */
@@ -1236,9 +1254,11 @@ function extractUserText(el: HTMLElement): string {
       }
       return text;
     }
-    // Generic: find the most relevant text-containing child
+    // Generic: find the most relevant text-containing child.
+    // Use getVisibleText to exclude visually hidden content (e.g. .cdk-visually-hidden
+    // screen-reader labels like "You said", "gemini said" which use clip-path, not display:none).
     var textEl = el.querySelector('p, .whitespace-pre-wrap, [class*="text"]') || el;
-    text = (textEl.textContent || '').trim();
+    text = getVisibleText(textEl);
   } catch (_) {
     try { text = (el.textContent || '').trim(); } catch (_2) { text = ''; }
   }
@@ -1280,7 +1300,11 @@ function getHeadingLevel(el: Element): number {
  */
 function getHeadingText(el: Element): string {
   var text = '';
-  try { text = (el.textContent || '').trim(); } catch (_) { return ''; }
+  try {
+    // Use getVisibleText to exclude visually hidden content (e.g. screen-reader labels
+    // like "gemini said" wrapped in .cdk-visually-hidden via clip-path technique).
+    text = getVisibleText(el);
+  } catch (_) { return ''; }
   text = text.replace(/\s+/g, ' ');
   if (text.length > 200) text = text.substring(0, 200) + '...';
   return text;
@@ -1418,6 +1442,10 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
       var hEl = headings[j] as HTMLElement;
       if (!isVisible(hEl)) continue;
       if (seenEls.has(hEl)) continue;
+      // Skip headings that are themselves visually-hidden (e.g. Gemini's
+      // <h2 class="cdk-visually-hidden screen-reader-model-response-label">Gemini said</h2>).
+      // isVisible() cannot detect clip-path based hiding, so check via closest().
+      if (hEl.closest(VISUALLY_HIDDEN_SEL)) continue;
 
       var hText = getHeadingText(hEl);
       if (!hText) continue;

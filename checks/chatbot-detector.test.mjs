@@ -73,6 +73,27 @@ function makeElement(tag, opts = {}) {
       }
       return [];
     },
+    closest(sel) {
+      // Simple mock: check if self matches, then walk up parentElement chain
+      const check = (el) => {
+        if (!el) return null;
+        // Class selector check (e.g. '.cdk-visually-hidden')
+        if (/^\.[a-zA-Z_-][a-zA-Z0-9_-]+$/.test(sel)) {
+          const cls = sel.substring(1);
+          if (el.classList && el.classList.contains(cls)) return el;
+        }
+        // Attribute selector check (e.g. '[aria-hidden="true"]')
+        const attrMatch = sel.match(/^\[([^\]=]+)(?:="([^"]+)")?\]$/);
+        if (attrMatch) {
+          const [, attr, value] = attrMatch;
+          if (el._attributes && attr in el._attributes) {
+            if (value === undefined || el._attributes[attr] === value) return el;
+          }
+        }
+        return el.parentElement ? check(el.parentElement) : null;
+      };
+      return check(this);
+    },
     compareDocumentPosition(other) {
       if (this._docOrder < other._docOrder) return 4; // DOCUMENT_POSITION_FOLLOWING
       if (this._docOrder > other._docOrder) return 2; // DOCUMENT_POSITION_PRECEDING
