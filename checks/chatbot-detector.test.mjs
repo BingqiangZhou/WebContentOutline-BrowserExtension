@@ -30,6 +30,10 @@ function makeElement(tag, opts = {}) {
     _attributes: opts.attributes || {},
     _style: opts.style || {},
     get children() { return this._children; },
+    get classList() {
+      const cn = this._className;
+      return { contains(cls) { return cn.split(/\s+/).includes(cls); } };
+    },
     offsetWidth: opts.offsetWidth !== undefined ? opts.offsetWidth : 600,
     offsetHeight: opts.offsetHeight !== undefined ? opts.offsetHeight : 200,
     ownerDocument: null,
@@ -44,6 +48,15 @@ function makeElement(tag, opts = {}) {
       }
       if (sel === 'p, .whitespace-pre-wrap, [class*="text"]') {
         return this._children[0] || null;
+      }
+      // Simple tag selector (e.g. 'div') — return first matching child
+      if (/^[a-z]+$/.test(sel)) {
+        return this._children.find(c => c.tagName === sel.toUpperCase()) || null;
+      }
+      // Simple class selector (e.g. '.ds-markdown') — find child with matching class
+      if (/^\.[a-zA-Z_-][a-zA-Z0-9_-]*$/.test(sel)) {
+        const cls = sel.substring(1);
+        return this._children.find(c => c.classList.contains(cls)) || null;
       }
       return null;
     },
@@ -113,6 +126,11 @@ function makeElement(tag, opts = {}) {
       return result;
     },
   };
+  // innerText getter: mirrors textContent in tests (no CSS layout awareness needed)
+  Object.defineProperty(el, 'innerText', {
+    get() { return this.textContent || ''; },
+    configurable: true,
+  });
   el._docOrder = opts.docOrder !== undefined ? opts.docOrder : id;
   el.ownerDocument = opts.ownerDocument || { evaluate: () => {} };
   for (const c of el._children) { c.parentElement = el; }
@@ -719,40 +737,49 @@ test('Claude hint: uses data-testid="user-message" selector', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests: DeepSeek .ds-markdown heuristic
+// Tests: DeepSeek stable semantic selectors (.ds-message, .ds-markdown)
 // ---------------------------------------------------------------------------
 
-test('DeepSeek: detected via .ds-markdown heuristic + hint fallback for user selector', () => {
-  const userMsg = addTextContent(
-    makeElement('div', {
-      className: 'ds-chat-user-message',
-      docOrder: 0, offsetWidth: 600, offsetHeight: 100,
-    }),
-    'What is TypeScript?'
-  );
+test('DeepSeek: detected via .ds-message + .ds-markdown stable selectors', () => {
+  // Real DeepSeek structure: .ds-message wraps BOTH user and AI messages.
+  // AI messages contain .ds-markdown children; user messages do NOT.
+
+  // User message (.ds-message WITHOUT .ds-markdown child)
+  const userMsg = makeElement('div', {
+    className: 'ds-message',
+    docOrder: 0, offsetWidth: 600, offsetHeight: 100,
+    children: [],
+  });
+  userMsg.textContent = 'What is TypeScript?';
+
+  // AI message (.ds-message WITH .ds-markdown child)
+  // The .ds-markdown contains headings that should be extracted
+  const h3 = makeElement('h3', { docOrder: 10, offsetWidth: 500, offsetHeight: 30 });
+  h3.textContent = 'Key Features';
   const dsMarkdown = makeElement('div', {
     className: 'ds-markdown',
     docOrder: 1,
+    children: [h3],
   });
-  const assistantMsg = makeElement('div', {
-    className: 'ds-chat-assistant-message',
-    docOrder: 2, children: [dsMarkdown],
+  dsMarkdown.textContent = 'TypeScript is a typed superset of JavaScript...';
+  const aiMsg = makeElement('div', {
+    className: 'ds-message',
+    docOrder: 2, offsetWidth: 600, offsetHeight: 200,
+    children: [dsMarkdown],
   });
-  dsMarkdown.parentElement = assistantMsg;
+  aiMsg.textContent = 'AI response about TypeScript';
 
   const mod = loadModule(
     { hostname: 'chat.deepseek.com', href: 'https://chat.deepseek.com/chat/123' },
     {
       querySelector(sel) {
-        // DeepSeek hint fallback userSelector: '.ds-chat-user-message, [data-role="user"]'
-        if (sel === '.ds-chat-user-message, [data-role="user"]') return userMsg;
+        if (sel === '.ds-message') return userMsg;
         return null;
       },
       querySelectorAll(sel) {
-        if (sel === '.ds-chat-user-message, [data-role="user"]') return [userMsg];
-        if (sel === '.ds-chat-assistant-message, [data-role="assistant"]') return [assistantMsg];
-        if (sel === '.ds-markdown') return [dsMarkdown];
-        if (sel === '.ds-markdown, .ds-think-content') return [dsMarkdown];
+        if (sel === '.ds-message') return [userMsg, aiMsg];
+        if (sel.includes('ds-markdown') && !sel.includes('ds-think-content')) return [dsMarkdown];
+        if (sel === '.ds-message, .ds-markdown, .ds-think-content') return [userMsg, dsMarkdown];
         return [];
       },
       body: makeElement('body'),
@@ -762,7 +789,19 @@ test('DeepSeek: detected via .ds-markdown heuristic + hint fallback for user sel
   assert.equal(mod.isChatbotPage(), true, 'DeepSeek should be detected');
   const result = mod.tryBuildChatbotTocItems();
   assert.ok(result !== null, 'should build TOC for DeepSeek');
-  assert.ok(result.items[0].text.includes('TypeScript'));
+  // User message should be extracted
+  assert.ok(result.items[0].text.includes('TypeScript'), 'should extract user text');
+  assert.equal(result.items[0].source, 'user', 'first item should be user prompt');
+  // AI .ds-message should be filtered out — only user messages as level-1 items
+  for (const item of result.items) {
+    if (item.source === 'user') {
+      assert.ok(item.text !== 'AI response about TypeScript', 'AI message should not appear as user prompt');
+    }
+  }
+  // AI heading should be found after walk-up to parent .ds-message
+  const aiItems = result.items.filter(i => i.source === 'ai');
+  assert.ok(aiItems.length >= 1, 'should extract at least one AI heading');
+  assert.ok(aiItems[0].text.includes('Key Features'), 'AI heading text should be extracted');
 });
 
 // ---------------------------------------------------------------------------
@@ -928,27 +967,25 @@ test('discovers selectors via data-author-role (user/assistant)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Tests: DeepSeek sentinel includes .ds-markdown
+// Tests: DeepSeek sentinel includes stable selectors
 // ---------------------------------------------------------------------------
 
-test('DeepSeek sentinel selector includes .ds-markdown', () => {
+test('DeepSeek sentinel selector includes .ds-markdown and .ds-message', () => {
   const dsMarkdown = makeElement('div', { className: 'ds-markdown', docOrder: 0 });
-  const userMsg = makeElement('div', { className: 'ds-chat-user-message', docOrder: 1, offsetWidth: 600, offsetHeight: 100 });
+  const userMsg = makeElement('div', { className: 'ds-message', docOrder: 1, offsetWidth: 600, offsetHeight: 100 });
   addTextContent(userMsg, 'Hello DeepSeek');
 
   const mod = loadModule(
     { hostname: 'chat.deepseek.com', href: 'https://chat.deepseek.com' },
     {
       querySelector(sel) {
-        if (sel === '.ds-chat-user-message, [data-role="user"]') return userMsg;
+        if (sel === '.ds-message') return userMsg;
         return null;
       },
       querySelectorAll(sel) {
-        if (sel === '.ds-chat-user-message, [data-role="user"]') return [userMsg];
-        if (sel === '.ds-chat-assistant-message, [data-role="assistant"]') return [];
+        if (sel === '.ds-message') return [userMsg];
         if (sel === '.ds-markdown') return [dsMarkdown];
-        if (sel === '.ds-markdown, .ds-think-content') return [dsMarkdown];
-        if (sel.includes('ds-chat-user-message') && sel.includes('ds-chat-assistant-message')) return [userMsg];
+        if (sel === '.ds-message, .ds-markdown, .ds-think-content') return [dsMarkdown, userMsg];
         return [];
       },
       body: makeElement('body'),
@@ -957,6 +994,6 @@ test('DeepSeek sentinel selector includes .ds-markdown', () => {
 
   const sentinel = mod.getChatbotSentinelSelector();
   assert.ok(sentinel !== null, 'should return a sentinel selector');
-  assert.ok(sentinel.indexOf('ds-markdown') >= 0 || sentinel.indexOf('ds-chat') >= 0,
+  assert.ok(sentinel.indexOf('ds-markdown') >= 0 && sentinel.indexOf('ds-message') >= 0,
     'sentinel should include DeepSeek-specific selectors');
 });

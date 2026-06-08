@@ -132,14 +132,14 @@ var CHATBOT_HINTS: ChatbotAdapter[] = [
     sentinelSelector: '[data-message-author-role], [data-testid^="conversation-turn-"], [data-message-id]',
   },
   {
-    // DeepSeek: hashed class names are unstable; use .ds-markdown heuristic via auto-detection.
+    // DeepSeek: .ds-message wraps both user and AI; user = no .ds-markdown child.
     // Hint entries are last-resort only.
     match: function(hostname: string) {
       return hostname === 'chat.deepseek.com' || hostname.endsWith('.chat.deepseek.com');
     },
-    userSelector: '.ds-chat-user-message, [data-role="user"]',
-    assistantSelector: '.ds-chat-assistant-message, [data-role="assistant"], div[class*="prose"]',
-    sentinelSelector: '.ds-chat-user-message, .ds-chat-assistant-message, .ds-markdown, [data-role]',
+    userSelector: '.ds-message',
+    assistantSelector: '.ds-markdown.ds-assistant-message-main-content, .ds-markdown',
+    sentinelSelector: '.ds-message, .ds-markdown, .ds-think-content',
   },
   {
     // Claude: uses data-testid="user-message" (not "human-message") as of 2026
@@ -489,6 +489,7 @@ function discoverByExplicitRole(): SelectorResult | null {
         userSelector: '[data-message-author-role="user"]',
         assistantSelector: '[data-message-author-role="assistant"]',
         sentinelSelector: '[data-message-author-role]',
+        source: 'explicit-role',
       };
     }
   } catch (_) {}
@@ -502,6 +503,7 @@ function discoverByExplicitRole(): SelectorResult | null {
         userSelector: '[data-turn-role="user"]',
         assistantSelector: '[data-turn-role="model"]',
         sentinelSelector: '[data-turn-role]',
+        source: 'explicit-role',
       };
     }
   } catch (_) {}
@@ -515,6 +517,7 @@ function discoverByExplicitRole(): SelectorResult | null {
         userSelector: '[data-role="user"]',
         assistantSelector: '[data-role="assistant"]',
         sentinelSelector: '[data-role]',
+        source: 'explicit-role',
       };
     }
   } catch (_) {}
@@ -528,6 +531,7 @@ function discoverByExplicitRole(): SelectorResult | null {
         userSelector: '[data-author-role="user"]',
         assistantSelector: '[data-author-role="assistant"]',
         sentinelSelector: '[data-author-role]',
+        source: 'explicit-role',
       };
     }
   } catch (_) {}
@@ -575,6 +579,7 @@ function discoverByTestId(): SelectorResult | null {
       userSelector: userSel,
       assistantSelector: assistantSel,
       sentinelSelector: userSel + ', ' + assistantSel,
+      source: 'testid',
     };
   }
 
@@ -628,6 +633,7 @@ function discoverByClassPattern(): SelectorResult | null {
       userSelector: userSel,
       assistantSelector: assistantSel,
       sentinelSelector: userSel + ', ' + assistantSel,
+      source: 'class-pattern',
     };
   }
 
@@ -657,6 +663,7 @@ function discoverByGeminiWebComponent(): SelectorResult | null {
         userSelector: userSel,
         assistantSelector: assistantSel,
         sentinelSelector: 'ms-chat-turn, .chat-turn-container, [data-turn-role]',
+        source: 'gemini-web-component',
       };
     }
   } catch (_) {}
@@ -665,32 +672,25 @@ function discoverByGeminiWebComponent(): SelectorResult | null {
 }
 
 /**
- * Strategy E: DeepSeek .ds-markdown heuristic.
- * DeepSeek uses hashed class names that change with each build.
- * Heuristic: elements containing .ds-markdown children are assistant responses.
+ * Strategy E: DeepSeek stable semantic selectors.
+ * DeepSeek uses stable semantic class names: .ds-message (wraps both user and AI),
+ * .ds-markdown (AI content). User messages are .ds-message WITHOUT .ds-markdown children.
+ * Require both to confirm a DeepSeek chat page, reducing false positives.
  */
 function discoverByDeepSeekMarkdown(): SelectorResult | null {
   try {
     var dsMarkdowns = document.querySelectorAll('.ds-markdown');
     if (dsMarkdowns.length < 1) return null;
 
-    // The parent chain of a .ds-markdown element is the assistant response container.
-    // Walk up to find a reasonable container (typically 2-4 levels up).
-    var firstMarkdown = dsMarkdowns[0];
-    var assistantContainer: Element = firstMarkdown;
-    for (var up = 0; up < 4 && assistantContainer.parentElement; up++) {
-      assistantContainer = assistantContainer.parentElement;
-    }
+    // Confirm user messages exist via stable .ds-message class
+    var hasUserMessages = document.querySelector('.ds-message') !== null;
+    if (!hasUserMessages) return null;
 
-    // For user messages: look for elements in the same parent that do NOT contain .ds-markdown
-    // and have visible text content. We can't generate a reliable CSS selector for this,
-    // so we return a sentinel-only result that lets the hint table handle selectors.
-    // But we CAN detect that this is a DeepSeek-like page and return a minimal signal.
     return {
-      userSelector: '',  // Will be filled by hint fallback
-      assistantSelector: '.ds-markdown',
-      sentinelSelector: '.ds-markdown, .ds-think-content',
-      _needsUserSelectorHint: true,
+      userSelector: '.ds-message',
+      assistantSelector: '.ds-markdown.ds-assistant-message-main-content, .ds-markdown',
+      sentinelSelector: '.ds-message, .ds-markdown, .ds-think-content',
+      source: 'deepseek-markdown',
     };
   } catch (_) {}
 
@@ -766,6 +766,7 @@ function discoverByAriaLogAnalysis(): SelectorResult | null {
         userSelector: userSel,
         assistantSelector: assistantSel,
         sentinelSelector: userSel + ', ' + assistantSel,
+        source: 'aria-log',
       };
     }
   }
@@ -1223,6 +1224,19 @@ function detectChatPage(): ChatbotProfile | null {
 function extractUserText(el: HTMLElement): string {
   var text = '';
   try {
+    // DeepSeek: .ds-message wraps both user and AI messages.
+    // If this element contains .ds-markdown, it's an AI message — skip it.
+    if (el.classList && el.classList.contains('ds-message')) {
+      if (el.querySelector('.ds-markdown')) return '';
+      // User message: use innerText to respect CSS visibility and exclude hidden noise
+      text = (el.innerText || '').trim();
+      text = text.replace(/\s+/g, ' ');
+      if (text.length > PROMPT_MAX_LEN) {
+        text = text.substring(0, PROMPT_MAX_LEN) + '...';
+      }
+      return text;
+    }
+    // Generic: find the most relevant text-containing child
     var textEl = el.querySelector('p, .whitespace-pre-wrap, [class*="text"]') || el;
     text = (textEl.textContent || '').trim();
   } catch (_) {
@@ -1283,6 +1297,20 @@ function getHeadingText(el: Element): string {
 function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta: { truncated: boolean; maxItems: number; totalCandidates: number } } | null {
   var userMessages: HTMLElement[] = [];
   try { userMessages = Array.from(document.querySelectorAll(profile.userSelector)) as HTMLElement[]; } catch (_) { return null; }
+
+  if (userMessages.length === 0) return null;
+
+  // DeepSeek: .ds-message wraps both user and AI messages.
+  // AI messages contain .ds-markdown children; filter them out early.
+  if (userMessages[0].classList && userMessages[0].classList.contains('ds-message')) {
+    var nonAi: HTMLElement[] = [];
+    for (var nf = 0; nf < userMessages.length; nf++) {
+      if (!userMessages[nf].querySelector('.ds-markdown')) {
+        nonAi.push(userMessages[nf]);
+      }
+    }
+    userMessages = nonAi;
+  }
 
   if (userMessages.length === 0) return null;
 
@@ -1352,6 +1380,22 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
     }
 
     if (!assistantEl) continue;
+
+    // DeepSeek: .ds-markdown may match the think-content block (no headings).
+    // Walk up to the parent .ds-message so the heading search covers the full
+    // AI response (think content + main response).
+    if (assistantEl.classList && assistantEl.classList.contains('ds-markdown')) {
+      try {
+        var walk = assistantEl.parentElement;
+        while (walk) {
+          if (walk.classList && walk.classList.contains('ds-message')) {
+            assistantEl = walk as HTMLElement;
+            break;
+          }
+          walk = walk.parentElement;
+        }
+      } catch (_) {}
+    }
 
     // Find headings within the assistant response
     var headings: Element[] = [];
