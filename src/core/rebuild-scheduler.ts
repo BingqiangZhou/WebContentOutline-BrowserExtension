@@ -9,6 +9,11 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
   var DEBOUNCE_MS = 400;
   var STREAMING_DEBOUNCE_MS = 1200;
   var MAX_CONSECUTIVE_FAILURES = 5;
+  // Once the breaker latches open it would stay open forever (the only reset
+  // site, on a successful rebuild, is itself gated behind the breaker). A
+  // half-open probe lets the page retry once per RECOVERY_MS so a transient
+  // burst of failures doesn't permanently freeze the TOC on the same page.
+  var BREAKER_RECOVERY_MS = 30000;
 
   /**
    * Get dynamic debounce interval: longer during streaming to reduce rebuild frequency.
@@ -36,7 +41,16 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
     var rebuildInFlight: Promise<boolean | void> | null = null;
     var debounceTimer: ReturnType<typeof setTimeout> | null = null;
     var consecutiveFailures = 0;
+    var lastTripAt = 0;
     var visibilityHandler: (() => void) | null = null;
+
+    // Breaker is "tripped" only while latched open AND inside the recovery
+    // window. Outside the window a probe is allowed through (safeRebuild resets
+    // the counter on success, or refreshes the window on another failure).
+    function isBreakerTripped() {
+      if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) return false;
+      return Date.now() - lastTripAt < BREAKER_RECOVERY_MS;
+    }
 
     // Sub-components
     var domWatcher: ReturnType<typeof createDomWatcher> | null = null;
@@ -44,7 +58,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
 
     var safeRebuild = async function(): Promise<boolean> {
       if (!isExtensionContextValid) return false;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return false;
+      if (isBreakerTripped()) return false;
       try {
         await onRebuild();
         consecutiveFailures = 0;
@@ -54,6 +68,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
           isExtensionContextValid = false;
           hasPendingRebuild = false;
           consecutiveFailures = 0;
+          lastTripAt = 0;
           if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
           if (domWatcher) domWatcher.invalidate();
           if (urlMonitor) urlMonitor.invalidate();
@@ -61,6 +76,9 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         }
         console.warn('[toc] rebuild failed:', e);
         consecutiveFailures++;
+        // Start/refresh the recovery window so a half-open probe is allowed
+        // through BREAKER_RECOVERY_MS later.
+        lastTripAt = Date.now();
         return false;
       }
     };
@@ -97,7 +115,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
 
     var scheduleRebuild = function(immediate?: boolean) {
       if (!isExtensionContextValid) return;
-      if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) return;
+      if (isBreakerTripped()) return;
       if (document.hidden) { hasPendingRebuild = true; return; }
       if (immediate) {
         hasPendingRebuild = true;
@@ -120,6 +138,10 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       if (onConfigDirty) onConfigDirty();
       // Invalidate chatbot detection cache on URL change so new pages get re-detected
       invalidateChatbotCache();
+      // A navigation is a fresh page context — give the breaker an immediate
+      // chance to recover instead of staying latched from the previous route.
+      consecutiveFailures = 0;
+      lastTripAt = 0;
       scheduleRebuild(immediate);
     };
 

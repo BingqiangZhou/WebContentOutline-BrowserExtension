@@ -182,11 +182,11 @@ Split into three focused modules:
 - Priority: class-based selector
 - Fallback: path selector with nth-of-type
 
-**Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 8 seconds as a safety fallback.
+**Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 3 seconds (default) as a safety fallback.
 
 **Rebuild scheduling** (`core/rebuild-scheduler.ts`):
 - Fixed debounce: 400ms (normal), 1200ms (during streaming), with circuit breaker after 5 consecutive failures
-- Circuit breaker: pauses after 5 consecutive failures
+- Circuit breaker: pauses after 5 consecutive failures; self-recovers via a half-open probe every 30s and an immediate reset on URL change (so a transient failure burst never permanently freezes the TOC)
 
 ## Manifest V3 Specifics
 

@@ -69,6 +69,53 @@ export function findMatchingConfig(configs: Array<{ urlPattern?: string; selecto
       return !!(key && map[key]);
     }
 
+    // Depth/count caps for shadow-DOM + iframe traversal. Bounded so a huge
+    // page cannot make collection walk unbounded nested roots.
+    var SHADOW_ROOT_MAX_DEPTH = 3;
+    var SHADOW_ROOT_MAX_ROOTS = 50;
+
+    /**
+     * Collect every queryable root reachable from `root`: the root itself plus
+     * open shadow roots and same-origin iframe documents (recursively, bounded).
+     * Closed shadow roots and cross-origin iframes are inaccessible and skipped.
+     * querySelectorAll / document.evaluate do not cross these boundaries on
+     * their own, so callers must query each returned root.
+     */
+function gatherQueryRoots(root: Element | Document | DocumentFragment | ShadowRoot): Array<Element | Document | DocumentFragment | ShadowRoot> {
+      var roots: Array<Element | Document | DocumentFragment | ShadowRoot> = [];
+      if (!root) return roots;
+      var queue: Array<{ node: Element | Document | DocumentFragment | ShadowRoot; depth: number }> = [{ node: root, depth: 0 }];
+      while (queue.length && roots.length < SHADOW_ROOT_MAX_ROOTS) {
+        var item = queue.shift();
+        if (!item) continue;
+        var node = item.node;
+        roots.push(node);
+        if (item.depth >= SHADOW_ROOT_MAX_DEPTH) continue;
+        var descendants: NodeListOf<Element> | null = null;
+        try {
+          var qa = (node as any).querySelectorAll;
+          if (typeof qa === 'function') descendants = qa.call(node, '*');
+        } catch (_) {}
+        if (!descendants) continue;
+        for (var i = 0; i < descendants.length && roots.length < SHADOW_ROOT_MAX_ROOTS; i++) {
+          var el = descendants[i] as any;
+          // Open shadow root (closed shadow roots expose null and are skipped).
+          try {
+            var sr = el.shadowRoot;
+            if (sr) queue.push({ node: sr, depth: item.depth + 1 });
+          } catch (_) {}
+          // Same-origin iframe document (cross-origin access throws / returns null).
+          if (el.tagName === 'IFRAME') {
+            try {
+              var cd = el.contentDocument;
+              if (cd) queue.push({ node: cd, depth: item.depth + 1 });
+            } catch (_) {}
+          }
+        }
+      }
+      return roots;
+    }
+
     /**
      * Collect nodes by a selector config
      * @param {{type: 'css'|'xpath', expr: string}} selector
@@ -97,10 +144,21 @@ export function collectBySelector(selector: { type: string; expr: string; _root?
       }
       try {
         if (isHighRiskBroadCssSelector(selector.expr)) return [];
-        var nodeList = queryRoot.querySelectorAll(selector.expr);
-        var len = Math.min(nodeList.length, limit);
-        var result = new Array<Element>(len);
-        for (var j = 0; j < len; j++) result[j] = nodeList[j];
+        // Query every reachable root (light DOM + open shadow roots + same-origin
+        // iframes) so component-based pages yield headings too.
+        var roots = gatherQueryRoots(queryRoot);
+        var result: Element[] = [];
+        for (var ri = 0; ri < roots.length && result.length < limit; ri++) {
+          var nodeList: NodeListOf<Element> | null = null;
+          try {
+            var qa = (roots[ri] as any).querySelectorAll;
+            if (typeof qa === 'function') nodeList = qa.call(roots[ri], selector.expr);
+          } catch (_) { continue; }
+          if (!nodeList) continue;
+          for (var j = 0; j < nodeList.length && result.length < limit; j++) {
+            result.push(nodeList[j]);
+          }
+        }
         return result;
       } catch (e) {
         return [];

@@ -5,7 +5,7 @@ import { collectBySelector, uniqueInDocumentOrder } from './dom-utils.js';
 import { getBoundedText } from './bounded-text.js';
 import { detectContentRegion } from './content-region.js';
 import { tryBuildChatbotTocItems, getChatbotSentinelSelector, getChatbotConfidence } from './chatbot-detector.js';
-import { TOC_TEXT_MAX_LEN, TOC_MAX_ITEMS, TOC_MAX_CANDIDATES, HEADING_LEVEL_WEIGHTS } from './constants.js';
+import { TOC_TEXT_MAX_LEN, TOC_MAX_ITEMS, TOC_MAX_CANDIDATES } from './constants.js';
 
     var COLLAPSE_WS_RE = /\s+/g;
 
@@ -17,8 +17,26 @@ import { TOC_TEXT_MAX_LEN, TOC_MAX_ITEMS, TOC_MAX_CANDIDATES, HEADING_LEVEL_WEIG
     }
 
 function getTocItemLevel(el: Element) {
-      var match = el && /^H([1-6])$/.exec(el.tagName || '');
-      return match ? parseInt(match[1], 10) : 2;
+      if (el) {
+        // Honor explicit ARIA heading levels (role="heading" aria-level="N")
+        // before falling back to the tag name.
+        try {
+          var ariaLevel = el.getAttribute && el.getAttribute('aria-level');
+          var ariaParsed = ariaLevel ? parseInt(ariaLevel, 10) : NaN;
+          if (ariaParsed >= 1 && ariaParsed <= 6) return ariaParsed;
+        } catch (_) {}
+        var match = /^H([1-6])$/.exec(el.tagName || '');
+        if (match) return parseInt(match[1], 10);
+      }
+      return 2;
+    }
+
+    // Two headings are treated as the same visual location only when their
+    // rects nearly coincide — this catches mirrored copies (e.g. a sticky
+    // duplicate) without dropping legitimately repeated section titles such as
+    // multiple "References" / "Notes" sections elsewhere on the page.
+    function rectsOverlap(a: { left: number; top: number }, b: { left: number; top: number }) {
+      return Math.abs(a.left - b.left) < 24 && Math.abs(a.top - b.top) < 24;
     }
 
 function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: string; _root?: Element | Document }>, cfg: { keepEmptyText?: boolean }) {
@@ -42,47 +60,12 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       var allUniq = uniqueInDocumentOrder(elements);
       var truncated = false;
 
-      // Heading level selection: when all 6 heading levels are present on the page,
-      // keep only the 3 most representative levels (adapted from Smart TOC).
-      // This filters out noise like site-wide h1s, rarely-used h5/h6, etc.
-      // Only activates for standard heading selectors (not chatbot or custom selectors).
+      // Note: a previous "keep top-3 heading levels" proportionality filter
+      // lived here. It was removed because it amputated legitimate deep levels
+      // (h4/h5/h6) on documents that use all six levels. Nav/footer noise is
+      // now handled upstream by content-region scoping (buildTocItems) plus the
+      // visibility/geometry filter below.
       var candidates = allUniq;
-      if (candidates.length > 0) {
-        var levelCounts: Record<string, number> = { H1: 0, H2: 0, H3: 0, H4: 0, H5: 0, H6: 0 };
-        var levelWeights = HEADING_LEVEL_WEIGHTS;
-        for (var lc = 0; lc < candidates.length; lc++) {
-          var tag = candidates[lc].tagName;
-          if (levelCounts[tag] !== undefined) levelCounts[tag]++;
-        }
-        // Count how many distinct heading levels are present
-        var presentLevels = 0;
-        for (var lv in levelCounts) {
-          if (levelCounts[lv] > 0) presentLevels++;
-        }
-        // Only filter when 5+ levels are present (strong signal of noise headings)
-        if (presentLevels >= 5) {
-          // Score each level: count × weight, pick top 3
-          var levelScores: Array<{ level: string; score: number }> = [];
-          for (var ls in levelCounts) {
-            if (levelCounts[ls] > 0) {
-              levelScores.push({ level: ls, score: levelCounts[ls] * (levelWeights[ls] || 0) });
-            }
-          }
-          levelScores.sort(function(a, b) { return b.score - a.score; });
-          var keepLevels = new Set<string>();
-          for (var kl = 0; kl < Math.min(3, levelScores.length); kl++) {
-            keepLevels.add(levelScores[kl].level);
-          }
-          // Filter candidates to only include selected levels
-          var filtered: Element[] = [];
-          for (var fc = 0; fc < candidates.length; fc++) {
-            if (keepLevels.has(candidates[fc].tagName)) {
-              filtered.push(candidates[fc]);
-            }
-          }
-          if (filtered.length > 0) candidates = filtered;
-        }
-      }
       if (candidates.length > TOC_MAX_CANDIDATES) {
         candidates = candidates.slice(0, TOC_MAX_CANDIDATES);
         truncated = true;
@@ -130,7 +113,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       }
 
       // Phase 2: Filter using cached geometry — parent clipping + text extraction only for survivors
-      var items: Array<{ id: string; el: Element; text: string; level: number; source?: string }> = [];
+      var items: Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }> = [];
       for (var g = 0; g < geoData.length; g++) {
         var entry = geoData[g];
         if (!entry) continue;
@@ -191,30 +174,48 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
 
         var text = getTrimmedText(el2);
         if (!keepEmpty && (!text || text.length === 0)) continue;
+        // Drop icon/glyph-only headings (e.g. a lone "#" anchor or "¶ copy link")
+        // that contain no letters or digits — a common source of nav noise.
+        if (!keepEmpty && !/[\p{L}\p{N}]/u.test(text)) continue;
 
-        items.push({ id: 'toc-item-' + items.length, el: el2, text: text, level: getTocItemLevel(el2), source: undefined as string | undefined });
+        items.push({ id: 'toc-item-' + items.length, el: el2, text: text, level: getTocItemLevel(el2), source: undefined as string | undefined, _pos: { left: rect2.left, top: rect2.top, right: rect2.right, bottom: rect2.bottom } });
         if (items.length >= TOC_MAX_ITEMS) {
           truncated = true;
           break;
         }
       }
 
-      // Deduplicate items with identical text that point to the same visual
-      // position (e.g. headings duplicated in sidebar + main content via
-      // aria-hidden or SR-only mirrors that survived the filter above).
+      // Deduplicate mirror copies: identical-text headings that sit at the same
+      // visual position (e.g. a sticky duplicate). Repeated section titles at
+      // different positions are intentionally preserved.
       if (items.length > 1) {
-        var seenTexts = new Set<string>();
-        var deduped: Array<{ id: string; el: Element; text: string; level: number; source?: string }> = [];
+        var byText: Map<string, Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }>> = new Map();
+        var deduped: Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }> = [];
         for (var d = 0; d < items.length; d++) {
-          var key = items[d].text;
-          if (!seenTexts.has(key)) {
-            seenTexts.add(key);
-            deduped.push(items[d]);
+          var cur = items[d];
+          var same = byText.get(cur.text);
+          if (same) {
+            var isMirror = false;
+            for (var sm = 0; sm < same.length; sm++) {
+              if (same[sm]._pos && cur._pos && rectsOverlap(same[sm]._pos as { left: number; top: number }, cur._pos as { left: number; top: number })) {
+                isMirror = true;
+                break;
+              }
+            }
+            if (isMirror) continue;
+            same.push(cur);
+          } else {
+            byText.set(cur.text, [cur]);
           }
+          deduped.push(cur);
         }
         if (deduped.length < items.length) {
           items = deduped;
         }
+      }
+      // Strip the internal position marker so it does not leak into the UI/storage.
+      for (var sp = 0; sp < items.length; sp++) {
+        delete (items[sp] as any)._pos;
       }
 
       return {
@@ -228,40 +229,66 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
     }
 
 export function buildTocItems(cfg: { selectors: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>) {
-      // Chatbot pages: build conversation-aware TOC (user prompts as level-1)
-      var chatbotResult = null;
-      try {
-        var chatConfidence = getChatbotConfidence();
-        // Only use chatbot TOC for high-confidence detections (>= 0.7).
-        // Lower scores may be embedded chat widgets (Intercom, Crisp, Drift)
-        // on otherwise regular pages.
-        if (chatConfidence >= 0.7) {
-          chatbotResult = tryBuildChatbotTocItems();
-        }
-      } catch (_) {}
-      if (chatbotResult !== null) {
-        // Inject sentinel selector so DOM watcher monitors all mutations
-        // (not heading-only) on subsequent rebuilds
-        if (cfg && Array.isArray(cfg.selectors) && cfg.selectors.length === 0) {
-          try {
-            var sentinel = getChatbotSentinelSelector();
-            if (sentinel) cfg.selectors.push({ type: 'css', expr: sentinel });
-          } catch (_) {}
-        }
-        return chatbotResult;
-      }
-
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
-      var isCustom = base.length > 0;
+      // "Custom" = the USER configured selectors. The chatbot sentinel we inject
+      // ourselves (see below) is marked _tocSentinel and excluded, otherwise it
+      // would persist across rebuilds and permanently disable the chatbot path.
+      var isCustom = false;
+      for (var bi = 0; bi < base.length; bi++) {
+        if (base[bi] && !(base[bi] as any)._tocSentinel) { isCustom = true; break; }
+      }
       var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
 
+      // Detect the content region once. A non-fallback root scopes selectors so
+      // nav/footer headings do not leak into the TOC.
+      var region: { root?: Element | null; source?: string } | null = null;
+      try { region = detectContentRegion(); } catch (_) {}
+      var regionRoot = (region && region.root && region.source !== 'fallback') ? region.root : null;
+
+      // User-defined selectors take priority: when the user has explicitly
+      // configured selectors, do NOT let high-confidence chatbot detection
+      // override them.
+      if (!isCustom) {
+        var chatbotResult = null;
+        try {
+          var chatConfidence = getChatbotConfidence();
+          // Only use chatbot TOC for high-confidence detections (>= 0.7).
+          // Lower scores may be embedded chat widgets (Intercom, Crisp, Drift)
+          // on otherwise regular pages.
+          if (chatConfidence >= 0.7) {
+            chatbotResult = tryBuildChatbotTocItems();
+          }
+        } catch (_) {}
+        if (chatbotResult !== null) {
+          // Inject the chatbot sentinel selector (marked) so the DOM watcher
+          // monitors message mutations on subsequent rebuilds. Idempotent: only
+          // push when not already present.
+          if (cfg && Array.isArray(cfg.selectors)) {
+            try {
+              var hasSentinel = false;
+              for (var hs = 0; hs < cfg.selectors.length; hs++) {
+                if (cfg.selectors[hs] && (cfg.selectors[hs] as any)._tocSentinel) { hasSentinel = true; break; }
+              }
+              if (!hasSentinel) {
+                var sentinel = getChatbotSentinelSelector();
+                if (sentinel) cfg.selectors.push({ type: 'css', expr: sentinel, _tocSentinel: true } as any);
+              }
+            } catch (_) {}
+          }
+          return chatbotResult;
+        }
+      }
+
       if (combined.length === 0) {
-        var region: { root?: Element | null } | null = null;
-        try { region = detectContentRegion(); } catch (_) {}
-        if (region && region.root) {
-          combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6', _root: region.root }];
-        } else {
-          combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6' }];
+        // Auto path: default heading selector, including ARIA headings.
+        combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6, [role="heading"]', _root: regionRoot || undefined }];
+      } else if (regionRoot) {
+        // Custom path: scope each selector to the content region (copy so the
+        // user's stored config objects are not mutated).
+        for (var ci = 0; ci < combined.length; ci++) {
+          if (!combined[ci]._root) {
+            combined[ci] = { type: combined[ci].type, expr: combined[ci].expr, _root: regionRoot };
+          }
         }
       }
 

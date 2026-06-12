@@ -68,11 +68,17 @@ var POSITIVE_WORDS = [
   'main', 'primary', 'markdown', 'richtext', 'blog', 'news', 'doc',
 ];
 
-/** Words that signal non-content when found in class or id (substring match) */
+/** Words that signal non-content when found as a whole class/id token.
+ *  Matched by token (split on non-alphanumerics), never by bare substring, so
+ *  that classes like "thread"/"read-more"/"shadow" (which merely contain the
+ *  letters "ad") are not wrongly rejected. */
 var NEGATIVE_WORDS = [
-  'sidebar', 'nav', 'footer', 'header', 'comment', 'aside', 'widget',
-  'ad', 'promo', 'related', 'breadcrumb', 'share', 'social', 'banner',
-  'sponsor', 'pagination', 'shoutbox', 'skyscraper', 'menu', 'toolbar',
+  'sidebar', 'sidenav', 'nav', 'navbar', 'navigation', 'footer', 'header',
+  'comment', 'comments', 'aside', 'widget', 'widgets',
+  'ad', 'ads', 'advert', 'advertisement', 'advertising', 'leaderboard',
+  'promo', 'promotion', 'related', 'breadcrumb', 'breadcrumbs',
+  'share', 'sharing', 'social', 'banner', 'sponsor', 'sponsored',
+  'pagination', 'paging', 'shoutbox', 'skyscraper', 'menu', 'toolbar',
 ];
 
 /** Heading weights for ancestor scoring (H1 weighted lower — often site-wide) */
@@ -131,18 +137,24 @@ function containsHeading(el: Element): boolean {
  * Returns a positive score for content-like names, negative for non-content.
  */
 function evaluatePatterns(el: Element): number {
-  var classStr = ' ' + (el.getAttribute('class') || '') + ' ';
-  var idStr = ' ' + (el.id || '') + ' ';
-  var combined = classStr.toLowerCase() + ' ' + idStr.toLowerCase();
+  // Tokenize class + id on any non-alphanumeric separator (space, -, _) so we
+  // match whole tokens only — avoids substring false-kills like "ad" inside
+  // "thread" / "read" / "shadow".
+  var raw = ((el.getAttribute('class') || '') + ' ' + (el.id || '')).toLowerCase();
+  var tokens = raw.split(/[^a-z0-9]+/);
+  var tokenSet: Set<string> = new Set();
+  for (var t = 0; t < tokens.length; t++) {
+    if (tokens[t]) tokenSet.add(tokens[t]);
+  }
 
   for (var i = 0; i < POSITIVE_WORDS.length; i++) {
-    if (combined.indexOf(POSITIVE_WORDS[i]) !== -1) {
+    if (tokenSet.has(POSITIVE_WORDS[i])) {
       return 150;
     }
   }
 
   for (var j = 0; j < NEGATIVE_WORDS.length; j++) {
-    if (combined.indexOf(NEGATIVE_WORDS[j]) !== -1) {
+    if (tokenSet.has(NEGATIVE_WORDS[j])) {
       return -300;
     }
   }
