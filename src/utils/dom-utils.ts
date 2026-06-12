@@ -287,6 +287,43 @@ export function uniqueInDocumentOrder(list: Element[]) {
     }
 
     /**
+     * Measure the height of fixed/sticky elements that overlay the top of the
+     * scroll area (or viewport) by sampling what is actually painted there via
+     * elementsFromPoint. More robust than selector-based detection: catches
+     * non-semantic sticky headers (common in IDE-style UIs) and headers nested
+     * inside the scroll container that a `header`/`nav` selector query misses.
+     * Returns the offset relative to the scroll area's top.
+     */
+    function computeOverlayOffset(scrollContainer: HTMLElement | null): number {
+      try {
+        var rect = scrollContainer
+          ? scrollContainer.getBoundingClientRect()
+          : { top: 0, left: 0, right: 0, width: window.innerWidth, height: 0, bottom: 0 };
+        var width = Number.isFinite((rect as DOMRect).width) ? (rect as DOMRect).width : window.innerWidth;
+        var x = (rect as DOMRect).left + width / 2;
+        var y = (rect as DOMRect).top + 1;
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0) return 0;
+        var stack = document.elementsFromPoint(x, y);
+        if (!stack || !stack.length) return 0;
+        var maxBottom = 0;
+        for (var i = 0; i < stack.length; i++) {
+          var painted = stack[i];
+          // Stop once we reach the scroll container itself: anything beneath it
+          // in paint order is content, not an overlay.
+          if (painted === scrollContainer) break;
+          var st = window.getComputedStyle(painted);
+          if (st && (st.position === 'fixed' || st.position === 'sticky')) {
+            var b = painted.getBoundingClientRect().bottom;
+            if (Number.isFinite(b) && b > maxBottom) maxBottom = b;
+          }
+        }
+        return Math.max(0, maxBottom - (rect as DOMRect).top);
+      } catch (_) {
+        return 0;
+      }
+    }
+
+    /**
      * Smooth scroll to element, positioning it below the top of the viewport
      * with padding for fixed/sticky headers and a comfortable reading gap.
      *
@@ -303,12 +340,16 @@ export function scrollToElement(el: HTMLElement) {
           } catch (_) { _reduceMotion = false; }
         }
         var behavior = (_reduceMotion ? 'auto' : 'smooth') as ScrollBehavior;
-        var headerH = detectFixedHeaderHeight();
-        var offset = Math.max(headerH, SCROLL_TOP_PADDING);
 
         // Find the actual scrollable container — many modern sites (ChatGPT, Claude,
         // Gemini) use an internal div with overflow:auto instead of document scroll.
         var scrollContainer = findScrollableAncestor(el);
+
+        // Offset = overlay covering the scroll-area top (most robust), falling
+        // back to cached semantic-header detection, floored by the read padding.
+        var overlay = computeOverlayOffset(scrollContainer);
+        var headerH = overlay > 0 ? overlay : detectFixedHeaderHeight();
+        var offset = Math.max(headerH, SCROLL_TOP_PADDING);
 
         if (scrollContainer) {
           // Internal scroll container: calculate position relative to it
