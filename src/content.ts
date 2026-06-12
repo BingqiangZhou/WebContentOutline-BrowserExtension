@@ -252,7 +252,15 @@ export function startTocContent(ctx: any) {
     } catch (_) {}
   }
 
-  attachListeners();
+  try {
+    attachListeners();
+  } catch (e) {
+    // Sync throw during listener setup — never let it escape uncaught into the host page.
+    try {
+      if (isContextInvalidatedError(e)) { dispose({ reason: 'context-invalidated' }); return; }
+      console.warn(msg('logPrefix') + ' ' + msg('logInitFailed'), e);
+    } catch (_) {}
+  }
 
   // Wait for DOM to be stable before initializing TOC
   async function initWhenStable() {
@@ -263,5 +271,11 @@ export function startTocContent(ctx: any) {
     await main();
   }
 
-  initWhenStable();
+  initWhenStable().catch(function(e) {
+    // Async bootstrap rejection — never surface as an unhandled promise rejection.
+    try {
+      if (isContextInvalidatedError(e)) { dispose({ reason: 'context-invalidated' }); return; }
+      console.warn(msg('logPrefix') + ' ' + msg('logInitFailed'), e);
+    } catch (_) {}
+  });
 }

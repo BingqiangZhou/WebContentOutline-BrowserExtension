@@ -124,7 +124,7 @@ export function initForConfig(cfg: any, options: any) {
             refreshLink.addEventListener('click', function(ev) {
               ev.preventDefault();
               location.reload();
-            });
+            }, { once: true });
 
             noticeEl.appendChild(noticeSpan);
             noticeEl.appendChild(document.createTextNode(' '));

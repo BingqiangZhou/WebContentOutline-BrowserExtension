@@ -144,7 +144,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         onCollapse && onCollapse();
       }
     };
-    panel.addEventListener('keydown', onPanelKeydown, true);
+    panel.addEventListener('keydown', onPanelKeydown, { capture: true, signal: listenersController.signal });
 
     var list = document.createElement('div');
     list.className = 'toc-list';
@@ -245,7 +245,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (!item) return;
       handleItemClick(item, node, idx, e);
     };
-    list.addEventListener('click', onListClick);
+    list.addEventListener('click', onListClick, { signal: listenersController.signal });
 
     onListKeydown = function(e: KeyboardEvent) {
       var key = e.key;
@@ -278,7 +278,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       e.preventDefault();
       handleItemClick(item, node, idx, e);
     };
-    list.addEventListener('keydown', onListKeydown);
+    list.addEventListener('keydown', onListKeydown, { signal: listenersController.signal });
 
     panel.appendChild(list);
     (mountTarget || document.documentElement).appendChild(panel);
@@ -308,12 +308,9 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var cleanup = function() {
       if (cleanedUp) return;
       cleanedUp = true;
-      if (onListClick) list.removeEventListener('click', onListClick);
-      if (onListKeydown) list.removeEventListener('keydown', onListKeydown);
-      onListClick = null;
-      onListKeydown = null;
-      if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true);
-      onPanelKeydown = null;
+      // All DOM listeners (scroll, panel/list keydown, list click) are registered
+      // with listenersController.signal, so a single abort() tears them all down —
+      // no manual removeEventListener bookkeeping (matches edge-dock's pattern).
       listenersController.abort();
       cleanupLock();
       if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }
