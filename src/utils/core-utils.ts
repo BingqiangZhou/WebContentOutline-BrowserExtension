@@ -101,10 +101,12 @@ export function buildSitePattern(): string {
     return location.protocol + '//' + location.host + '/*';
   }
 
-export function isTocContentIdentical(prevItems: Array<{ text: string; el: Element }>, nextItems: Array<{ text: string; el: Element }>): boolean {
+export function isTocContentIdentical(prevItems: Array<{ text: string; el: Element; level?: number }>, nextItems: Array<{ text: string; el: Element; level?: number }>): boolean {
     if (!prevItems || !nextItems || prevItems.length !== nextItems.length) return false;
     for (var i = 0; i < prevItems.length; i++) {
-      if (prevItems[i].text !== nextItems[i].text || prevItems[i].el !== nextItems[i].el) return false;
+      if (prevItems[i].text !== nextItems[i].text
+        || prevItems[i].el !== nextItems[i].el
+        || prevItems[i].level !== nextItems[i].level) return false;
     }
     return true;
   }

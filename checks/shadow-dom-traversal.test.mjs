@@ -101,3 +101,32 @@ test('cross-origin iframe (no accessible contentDocument) is skipped without thr
     ['Light']
   );
 });
+
+test('hidden / zero-size iframes are not traversed (no invisible content leaks in)', () => {
+  var lightH2 = he('H2', 'Light');
+  var iframeInnerH2 = he('H2', 'Inside hidden iframe');
+  var hiddenIframeDoc = {
+    querySelectorAll: function (expr) { return expr === 'h2' ? [iframeInnerH2] : []; }
+  };
+  // display:none / zero-size iframe — its inner doc is still laid out, so the
+  // heading would pass the geometry filter if collected.
+  var hiddenIframe = {
+    tagName: 'IFRAME',
+    offsetWidth: 0,
+    offsetHeight: 0,
+    contentDocument: hiddenIframeDoc
+  };
+  var docMock = {
+    querySelectorAll: function (expr) {
+      if (expr === 'h2') return [lightH2];
+      if (expr === '*') return [lightH2, hiddenIframe];
+      return [];
+    }
+  };
+  var collectBySelector = loadDomUtils(docMock);
+  var result = collectBySelector({ type: 'css', expr: 'h2' }, 100);
+  assert.deepEqual(
+    Array.from(result, function (n) { return n.textContent; }),
+    ['Light']
+  );
+});

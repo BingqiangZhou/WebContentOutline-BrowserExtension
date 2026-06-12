@@ -105,11 +105,21 @@ function gatherQueryRoots(root: Element | Document | DocumentFragment | ShadowRo
             if (sr) queue.push({ node: sr, depth: item.depth + 1 });
           } catch (_) {}
           // Same-origin iframe document (cross-origin access throws / returns null).
+          // Only descend into rendered iframes: a hidden / zero-size iframe's
+          // inner document is still laid out, so its headings would otherwise
+          // pass the visibility filter and leak in as invisible content.
           if (el.tagName === 'IFRAME') {
+            var iframeRendered = true;
             try {
-              var cd = el.contentDocument;
-              if (cd) queue.push({ node: cd, depth: item.depth + 1 });
+              if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') iframeRendered = false;
+              else if (el.offsetWidth === 0 || el.offsetHeight === 0) iframeRendered = false;
             } catch (_) {}
+            if (iframeRendered) {
+              try {
+                var cd = el.contentDocument;
+                if (cd) queue.push({ node: cd, depth: item.depth + 1 });
+              } catch (_) {}
+            }
           }
         }
       }
