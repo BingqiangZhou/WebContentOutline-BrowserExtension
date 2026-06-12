@@ -25,7 +25,7 @@ import { EXTENSION_OWNER } from '../utils/constants.js';
 
 interface TocItem {
   id: string;
-  el: HTMLElement;
+  el: Element;
   text: string;
   level: number;
   source?: string;

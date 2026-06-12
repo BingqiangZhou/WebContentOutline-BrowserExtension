@@ -206,7 +206,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       };
     }
 
-export function buildTocItems(cfg: { selectors: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>) {
+export function buildTocItems(cfg: { selectors?: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>) {
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
       // "Custom" = the USER configured selectors. The chatbot sentinel we inject
       // ourselves (see below) is marked _tocSentinel and excluded, otherwise it

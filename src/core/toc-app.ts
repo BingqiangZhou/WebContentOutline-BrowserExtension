@@ -30,11 +30,37 @@ import { EXTENSION_OWNER } from '../utils/constants.js';
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
   // (createNavLock + NavLock interface now live in ./nav-lock.js)
 
+  // --- Orchestrator types ---
+
+  /** A TOC heading item. `el` is the source heading; the rest is derived state.
+   *  Components (dock/panel/tracker) consume subsets of these fields. */
+  interface TocItem {
+    id: string;
+    el: Element;
+    text: string;
+    level: number;
+    source?: string;
+    _userSelected?: boolean;
+  }
+
+  interface TocMeta { truncated: boolean; maxItems: number; totalCandidates: number; }
+
+  /** Per-site config handed to the orchestrator. `selectors` is normalized to an
+   *  array by the time it arrives, but typed optional to match the upstream
+   *  config-manager / findMatchingConfig contracts. */
+  interface TocAppConfig {
+    selectors?: Array<{ type: string; expr: string }>;
+    side?: string;
+    __markConfigDirty?: () => void;
+  }
+
+  interface TocAppOptions { onDeactivate?: () => void; }
+
   // Config change callback — wired when initForConfig runs
-  var _activeRebuild: (() => any) | null = null;
+  var _activeRebuild: (() => unknown) | null = null;
   setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
 
-export function initForConfig(cfg: any, options: any) {
+export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     options = options || {};
     var onDeactivate = options.onDeactivate;
     var side: string = normalizeSide(cfg.side);
@@ -56,15 +82,15 @@ export function initForConfig(cfg: any, options: any) {
     };
 
     var buildResult = buildNow();
-    var items: any[] = buildResult.items;
-    var tocMeta: any = buildResult.meta;
-    var dockInstance: any = null;
-    var panelInstance: any = null;
-    var activeTracker: any = null;
+    var items: TocItem[] = buildResult.items;
+    var tocMeta: TocMeta | null = buildResult.meta;
+    var dockInstance: ReturnType<typeof renderEdgeDock> | null = null;
+    var panelInstance: ReturnType<typeof renderFloatingPanel> | null = null;
+    var activeTracker: ReturnType<typeof createActiveItemTracker> | null = null;
     var activeIndex = -1;
-    var rebuildScheduler: any = null;
-    var pickerInstance: any = null;
-    var rebuildInFlight: Promise<any> | null = null;
+    var rebuildScheduler: ReturnType<typeof createRebuildScheduler> | null = null;
+    var pickerInstance: ReturnType<typeof createElementPicker> | null = null;
+    var rebuildInFlight: Promise<boolean | void> | null = null;
     var navLock = createNavLock({
       onUnlock: function() {
         // When the nav lock releases, retry a rebuild that was parked while the
@@ -78,11 +104,11 @@ export function initForConfig(cfg: any, options: any) {
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
-    var findMatchingActiveIndex = function(nextItems: any[], previousItem: any, fallbackIndex: number) {
+    var findMatchingActiveIndex = function(nextItems: TocItem[], previousItem: TocItem | null, fallbackIndex: number) {
       if (!nextItems || !nextItems.length || !previousItem) return -1;
-      var byElement = nextItems.findIndex(function(item: any) { return item.el === previousItem.el; });
+      var byElement = nextItems.findIndex(function(item) { return item.el === previousItem.el; });
       if (byElement >= 0) return byElement;
-      var byText = nextItems.findIndex(function(item: any) { return item.text === previousItem.text; });
+      var byText = nextItems.findIndex(function(item) { return item.text === previousItem.text; });
       if (byText >= 0) return byText;
       return fallbackIndex >= 0 && fallbackIndex < nextItems.length ? fallbackIndex : -1;
     };
@@ -93,7 +119,7 @@ export function initForConfig(cfg: any, options: any) {
       if (panelInstance && panelInstance.setActiveIndex) panelInstance.setActiveIndex(activeIndex);
     };
 
-    var syncItemViews = function(previousItem: any, previousIndex: number) {
+    var syncItemViews = function(previousItem: TocItem | null, previousIndex: number) {
       var nextActiveIndex = findMatchingActiveIndex(items, previousItem, previousIndex);
       if (dockInstance && dockInstance.setItems) dockInstance.setItems(items);
       if (activeTracker && activeTracker.setItems) activeTracker.setItems(items);
@@ -187,7 +213,7 @@ export function initForConfig(cfg: any, options: any) {
         if (isContextInvalidatedError(e)) {
           debug('[toc] Extension context invalidated, stop TOC operations');
           navLock.unlock();
-          items.forEach(function(it: any) { it._userSelected = false; });
+          items.forEach(function(it) { it._userSelected = false; });
           if (rebuildScheduler && rebuildScheduler.disconnect) {
             rebuildScheduler.disconnect();
           }
@@ -229,7 +255,7 @@ export function initForConfig(cfg: any, options: any) {
         }
 
         dispatchPickerEvent('toc-picker-start');
-        pickerInstance = createElementPicker(function(el: any) {
+        pickerInstance = createElementPicker(function(el) {
           dispatchPickerEvent('toc-picker-end');
           pickerInstance = null;
           var sel = '';
@@ -284,7 +310,7 @@ export function initForConfig(cfg: any, options: any) {
         mountTarget: dockInstance.getPanelHost(),
         tocMeta: tocMeta,
         activeIndex: activeIndex,
-        onNavigate: function(_item: any, index: number) { syncActiveIndex(index); },
+        onNavigate: function(_item, index) { syncActiveIndex(index); },
       });
       return panelInstance;
     }
@@ -306,7 +332,7 @@ export function initForConfig(cfg: any, options: any) {
       }
     }
 
-    function collapse(opts?: any) {
+    function collapse(opts?: { focus?: boolean }) {
       try {
         if (dockInstance) dockInstance.collapse(opts || {});
         else removePanelCard();
@@ -315,7 +341,7 @@ export function initForConfig(cfg: any, options: any) {
       }
     }
 
-    async function expand(opts?: any) {
+    async function expand(opts?: { autoCollapse?: boolean }) {
       try {
         if (dockInstance) dockInstance.peek(opts || {});
       } catch (e) {
@@ -361,7 +387,7 @@ export function initForConfig(cfg: any, options: any) {
         onPick: startPick,
         onSiteConfig: function() { return siteConfig(cfg); },
         onDeactivate: onDeactivate,
-        onNavigate: function(item: any, index: number) {
+        onNavigate: function(item, index) {
           if (!item || !item.el) return;
           syncActiveIndex(index);
           navLock.lock(1000);
@@ -375,7 +401,7 @@ export function initForConfig(cfg: any, options: any) {
       });
       activeTracker = createActiveItemTracker({
         items: items,
-        onChange: function(_item: any, index: number) {
+        onChange: function(_item, index) {
           if (!rebuildInFlight && !navLock.isLocked()) syncActiveIndex(index);
         }
       });

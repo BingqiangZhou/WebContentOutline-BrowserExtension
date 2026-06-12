@@ -243,7 +243,7 @@ export function uniqueInDocumentOrder(list: Element[]) {
      * (scrollHeight > clientHeight or scrollWidth > clientWidth).
      * Returns null if the document root is the scroll container (normal pages).
      */
-    function findScrollableAncestor(el: HTMLElement) {
+    function findScrollableAncestor(el: Element) {
       var node: HTMLElement | null = el.parentElement;
       while (node && node !== document.documentElement && node !== document.body) {
         try {
@@ -336,7 +336,7 @@ export function uniqueInDocumentOrder(list: Element[]) {
      * an internal scrollable container (e.g. ChatGPT, Claude, Gemini).
      * @param {Element} el
      */
-export function scrollToElement(el: HTMLElement) {
+export function scrollToElement(el: Element) {
       try {
         // Cache prefers-reduced-motion — it doesn't change during a session
         if (_reduceMotion == null) {

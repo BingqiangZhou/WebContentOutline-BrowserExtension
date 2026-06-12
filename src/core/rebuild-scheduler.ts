@@ -32,7 +32,7 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
    * @param {function} [opts.onConfigDirty] - Called when a URL change is detected.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean } }) {
+export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean } }) {
     opts = opts || {};
     var onConfigDirty: (() => void) | null = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
     var navLock = opts.navLock;

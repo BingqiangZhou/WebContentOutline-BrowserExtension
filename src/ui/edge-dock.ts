@@ -50,6 +50,7 @@ function getPreviewLineMetrics(level: number): { width: number; inset: number } 
 }
 
 interface DockItem {
+  el?: Element;
   text: string;
   level: number;
   source?: string;
