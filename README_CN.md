@@ -247,7 +247,7 @@
 - **开发语言**：原生 TypeScript + CSS3（使用 WXT/Vite 构建）
 - **存储方案**：`browser.storage.local` / Chromium 扩展存储
 - **权限需求**：`storage`、`tabs`、`scripting`
-- **站点权限**：`http://*/*`、`https://*/*`
+- **站点权限**：`http://*/*`、`https://*/*`（可选——点击工具栏图标时按站点按需授权，禁用时撤销；默认无任何访问权限）
 
 ### 架构设计
 

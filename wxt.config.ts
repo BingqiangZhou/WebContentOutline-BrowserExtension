@@ -29,7 +29,11 @@ export default defineConfig({
     // 102 sits safely above all requirements and covers Edge (Chromium) 102+.
     minimum_chrome_version: '102',
     permissions: ['storage', 'tabs', 'scripting'],
-    host_permissions: ['http://*/*', 'https://*/*'],
+    // Host access is OPTIONAL: requested per-origin at runtime when the user
+    // enables a site (chrome.permissions.request in the action-click gesture),
+    // and revoked on disable. Least-privilege — the extension has no host
+    // access until the user explicitly grants a specific site.
+    optional_host_permissions: ['http://*/*', 'https://*/*'],
     icons: disabledIcon,
     action: {
       default_title: '__MSG_browserActionTitle__',
@@ -44,6 +48,12 @@ export default defineConfig({
       if (Array.isArray(manifest.content_scripts) && manifest.content_scripts.length === 0) {
         delete manifest.content_scripts;
       }
+      // Host access is OPTIONAL (optional_host_permissions), granted per-origin
+      // at runtime via chrome.permissions.request. Strip any required
+      // host_permissions WXT auto-derived from the content script's match
+      // patterns, so the extension ships with NO default host access. Granted
+      // optional origins still let scripting.executeScript inject.
+      delete manifest.host_permissions;
     },
   },
 });

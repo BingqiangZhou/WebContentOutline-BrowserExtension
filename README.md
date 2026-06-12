@@ -267,7 +267,7 @@ Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon
 - **Language**: Vanilla TypeScript + CSS3 (built by WXT/Vite)
 - **Storage**: `browser.storage.local` / Chromium extension storage
 - **Permissions**: `storage`, `tabs`, `scripting`
-- **Host Permissions**: `http://*/*`, `https://*/*`
+- **Host Permissions**: `http://*/*`, `https://*/*` (optional — granted per-site on demand when you click the toolbar icon, revoked when disabled; no access by default)
 
 ### Architecture
 

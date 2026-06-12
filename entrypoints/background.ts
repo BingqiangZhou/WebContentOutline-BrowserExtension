@@ -291,26 +291,38 @@ async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
   const origin = originFromUrl(tab.url);
-  const current = await getEnabledByOrigin(origin);
-  const nextEnabled = !current;
-  const saved = await setEnabledByOrigin(origin, nextEnabled);
-  if (!saved || !saved.ok) return;
-  // Update icon for this tab
-  await setTabIcon(tab.id, nextEnabled);
-  if (nextEnabled) {
-    // Enable: inject content script if needed, then tell it to start
-    await ensureContentScript(tab.id, tab.url);
-    try {
-      browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: true } satisfies TocRequest, () => { void browser.runtime.lastError; });
-    } catch (_) {}
-  } else {
-    // Disable: tell content script to clean up
+  const pattern = origin + '/*';
+  const currentlyEnabled = await getEnabledByOrigin(origin);
+
+  if (currentlyEnabled) {
+    // Disable: clear state, revoke per-origin host access, tell content to clean up.
+    await setEnabledByOrigin(origin, false);
+    try { await browser.permissions.remove({ origins: [pattern] }); } catch (_) {}
+    await setTabIcon(tab.id, false);
     try {
       browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: false } satisfies TocRequest, () => { void browser.runtime.lastError; });
     } catch (_) {}
+    await broadcastEnabledToOrigin(origin, false, tab.id);
+    return;
   }
+
+  // Enable: request per-origin host permission IN THE USER GESTURE. This must
+  // run early — chrome.permissions.request is only valid as a direct result of
+  // the action click. If the user denies the prompt, leave everything unchanged.
+  let approved = false;
+  try { approved = await browser.permissions.request({ origins: [pattern] }); } catch (_) {}
+  if (!approved) return;
+
+  const saved = await setEnabledByOrigin(origin, true);
+  if (!saved || !saved.ok) return;
+  await setTabIcon(tab.id, true);
+  // Inject content script if needed, then tell it to start
+  await ensureContentScript(tab.id, tab.url);
+  try {
+    browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: true } satisfies TocRequest, () => { void browser.runtime.lastError; });
+  } catch (_) {}
   // Broadcast to other tabs of same origin
-  await broadcastEnabledToOrigin(origin, nextEnabled, tab.id);
+  await broadcastEnabledToOrigin(origin, true, tab.id);
 }
 
 function startBackground() {
@@ -340,6 +352,26 @@ browser.tabs.onCreated.addListener((tab: any) => {
   if (tab?.id) updateIconForTab(tab.id, tab.url).catch(() => {});
 });
 
+// After an update from required -> optional host_permissions, previously
+// granted broad host access is lost, so entries in tocSiteEnabledMap may no
+// longer match an actual permission. Clear those stale entries on startup so
+// the icon/state reflect reality and content scripts don't try to run where
+// they can't inject. The user re-enables (re-grants) with a single click.
+async function reconcileMapWithPermissions(): Promise<void> {
+  let map: Record<string, boolean>;
+  try { map = await getEnabledMap(); } catch (_) { return; }
+  let changed = false;
+  for (const origin of Object.keys(map)) {
+    if (!map[origin]) continue;
+    let granted = false;
+    try { granted = await browser.permissions.contains({ origins: [origin + '/*'] }); } catch (_) {}
+    if (!granted) { map[origin] = false; changed = true; }
+  }
+  if (changed) {
+    try { await saveEnabledMap(map); } catch (_) {}
+  }
+}
+
 async function processAllTabs() {
   try {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
@@ -364,11 +396,13 @@ async function setGlobalDefaultIcon() {
 
 browser.runtime.onInstalled.addListener(async () => {
   await setGlobalDefaultIcon();
+  await reconcileMapWithPermissions();
   await processAllTabs();
 });
 
 browser.runtime.onStartup.addListener(async () => {
   await setGlobalDefaultIcon();
+  await reconcileMapWithPermissions();
   await processAllTabs();
 });
 
