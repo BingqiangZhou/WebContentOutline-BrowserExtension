@@ -41,9 +41,11 @@ export var MAP_MAX_KEYS = 400;
 export var CSS_PATH_MAX_DEPTH = 20;
 
 /**
- * Scroll-to-element: minimum gap (px) above the target element.
+ * Scroll-to-element: gap (px) left between the top/header and the target so its
+ * text sits just below the edge. Kept small so the heading lands at the top of
+ * the visible area rather than far below it.
  */
-export var SCROLL_TOP_PADDING = 80;
+export var SCROLL_TOP_PADDING = 8;
 
 /**
  * Fixed-header height cache TTL (ms).

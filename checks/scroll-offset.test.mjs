@@ -19,7 +19,7 @@ function loadScrollToElement(mocks) {
     Date: Date,
     document: mocks.document,
     window: mocks.window,
-    SCROLL_TOP_PADDING: 80,
+    SCROLL_TOP_PADDING: 8,
     HEADER_CACHE_TTL: 5000,
     __exports: {}
   };
@@ -68,9 +68,8 @@ test('scrollToElement accounts for a fixed overlay header covering the scroll ar
   scrollToElement(target);
 
   assert.equal(scrollToCalls.length, 1);
-  // scrollTop(0) + (elRect.top 500 - containerTop 0) - overlay(120) = 380.
-  // Without overlay detection the offset would be 80 -> 420.
-  assert.equal(scrollToCalls[0].top, 380);
+  // scrollTop(0) + (elRect.top 500 - containerTop 0) - (overlay 120 + gap 8) = 372.
+  assert.equal(scrollToCalls[0].top, 372);
 });
 
 test('scrollToElement still applies the default padding when no overlay covers the area', () => {
@@ -104,6 +103,6 @@ test('scrollToElement still applies the default padding when no overlay covers t
   });
 
   scrollToElement(target);
-  // No overlay -> offset = SCROLL_TOP_PADDING (80). 0 + (500-0) - 80 = 420.
-  assert.equal(scrollToCalls[0].top, 420);
+  // No overlay -> offset = gap only (8). 0 + (500-0) - 8 = 492.
+  assert.equal(scrollToCalls[0].top, 492);
 });

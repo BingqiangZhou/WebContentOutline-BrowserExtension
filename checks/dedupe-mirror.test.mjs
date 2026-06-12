@@ -37,11 +37,14 @@ test('dedupes same-text items at the same position (mirror copy)', () => {
   assert.equal(out.length, 1);
 });
 
-test('items without _pos are never deduped (no false mirror collapse)', () => {
+test('items without _pos are text-deduped (e.g. chatbot user prompts)', () => {
   var dedupeMirrorItems = loadDedupeMirrorItems();
+  // Chatbot user-prompt items carry no _pos. A user selector that matches both
+  // a wrapper and its inner content yields two same-text items — these must
+  // collapse to one (text-dedup), restoring pre-regression behavior.
   var out = dedupeMirrorItems([
-    { id: '1', text: 'Continue' },
-    { id: '2', text: 'Continue' }
+    { id: '1', text: 'How do I fix this?' },
+    { id: '2', text: 'How do I fix this?' }
   ]);
-  assert.equal(out.length, 2);
+  assert.equal(out.length, 1);
 });

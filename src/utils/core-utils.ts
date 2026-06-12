@@ -133,13 +133,22 @@ export function dedupeMirrorItems<T extends { text: string; _pos?: { left: numbe
       if (!cur) continue;
       var same = byText.get(cur.text);
       if (same) {
-        var isMirror = false;
+        var isDup = false;
         for (var sm = 0; sm < same.length; sm++) {
           var aPos = same[sm]._pos;
           var bPos = cur._pos;
-          if (aPos && bPos && mirrorRectsOverlap(aPos, bPos)) { isMirror = true; break; }
+          if (aPos && bPos) {
+            // Both positioned: collapse only if they overlap (a mirror copy).
+            // Same text at different positions is kept (legitimate repeat).
+            if (mirrorRectsOverlap(aPos, bPos)) { isDup = true; break; }
+          } else {
+            // Unpositioned items (e.g. chatbot user prompts, whose selector may
+            // match a wrapper + inner content): text-dedupe so duplicates
+            // collapse regardless of position.
+            isDup = true; break;
+          }
         }
-        if (isMirror) continue;
+        if (isDup) continue;
         same.push(cur);
       } else {
         byText.set(cur.text, [cur]);

@@ -346,10 +346,11 @@ export function scrollToElement(el: HTMLElement) {
         var scrollContainer = findScrollableAncestor(el);
 
         // Offset = overlay covering the scroll-area top (most robust), falling
-        // back to cached semantic-header detection, floored by the read padding.
+        // back to cached semantic-header detection, plus a small gap so the
+        // heading text sits just below the edge.
         var overlay = computeOverlayOffset(scrollContainer);
         var headerH = overlay > 0 ? overlay : detectFixedHeaderHeight();
-        var offset = Math.max(headerH, SCROLL_TOP_PADDING);
+        var offset = headerH + SCROLL_TOP_PADDING;
 
         if (scrollContainer) {
           // Internal scroll container: calculate position relative to it
