@@ -52,8 +52,8 @@ entrypoints/toc.content/index.ts
             ├── utils/toc-builder.ts → dom-utils.ts
             ├── ui/edge-dock.ts, ui/element-picker.ts, ui/floating-panel.ts
             ├── core/config-manager.ts → focus-trap.ts
-            └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
-            (inline nav-lock via createNavLock())
+            ├── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
+            └── core/nav-lock.ts (createNavLock + onUnlock)
 ```
 
 Background script:
@@ -111,7 +111,7 @@ Selectors (CSS/XPath)
 ```
 
 **4. UI State Management (`core/toc-app.ts`)**
-- Uses inline nav-lock via createNavLock()
+- Uses nav-lock from `core/nav-lock.ts` (createNavLock with onUnlock hook)
 - Active item restoration after rebuild
 - Pending rebuild queue (processes after navigation unlock)
 - Component lifecycle coordination with `destroy()` cleanup
@@ -120,7 +120,7 @@ Selectors (CSS/XPath)
 Split into three focused modules:
 - `core/dom-watcher.ts` — MutationObserver-based DOM change detection
 - `core/url-monitor.ts` — URL change detection via History API interception, popstate, and polling fallback
-- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, inline nav-lock (via opts), retry logic, and circuit breaker (pauses after 5 consecutive failures)
+- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock (received via opts), retry logic, and circuit breaker (pauses after 5 consecutive failures)
 
 **6. Config Change Notification**
 - Callback pattern via `setOnConfigChanged()` in `core/config-manager.ts`

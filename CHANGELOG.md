@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#162---2026-06-08)
+[Table of Contents](#table-of-contents) • [Latest](#170---2026-06-13)
 
 ---
 
 ## Table of Contents
 
+- [1.7.0](#170---2026-06-13) - 2026-06-13
 - [1.6.2](#162---2026-06-08) - 2026-06-08
 - [1.6.1](#161---2026-06-07) - 2026-06-07
 - [1.6.0](#160---2026-06-07) - 2026-06-07
@@ -39,6 +40,39 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.7.0] - 2026-06-13
+
+A capability and robustness release for the auto table-of-contents extraction pipeline: the TOC now works on Shadow DOM, iframe, and ARIA-heading sites, plus many extraction, chatbot, scroll, and dynamic-content fixes. No new permissions or breaking changes.
+
+### 🚀 Added
+- **Shadow DOM and iframe support** — Heading collection now traverses open shadow roots and same-origin iframes (bounded; hidden/zero-size iframes are skipped), so the TOC appears on component-based sites and iframe-embedded content that previously showed nothing.
+- **ARIA heading support** — Elements using `role="heading"` with `aria-level` are now collected and leveled correctly (previously ignored; non-`h*` tags collapsed to level 2).
+
+### 🐛 Fixed
+- **Hidden child text no longer leaks into headings** — Standard-path text extraction now excludes `aria-hidden` / `.sr-only` descendants (anchor glyphs, screen-reader labels), matching the chatbot path.
+- **Custom selectors are scoped to the content region** — User-defined selectors no longer pull in nav/footer headings.
+- **Content-region negative-word matching no longer over-rejects** — Switched from substring to whole-token matching, fixing false kills like "ad" inside "thread" / "read" / "shadow".
+- **Repeated same-named sections are preserved** — Identical-text headings are only collapsed when they are mirror copies at the same position; legitimately repeated titles (multiple "References" / "Notes") are kept.
+- **Chatbot user messages no longer duplicated** — A user selector matching both a wrapper and its inner content no longer renders each message twice.
+- **Chatbot detection is stable across rebuilds** — The internally-injected sentinel no longer disables the chatbot path on subsequent rebuilds (previously caused AI replies to disappear and stray entries to appear).
+- **User-defined selectors are honored on chat pages** — Custom selectors now take priority over the built-in chatbot detection.
+- **Circuit breaker self-recovers** — After 5 consecutive failures the TOC no longer freezes permanently; it recovers via a 30s probe and an immediate reset on navigation.
+- **Stable TOC after SPA navigation** — The URL-change rebuild is now debounced (no longer reads pre-swap DOM) and the DOM-watcher scope is recomputed, so chatbot↔regular-page transitions no longer miss updates or double-rebuild.
+- **Scroll-to-item lands below the actual header** — The offset now samples the real fixed/sticky overlay via `elementsFromPoint`, fixing headings hidden under non-semantic or container-nested headers (e.g. Trae). The gap was also tightened so headings sit just below the top edge.
+- **Parked rebuild retries on nav-lock release** — A rebuild deferred during user navigation now runs promptly when the lock releases.
+- **Removed the heading-level proportionality filter** — Documents using all six levels no longer have legitimate h4/h5/h6 dropped.
+- **Icon/glyph-only headings are dropped** — Lone "#", "¶", etc. no longer appear as TOC entries.
+
+### ⚡ Technical Improvements
+- **Streaming debounce resets on SPA navigation** — `_lastAssistantTextLen` is cleared on chatbot cache invalidation so the 1200ms debounce does not mis-report on a new page.
+- **Deterministic cross-root element ordering** — `uniqueInDocumentOrder` tiebreaks disconnected nodes (shadow/iframe roots) by source index instead of relying on sort stability.
+- **Broad-selector rejection is surfaced** — An over-broad user selector now logs a debug message instead of silently yielding an empty TOC.
+- **TOC identity check compares heading level** — `isTocContentIdentical` now includes `level`, so an `aria-level` change triggers a rebuild.
+- **DeepSeek hint selectors deduplicated** — The two identical DeepSeek hint blocks now share one constant.
+- **Test coverage expanded** — Added 12 test files; the suite now has 148 passing tests.
 
 ---
 
