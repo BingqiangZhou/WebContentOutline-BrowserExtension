@@ -4,6 +4,7 @@
 import { getBadgePosMap, saveBadgePosMap } from './storage.js';
 import { serializedWrite, touchObjectKey, pruneObjectToLimit } from '../shared/primitives.js';
 import { MAP_MAX_KEYS } from './constants.js';
+import { TOC_MESSAGE, type TocRequest } from '../shared/messages.js';
 
 interface BadgePos {
   x: number;
@@ -32,11 +33,11 @@ export async function setBadgePosByHost(host: string, pos: { x: number; y: numbe
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
       return await new Promise<BadgePos | null>(function(resolve) {
         chrome.runtime.sendMessage({
-          type: 'toc:mutateUiState',
+          type: TOC_MESSAGE.MUTATE_UI_STATE,
           operation: 'set-badge-position',
           key: host,
           value: enriched
-        }, function(response: { ok?: boolean; value?: BadgePos } | undefined) {
+        } satisfies TocRequest, function(response: { ok?: boolean; value?: BadgePos } | undefined) {
           if (chrome.runtime.lastError) { resolve(null); return; }
           resolve(response && response.ok ? response.value as BadgePos : null);
         });

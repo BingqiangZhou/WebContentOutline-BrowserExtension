@@ -24,6 +24,10 @@ export default defineConfig({
     name: '__MSG_extensionName__',
     description: '__MSG_extensionDescription__',
     default_locale: 'en',
+    // MV3 service worker + chrome.scripting (executeScript/insertCSS/removeCSS)
+    // baseline. The CSS/JS uses nothing newer than :where()/:is() (Chrome 88);
+    // 102 sits safely above all requirements and covers Edge (Chromium) 102+.
+    minimum_chrome_version: '102',
     permissions: ['storage', 'tabs', 'scripting'],
     host_permissions: ['http://*/*', 'https://*/*'],
     icons: disabledIcon,

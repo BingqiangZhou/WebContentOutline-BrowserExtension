@@ -12,6 +12,7 @@ import {
   originFromUrl,
 } from '../src/shared/primitives.js';
 import { MAP_MAX_KEYS } from '../src/utils/constants.js';
+import { TOC_MESSAGE, type TocRequest } from '../src/shared/messages.js';
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
@@ -199,7 +200,7 @@ async function updateIconForTab(tabId: number, url: string = ''): Promise<void> 
 function pingContentScript(tabId: number): Promise<boolean> {
   return new Promise((resolve) => {
     try {
-      browser.tabs.sendMessage(tabId, { type: 'toc:ping' }, (res: any) => {
+      browser.tabs.sendMessage(tabId, { type: TOC_MESSAGE.PING } satisfies TocRequest, (res: any) => {
         if (browser.runtime.lastError) resolve(false);
         else resolve(!!(res && res.ok));
       });
@@ -276,7 +277,7 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
     for (const t of tabs) {
       if (!t.id || t.id === exceptTabId) continue;
       try {
-        browser.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void browser.runtime.lastError; });
+        browser.tabs.sendMessage(t.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled } satisfies TocRequest, () => { void browser.runtime.lastError; });
         // Update icon for each tab
         await setTabIcon(t.id, enabled);
       } catch (_) {}
@@ -300,12 +301,12 @@ async function handleActionClick(tab: any): Promise<void> {
     // Enable: inject content script if needed, then tell it to start
     await ensureContentScript(tab.id, tab.url);
     try {
-      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: true }, () => { void browser.runtime.lastError; });
+      browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: true } satisfies TocRequest, () => { void browser.runtime.lastError; });
     } catch (_) {}
   } else {
     // Disable: tell content script to clean up
     try {
-      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: false }, () => { void browser.runtime.lastError; });
+      browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: false } satisfies TocRequest, () => { void browser.runtime.lastError; });
     } catch (_) {}
   }
   // Broadcast to other tabs of same origin
@@ -373,7 +374,7 @@ browser.runtime.onStartup.addListener(async () => {
 
 setGlobalDefaultIcon().catch(() => {});
 
-browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any) => {
+browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendResponse: any) => {
   try {
     if (!msg || !msg.type) return;
     // Reject messages from other extensions
@@ -391,7 +392,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
     };
     const senderUrl = (): string => sender?.tab?.url || sender?.url || '';
 
-    if (msg.type === 'toc:ensureIcon') {
+    if (msg.type === TOC_MESSAGE.ENSURE_ICON) {
       const tabId = sender?.tab?.id;
       const url = senderUrl();
       if (!tabId || !isHttpUrl(url)) { sendResponse?.({ ok: false, reason: 'no-tab' }); return; }
@@ -401,7 +402,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       })();
       return true;
     }
-    if (msg.type === 'toc:mutateConfig') {
+    if (msg.type === TOC_MESSAGE.MUTATE_CONFIG) {
       if (!requireInternal()) return;
       const expectedPattern = sitePatternFromUrl(senderUrl());
       if (!expectedPattern || msg.urlPattern !== expectedPattern) { sendResponse?.({ ok: false, reason: 'bad-site' }); return; }
@@ -418,7 +419,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       })();
       return true;
     }
-    if (msg.type === 'toc:mutateUiState') {
+    if (msg.type === TOC_MESSAGE.MUTATE_UI_STATE) {
       if (!requireInternal()) return;
       const sourceValidation = validateUiStateMutationSource(msg, senderUrl());
       if (!sourceValidation.ok) { sendResponse?.(sourceValidation); return; }
@@ -435,7 +436,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       return true;
     }
     // Content script requests to persist enabled state to storage (e.g. page-side "Close TOC")
-    if (msg.type === 'toc:persistActiveState') {
+    if (msg.type === TOC_MESSAGE.PERSIST_ACTIVE_STATE) {
       if (!requireInternal()) return;
       const tabId = sender?.tab?.id;
       const origin = msg.origin || originFromUrl(senderUrl());

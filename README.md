@@ -228,12 +228,8 @@ For complex page structures, you can use XPath:
 │   │   └── toc-disabled-*.png # Disabled state icons
 │   └── svg/                   # SVG source files
 ├── docs/brand/                # 1.0 brand assets and Chrome Web Store visuals
-├── public/                    # WXT-packaged static assets mirrored from icons/ and _locales/
-├── _locales/                  # Internationalization
-│   ├── en/
-│   │   └── messages.json      # English translation
-│   └── zh_CN/
-│       └── messages.json      # Chinese translation
+├── public/                    # WXT-packaged static assets (icons + _locales — single source)
+│   └── _locales/              # Internationalization messages (en, zh_CN)
 ├── src/
 │   ├── content.ts             # Content script bootstrap
 │   ├── utils/                 # Utility modules

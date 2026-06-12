@@ -2,7 +2,7 @@
 'use strict';
 
 import { getEnabledMap } from './storage.js';
-import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.js';
+import { isHighRiskBroadCssSelector, isSafeXPathExpression, debug } from './core-utils.js';
 import { TOC_MAX_CANDIDATES, SCROLL_TOP_PADDING, HEADER_CACHE_TTL, EXTENSION_OWNER } from './constants.js';
 
     /**
@@ -156,7 +156,7 @@ export function collectBySelector(selector: { type: string; expr: string; _root?
         if (isHighRiskBroadCssSelector(selector.expr)) {
           // Surface the rejection (debug level) so an over-broad user selector
           // isn't a completely silent empty TOC.
-          console.debug('[toc] selector rejected as too broad:', selector.expr);
+          debug('[toc] selector rejected as too broad:', selector.expr);
           return [];
         }
         // Query every reachable root (light DOM + open shadow roots + same-origin

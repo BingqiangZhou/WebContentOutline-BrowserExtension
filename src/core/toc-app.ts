@@ -22,7 +22,8 @@ import {
   isContextInvalidatedError,
   isExtensionContextInvalidated,
   normalizeSide,
-  isTocContentIdentical
+  isTocContentIdentical,
+  debug
 } from '../utils/core-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
 
@@ -184,7 +185,7 @@ export function initForConfig(cfg: any, options: any) {
         syncItemViews(previousActiveItem, previousActiveIndex);
       } catch (e) {
         if (isContextInvalidatedError(e)) {
-          console.debug('[toc] Extension context invalidated, stop TOC operations');
+          debug('[toc] Extension context invalidated, stop TOC operations');
           navLock.unlock();
           items.forEach(function(it: any) { it._userSelected = false; });
           if (rebuildScheduler && rebuildScheduler.disconnect) {
@@ -247,7 +248,7 @@ export function initForConfig(cfg: any, options: any) {
               }
             } catch (e) {
               if (!isContextInvalidatedError(e)) {
-                console.debug('[toc] save selector failed', e);
+                debug('[toc] save selector failed', e);
               }
             }
           });
@@ -258,7 +259,7 @@ export function initForConfig(cfg: any, options: any) {
         });
       } catch (e) {
         dispatchPickerEvent('toc-picker-end');
-        console.debug('[toc] start element picker failed:', e);
+        debug('[toc] start element picker failed:', e);
       }
     }
 
@@ -300,7 +301,7 @@ export function initForConfig(cfg: any, options: any) {
         if (!panelInstance) renderPanelCard();
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
-          console.debug('[toc] dock mode update failed:', e);
+          debug('[toc] dock mode update failed:', e);
         }
       }
     }
@@ -310,7 +311,7 @@ export function initForConfig(cfg: any, options: any) {
         if (dockInstance) dockInstance.collapse(opts || {});
         else removePanelCard();
       } catch (e) {
-        console.debug('[toc] collapse failed:', e);
+        debug('[toc] collapse failed:', e);
       }
     }
 
@@ -319,7 +320,7 @@ export function initForConfig(cfg: any, options: any) {
         if (dockInstance) dockInstance.peek(opts || {});
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
-          console.debug('[toc] expand failed:', e);
+          debug('[toc] expand failed:', e);
         }
       }
     }

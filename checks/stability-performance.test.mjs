@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems, loadTocMessage } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -279,6 +279,7 @@ function loadBadgePositionForWrites(options = {}) {
   const sandbox = {
     console,
     Date,
+    TOC_MESSAGE: loadTocMessage(),
     window: { innerWidth: 1000, innerHeight: 800 },
     chrome: options.chrome,
     getFiniteNumber(value) {
@@ -335,6 +336,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\r?\n/, '')
     .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\r?\n/, '')
+    .replace(/import[\s\S]*?from '\.\/shared\/messages\.js';\r?\n/, '')
     .replace('export function startTocContent', 'function startTocContent'));
   const timers = [];
   const storageListeners = [];
@@ -404,6 +406,8 @@ async function loadContentScriptForConfigChanges(options = {}) {
       }
     },
     msg(key) { return key; },
+    debug() {},
+    TOC_MESSAGE: loadTocMessage(),
     getConfigs() { return Promise.resolve(configs); },
     findMatchingConfig(list, url) {
       return (Array.isArray(list) ? list : []).find((cfg) => cfg && wildcardMatch(cfg.urlPattern, url)) || null;
@@ -907,7 +911,8 @@ test('background owns UI state writes and removes CSS when disabling tabs', () =
 
   assert.match(background, /from 'wxt\/browser'/);
   assert.match(background, /from '\.\.\/src\/shared\/primitives\.js'/);
-  assert.match(background, /toc:mutateUiState/);
+  assert.match(background, /from '\.\.\/src\/shared\/messages\.js'/);
+  assert.match(background, /TOC_MESSAGE\.MUTATE_UI_STATE/);
   assert.match(background, /serializedWrite\(storageKey/);
   assert.match(background, /validateUiStateMutationSource/);
   assert.match(background, /sender\.id !== browser\.runtime\.id/);

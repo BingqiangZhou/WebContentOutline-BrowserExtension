@@ -265,8 +265,8 @@ test('expanded outline card is title free and styles items by heading level', ()
 test('edge dock styles and localized menu labels are present', () => {
   const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
   const dock = fs.readFileSync(path.join(repoRoot, 'src/ui/edge-dock.ts'), 'utf8');
-  const en = fs.readFileSync(path.join(repoRoot, '_locales/en/messages.json'), 'utf8');
-  const zh = fs.readFileSync(path.join(repoRoot, '_locales/zh_CN/messages.json'), 'utf8');
+  const en = fs.readFileSync(path.join(repoRoot, 'public/_locales/en/messages.json'), 'utf8');
+  const zh = fs.readFileSync(path.join(repoRoot, 'public/_locales/zh_CN/messages.json'), 'utf8');
 
   assert.match(css, /\.toc-edge-dock/);
   assert.match(css, /\.toc-edge-dock-panel-host\s*\{[^}]*display:\s*block/s);

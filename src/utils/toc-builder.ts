@@ -106,6 +106,13 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       }
 
       // Phase 2: Filter using cached geometry — parent clipping + text extraction only for survivors
+      // Per-build caches: ancestors are shared across many headings (a page's
+      // <article>/<main>/<section> typically wrap dozens of h2/h3), so caching
+      // their computed styles + rects collapses O(items × ancestors) style reads
+      // into O(unique ancestors). Scoped to this single build only — the DOM may
+      // mutate between rebuilds, so the caches must never persist across calls.
+      var ancStyleCache = new Map<Element, CSSStyleDeclaration>();
+      var ancRectCache = new Map<Element, DOMRect>();
       var items: Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }> = [];
       for (var g = 0; g < geoData.length; g++) {
         var entry = geoData[g];
@@ -129,8 +136,11 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
         var scrollableBelow = false;
         for (var ai2 = 0; ai2 < ancestors.length; ai2++) {
           var ancestor = ancestors[ai2] as HTMLElement;
-          var ancStyle: CSSStyleDeclaration;
-          try { ancStyle = window.getComputedStyle(ancestor); } catch (_) { break; }
+          var ancStyle: CSSStyleDeclaration | undefined = ancStyleCache.get(ancestor);
+          if (!ancStyle) {
+            try { ancStyle = window.getComputedStyle(ancestor); } catch (_) { break; }
+            if (ancStyle) ancStyleCache.set(ancestor, ancStyle);
+          }
           if (!ancStyle) continue;
           // Check if this ancestor is scrollable (with actual overflow)
           var ancOv = ancStyle.overflow || ancStyle.overflowY;
@@ -148,8 +158,11 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
           if (clips) {
             // Only clip if no scrollable ancestor sits between el and this clipping parent
             if (!scrollableBelow) {
-              var parentRect: DOMRect;
-              try { parentRect = ancestor.getBoundingClientRect(); } catch (_) { break; }
+              var parentRect: DOMRect | undefined = ancRectCache.get(ancestor);
+              if (!parentRect) {
+                try { parentRect = ancestor.getBoundingClientRect(); } catch (_) { break; }
+                if (parentRect) ancRectCache.set(ancestor, parentRect);
+              }
               // Only clip if heading is completely outside AND the clipping parent
               // has negligible height (collapsed/tab) — not a full-height layout container
               var isCollapsed = ancestor.clientHeight < 10 || ancestor.offsetWidth < 10;

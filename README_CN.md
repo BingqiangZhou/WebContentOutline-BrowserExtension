@@ -207,12 +207,8 @@
 │   │   └── toc-disabled-*.png # 禁用状态图标
 │   └── svg/                   # SVG 源文件
 ├── docs/brand/                # 1.0 品牌资产和 Chrome 网上应用店视觉素材
-├── public/                    # WXT 打包用静态资源，由 icons/ 与 _locales/ 镜像
-├── _locales/                  # 国际化文件
-│   ├── en/
-│   │   └── messages.json      # 英文翻译
-│   └── zh_CN/
-│       └── messages.json      # 中文翻译
+├── public/                    # WXT 打包用静态资源（icons + _locales 单一来源）
+│   └── _locales/              # 国际化消息文件（en、zh_CN）
 ├── package.json               # Node.js 元数据
 ├── src/
 │   ├── content.ts             # 内容脚本启动逻辑

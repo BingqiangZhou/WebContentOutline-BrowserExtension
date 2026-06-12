@@ -31,6 +31,20 @@ export function msg(key: string, substitutions?: string | string[]): string {
     }
   }
 
+  /**
+   * Verbose diagnostics, gated so production content scripts stay quiet.
+   * Enable at runtime from devtools with: `__TOC_DEBUG = true` on the page
+   * (i.e. window/globalThis). console.warn/console.error are intentionally
+   * NOT gated — those are legitimate error signals that should always surface.
+   */
+  export function debug(...args: unknown[]): void {
+    try {
+      if ((globalThis as { __TOC_DEBUG?: boolean }).__TOC_DEBUG) console.debug(...args);
+    } catch (_) {
+      // Some host pages lock down globalThis access; treat as "debug off".
+    }
+  }
+
 export function isContextInvalidatedError(e: unknown): boolean {
     try {
       var text = String(e && ((e as { message?: string }).message || ((e as { toString?: () => string }).toString && (e as { toString: () => string }).toString()) || e) || '');

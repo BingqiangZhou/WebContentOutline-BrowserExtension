@@ -29,6 +29,20 @@ export function loadDedupeMirrorItems() {
 }
 
 /**
+ * Load the real `TOC_MESSAGE` constant map from src/shared/messages.ts so test
+ * sandboxes that strip imports can inject the genuine message-type strings
+ * (single source of truth) rather than restating the literals per test.
+ */
+export function loadTocMessage() {
+  const file = path.join(repoRoot, 'src/shared/messages.ts');
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
+  const sandbox = { __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source + '\n__exports.TOC_MESSAGE = TOC_MESSAGE;', sandbox, { filename: file });
+  return sandbox.__exports.TOC_MESSAGE;
+}
+
+/**
  * Strip TypeScript syntax from source code using the TypeScript compiler API.
  *
  * This is bulletproof — handles all TS syntax including complex generics,

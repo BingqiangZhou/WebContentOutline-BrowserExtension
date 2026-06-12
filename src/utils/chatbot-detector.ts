@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { dedupeMirrorItems } from './core-utils.js';
+import { dedupeMirrorItems, debug } from './core-utils.js';
 
 /**
  * Automatic chatbot page detection and conversation-aware TOC building.
@@ -1086,7 +1086,7 @@ function tryHintFallback(needsUserSelectorOnly: boolean): SelectorResult | null 
             try {
               var sentinelCount = document.querySelectorAll(hint.sentinelSelector).length;
               if (sentinelCount === 0) {
-                console.debug('[toc] hint selectors matched hostname but sentinel found 0 elements — selectors may be stale');
+                debug('[toc] hint selectors matched hostname but sentinel found 0 elements — selectors may be stale');
               }
             } catch (_) {}
             return {
