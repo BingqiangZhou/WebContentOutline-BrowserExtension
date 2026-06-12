@@ -100,6 +100,17 @@ var MAX_ITEMS = 400;
 /** Tracks text length of the last assistant element to detect streaming */
 var _lastAssistantTextLen = 0;
 
+/**
+ * Time-gated cache for isStreaming(). The scheduler calls isStreaming() once
+ * per rebuild schedule (i.e. per mutation burst), which during active streaming
+ * means many full DOM probes per second. We instead recompute at most every
+ * STREAMING_CHECK_TTL_MS. Behavior-preserving: it only bounds probe frequency
+ * — the result is recomputed within the TTL, and invalidates on URL change.
+ */
+var STREAMING_CHECK_TTL_MS = 400;
+var _streamingResult = false;
+var _streamingCheckedAt = 0;
+
 /** Selectors for stop/streaming buttons across platforms */
 var STOP_BUTTON_SELECTORS = [
   'button[aria-label*="Stop" i]',
@@ -126,6 +137,8 @@ export function invalidateChatbotCache() {
   // from the previous route can make isStreaming() mis-report (and pin the
   // 1200ms debounce) for the first few mutations on the new page.
   _lastAssistantTextLen = 0;
+  // Drop the cached streaming verdict so the new page recomputes immediately.
+  _streamingCheckedAt = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1558,10 +1571,7 @@ export function getChatbotConfidence() {
  * Detect whether a chatbot response is currently being streamed/generated.
  * Used by the rebuild scheduler to increase debounce during streaming.
  */
-export function isStreaming(): boolean {
-  var profile = detectChatPage();
-  if (!profile) return false;
-
+function computeStreaming(profile: ChatbotProfile): boolean {
   // Check 1: Look for a stop-generating button (universal signal)
   for (var i = 0; i < STOP_BUTTON_SELECTORS.length; i++) {
     try {
@@ -1586,6 +1596,21 @@ export function isStreaming(): boolean {
   } catch (_) {}
 
   return false;
+}
+
+/**
+ * Detect whether a chatbot response is currently being streamed/generated.
+ * Used by the rebuild scheduler to increase debounce during streaming.
+ * Time-gated: the underlying DOM probe runs at most every STREAMING_CHECK_TTL_MS.
+ */
+export function isStreaming(): boolean {
+  var now = Date.now();
+  if (now - _streamingCheckedAt < STREAMING_CHECK_TTL_MS) return _streamingResult;
+  var profile = detectChatPage();
+  var result = profile ? computeStreaming(profile) : false;
+  _streamingResult = result;
+  _streamingCheckedAt = now;
+  return result;
 }
 
 /**
