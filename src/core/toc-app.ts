@@ -8,6 +8,8 @@ import { renderFloatingPanel } from '../ui/floating-panel.js';
 import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged } from './config-manager.js';
 import { createRebuildScheduler } from './rebuild-scheduler.js';
 import { createActiveItemTracker } from './active-item-tracker.js';
+import { createNavLock } from './nav-lock.js';
+import type { NavLock } from './nav-lock.js';
 import {
   msg,
   showToast,
@@ -25,30 +27,7 @@ import {
 import { EXTENSION_OWNER } from '../utils/constants.js';
 
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
-  interface NavLock {
-    lock: (durationMs?: number) => void;
-    unlock: () => void;
-    isLocked: () => boolean;
-    destroy: () => void;
-  }
-
-  function createNavLock(): NavLock {
-    var _locked = false;
-    var _timer: ReturnType<typeof setTimeout> | null = null;
-    return {
-      lock: function(durationMs?: number) {
-        _locked = true;
-        if (_timer != null) clearTimeout(_timer);
-        _timer = setTimeout(function() { _timer = null; _locked = false; }, durationMs && durationMs > 0 ? durationMs : 3000);
-      },
-      unlock: function() {
-        _locked = false;
-        if (_timer != null) { clearTimeout(_timer); _timer = null; }
-      },
-      isLocked: function() { return _locked; },
-      destroy: function() { _locked = false; if (_timer != null) { clearTimeout(_timer); _timer = null; } }
-    };
-  }
+  // (createNavLock + NavLock interface now live in ./nav-lock.js)
 
   // Config change callback — wired when initForConfig runs
   var _activeRebuild: (() => any) | null = null;
@@ -85,7 +64,16 @@ export function initForConfig(cfg: any, options: any) {
     var rebuildScheduler: any = null;
     var pickerInstance: any = null;
     var rebuildInFlight: Promise<any> | null = null;
-    var navLock = createNavLock();
+    var navLock = createNavLock({
+      onUnlock: function() {
+        // When the nav lock releases, retry a rebuild that was parked while the
+        // user was navigating — so the TOC doesn't wait for the next external
+        // mutation/event to refresh.
+        if (rebuildScheduler && rebuildScheduler.getPendingRebuild && rebuildScheduler.getPendingRebuild()) {
+          rebuildScheduler.setPendingRebuild(true);
+        }
+      }
+    });
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 

@@ -76,6 +76,17 @@ interface TocItem {
 /** Maximum number of conversation turns to process */
 var MAX_TURNS = 50;
 
+/**
+ * DeepSeek stable semantic selectors. Shared by the hint table and the
+ * discovery strategy so the class names live in one place (DeepSeek detection
+ * logic otherwise gets duplicated across functions).
+ */
+var DEEPSEEK_SELECTORS = {
+  userSelector: '.ds-message',
+  assistantSelector: '.ds-markdown.ds-assistant-message-main-content, .ds-markdown',
+  sentinelSelector: '.ds-message, .ds-markdown, .ds-think-content',
+};
+
 /** Maximum text length for user prompt items */
 var PROMPT_MAX_LEN = 120;
 
@@ -144,9 +155,9 @@ var CHATBOT_HINTS: ChatbotAdapter[] = [
     match: function(hostname: string) {
       return hostname === 'chat.deepseek.com' || hostname.endsWith('.chat.deepseek.com');
     },
-    userSelector: '.ds-message',
-    assistantSelector: '.ds-markdown.ds-assistant-message-main-content, .ds-markdown',
-    sentinelSelector: '.ds-message, .ds-markdown, .ds-think-content',
+    userSelector: DEEPSEEK_SELECTORS.userSelector,
+    assistantSelector: DEEPSEEK_SELECTORS.assistantSelector,
+    sentinelSelector: DEEPSEEK_SELECTORS.sentinelSelector,
   },
   {
     // Claude: uses data-testid="user-message" (not "human-message") as of 2026
@@ -694,9 +705,9 @@ function discoverByDeepSeekMarkdown(): SelectorResult | null {
     if (!hasUserMessages) return null;
 
     return {
-      userSelector: '.ds-message',
-      assistantSelector: '.ds-markdown.ds-assistant-message-main-content, .ds-markdown',
-      sentinelSelector: '.ds-message, .ds-markdown, .ds-think-content',
+      userSelector: DEEPSEEK_SELECTORS.userSelector,
+      assistantSelector: DEEPSEEK_SELECTORS.assistantSelector,
+      sentinelSelector: DEEPSEEK_SELECTORS.sentinelSelector,
       source: 'deepseek-markdown',
     };
   } catch (_) {}

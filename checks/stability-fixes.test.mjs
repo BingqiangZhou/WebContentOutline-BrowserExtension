@@ -146,6 +146,21 @@ test('deduplicated selector results are sorted in document order', () => {
   );
 });
 
+test('disconnected elements (cross shadow/iframe roots) keep source order', () => {
+  const { uniqueInDocumentOrder } = loadDomUtils();
+  // All nodes report DOCUMENT_POSITION_DISCONNECTED (bit 1) against each other,
+  // mimicking elements collected from different roots.
+  const a = { id: 'a', compareDocumentPosition: () => 1 };
+  const b = { id: 'b', compareDocumentPosition: () => 1 };
+  const c = { id: 'c', compareDocumentPosition: () => 1 };
+
+  assert.deepEqual(
+    Array.from(uniqueInDocumentOrder([c, a, b]), (item) => item.id),
+    ['c', 'a', 'b'],
+    'disconnected nodes retain their collection order'
+  );
+});
+
 test('selector collection accepts a lower candidate limit for polling', () => {
   const nodes = [{}, {}, {}, {}];
   const { collectBySelector } = loadDomUtils(() => nodes);

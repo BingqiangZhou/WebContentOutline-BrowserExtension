@@ -153,7 +153,12 @@ export function collectBySelector(selector: { type: string; expr: string; _root?
         }
       }
       try {
-        if (isHighRiskBroadCssSelector(selector.expr)) return [];
+        if (isHighRiskBroadCssSelector(selector.expr)) {
+          // Surface the rejection (debug level) so an over-broad user selector
+          // isn't a completely silent empty TOC.
+          console.debug('[toc] selector rejected as too broad:', selector.expr);
+          return [];
+        }
         // Query every reachable root (light DOM + open shadow roots + same-origin
         // iframes) so component-based pages yield headings too.
         var roots = gatherQueryRoots(queryRoot);
@@ -189,16 +194,26 @@ export function uniqueInDocumentOrder(list: Element[]) {
           result.push(el);
         }
       }
+      // Tag each element with its source index so disconnected/error pairs
+      // (e.g. elements from different shadow/iframe roots, where
+      // compareDocumentPosition returns DOCUMENT_POSITION_DISCONNECTED) get a
+      // deterministic, transitive order instead of relying on sort stability.
+      for (var t = 0; t < result.length; t++) (result[t] as any).__tocSrcOrder = t;
       result.sort(function(a, b) {
-        if (a === b || !a || !b || typeof a.compareDocumentPosition !== 'function') return 0;
+        if (a === b) return 0;
         try {
           var pos = a.compareDocumentPosition(b);
-          if (pos & 1) return 0;
-          if (pos & 2) return 1;
-          if (pos & 4) return -1;
+          // Only order by document position when the nodes are connected
+          // (same document tree). Bit 1 = DOCUMENT_POSITION_DISCONNECTED.
+          if (!(pos & 1)) {
+            if (pos & 2) return 1;
+            if (pos & 4) return -1;
+          }
         } catch (_) {}
-        return 0;
+        // Disconnected or unavailable: fall back to stable source order.
+        return ((a as any).__tocSrcOrder || 0) - ((b as any).__tocSrcOrder || 0);
       });
+      for (var c = 0; c < result.length; c++) delete (result[c] as any).__tocSrcOrder;
       return result;
     }
 
