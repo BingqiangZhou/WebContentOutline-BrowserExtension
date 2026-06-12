@@ -1,6 +1,8 @@
 
 'use strict';
 
+import { dedupeMirrorItems } from './core-utils.js';
+
 /**
  * Automatic chatbot page detection and conversation-aware TOC building.
  *
@@ -64,6 +66,7 @@ interface TocItem {
   text: string;
   level: number;
   source?: string;  // 'user' | 'ai' — marks conversation turn origin
+  _pos?: { left: number; top: number; right: number; bottom: number }; // internal: mirror-dedup only
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +111,10 @@ var _cachedUrl = '';
 export function invalidateChatbotCache() {
   _cachedProfile = null;
   _cachedUrl = '';
+  // Reset the streaming-detection baseline too: a stale _lastAssistantTextLen
+  // from the previous route can make isStreaming() mis-report (and pin the
+  // 1200ms debounce) for the first few mutations on the new page.
+  _lastAssistantTextLen = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1318,6 +1325,17 @@ function getHeadingText(el: Element): string {
  * Build TOC items for a detected chatbot page.
  * User prompts become level-1 items, assistant headings get level + 1.
  */
+// Read a heading's viewport rect (guarded) for mirror-dedup. Returns null when
+// geometry is unavailable (e.g. mocked elements in tests).
+function readHeadingPos(el: HTMLElement): { left: number; top: number; right: number; bottom: number } | undefined {
+  try {
+    var r = el && el.getBoundingClientRect();
+    return r ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : undefined;
+  } catch (_) {
+    return undefined;
+  }
+}
+
 function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta: { truncated: boolean; maxItems: number; totalCandidates: number } } | null {
   var userMessages: HTMLElement[] = [];
   try { userMessages = Array.from(document.querySelectorAll(profile.userSelector)) as HTMLElement[]; } catch (_) { return null; }
@@ -1460,28 +1478,17 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
         text: hText,
         level: itemLevel,
         source: 'ai',
+        _pos: readHeadingPos(hEl),
       });
     }
   }
 
   if (items.length === 0) return null;
 
-  // Deduplicate items with identical text (e.g. same heading text repeated
-  // across multiple markdown containers or mirrored sidebar content).
-  if (items.length > 1) {
-    var seenTexts = new Set<string>();
-    var dedupedItems: TocItem[] = [];
-    for (var di = 0; di < items.length; di++) {
-      var tKey = items[di].text;
-      if (!seenTexts.has(tKey)) {
-        seenTexts.add(tKey);
-        dedupedItems.push(items[di]);
-      }
-    }
-    if (dedupedItems.length < items.length) {
-      items = dedupedItems;
-    }
-  }
+  // Deduplicate mirror-copy items (identical text at the same visual position),
+  // preserving legitimately repeated headings across turns. Shared with the
+  // standard extraction path.
+  items = dedupeMirrorItems(items);
 
   return {
     items: items,

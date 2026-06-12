@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax } from './test-helpers.mjs';
+import { stripTsSyntax, loadDedupeMirrorItems } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -58,6 +58,7 @@ function loadBuildTocItems(setup) {
     TOC_TEXT_MAX_LEN: 200,
     TOC_MAX_ITEMS: 400,
     HEADING_LEVEL_WEIGHTS: { H1: 40, H2: 100, H3: 80, H4: 60, H5: 20, H6: 10 },
+    dedupeMirrorItems: loadDedupeMirrorItems(),
     __exports: {}
   };
   sandbox.globalThis = sandbox;

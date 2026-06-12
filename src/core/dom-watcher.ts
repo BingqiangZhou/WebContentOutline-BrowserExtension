@@ -168,6 +168,11 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
       start: start,
       stop: disconnect,
       checkAndReconnect: checkAndReconnect,
-      invalidate: invalidate
+      invalidate: invalidate,
+      // Update the scope selector at runtime (used on SPA navigation, where the
+      // page may switch between chatbot and non-chatbot contexts).
+      updateScope: function(scopeSelector: string | null) {
+        cfg.scopeSelector = scopeSelector || null;
+      }
     };
   }

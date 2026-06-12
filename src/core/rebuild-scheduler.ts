@@ -42,6 +42,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
     var debounceTimer: ReturnType<typeof setTimeout> | null = null;
     var consecutiveFailures = 0;
     var lastTripAt = 0;
+    var recoveryTimer: ReturnType<typeof setTimeout> | null = null;
     var visibilityHandler: (() => void) | null = null;
 
     // Breaker is "tripped" only while latched open AND inside the recovery
@@ -50,6 +51,26 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
     function isBreakerTripped() {
       if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) return false;
       return Date.now() - lastTripAt < BREAKER_RECOVERY_MS;
+    }
+
+    // Clear the active recovery probe timer (called whenever the breaker resets
+    // or the scheduler tears down).
+    function clearRecoveryTimer() {
+      if (recoveryTimer) { clearTimeout(recoveryTimer); recoveryTimer = null; }
+    }
+
+    // Arm a one-shot recovery probe so a page that goes quiet after a transient
+    // failure burst still retries — without depending on an external mutation
+    // or navigation arriving.
+    function armRecoveryProbeIfTripped() {
+      if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) return;
+      if (recoveryTimer) return;
+      recoveryTimer = setTimeout(function() {
+        recoveryTimer = null;
+        if (consecutiveFailures < MAX_CONSECUTIVE_FAILURES) return;
+        hasPendingRebuild = true;
+        attemptRebuild();
+      }, BREAKER_RECOVERY_MS);
     }
 
     // Sub-components
@@ -62,6 +83,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       try {
         await onRebuild();
         consecutiveFailures = 0;
+        clearRecoveryTimer();
         return true;
       } catch (e) {
         if (isContextInvalidatedError(e)) {
@@ -69,6 +91,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
           hasPendingRebuild = false;
           consecutiveFailures = 0;
           lastTripAt = 0;
+          clearRecoveryTimer();
           if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
           if (domWatcher) domWatcher.invalidate();
           if (urlMonitor) urlMonitor.invalidate();
@@ -79,6 +102,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         // Start/refresh the recovery window so a half-open probe is allowed
         // through BREAKER_RECOVERY_MS later.
         lastTripAt = Date.now();
+        armRecoveryProbeIfTripped();
         return false;
       }
     };
@@ -138,10 +162,18 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       if (onConfigDirty) onConfigDirty();
       // Invalidate chatbot detection cache on URL change so new pages get re-detected
       invalidateChatbotCache();
+      // The page may have switched between chatbot and non-chatbot contexts;
+      // recompute the watcher scope so mutations aren't filtered by a stale
+      // chatbot container selector (or left unscoped after leaving a chat page).
+      try {
+        var nextScope = getChatbotContainerSelector() || null;
+        if (domWatcher && domWatcher.updateScope) domWatcher.updateScope(nextScope);
+      } catch (_) {}
       // A navigation is a fresh page context — give the breaker an immediate
       // chance to recover instead of staying latched from the previous route.
       consecutiveFailures = 0;
       lastTripAt = 0;
+      clearRecoveryTimer();
       scheduleRebuild(immediate);
     };
 
@@ -151,6 +183,8 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
       hasPendingRebuild = false;
       isExtensionContextValid = true;
       consecutiveFailures = 0;
+      lastTripAt = 0;
+      clearRecoveryTimer();
 
       // Create dom-watcher with optional scope selector for chatbot pages
       var scopeSelector: string | null = getChatbotContainerSelector() || null;
@@ -191,10 +225,12 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean>, opts: 
         if (domWatcher) { domWatcher.stop(); domWatcher = null; }
         if (urlMonitor) { urlMonitor.stop(); urlMonitor = null; }
         if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+        clearRecoveryTimer();
         hasPendingRebuild = false;
         rebuildInFlight = null;
         isExtensionContextValid = false;
         consecutiveFailures = 0;
+        lastTripAt = 0;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
       setPendingRebuild: function(val: boolean) {

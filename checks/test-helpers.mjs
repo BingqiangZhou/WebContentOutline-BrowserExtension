@@ -8,6 +8,25 @@
  */
 
 import ts from 'typescript';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+/**
+ * Load the real `dedupeMirrorItems` from src/utils/core-utils.ts so test
+ * harnesses that strip imports can inject the genuine implementation.
+ */
+export function loadDedupeMirrorItems() {
+  const file = path.join(repoRoot, 'src/utils/core-utils.ts');
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
+  const sandbox = { console, location: { protocol: 'https:', host: 'example.com' }, __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source + '\n__exports.dedupeMirrorItems = dedupeMirrorItems;', sandbox, { filename: file });
+  return sandbox.__exports.dedupeMirrorItems;
+}
 
 /**
  * Strip TypeScript syntax from source code using the TypeScript compiler API.

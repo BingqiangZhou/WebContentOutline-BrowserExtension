@@ -21,6 +21,12 @@ function loadScheduler(opts) {
   var onRebuild = opts.onRebuild;
   var currentTime = opts.startTime || 1_000_000;
   var captured = { onMutation: null, onUrlChange: null };
+  // Hybrid fake clock: short timers (<= threshold, e.g. the 400ms debounce)
+  // fire synchronously to keep the test flow simple; long timers (the 30s
+  // breaker recovery probe) are scheduled and fired by advance().
+  var LONG_TIMER_THRESHOLD = 5000;
+  var longTimers = [];
+  var nextTimerId = 1;
   var file = path.join(repoRoot, 'src/core/rebuild-scheduler.ts');
   var source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\r?\n/gm, '')
@@ -30,8 +36,19 @@ function loadScheduler(opts) {
     console: console,
     Date: { now: function () { return currentTime; } },
     document: { hidden: false, addEventListener: function () {}, removeEventListener: function () {} },
-    setTimeout: function (fn) { try { fn(); } catch (_) {} return 1; },
-    clearTimeout: function () {},
+    setTimeout: function (fn, delay) {
+      var d = Number(delay) || 0;
+      if (d <= LONG_TIMER_THRESHOLD) { try { fn(); } catch (_) {} return nextTimerId++; }
+      var id = nextTimerId++;
+      longTimers.push({ id: id, fn: fn, fireAt: currentTime + d });
+      return id;
+    },
+    clearTimeout: function (id) {
+      if (id == null) return;
+      for (var i = 0; i < longTimers.length; i++) {
+        if (longTimers[i].id === id) { longTimers.splice(i, 1); return; }
+      }
+    },
     createDomWatcher: function (onMutation, _opts) {
       captured.onMutation = onMutation;
       return { start: function () { return true; }, stop: function () {}, invalidate: function () {}, checkAndReconnect: function () {} };
@@ -61,7 +78,17 @@ function loadScheduler(opts) {
   return {
     handle: handle,
     captured: captured,
-    advance: function (ms) { currentTime += ms; }
+    advance: function (ms) {
+      currentTime += ms;
+      var fired = [];
+      for (var i = longTimers.length - 1; i >= 0; i--) {
+        if (longTimers[i].fireAt <= currentTime) fired.push(longTimers.splice(i, 1)[0]);
+      }
+      fired.sort(function (a, b) { return a.fireAt - b.fireAt; });
+      for (var j = 0; j < fired.length; j++) {
+        try { fired[j].fn(); } catch (_) {}
+      }
+    }
   };
 }
 
@@ -81,6 +108,24 @@ test('circuit breaker resets on URL change after latching open', async () => {
   env.captured.onUrlChange(true);
   await flush();
   assert.equal(rebuildCalls, 6, 'breaker recovers after a URL change');
+});
+
+test('breaker actively probes on a quiescent page after the recovery window', async () => {
+  var rebuildCalls = 0;
+  var env = loadScheduler({
+    onRebuild: function () { rebuildCalls++; throw new Error('boom'); }
+  });
+  env.handle.start({ selectors: [] });
+  await flush();
+
+  for (var i = 0; i < 6; i++) { env.captured.onMutation(); await flush(); }
+  assert.equal(rebuildCalls, 5);
+
+  // No mutation, no URL change — just time passing. The breaker must schedule
+  // its own recovery probe instead of waiting for an external event.
+  env.advance(31000);
+  await flush();
+  assert.equal(rebuildCalls, 6, 'recovery probe runs with no DOM event');
 });
 
 test('breaker self-recovers via a half-open probe after the recovery window', async () => {

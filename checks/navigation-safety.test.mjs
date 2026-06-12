@@ -168,8 +168,8 @@ test('url monitor listens for native SPA navigation events', async () => {
   });
 
   try {
-    monitor.start({ selectors: [] }, (immediate) => {
-      if (immediate) calls++;
+    monitor.start({ selectors: [] }, () => {
+      calls++;
     });
 
     sandbox.location.href = 'https://chatgpt.com/c/next';

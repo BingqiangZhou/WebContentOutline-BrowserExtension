@@ -110,3 +110,42 @@ export function isTocContentIdentical(prevItems: Array<{ text: string; el: Eleme
     }
     return true;
   }
+
+  function mirrorRectsOverlap(a: { left: number; top: number }, b: { left: number; top: number }): boolean {
+    return Math.abs(a.left - b.left) < 24 && Math.abs(a.top - b.top) < 24;
+  }
+
+  /**
+   * Deduplicate mirror-copy TOC items: identical-text items that sit at the same
+   * visual position (e.g. a sticky duplicate). Repeated section titles at
+   * different positions are intentionally preserved. Items without a `_pos`
+   * marker are never collapsed. Strips `_pos` from the returned items.
+   */
+export function dedupeMirrorItems<T extends { text: string; _pos?: { left: number; top: number } }>(items: T[]): T[] {
+    if (!items || items.length <= 1) {
+      if (items) { for (var i0 = 0; i0 < items.length; i0++) delete (items[i0] as any)._pos; }
+      return items || [];
+    }
+    var byText: Map<string, T[]> = new Map();
+    var deduped: T[] = [];
+    for (var d = 0; d < items.length; d++) {
+      var cur = items[d];
+      if (!cur) continue;
+      var same = byText.get(cur.text);
+      if (same) {
+        var isMirror = false;
+        for (var sm = 0; sm < same.length; sm++) {
+          var aPos = same[sm]._pos;
+          var bPos = cur._pos;
+          if (aPos && bPos && mirrorRectsOverlap(aPos, bPos)) { isMirror = true; break; }
+        }
+        if (isMirror) continue;
+        same.push(cur);
+      } else {
+        byText.set(cur.text, [cur]);
+      }
+      deduped.push(cur);
+    }
+    for (var sp = 0; sp < deduped.length; sp++) delete (deduped[sp] as any)._pos;
+    return deduped;
+  }

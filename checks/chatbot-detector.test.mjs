@@ -3,10 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, beforeEach } from 'vitest';
-import { stripTsSyntax } from './test-helpers.mjs';
+import { stripTsSyntax, loadDedupeMirrorItems } from './test-helpers.mjs';
 import vm from 'node:vm';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
 
 // ---------------------------------------------------------------------------
 // DOM mock helpers
@@ -194,6 +195,9 @@ function loadModule(locMock, docMock) {
       querySelector() { return null; },
       querySelectorAll() { return []; },
     },
+    // chatbot-detector now imports dedupeMirrorItems from core-utils; the import
+    // is stripped above, so provide the real implementation here.
+    dedupeMirrorItems: loadDedupeMirrorItems(),
     Map: globalThis.Map,
     Set: globalThis.Set,
     Array: globalThis.Array,

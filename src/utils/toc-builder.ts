@@ -6,6 +6,7 @@ import { getBoundedText } from './bounded-text.js';
 import { detectContentRegion } from './content-region.js';
 import { tryBuildChatbotTocItems, getChatbotSentinelSelector, getChatbotConfidence } from './chatbot-detector.js';
 import { TOC_TEXT_MAX_LEN, TOC_MAX_ITEMS, TOC_MAX_CANDIDATES } from './constants.js';
+import { dedupeMirrorItems } from './core-utils.js';
 
     var COLLAPSE_WS_RE = /\s+/g;
 
@@ -29,14 +30,6 @@ function getTocItemLevel(el: Element) {
         if (match) return parseInt(match[1], 10);
       }
       return 2;
-    }
-
-    // Two headings are treated as the same visual location only when their
-    // rects nearly coincide — this catches mirrored copies (e.g. a sticky
-    // duplicate) without dropping legitimately repeated section titles such as
-    // multiple "References" / "Notes" sections elsewhere on the page.
-    function rectsOverlap(a: { left: number; top: number }, b: { left: number; top: number }) {
-      return Math.abs(a.left - b.left) < 24 && Math.abs(a.top - b.top) < 24;
     }
 
 function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: string; _root?: Element | Document }>, cfg: { keepEmptyText?: boolean }) {
@@ -188,35 +181,7 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       // Deduplicate mirror copies: identical-text headings that sit at the same
       // visual position (e.g. a sticky duplicate). Repeated section titles at
       // different positions are intentionally preserved.
-      if (items.length > 1) {
-        var byText: Map<string, Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }>> = new Map();
-        var deduped: Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }> = [];
-        for (var d = 0; d < items.length; d++) {
-          var cur = items[d];
-          var same = byText.get(cur.text);
-          if (same) {
-            var isMirror = false;
-            for (var sm = 0; sm < same.length; sm++) {
-              if (same[sm]._pos && cur._pos && rectsOverlap(same[sm]._pos as { left: number; top: number }, cur._pos as { left: number; top: number })) {
-                isMirror = true;
-                break;
-              }
-            }
-            if (isMirror) continue;
-            same.push(cur);
-          } else {
-            byText.set(cur.text, [cur]);
-          }
-          deduped.push(cur);
-        }
-        if (deduped.length < items.length) {
-          items = deduped;
-        }
-      }
-      // Strip the internal position marker so it does not leak into the UI/storage.
-      for (var sp = 0; sp < items.length; sp++) {
-        delete (items[sp] as any)._pos;
-      }
+      items = dedupeMirrorItems(items) as Array<{ id: string; el: Element; text: string; level: number; source?: string }>;
 
       return {
         items: items,

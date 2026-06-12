@@ -40,7 +40,12 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void }) {
           lastKnownUrl = location.href;
         }
         if (typeof onChangeCallback === 'function') {
-          onChangeCallback(true); // immediate = true
+          // Debounced (not immediate): an immediate rebuild right after the URL
+          // change often reads a pre-swap DOM (stale/empty TOC on SPAs) and can
+          // race the 3s checkAndReconnect poll. Letting it go through the normal
+          // debounce gives the SPA a moment to render and coalesces with any
+          // concurrent mutation-driven rebuild.
+          onChangeCallback(false);
         }
       }, 500);
     }
