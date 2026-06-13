@@ -26,7 +26,7 @@
 - **可视化元素拾取**：直接在网页上点击目标元素，快速创建自定义目录规则。
 - **CSS 与 XPath 选择器**：适配标题结构不标准的网页。
 - **按网站保存配置**：为不同网站保存独立的启用状态、选择器和界面位置。
-- **动态内容更新**：网页内容变化后自动更新目录，适合单页应用和持续加载页面。
+- **动态内容更新**：网页内容变化后自动更新目录，适合单页应用、流式回复和持续加载页面；与翻译、阅读等浏览器扩展也能稳定共存。
 - **浅色与深色主题**：自动适配系统主题。
 
 ### 适用场景
@@ -74,7 +74,7 @@ A slim toolbar at the page edge provides live navigation as you read:
 - **Visual element picker**: Click any page element directly to create custom outline rules.
 - **CSS and XPath selectors**: Adapt the TOC to websites with non-standard heading structures.
 - **Per-site preferences**: Save enable/disable state, selectors, and dock position for each website.
-- **Dynamic content updates**: Refreshes automatically as page content changes, including single-page applications.
+- **Dynamic content updates**: Refreshes automatically as page content changes, covering single-page applications, streaming responses, and continuously loading pages; stays reliable alongside translation and reader extensions.
 - **Light and dark themes**: Adapts automatically to your system theme.
 
 ### Great For

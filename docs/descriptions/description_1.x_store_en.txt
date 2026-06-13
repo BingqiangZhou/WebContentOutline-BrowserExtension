@@ -23,7 +23,7 @@ A slim toolbar at the page edge provides live navigation as you read:
   • Visual element picker — Click any page element directly to create custom outline rules.
   • CSS and XPath selectors — Adapt the TOC to websites with non-standard heading structures.
   • Per-site preferences — Save enable/disable state, selectors, and dock position for each website.
-  • Dynamic content updates — Refreshes automatically as page content changes, including single-page applications.
+  • Dynamic content updates — Refreshes automatically as page content changes, covering single-page applications, streaming responses, and continuously loading pages; stays reliable alongside translation and reader extensions.
   • Light and dark themes — Adapts automatically to your system theme.
 
 
