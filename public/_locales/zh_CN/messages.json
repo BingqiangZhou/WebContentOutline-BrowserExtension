@@ -15,37 +15,17 @@
     "message": "目录",
     "description": "目录的简短文本"
   },
-  "buttonCollapse": {
-    "message": "收起",
-    "description": "收起目录面板的按钮文本"
-  },
-  "buttonCollapseTitle": {
-    "message": "收起为浮动按钮",
-    "description": "收起按钮的提示文本"
-  },
   "buttonRefresh": {
     "message": "刷新",
     "description": "刷新目录的按钮文本"
-  },
-  "buttonRefreshTitle": {
-    "message": "重新扫描页面生成目录",
-    "description": "刷新按钮的提示文本"
   },
   "buttonPickElement": {
     "message": "拾取元素",
     "description": "激活元素拾取器的按钮文本"
   },
-  "buttonPickElementTitle": {
-    "message": "点击后在页面上选择一个元素以生成选择器",
-    "description": "拾取元素按钮的提示文本"
-  },
   "buttonSiteConfig": {
     "message": "站点配置",
     "description": "管理站点配置的按钮文本"
-  },
-  "buttonSiteConfigTitle": {
-    "message": "查看/清空当前站点已保存的选择器",
-    "description": "站点配置按钮的提示文本"
   },
   "emptyTocMessage": {
     "message": "未找到目录项，请尝试刷新页面或点击刷新按钮",
@@ -107,10 +87,6 @@
     "message": "[目录助手]",
     "description": "控制台日志消息的前缀"
   },
-  "logMissingDependencies": {
-    "message": "缺少必要的依赖模块",
-    "description": "缺少依赖模块时的错误消息"
-  },
   "logNoConfigFound": {
     "message": "未找到配置，使用默认空配置启动面板",
     "description": "未找到配置时的调试消息"
@@ -155,14 +131,6 @@
     "message": "网页目录：已启用（点击禁用）",
     "description": "当前站点启用时的图标标题"
   },
-  "titleDisabledFallback": {
-    "message": "网页目录：禁用（按站点，点击启用）",
-    "description": "非 http 页面时的备用图标标题"
-  },
-  "titleInjectionFailed": {
-    "message": "网页目录助手：注入失败（点击重试）",
-    "description": "内容脚本注入失败时的图标标题"
-  },
   "truncatedNotice": {
     "message": "为保证性能，目录最多显示 400 项。请优化选择器以缩小范围。",
     "description": "目录项过多时的截断提示"
@@ -185,22 +153,6 @@
     "message": "通知",
     "description": "Toast/通知区域的 ARIA 标签"
   },
-  "errorStorageQuotaExceeded": {
-    "message": "存储空间不足，无法保存此站点设置。",
-    "description": "chrome.storage.local 写入因配额限制失败时提示"
-  },
-  "errorStorageWriteFailed": {
-    "message": "保存设置失败，请重试。",
-    "description": "chrome.storage.local 写入失败时的通用提示"
-  },
-  "confirmStorageQuotaPrune": {
-    "message": "存储空间不足。为保存此更改，需要移除部分较旧的数据。是否继续？",
-    "description": "存储配额不足时，执行数据修剪前的确认提示"
-  },
-  "warningStorageQuotaNotSaved": {
-    "message": "存储空间不足，未保存更改。",
-    "description": "用户拒绝数据修剪后显示的提示"
-  },
   "errorInvalidSelector": {
     "message": "选择器无效，无法保存。",
     "description": "选择器表达式校验失败时提示"
@@ -212,22 +164,6 @@
   "ctxInvalidatedRefresh": {
     "message": "刷新页面",
     "description": "扩展上下文失效通知中的可点击刷新按钮文本"
-  },
-  "titleStorageQuotaExceeded": {
-    "message": "网页目录：存储空间不足（更改未保存）",
-    "description": "存储写入因配额限制失败时的图标标题"
-  },
-  "titleStorageWriteFailed": {
-    "message": "网页目录：存储错误（更改未保存）",
-    "description": "存储写入失败时的图标标题"
-  },
-  "warningStorageQuotaPruned": {
-    "message": "存储空间不足，已移除部分较旧数据以保存您的更改。",
-    "description": "因存储配额执行数据修剪时显示的提示"
-  },
-  "deactivateToc": {
-    "message": "关闭 TOC",
-    "description": "停用当前站点目录的菜单项"
   },
   "dockDeactivate": {
     "message": "关闭 TOC",
