@@ -49,9 +49,11 @@ entrypoints/toc.content/index.ts
   └── src/content.ts
       ├── utils/toc-utils.ts (barrel re-export)
       └── core/toc-app.ts (orchestrator)
-            ├── utils/toc-builder.ts → dom-utils.ts
+            ├── utils/toc-builder.ts → dom-utils.ts, content-region.ts
+            ├── ui/shadow-root.ts (single shared open Shadow DOM root + CSS injection)
             ├── ui/edge-dock.ts, ui/element-picker.ts, ui/floating-panel.ts
-            ├── core/config-manager.ts → focus-trap.ts
+            ├── ui/overlay-dialog.ts (shared .toc-overlay dialog) → focus-trap.ts
+            ├── core/config-manager.ts → ui/overlay-dialog.ts
             ├── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
             └── core/nav-lock.ts (createNavLock + onUnlock)
 ```
@@ -155,14 +157,15 @@ Split into three focused modules:
 
 2. **Cleanup hooks**: `destroy()` methods on toc-app, rebuild-scheduler for full teardown
 
-3. **CSS isolation**: All styles use `!important` with global reset
+3. **CSS isolation**: All UI mounts in one Shadow DOM root; `:host { all: initial }` plus a per-element `all: unset` reset; styles also use `!important`
 
 ## CSS Architecture (`entrypoints/toc.content/style.css`)
 
-- Defensive CSS with CSS custom properties for light/dark theming
-- Uses CSS custom properties for light/dark theming
-- Global reset: `.toc-floating, .toc-floating * { all: unset !important; }`
-- All styles use `!important` to prevent host page interference
+- All UI mounts inside a single open Shadow DOM root (`ui/shadow-root.ts`); the CSS is fetched at runtime and loaded via a constructable stylesheet (`adoptedStyleSheets`, with a `<style>` fallback) — host-page CSS cannot reach the extension's UI
+- `:host { all: initial }` defends inherited properties at the shadow boundary; a per-element `all: unset` reset neutralizes browser UA defaults on buttons/textareas
+- CSS custom properties for light/dark theming (driven by `prefers-color-scheme`)
+- Per-element reset: `.toc-floating, .toc-floating *, .toc-edge-dock, .toc-edge-dock * { all: unset !important; }`
+- Styles also use `!important` as a secondary defense
 - Components: edge dock, floating panel, overlay dialogs, buttons
 
 ## Key Algorithms

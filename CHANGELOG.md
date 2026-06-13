@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#180---2026-06-13)
+[Table of Contents](#table-of-contents) • [Latest](#190---2026-06-13)
 
 ---
 
 ## Table of Contents
 
+- [1.9.0](#190---2026-06-13) - 2026-06-13
 - [1.8.0](#180---2026-06-13) - 2026-06-13
 - [1.7.0](#170---2026-06-13) - 2026-06-13
 - [1.6.2](#162---2026-06-08) - 2026-06-08
@@ -41,6 +42,27 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.9.0] - 2026-06-13
+
+A CSS-isolation and robustness release: the extension's UI now runs inside a Shadow DOM so host-page styles can no longer break it, outline generation reaches into shadow-DOM content regions, permission and SPA-navigation handling is hardened, and the intended visual styling is restored.
+
+### 🔧 Changed
+- **UI now runs inside a Shadow DOM** — The floating panel, edge dock, toasts, and dialogs mount inside a single open shadow root, so host-page CSS can no longer override or leak into the extension's UI. Styles load via a constructable stylesheet with no flash of unstyled content. This replaces the old light-DOM `all: unset` defense with structural isolation.
+
+### 🚀 Added
+- **Shadow-aware content-region detection** — The content-region detector now descends into open shadow roots, so the outline is built from the correct region on sites that render their main content into shadow trees.
+
+### 🐛 Fixed
+- **Permission revocation & SPA navigation** — Per-site enable state now reconciles correctly when host access is revoked via Chrome's site-permissions UI, and content-script reinjection is hardened across SPA navigations and service-worker restarts.
+- **Restored 1.6.2 visual styling** — Re-added the per-element UA reset that the shadow migration had dropped, so TOC entries and dock menu items render in the intended font/spacing/radius again instead of browser-default button styling.
+
+### ⚡ Technical Improvements
+- Removed the now-redundant dom-watcher owned-filter (the UI is shadow-isolated from the mutation observer).
+- Simplified the codebase: removed dead code/exports/branches and unused imports/params; extracted shared helpers (shadow-root traversal, overlay-dialog builder, selector-list normalizer).
+- Hardened the bespoke vm-eval test harness (fixed the export-block strip regex; added loaders for the new shared helpers).
 
 ---
 
