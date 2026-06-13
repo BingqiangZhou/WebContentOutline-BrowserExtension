@@ -28,6 +28,9 @@ interface CandidateEntry {
   score: number;
 }
 
+/** A root that can be queried: the document, an element, or an open shadow root. */
+type QueryRoot = Element | Document | ShadowRoot;
+
 // ---------------------------------------------------------------------------
 // Cache
 // ---------------------------------------------------------------------------
@@ -180,6 +183,86 @@ function countHeadings(el: Element): { h2: number; h3: number; h4: number } {
 }
 
 // ---------------------------------------------------------------------------
+// Shadow-aware traversal (region detection)
+// ---------------------------------------------------------------------------
+//
+// Region detection used to be light-DOM-only while heading collection already
+// traverses open shadow roots — so on a page whose content lives inside a
+// shadow root, no region was found (full-page fallback) and light-DOM
+// nav/footer headings leaked into the TOC. These helpers let the FINDING
+// queries (landmarks, content selectors, heading collection) reach into open
+// shadow roots too.
+//
+// SAFETY: gatherRegionRoots returns [root] when root has no open shadow
+// descendants, so on a plain light-DOM page every deep query is identical to
+// querying the root directly — detection output is unchanged. Element-scoped
+// queries (containsHeading/countHeadings/density/ancestor-walk) stay light,
+// because a region found via deep query already sits inside the relevant tree
+// and its headings are reachable by a normal (light-within-tree) query.
+
+var REGION_SHADOW_MAX_DEPTH = 3;
+var REGION_SHADOW_MAX_ROOTS = 50;
+
+/** Collect `root` plus its descendant open shadow roots (bounded). Closed
+ *  shadow roots expose null and are skipped. Mirrors the heading collector's
+ *  bounds so the two stay consistent. */
+function gatherRegionRoots(root: Element | Document | null): QueryRoot[] {
+  var roots: QueryRoot[] = [];
+  if (!root) return roots;
+  var queue: Array<{ node: QueryRoot; depth: number }> = [{ node: root as QueryRoot, depth: 0 }];
+  while (queue.length && roots.length < REGION_SHADOW_MAX_ROOTS) {
+    var item = queue.shift();
+    if (!item) continue;
+    roots.push(item.node);
+    if (item.depth >= REGION_SHADOW_MAX_DEPTH) continue;
+    var descendants: any = null;
+    try {
+      var qa = (item.node as any).querySelectorAll;
+      if (typeof qa === 'function') descendants = qa.call(item.node, '*');
+    } catch (_) {}
+    if (!descendants) continue;
+    for (var i = 0; i < descendants.length && roots.length < REGION_SHADOW_MAX_ROOTS; i++) {
+      var el = descendants[i];
+      try {
+        var sr = (el as any).shadowRoot;
+        if (sr) queue.push({ node: sr, depth: item.depth + 1 });
+      } catch (_) {}
+    }
+  }
+  return roots;
+}
+
+/** querySelector across gathered roots (light first, then shadow). */
+function queryFirstAcrossRoots(roots: QueryRoot[], sel: string): Element | null {
+  for (var i = 0; i < roots.length; i++) {
+    try {
+      var qs = (roots[i] as any).querySelector;
+      if (typeof qs === 'function') {
+        var m = qs.call(roots[i], sel);
+        if (m) return m as Element;
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+/** querySelectorAll across gathered roots (light first, then shadow; order
+ *  preserved within each root). */
+function queryAcrossRoots(roots: QueryRoot[], sel: string): Element[] {
+  var result: Element[] = [];
+  for (var i = 0; i < roots.length; i++) {
+    try {
+      var qa = (roots[i] as any).querySelectorAll;
+      if (typeof qa === 'function') {
+        var list = qa.call(roots[i], sel);
+        for (var j = 0; j < list.length; j++) result.push(list[j] as Element);
+      }
+    } catch (_) {}
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Layer 1: Semantic landmarks
 // ---------------------------------------------------------------------------
 
@@ -229,10 +312,10 @@ function drillToPrimaryContent(container: Element): Element {
   return container;
 }
 
-function detectByLandmark(): ContentRegionResult | null {
+function detectByLandmark(roots: QueryRoot[]): ContentRegionResult | null {
   for (var i = 0; i < LANDMARK_SELECTORS.length; i++) {
     try {
-      var el = document.querySelector(LANDMARK_SELECTORS[i]);
+      var el = queryFirstAcrossRoots(roots, LANDMARK_SELECTORS[i]);
       if (el && el.isConnected && containsHeading(el) && isVisibleElement(el)) {
         // For <main> and [role="main"], drill down to find the primary content child
         if (LANDMARK_SELECTORS[i] === 'main' || LANDMARK_SELECTORS[i] === '[role="main"]') {
@@ -246,7 +329,7 @@ function detectByLandmark(): ContentRegionResult | null {
 
         // For <article> elements
         if (LANDMARK_SELECTORS[i] === 'article' || LANDMARK_SELECTORS[i] === '[role="article"]') {
-          var allArticles = document.querySelectorAll(LANDMARK_SELECTORS[i]);
+          var allArticles = queryAcrossRoots(roots, LANDMARK_SELECTORS[i]);
           if (allArticles.length > 1) {
             // Pick the article with the most h2-h4 headings
             var bestArticle: Element | null = null;
@@ -278,13 +361,13 @@ function detectByLandmark(): ContentRegionResult | null {
 // Layer 2: Class/ID heuristics
 // ---------------------------------------------------------------------------
 
-function detectByClassHeuristic(): ContentRegionResult | null {
+function detectByClassHeuristic(roots: QueryRoot[]): ContentRegionResult | null {
   var best: Element | null = null;
   var bestScore = 0;
 
   for (var i = 0; i < CONTENT_SELECTORS.length; i++) {
     try {
-      var candidates = document.querySelectorAll(CONTENT_SELECTORS[i]);
+      var candidates = queryAcrossRoots(roots, CONTENT_SELECTORS[i]);
       for (var j = 0; j < candidates.length; j++) {
         var el = candidates[j];
         if (!el.isConnected || !containsHeading(el) || !isVisibleElement(el)) continue;
@@ -323,11 +406,11 @@ function detectByClassHeuristic(): ContentRegionResult | null {
 // Layer 3: Ancestor scoring from headings (adapted from Smart TOC)
 // ---------------------------------------------------------------------------
 
-function detectByAncestorScoring(): ContentRegionResult | null {
-  // Step 1: Collect headings
+function detectByAncestorScoring(roots: QueryRoot[]): ContentRegionResult | null {
+  // Step 1: Collect headings (light DOM + open shadow roots)
   var headings: Element[];
   try {
-    headings = Array.from(document.querySelectorAll('h2, h3, h4'));
+    headings = queryAcrossRoots(roots, 'h2, h3, h4');
   } catch (_) {
     return null;
   }
@@ -494,8 +577,15 @@ export function detectContentRegion(): ContentRegionResult {
     }
   }
 
+  // Gather the document + its open shadow roots ONCE per detection pass
+  // (light-first). On a plain light-DOM page this is just [document], so every
+  // query below is identical to querying the document directly; on a page whose
+  // content lives in a shadow root, the region queries can reach it. Bounded
+  // depth/count match the heading collector.
+  var docRoots = gatherRegionRoots(document);
+
   // Layer 1: Semantic landmarks
-  var result = detectByLandmark();
+  var result = detectByLandmark(docRoots);
   if (result) {
     _cachedResult = { root: result.root, source: result.source };
     _cachedUrl = url;
@@ -503,7 +593,7 @@ export function detectContentRegion(): ContentRegionResult {
   }
 
   // Layer 2: Class/ID heuristics
-  result = detectByClassHeuristic();
+  result = detectByClassHeuristic(docRoots);
   if (result) {
     _cachedResult = { root: result.root, source: result.source };
     _cachedUrl = url;
@@ -511,7 +601,7 @@ export function detectContentRegion(): ContentRegionResult {
   }
 
   // Layer 3: Ancestor scoring
-  result = detectByAncestorScoring();
+  result = detectByAncestorScoring(docRoots);
   if (result) {
     _cachedResult = { root: result.root, source: result.source };
     _cachedUrl = url;

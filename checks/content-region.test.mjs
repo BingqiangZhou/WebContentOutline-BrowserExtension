@@ -441,3 +441,78 @@ test('Layer 2: penalizes elements near negative-pattern ancestors', () => {
   const result = detectContentRegion();
   assert.equal(result.root, goodDiv);
 });
+
+// ---------------------------------------------------------------------------
+// Shadow DOM: content region inside an open shadow root (the F10 fix)
+// ---------------------------------------------------------------------------
+
+test('Layer 1: detects <main> rendered inside an open shadow root', () => {
+  // Page whose article content lives inside a web component's open shadow root.
+  // The light DOM has no <main>/<article>/.content — without shadow-aware
+  // region detection this fell through to the full-page fallback, letting
+  // light-DOM nav/footer headings leak into the TOC.
+  const h2 = makeHeading('H2', null);
+  const shadowMain = makeElement('main', { children: [h2] });
+  h2.parentElement = shadowMain;
+
+  const shadowRoot = {
+    querySelector(sel) {
+      if (sel === 'main' || sel === '[role="main"]' || sel === 'article' || sel === '[role="article"]') return shadowMain;
+      return null;
+    },
+    querySelectorAll(sel) {
+      if (sel === '*') return [shadowMain, h2];
+      if (sel === 'main' || sel === 'article') return [shadowMain];
+      if (/h[2-4]/i.test(sel)) return [h2];
+      return [];
+    }
+  };
+
+  const host = makeElement('div', {});
+  host.shadowRoot = shadowRoot;
+
+  const doc = {
+    querySelector() { return null; },
+    querySelectorAll(sel) {
+      if (sel === '*') return [host];   // the component host is in the light DOM
+      return [];
+    }
+  };
+
+  const { detectContentRegion } = loadModule(doc);
+  const result = detectContentRegion();
+  assert.equal(result.root, shadowMain);
+  assert.equal(result.source, 'landmark');
+});
+
+test('Layer 2: detects .content rendered inside an open shadow root', () => {
+  const h2 = makeHeading('H2', null);
+  const shadowContent = makeElement('div', { className: 'content', children: [h2] });
+  h2.parentElement = shadowContent;
+
+  const shadowRoot = {
+    querySelector() { return null; },   // no landmarks in the shadow tree either
+    querySelectorAll(sel) {
+      if (sel === '*') return [shadowContent, h2];
+      if (sel === '.content') return [shadowContent];
+      if (/h[2-4]/i.test(sel)) return [h2];
+      return [];
+    }
+  };
+
+  const host = makeElement('div', {});
+  host.shadowRoot = shadowRoot;
+
+  const doc = {
+    querySelector() { return null; },
+    querySelectorAll(sel) {
+      if (sel === '*') return [host];
+      return [];
+    }
+  };
+
+  const { detectContentRegion } = loadModule(doc);
+  const result = detectContentRegion();
+  assert.equal(result.root, shadowContent);
+  assert.equal(result.source, 'heuristic-class');
+});
