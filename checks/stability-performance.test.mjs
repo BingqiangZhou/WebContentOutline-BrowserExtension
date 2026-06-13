@@ -335,6 +335,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
     .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\r?\n/, '')
     .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\r?\n/, '')
     .replace(/import[\s\S]*?from '\.\/shared\/messages\.js';\r?\n/, '')
+    .replace(/import[\s\S]*?from '\.\/ui\/shadow-root\.js';\r?\n/, '')
     .replace('export function startTocContent', 'function startTocContent'));
   const timers = [];
   const storageListeners = [];
@@ -352,6 +353,9 @@ async function loadContentScriptForConfigChanges(options = {}) {
   };
   const sandbox = {
     console: { ...console, debug() {} },
+    // Shadow-root init is stubbed (real DOM/shadow not available in the sandbox).
+    getTocShadowRoot: () => Promise.resolve(),
+    disposeTocShadowRoot: () => {},
     Promise,
     setTimeout(fn) {
       timers.push(fn);
@@ -914,10 +918,10 @@ test('background owns UI state writes and removes CSS when disabling tabs', () =
   assert.match(background, /serializedWrite\(storageKey/);
   assert.match(background, /validateUiStateMutationSource/);
   assert.match(background, /sender\.id !== browser\.runtime\.id/);
-  assert.match(background, /browser\.scripting\.removeCSS/);
-  assert.match(background, /browser\.scripting\.insertCSS/);
+  // CSS is no longer injected by the background — the content script loads it
+  // into its shadow root via web_accessible_resources.
+  assert.doesNotMatch(background, /scripting\.(insertCSS|removeCSS)/);
   assert.match(background, /content-scripts\/toc\.js/);
-  assert.match(background, /content-scripts\/toc\.css/);
 });
 
 test('origin-wide background fan-out iterates sequentially with for-of', () => {
@@ -928,10 +932,17 @@ test('origin-wide background fan-out iterates sequentially with for-of', () => {
   assert.doesNotMatch(background, /Promise\.allSettled\(tabs\.filter\(t => t\.id && \(!exceptTabId \|\| t\.id !== exceptTabId\)\)\.map/);
 });
 
-test('extension CSS selectors are scoped to owned UI roots', () => {
+test('extension CSS is shadow-scoped (no host-page selector coupling)', () => {
   const css = read('entrypoints/toc.content/style.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const entry = read('entrypoints/toc.content/index.ts');
 
-  assert.doesNotMatch(css, /(^|,|\n)\s*\.toc-/m);
+  // Shadow DOM isolation: CSS lives in a shadow root (cssInjectionMode 'ui'),
+  // so the old :where([data-toc-owner]…) host-page scoping is gone, replaced
+  // by a :host block that defends the inherited properties which penetrate
+  // the shadow boundary (font, color, direction).
+  assert.match(entry, /cssInjectionMode:\s*'ui'/);
+  assert.match(css, /:host\s*\{/);
+  assert.doesNotMatch(css, /:where\(\[data-toc-owner/);
 });
 
 test('extension DOM checks use owner attributes instead of generic host classes', () => {

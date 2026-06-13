@@ -2,6 +2,7 @@
 'use strict';
 
 import { createFocusTrap } from '../utils/focus-trap.js';
+import { getTocShadowHost, getDeepActiveElement } from '../ui/shadow-root.js';
 import {
   showToast,
   getConfigs,
@@ -64,8 +65,8 @@ import { TOC_MESSAGE } from '../shared/messages.js';
 export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
     var box: HTMLDivElement | undefined;
     try {
-      var prevFocus = document.activeElement as HTMLElement | null;
-      var existing = document.querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
+      var prevFocus = getDeepActiveElement() as HTMLElement | null;
+      var existing = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
       if (existing) {
         existing.remove();
       }
@@ -240,7 +241,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
         }
       });
 
-      document.documentElement.appendChild(box);
+      (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(box);
       focusRaf = requestAnimationFrame(function() {
         focusRaf = null;
         if (!box || !box.isConnected) return;

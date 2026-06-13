@@ -4,6 +4,7 @@
 import { msg, getFocusableWithin } from '../utils/toc-utils.js';
 import { createFocusTrap } from '../utils/focus-trap.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
+import { getTocShadowHost, getDeepActiveElement } from './shadow-root.js';
 
   var CFG = {
     PICKER_TIMEOUT_MS: 20000,
@@ -11,8 +12,8 @@ import { EXTENSION_OWNER } from '../utils/constants.js';
   };
 
 export function showPickerResult(selector: string, saveCb: ((selector: string, close: () => void) => void) | undefined) {
-    var prevFocus = document.activeElement;
-    var existing = document.querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
+    var prevFocus = getDeepActiveElement();
+    var existing = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
     if (existing) {
       existing.remove();
     }
@@ -90,7 +91,7 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
       if (act === 'close') close();
       if (act === 'save') { try { saveCb && saveCb(selector, close); } catch (e) { console.warn('[toc] saveCb error:', e); } }
     });
-    document.documentElement.appendChild(wrap);
+    (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(wrap);
     focusRaf = requestAnimationFrame(function() {
       focusRaf = null;
       if (!wrap || !wrap.isConnected) return;

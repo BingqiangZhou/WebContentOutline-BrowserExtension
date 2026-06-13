@@ -22,7 +22,6 @@ const BG_STORAGE_KEYS = {
 };
 
 const CONTENT_SCRIPTS = ['content-scripts/toc.js'];
-const CONTENT_CSS = ['content-scripts/toc.css'];
 
 function isHttpUrl(url: string | undefined): boolean {
   return !!(url && /^https?:\/\//i.test(url));
@@ -219,25 +218,16 @@ function pingContentScript(tabId: number): Promise<boolean> {
 }
 
 async function injectIntoTab(tabId: number): Promise<{ ok: boolean; step?: string; error?: any }> {
-  // Inject CSS first
-  try {
-    if (CONTENT_CSS.length) {
-      try { await browser.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS }); } catch (_) {}
-      await browser.scripting.insertCSS({ target: { tabId }, files: CONTENT_CSS });
-    }
-  } catch (e) {
-    console.warn('[toc] injectIntoTab failed (css):', e, { tabId });
-    return { ok: false, step: 'css', error: e };
-  }
-
-  // Inject content script
+  // Inject content script only. CSS is self-served by the content script: it
+  // fetches content-scripts/toc.css (exposed via web_accessible_resources by
+  // cssInjectionMode:'ui') and loads it into its shadow root, so the background
+  // no longer injects the stylesheet into the host document.
   try {
     if (CONTENT_SCRIPTS.length) {
       await browser.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS as any });
     }
   } catch (e) {
     console.warn('[toc] injectIntoTab failed (js):', e, { tabId });
-    try { await browser.scripting.removeCSS({ target: { tabId }, files: CONTENT_CSS }); } catch (_) {}
     return { ok: false, step: 'js', error: e };
   }
 

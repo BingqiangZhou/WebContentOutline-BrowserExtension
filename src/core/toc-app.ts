@@ -26,6 +26,7 @@ import {
   debug
 } from '../utils/core-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
+import { getTocShadowHost } from '../ui/shadow-root.js';
 
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
   // (createNavLock + NavLock interface now live in ./nav-lock.js)
@@ -147,7 +148,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
           rebuildScheduler.disconnect();
         }
         // Show notice on existing panel
-        if (panelInstance && !document.querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"] .toc-ctx-invalidated-notice')) {
+        if (panelInstance && !(getTocShadowHost()?.shadowRoot ?? document).querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"] .toc-ctx-invalidated-notice')) {
           try {
             var noticeEl = document.createElement('div');
             noticeEl.className = 'toc-ctx-invalidated-notice';
@@ -167,7 +168,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
             noticeEl.appendChild(noticeSpan);
             noticeEl.appendChild(document.createTextNode(' '));
             noticeEl.appendChild(refreshLink);
-            var panelEl = document.querySelector('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
+            var panelEl = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
             var listEl = panelEl && panelEl.querySelector('.toc-list');
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
           } catch (_) {}

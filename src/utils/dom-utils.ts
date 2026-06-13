@@ -313,6 +313,8 @@ export function uniqueInDocumentOrder(list: Element[]) {
           // Stop once we reach the scroll container itself: anything beneath it
           // in paint order is content, not an overlay.
           if (painted === scrollContainer) break;
+          // Skip the extension's own shadow host (position:fixed but not a header).
+          if (painted.closest && painted.closest('[data-toc-owner="' + EXTENSION_OWNER + '"]')) continue;
           var st = window.getComputedStyle(painted);
           if (st && (st.position === 'fixed' || st.position === 'sticky')) {
             var b = painted.getBoundingClientRect().bottom;
@@ -380,12 +382,27 @@ export function scrollToElement(el: Element) {
 export function cleanupOwnedElements(selectorFallback?: string) {
       var selector = selectorFallback || '.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]';
       try {
-        document.querySelectorAll(selector).forEach(function(el) {
-          try {
-            var cleanup = (el as any).__TOC_CLEANUP__;
-            if (typeof cleanup === 'function') cleanup();
-          } catch (_) {}
-          el.remove();
-        });
+        // Owned UI lives inside the shared shadow root; the shadow host is the
+        // only owned element in the host document. Scan the shadow root first,
+        // then the document (fallback for the picker highlight box / if shadow
+        // init failed). The host itself is torn down by disposeTocShadowRoot().
+        var host = document.querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"]');
+        var shadow: any = host && (host as any).shadowRoot ? (host as any).shadowRoot : null;
+        var scopes: any[] = [];
+        if (shadow) scopes.push(shadow);
+        scopes.push(document);
+        for (var s = 0; s < scopes.length; s++) {
+          var scope = scopes[s];
+          if (!scope || !scope.querySelectorAll) continue;
+          var matches = scope.querySelectorAll(selector);
+          for (var m = 0; m < matches.length; m++) {
+            var el = matches[m];
+            try {
+              var cleanup = (el as any).__TOC_CLEANUP__;
+              if (typeof cleanup === 'function') cleanup();
+            } catch (_) {}
+            try { el.remove(); } catch (_) {}
+          }
+        }
       } catch (_) {}
     }

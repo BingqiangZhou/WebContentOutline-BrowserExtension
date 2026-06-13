@@ -12,6 +12,7 @@ import {
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
 import { TOC_MESSAGE, type TocRequest } from './shared/messages.js';
+import { getTocShadowRoot, disposeTocShadowRoot } from './ui/shadow-root.js';
 
 interface TocAppInstance {
   destroy?: () => void;
@@ -67,6 +68,7 @@ export function startTocContent(ctx: any) {
     if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
     cleanupOwnedElements();
+    disposeTocShadowRoot();
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
     if (opts?.reason) debug(msg('logPrefix') + ' disposed:', opts.reason);
@@ -95,6 +97,10 @@ export function startTocContent(ctx: any) {
       } else {
         debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
+      // Ensure the shared shadow root (host + CSS) exists before any UI renders,
+      // so the dock/panel mount into the shadow and are style-isolated from the
+      // host page. Failure is non-fatal (UI falls back to the host document).
+      await getTocShadowRoot();
       appInstance = initForConfig(cfg, {
         onDeactivate: function() {
           // Page-side "Close TOC" → persist disabled state to background, then self-disable

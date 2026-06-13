@@ -50,9 +50,13 @@ test('WXT config preserves MV3 permissions and static assets', () => {
   assert.match(config, /optional_host_permissions:\s*\['http:\/\/\*\/\*', 'https:\/\/\*\/\*'\]/);
   assert.doesNotMatch(config, /\bhost_permissions:\s*\[/);
   assert.match(contentEntry, /registration:\s*'runtime'/);
-  assert.match(contentEntry, /cssInjectionMode:\s*'manual'/);
+  assert.match(contentEntry, /cssInjectionMode:\s*'ui'/);
   assert.match(backgroundEntry, /content-scripts\/toc\.js/);
-  assert.match(backgroundEntry, /content-scripts\/toc\.css/);
+  // CSS is self-served by the content script's shadow root (cssInjectionMode
+  // 'ui' → web_accessible_resources), not injected by the background.
+  assert.doesNotMatch(backgroundEntry, /scripting\.(insertCSS|removeCSS)/);
+  const shadowRootEntry = fs.readFileSync(path.join(repoRoot, 'src/ui/shadow-root.ts'), 'utf8');
+  assert.match(shadowRootEntry, /content-scripts\/toc\.css/);
 
   for (const relativePath of [
     'public/icons/png/toc-disabled-16.png',

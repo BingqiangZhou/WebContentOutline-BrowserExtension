@@ -9,6 +9,7 @@ import {
   normalizeSide
 } from '../utils/toc-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
+import { getTocShadowHost } from './shadow-root.js';
 
   /** Clear all children of an element using native replaceChildren(). */
   function clearChildren(el: HTMLElement): void {
@@ -298,7 +299,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     list.addEventListener('keydown', onListKeydown, { signal: listenersController.signal });
 
     panel.appendChild(list);
-    (mountTarget || document.documentElement).appendChild(panel);
+    (mountTarget || getTocShadowHost()?.shadowRoot || document.documentElement).appendChild(panel);
 
     // Show panel — optionally skip expand animation
     showRaf = requestAnimationFrame(function() {

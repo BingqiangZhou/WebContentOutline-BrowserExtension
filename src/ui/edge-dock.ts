@@ -4,6 +4,7 @@
 import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements, normalizeSide } from '../utils/toc-utils.js';
 import { createDragController, DragState } from '../utils/drag-helper.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
+import { getTocShadowHost } from './shadow-root.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -345,7 +346,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   root.appendChild(panelHost);
   root.appendChild(quickMenu);
   root.appendChild(toolbar);
-  document.documentElement.appendChild(root);
+  (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(root);
 
   function closeMenu() {
     cancelMenuClose();
@@ -606,14 +607,15 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function onDocumentPointerDown(e: PointerEvent): void {
     lastInputWasKeyboard = false;
-    var t = e && (e.target as Node | null);
-    if (!quickMenu.hidden && e && t && !root.contains(t)) closeMenu();
+    // e.target retargets to the shadow host for clicks inside our shadow tree,
+    // so test "inside the dock" via the composed path, not root.contains(target).
+    var inside = false;
+    try { inside = !!(e && e.composedPath && (e.composedPath().indexOf(root) >= 0)); } catch (_) {}
+    if (!quickMenu.hidden && !inside) closeMenu();
     if (
       lastPointerType === 'touch' &&
       controller.getMode() === 'peek' &&
-      e &&
-      t &&
-      !root.contains(t)
+      !inside
     ) {
       controller.collapse();
     }
