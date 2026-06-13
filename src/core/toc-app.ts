@@ -57,9 +57,13 @@ import { getTocShadowHost } from '../ui/shadow-root.js';
 
   interface TocAppOptions { onDeactivate?: () => void; }
 
-  // Config change callback — wired when initForConfig runs
-  var _activeRebuild: (() => unknown) | null = null;
-  setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
+  // Live rebuild callbacks for all active instances. A single module-level
+  // fan-out callback is registered once; each initForConfig adds its own
+  // rebuild and destroy() removes it. This survives any destroy/reinit
+  // interleaving (e.g. a rapid disable → re-enable, or a reinject racing the
+  // prior destroy) without one instance clobbering another's hook.
+  var liveRebuilds = new Set<() => unknown>();
+  setOnConfigChanged(function() { liveRebuilds.forEach(function(fn) { try { fn(); } catch (_) {} }); });
 
 export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     options = options || {};
@@ -256,8 +260,8 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       return rebuild();
     };
 
-    // Set up event handler for config changes
-    _activeRebuild = rebuild;
+    // Register this instance's rebuild with the module-level config-change fan-out.
+    liveRebuilds.add(rebuild);
 
     function startPick() {
       var dispatchPickerEvent = function(type: string) {
@@ -389,12 +393,9 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         pickerInstance.cleanup();
       }
       pickerInstance = null;
-      // Do NOT call clearOnConfigChanged() here — the module-level callback
-      // registered at line 55 guards with `if (_activeRebuild)`, and setting
-      // _activeRebuild = null below makes it a safe no-op. Clearing would break
-      // config change notifications after reinit (disable → re-enable cycle).
-      // Clear event handler
-      _activeRebuild = null;
+      // Remove this instance's rebuild from the config-change fan-out. Other
+      // live instances (if any) keep receiving notifications; reinit re-adds.
+      liveRebuilds.delete(rebuild);
     };
 
     try {

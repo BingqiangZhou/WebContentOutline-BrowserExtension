@@ -266,6 +266,14 @@ async function maybeAutoInject(tabId: number, url: string): Promise<void> {
   const origin = originFromUrl(url);
   const enabled = await getEnabledByOrigin(origin);
   if (!enabled) return;
+  // Defense-in-depth against a stale enabled map: if host access was revoked
+  // via Chrome's site-access UI before the permissions.onRemoved listener
+  // reconciled the map, skip injection — executeScript would otherwise throw
+  // "Cannot access contents" and silently fail on every navigation. The map
+  // is corrected shortly by reconcileMapWithPermissions().
+  try {
+    if (!(await browser.permissions.contains({ origins: [origin + '/*'] }))) return;
+  } catch (_) {}
   await ensureContentScript(tabId, url);
 }
 
@@ -293,9 +301,17 @@ async function handleActionClick(tab: any): Promise<void> {
   const currentlyEnabled = await getEnabledByOrigin(origin);
 
   if (currentlyEnabled) {
-    // Disable: clear state, revoke per-origin host access, tell content to clean up.
+    // Disable: revoke per-origin host access FIRST (least-privilege), then clear
+    // state and tell the content script to clean up. Removing before clearing
+    // the map means a failed removal is observable (warned) rather than silently
+    // leaving host access in place while the UI reports disabled. The map is
+    // cleared regardless — the user's intent is unambiguously "disable".
+    try {
+      await browser.permissions.remove({ origins: [pattern] });
+    } catch (e) {
+      console.warn('[toc] permissions.remove failed (host access may linger):', e, { origin });
+    }
     await setEnabledByOrigin(origin, false);
-    try { await browser.permissions.remove({ origins: [pattern] }); } catch (_) {}
     await setTabIcon(tab.id, false);
     try {
       browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: false } satisfies TocRequest, () => { void browser.runtime.lastError; });
@@ -323,7 +339,16 @@ async function handleActionClick(tab: any): Promise<void> {
   await broadcastEnabledToOrigin(origin, true, tab.id);
 }
 
+let backgroundStarted = false;
+
 function startBackground() {
+  // Idempotency guard: defineBackground calls this once per service-worker
+  // lifetime, but guard against any future re-entry (a WXT lifecycle hook, a
+  // refactor) double-registering every listener — which would make every event
+  // fire twice (double injection, double icon updates, duplicate responses).
+  if (backgroundStarted) return;
+  backgroundStarted = true;
+
 browser.action.onClicked.addListener(handleActionClick);
 
 browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowId: number }) => {
@@ -350,6 +375,15 @@ browser.tabs.onCreated.addListener((tab: any) => {
   if (tab?.id) updateIconForTab(tab.id, tab.url).catch(bgWarn);
 });
 
+// Drop any in-flight injection lock for a closed tab so the entry doesn't
+// linger until the SW restarts. (The lock is also cleared in the promise's
+// finally when the injection settles, but a tab closed mid-injection keeps the
+// map tidy without waiting for that — important for long-lived sessions where
+// the SW stays alive.)
+browser.tabs.onRemoved.addListener((tabId: number) => {
+  try { injectionLocks.delete(tabId); } catch (_) {}
+});
+
 // After an update from required -> optional host_permissions, previously
 // granted broad host access is lost, so entries in tocSiteEnabledMap may no
 // longer match an actual permission. Clear those stale entries on startup so
@@ -358,15 +392,21 @@ browser.tabs.onCreated.addListener((tab: any) => {
 async function reconcileMapWithPermissions(): Promise<void> {
   let map: Record<string, boolean>;
   try { map = await getEnabledMap(); } catch (_) { return; }
-  let changed = false;
+  const cleared: string[] = [];
   for (const origin of Object.keys(map)) {
     if (!map[origin]) continue;
     let granted = false;
     try { granted = await browser.permissions.contains({ origins: [origin + '/*'] }); } catch (_) {}
-    if (!granted) { map[origin] = false; changed = true; }
+    if (!granted) { map[origin] = false; cleared.push(origin); }
   }
-  if (changed) {
+  if (cleared.length) {
     try { await saveEnabledMap(map); } catch (_) {}
+    // Tear down any already-injected content script for revoked origins and
+    // flip their icons, so a permission revoked via Chrome's site-access UI is
+    // reflected immediately instead of lingering until the next SW startup.
+    for (const origin of cleared) {
+      await broadcastEnabledToOrigin(origin, false, undefined).catch(bgWarn);
+    }
   }
 }
 
@@ -404,11 +444,21 @@ browser.runtime.onStartup.addListener(async () => {
   await processAllTabs();
 });
 
+// Keep tocSiteEnabledMap in sync when the user grants or revokes host access
+// via Chrome's site-access dropdown or chrome://settings/content — these
+// changes fire no tabs.* event, so without these listeners a revoked origin
+// would keep showing as enabled (stale icon), silently fail to inject, and
+// leave an orphaned content script running until the service worker restarts.
+try {
+  browser.permissions.onRemoved.addListener(() => { reconcileMapWithPermissions().catch(bgWarn); });
+  browser.permissions.onAdded.addListener(() => { reconcileMapWithPermissions().catch(bgWarn); });
+} catch (_) {}
+
 setGlobalDefaultIcon().catch(bgWarn);
 
 browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendResponse: any) => {
   try {
-    if (!msg || !msg.type) return;
+    if (!msg || !msg.type) { sendResponse?.({ ok: false, reason: 'unknown-type' }); return; }
     // Reject messages from other extensions
     if (sender?.id && sender.id !== browser.runtime.id) {
       sendResponse?.({ ok: false, reason: 'bad-sender' });
@@ -493,6 +543,11 @@ browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendRespons
       })();
       return true;
     }
+    // Unrecognized message type (e.g. content/background version skew) — respond
+    // explicitly so the sender's promise resolves with a failure instead of
+    // hanging until the message port times out.
+    sendResponse?.({ ok: false, reason: 'unknown-type' });
+    return;
   } catch (e) {
     console.warn('[toc] onMessage handler failed:', e);
   }

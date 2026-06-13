@@ -132,12 +132,22 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
 
     function resolveNonUiElement(el: HTMLElement | null, x: number, y: number): HTMLElement | null {
       if (!isUiElement(el)) return el;
+      // The pointer landed on (or was retargeted to) the extension's own UI.
+      // elementFromPoint returns only the topmost element — our shadow host — so
+      // walk the full paint stack via elementsFromPoint to find the first real
+      // page element beneath it. This lets users pick elements visually occluded
+      // by the dock/panel instead of being blocked by them.
       try {
-        el = getElementNode(document.elementFromPoint(x, y) as Node | null);
-      } catch (_) {
-        el = null;
-      }
-      return isUiElement(el) ? null : el;
+        var stackFn = (document as any).elementsFromPoint;
+        var stack: Element[] = typeof stackFn === 'function'
+          ? stackFn.call(document, x, y)
+          : [document.elementFromPoint(x, y)];
+        for (var i = 0; i < stack.length; i++) {
+          var node = getElementNode(stack[i] as Node);
+          if (node && !isUiElement(node) && node !== highlight) return node;
+        }
+      } catch (_) {}
+      return null;
     }
 
     function box(el: HTMLElement): void {

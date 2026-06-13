@@ -139,7 +139,7 @@ function loadCreateRebuildScheduler(hostname = 'example.com') {
   };
 }
 
-test('url monitor observes SPA navigation without replacing History API methods', () => {
+test('url monitor wraps History API to observe SPA navigation and restores it on teardown', () => {
   const { createUrlMonitor, sandbox } = loadCreateUrlMonitor();
   const originalPushState = sandbox.history.pushState;
   const originalReplaceState = sandbox.history.replaceState;
@@ -152,11 +152,18 @@ test('url monitor observes SPA navigation without replacing History API methods'
   try {
     monitor.start({ selectors: [] }, () => {});
 
-    assert.equal(sandbox.history.pushState, originalPushState);
-    assert.equal(sandbox.history.replaceState, originalReplaceState);
+    // While running, pushState/replaceState are wrapped so SPA navigations
+    // (which fire no native event) are detected immediately instead of via
+    // the 3s poll.
+    assert.notEqual(sandbox.history.pushState, originalPushState);
+    assert.notEqual(sandbox.history.replaceState, originalReplaceState);
   } finally {
     monitor.stop();
   }
+
+  // After teardown, the original methods are restored (reference-equal).
+  assert.equal(sandbox.history.pushState, originalPushState);
+  assert.equal(sandbox.history.replaceState, originalReplaceState);
 });
 
 test('url monitor listens for native SPA navigation events', async () => {

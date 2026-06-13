@@ -49,6 +49,7 @@ function loadBuilder(setup) {
     document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
     window: {
       getComputedStyle: function () {
+        if (setup.onCompute) setup.onCompute();
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1', clipPath: 'none' };
       }
     },
@@ -111,4 +112,21 @@ test('a pre-aborted signal short-circuits before any collection', async () => {
   assert.equal(result.aborted, true);
   assert.equal(result.items, undefined, 'aborted build must not return items');
   assert.equal(env.calls.collectBySelector, 0, 'collection must not run when aborted at entry');
+});
+
+test('a signal that aborts mid-batch bails within ~1 element (per-element cancellation)', async () => {
+  // A batch-boundary-only check would keep reading geometry for the whole
+  // PHASE_BATCH (64) before noticing the abort; a per-element check bails on
+  // the next iteration. getComputedStyle is called once per surviving element
+  // in the Phase-1 geometry loop, so counting it is a fair proxy for work done.
+  var computeCalls = 0;
+  var signal = { _aborted: false, get aborted() { return this._aborted; } };
+  var env = loadBuilder({
+    collectElements: makeElements(200),
+    onCompute: function () { computeCalls++; signal._aborted = true; }
+  });
+  var result = await env.buildTocItemsFromSelectors([{ type: 'css', expr: 'h2' }], {}, signal);
+
+  assert.equal(result.aborted, true, 'build aborted');
+  assert.ok(computeCalls <= 2, 'cancelled within ~1 element, not the whole 64-element batch (got ' + computeCalls + ')');
 });

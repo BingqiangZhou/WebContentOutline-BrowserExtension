@@ -109,9 +109,14 @@ async function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr:
       var docScrollW = (docEl && docEl.scrollWidth) || 0;
       var docScrollH = (docEl && docEl.scrollHeight) || 0;
       for (var m = 0; m < candidates.length; m++) {
+        // Check cancellation every element (not only at batch boundaries) so a
+        // superseded build bails within ~1 element instead of running up to
+        // PHASE_BATCH reads of getComputedStyle/getBoundingClientRect.
+        if (signal && signal.aborted) return { aborted: true };
         if (m > 0 && m % PHASE_BATCH === 0) {
-          if (signal && signal.aborted) return { aborted: true };
           await yieldToMain();
+          // Re-check after resuming — the build may have been cancelled while parked.
+          if (signal && signal.aborted) return { aborted: true };
         }
         var el = candidates[m] as HTMLElement;
         if (!el || !el.isConnected) { geoData.push(null); continue; }
@@ -160,9 +165,10 @@ async function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr:
       var ancRectCache = new Map<Element, DOMRect>();
       var items: Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }> = [];
       for (var g = 0; g < geoData.length; g++) {
+        if (signal && signal.aborted) return { aborted: true };
         if (g > 0 && g % PHASE_BATCH === 0) {
-          if (signal && signal.aborted) return { aborted: true };
           await yieldToMain();
+          if (signal && signal.aborted) return { aborted: true };
         }
         var entry = geoData[g];
         if (!entry) continue;

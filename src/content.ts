@@ -25,14 +25,22 @@ export function startTocContent(ctx: any) {
   void ctx;
   'use strict';
 
-  // If the script is injected again (dev reload / reinjection), dispose the previous instance first.
-  try {
+  // If the script is injected again (dev reload / reinjection), dispose the
+  // previous instance first. A prior injection that died mid-init (after setting
+  // the loaded guard but before registering the cleanup hook) would otherwise
+  // deadlock reinjection forever — recover from that stuck state here.
+  if (window.__TOC_ASSISTANT_LOADED__) {
     if (typeof window.__TOC_ASSISTANT_CLEANUP__ === 'function') {
-      window.__TOC_ASSISTANT_CLEANUP__({ reason: 'reinjected' });
+      try { window.__TOC_ASSISTANT_CLEANUP__({ reason: 'reinjected' }); } catch (_) {}
+      // dispose() resets the guard to false; if it somehow didn't, defer to the
+      // live instance rather than double-initializing.
+      if (window.__TOC_ASSISTANT_LOADED__) return;
+    } else {
+      // Stale guard with no cleanup hook — prior instance died mid-init. Reset
+      // and re-initialize so the page isn't left without a working TOC.
+      window.__TOC_ASSISTANT_LOADED__ = false;
     }
-  } catch (_) {}
-
-  if (window.__TOC_ASSISTANT_LOADED__) return;
+  }
   window.__TOC_ASSISTANT_LOADED__ = true;
 
   var appInstance: TocAppInstance | null = null;
