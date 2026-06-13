@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax, loadDedupeMirrorItems } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -25,9 +25,7 @@ function visibleElement(tagName, text, rect) {
 
 function loadBuilder(elements) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
-  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\r?\n/gm, '')
-    .replace(/export function /g, 'function '));
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
   const sandbox = {
     console,
     uiConst(name, fallback) { return fallback; },
@@ -56,25 +54,25 @@ function loadBuilder(elements) {
   return sandbox.__exports.buildTocItemsFromSelectors;
 }
 
-test('repeated same-text headings at different positions are both kept', () => {
+test('repeated same-text headings at different positions are both kept', async () => {
   const build = loadBuilder([
     visibleElement('H2', 'References', { top: 100, right: 120, bottom: 124, left: 0, width: 120, height: 24 }),
     visibleElement('H2', 'References', { top: 800, right: 120, bottom: 824, left: 0, width: 120, height: 24 })
   ]);
 
-  const result = build([{ type: 'css', expr: 'h2' }], {});
+  const result = await build([{ type: 'css', expr: 'h2' }], {});
 
   assert.equal(result.items.length, 2, 'two same-named sections at different positions survive dedup');
 });
 
-test('genuine mirror headings at the same position are still deduped', () => {
+test('genuine mirror headings at the same position are still deduped', async () => {
   const rect = { top: 100, right: 120, bottom: 124, left: 0, width: 120, height: 24 };
   const build = loadBuilder([
     visibleElement('H2', 'Title', rect),
     visibleElement('H2', 'Title', rect)
   ]);
 
-  const result = build([{ type: 'css', expr: 'h2' }], {});
+  const result = await build([{ type: 'css', expr: 'h2' }], {});
 
   assert.equal(result.items.length, 1, 'overlapping mirror copy is collapsed');
 });

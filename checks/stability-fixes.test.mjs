@@ -264,7 +264,8 @@ test('background owns config mutations through WXT and shared ESM imports', () =
 
   assert.match(background, /from 'wxt\/browser'/);
   assert.match(background, /from '\.\.\/src\/shared\/primitives\.js'/);
-  assert.match(background, /toc:mutateConfig/);
+  assert.match(background, /from '\.\.\/src\/shared\/messages\.js'/);
+  assert.match(background, /TOC_MESSAGE\.MUTATE_CONFIG/);
   assert.match(background, /serializedWrite\('tocConfigs'/);
 });
 

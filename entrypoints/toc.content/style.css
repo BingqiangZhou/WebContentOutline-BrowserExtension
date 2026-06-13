@@ -43,7 +43,7 @@
   --toc-bg-selector-hover: rgba(0,0,0,0.04);
   --toc-bg-notice: #fff3cd;
   --toc-text-primary: #222;
-  --toc-text-muted: #777;
+  --toc-text-muted: #6b6b6b;
   --toc-text-btn: #333;
   --toc-text-btn-hover: #333;
   --toc-text-badge: #fff;
@@ -535,6 +535,7 @@
   }
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-button,
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-menu,
+  :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-edge-dock-preview-line,
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-toast,
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-overlay,
   :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-selector-delete,
@@ -790,6 +791,10 @@
   width: 100% !important;
   max-width: 100% !important;
   transition: background-color 0.15s ease !important;
+  /* Skip rendering/layout for off-screen TOC items in long lists (up to 400).
+     The browser still renders a focused item on demand, so keyboard nav works. */
+  content-visibility: auto !important;
+  contain-intrinsic-size: auto 30px !important;
 }
 
 :where([data-toc-owner="web-toc-assistant"], [data-toc-owner="web-toc-assistant"] *).toc-item[data-level="1"] {

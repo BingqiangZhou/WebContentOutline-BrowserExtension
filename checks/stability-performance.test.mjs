@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems, loadTocMessage } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -52,9 +52,7 @@ function loadDomWatcher() {
 
 function loadTocBuilder(options = {}) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
-  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\r?\n/gm, '')
-    .replace(/export function /g, 'function '));
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
   const requestedLimits = [];
   const elements = options.elements || null;
   const sandbox = {
@@ -279,6 +277,7 @@ function loadBadgePositionForWrites(options = {}) {
   const sandbox = {
     console,
     Date,
+    TOC_MESSAGE: loadTocMessage(),
     window: { innerWidth: 1000, innerHeight: 800 },
     chrome: options.chrome,
     getFiniteNumber(value) {
@@ -335,6 +334,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/import[\s\S]*?from '\.\/utils\/toc-utils\.js';\r?\n/, '')
     .replace(/import[\s\S]*?from '\.\/core\/toc-app\.js';\r?\n/, '')
+    .replace(/import[\s\S]*?from '\.\/shared\/messages\.js';\r?\n/, '')
     .replace('export function startTocContent', 'function startTocContent'));
   const timers = [];
   const storageListeners = [];
@@ -404,6 +404,8 @@ async function loadContentScriptForConfigChanges(options = {}) {
       }
     },
     msg(key) { return key; },
+    debug() {},
+    TOC_MESSAGE: loadTocMessage(),
     getConfigs() { return Promise.resolve(configs); },
     findMatchingConfig(list, url) {
       return (Array.isArray(list) ? list : []).find((cfg) => cfg && wildcardMatch(cfg.urlPattern, url)) || null;
@@ -546,14 +548,14 @@ test('DOM watcher drains pending records without re-observing when root changes'
   assert.equal(observer.observeCalls.length, 1, 'observe should only be called once during start');
 });
 
-test('TOC builder never requests more than the global candidate budget', () => {
+test('TOC builder never requests more than the global candidate budget', async () => {
   const env = loadTocBuilder();
   const selectors = Array.from({ length: 50 }, (_, index) => ({
     type: 'css',
     expr: `.heading-${index}`
   }));
 
-  env.buildTocItemsFromSelectors(selectors, {});
+  await env.buildTocItemsFromSelectors(selectors, {});
 
   assert.ok(env.requestedLimits.length > 0);
   assert.ok(
@@ -562,7 +564,7 @@ test('TOC builder never requests more than the global candidate budget', () => {
   );
 });
 
-test('TOC builder filters invisible candidates before reading bounded text', () => {
+test('TOC builder filters invisible candidates before reading bounded text', async () => {
   const hidden = {
     tagName: 'H2',
     isConnected: true,
@@ -602,7 +604,7 @@ test('TOC builder filters invisible candidates before reading bounded text', () 
     }
   });
 
-  const result = env.buildTocItemsFromSelectors([{ type: 'css', expr: 'h2, h3' }], {});
+  const result = await env.buildTocItemsFromSelectors([{ type: 'css', expr: 'h2, h3' }], {});
 
   assert.deepEqual(textReads, [visible]);
   assert.deepEqual(Array.from(result.items, (item) => item.text), ['Visible heading']);
@@ -907,7 +909,8 @@ test('background owns UI state writes and removes CSS when disabling tabs', () =
 
   assert.match(background, /from 'wxt\/browser'/);
   assert.match(background, /from '\.\.\/src\/shared\/primitives\.js'/);
-  assert.match(background, /toc:mutateUiState/);
+  assert.match(background, /from '\.\.\/src\/shared\/messages\.js'/);
+  assert.match(background, /TOC_MESSAGE\.MUTATE_UI_STATE/);
   assert.match(background, /serializedWrite\(storageKey/);
   assert.match(background, /validateUiStateMutationSource/);
   assert.match(background, /sender\.id !== browser\.runtime\.id/);

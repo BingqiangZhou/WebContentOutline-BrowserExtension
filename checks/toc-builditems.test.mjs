@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax, loadDedupeMirrorItems } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -27,9 +27,7 @@ function loadBuildTocItems(setup) {
   setup = setup || {};
   var calls = { collectBySelector: [], chatbotCalled: 0, confidence: 0 };
   var file = path.join(repoRoot, 'src/utils/toc-builder.ts');
-  var source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\r?\n/gm, '')
-    .replace(/export function /g, 'function '));
+  var source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
   var sandbox = {
     console: console,
     uiConst: function (n, f) { return f; },
@@ -66,7 +64,7 @@ function loadBuildTocItems(setup) {
   return { buildTocItems: sandbox.__exports.buildTocItems, calls: calls };
 }
 
-test('custom selectors are scoped to the detected content region', () => {
+test('custom selectors are scoped to the detected content region', async () => {
   var mainRoot = { id: 'main-root' };
   var env = loadBuildTocItems({
     confidence: 0,
@@ -75,7 +73,7 @@ test('custom selectors are scoped to the detected content region', () => {
     collectElements: [visibleHeading('H2', 'In content')]
   });
 
-  env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
+  await env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
 
   assert.equal(env.calls.collectBySelector.length, 1);
   assert.strictEqual(
@@ -84,7 +82,7 @@ test('custom selectors are scoped to the detected content region', () => {
   );
 });
 
-test('custom selectors are not scoped when region detection falls back', () => {
+test('custom selectors are not scoped when region detection falls back', async () => {
   var env = loadBuildTocItems({
     confidence: 0,
     regionRoot: null,
@@ -92,19 +90,19 @@ test('custom selectors are not scoped when region detection falls back', () => {
     collectElements: [visibleHeading('H2', 'x')]
   });
 
-  env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
+  await env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
 
   assert.equal(env.calls.collectBySelector[0]._root, undefined, 'no root injected on fallback');
 });
 
-test('user-defined selectors take priority over chatbot detection', () => {
+test('user-defined selectors take priority over chatbot detection', async () => {
   var env = loadBuildTocItems({
     confidence: 0.9,
     chatbotResult: { items: [{ id: 'c', text: 'chat item', level: 1, source: 'user' }], meta: {} },
     collectElements: [visibleHeading('H2', 'My heading')]
   });
 
-  var result = env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
+  var result = await env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
 
   assert.equal(env.calls.chatbotCalled, 0, 'chatbot builder must not run when user selectors exist');
   assert.ok(env.calls.collectBySelector.length >= 1, 'custom extraction path should run');
@@ -112,16 +110,16 @@ test('user-defined selectors take priority over chatbot detection', () => {
   assert.equal(result.items[0].text, 'My heading');
 });
 
-test('default auto selector includes ARIA role=heading', () => {
+test('default auto selector includes ARIA role=heading', async () => {
   var env = loadBuildTocItems({ confidence: 0, regionRoot: null, regionSource: 'fallback', collectElements: [] });
 
-  env.buildTocItems({ selectors: [] });
+  await env.buildTocItems({ selectors: [] });
 
   assert.equal(env.calls.collectBySelector.length, 1);
   assert.match(env.calls.collectBySelector[0].expr, /\[role="heading"\]/);
 });
 
-test('chatbot still runs after the sentinel is injected (later rebuilds)', () => {
+test('chatbot still runs after the sentinel is injected (later rebuilds)', async () => {
   // Regression: the chatbot branch injects a sentinel into cfg.selectors so the
   // DOM watcher tracks message mutations. cfg persists across rebuilds, so on
   // the 2nd+ rebuild cfg.selectors already holds the sentinel. The sentinel must
@@ -136,13 +134,13 @@ test('chatbot still runs after the sentinel is injected (later rebuilds)', () =>
   var cfg = {
     selectors: [{ type: 'css', expr: '[data-message-author-role]', _tocSentinel: true }]
   };
-  var result = env.buildTocItems(cfg);
+  var result = await env.buildTocItems(cfg);
 
   assert.equal(env.calls.chatbotCalled, 1, 'chatbot must run even when the sentinel is present');
   assert.equal(result.items[0].text, 'AI reply');
 });
 
-test('injected sentinel is marked and injected only once', () => {
+test('injected sentinel is marked and injected only once', async () => {
   var env = loadBuildTocItems({
     confidence: 0.9,
     sentinel: '[data-message-author-role]',
@@ -150,13 +148,13 @@ test('injected sentinel is marked and injected only once', () => {
   });
   var cfg = { selectors: [] };
 
-  env.buildTocItems(cfg);
+  await env.buildTocItems(cfg);
   var sentinels = cfg.selectors.filter(function (s) { return s._tocSentinel; });
   assert.equal(sentinels.length, 1, 'sentinel injected once');
   assert.equal(sentinels[0].expr, '[data-message-author-role]');
 
   env.calls.chatbotCalled = 0;
-  env.buildTocItems(cfg);
+  await env.buildTocItems(cfg);
   var sentinels2 = cfg.selectors.filter(function (s) { return s._tocSentinel; });
   assert.equal(sentinels2.length, 1, 'sentinel not double-injected');
 });

@@ -13,6 +13,7 @@ import {
   buildSitePattern
 } from '../utils/toc-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
+import { TOC_MESSAGE } from '../shared/messages.js';
 
   interface StoredConfig {
     urlPattern?: string;
@@ -42,7 +43,7 @@ import { EXTENSION_OWNER } from '../utils/constants.js';
           resolve({ ok: false, reason: 'runtime-unavailable' });
           return;
         }
-        chrome.runtime.sendMessage(Object.assign({ type: 'toc:mutateConfig' }, mutation), function(response) {
+        chrome.runtime.sendMessage(Object.assign({ type: TOC_MESSAGE.MUTATE_CONFIG }, mutation), function(response) {
           if (chrome.runtime.lastError) {
             resolve({ ok: false, reason: chrome.runtime.lastError.message || 'runtime-error' });
             return;

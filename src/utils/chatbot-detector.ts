@@ -1,7 +1,7 @@
 
 'use strict';
 
-import { dedupeMirrorItems } from './core-utils.js';
+import { dedupeMirrorItems, debug } from './core-utils.js';
 
 /**
  * Automatic chatbot page detection and conversation-aware TOC building.
@@ -100,6 +100,17 @@ var MAX_ITEMS = 400;
 /** Tracks text length of the last assistant element to detect streaming */
 var _lastAssistantTextLen = 0;
 
+/**
+ * Time-gated cache for isStreaming(). The scheduler calls isStreaming() once
+ * per rebuild schedule (i.e. per mutation burst), which during active streaming
+ * means many full DOM probes per second. We instead recompute at most every
+ * STREAMING_CHECK_TTL_MS. Behavior-preserving: it only bounds probe frequency
+ * — the result is recomputed within the TTL, and invalidates on URL change.
+ */
+var STREAMING_CHECK_TTL_MS = 400;
+var _streamingResult = false;
+var _streamingCheckedAt = 0;
+
 /** Selectors for stop/streaming buttons across platforms */
 var STOP_BUTTON_SELECTORS = [
   'button[aria-label*="Stop" i]',
@@ -126,6 +137,8 @@ export function invalidateChatbotCache() {
   // from the previous route can make isStreaming() mis-report (and pin the
   // 1200ms debounce) for the first few mutations on the new page.
   _lastAssistantTextLen = 0;
+  // Drop the cached streaming verdict so the new page recomputes immediately.
+  _streamingCheckedAt = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1086,7 +1099,7 @@ function tryHintFallback(needsUserSelectorOnly: boolean): SelectorResult | null 
             try {
               var sentinelCount = document.querySelectorAll(hint.sentinelSelector).length;
               if (sentinelCount === 0) {
-                console.debug('[toc] hint selectors matched hostname but sentinel found 0 elements — selectors may be stale');
+                debug('[toc] hint selectors matched hostname but sentinel found 0 elements — selectors may be stale');
               }
             } catch (_) {}
             return {
@@ -1140,14 +1153,22 @@ function detectChatPage(): ChatbotProfile | null {
   var currentUrl = '';
   try { currentUrl = location.href; } catch (_) {}
 
-  if (_cachedProfile && _cachedUrl === currentUrl) {
-    // Validate cached root element is still in the DOM
-    if (!_cachedProfile._rootEl || _cachedProfile._rootEl.isConnected) {
-      return _cachedProfile;
+  if (_cachedUrl === currentUrl) {
+    if (_cachedProfile) {
+      // Positive cache: validate the root element is still in the DOM.
+      if (!_cachedProfile._rootEl || _cachedProfile._rootEl.isConnected) {
+        return _cachedProfile;
+      }
+      // Stale positive (root detached) — clear and re-detect below.
+      _cachedProfile = null;
+    } else {
+      // Negative cache: a prior call already determined this URL is NOT a
+      // chatbot page. Skip the ARIA/data/structure DOM cascade on every
+      // subsequent rebuild — the first build already ran it. Without this,
+      // non-chatbot pages re-ran the full detection cascade on every rebuild.
+      // invalidateChatbotCache() clears this on navigation.
+      return null;
     }
-    // Cache stale — clear
-    _cachedProfile = null;
-    _cachedUrl = '';
   }
 
   // --- Page detection cascade ---
@@ -1201,7 +1222,12 @@ function detectChatPage(): ChatbotProfile | null {
     if (selectors) confidence = 0.7; // Hint table confidence
   }
 
-  if (!selectors) return null;
+  if (!selectors) {
+    // Cache the negative result so rebuilds on this URL skip the cascade.
+    _cachedProfile = null;
+    _cachedUrl = currentUrl;
+    return null;
+  }
 
   // Apply confidence bonuses
   if (selectors.source && selectors.source !== 'hint') confidence += 0.10; // Discovery succeeded
@@ -1558,10 +1584,7 @@ export function getChatbotConfidence() {
  * Detect whether a chatbot response is currently being streamed/generated.
  * Used by the rebuild scheduler to increase debounce during streaming.
  */
-export function isStreaming(): boolean {
-  var profile = detectChatPage();
-  if (!profile) return false;
-
+function computeStreaming(profile: ChatbotProfile): boolean {
   // Check 1: Look for a stop-generating button (universal signal)
   for (var i = 0; i < STOP_BUTTON_SELECTORS.length; i++) {
     try {
@@ -1586,6 +1609,21 @@ export function isStreaming(): boolean {
   } catch (_) {}
 
   return false;
+}
+
+/**
+ * Detect whether a chatbot response is currently being streamed/generated.
+ * Used by the rebuild scheduler to increase debounce during streaming.
+ * Time-gated: the underlying DOM probe runs at most every STREAMING_CHECK_TTL_MS.
+ */
+export function isStreaming(): boolean {
+  var now = Date.now();
+  if (now - _streamingCheckedAt < STREAMING_CHECK_TTL_MS) return _streamingResult;
+  var profile = detectChatPage();
+  var result = profile ? computeStreaming(profile) : false;
+  _streamingResult = result;
+  _streamingCheckedAt = now;
+  return result;
 }
 
 /**

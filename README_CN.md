@@ -207,12 +207,8 @@
 │   │   └── toc-disabled-*.png # 禁用状态图标
 │   └── svg/                   # SVG 源文件
 ├── docs/brand/                # 1.0 品牌资产和 Chrome 网上应用店视觉素材
-├── public/                    # WXT 打包用静态资源，由 icons/ 与 _locales/ 镜像
-├── _locales/                  # 国际化文件
-│   ├── en/
-│   │   └── messages.json      # 英文翻译
-│   └── zh_CN/
-│       └── messages.json      # 中文翻译
+├── public/                    # WXT 打包用静态资源（icons + _locales 单一来源）
+│   └── _locales/              # 国际化消息文件（en、zh_CN）
 ├── package.json               # Node.js 元数据
 ├── src/
 │   ├── content.ts             # 内容脚本启动逻辑
@@ -251,7 +247,7 @@
 - **开发语言**：原生 TypeScript + CSS3（使用 WXT/Vite 构建）
 - **存储方案**：`browser.storage.local` / Chromium 扩展存储
 - **权限需求**：`storage`、`tabs`、`scripting`
-- **站点权限**：`http://*/*`、`https://*/*`
+- **站点权限**：`http://*/*`、`https://*/*`（可选——点击工具栏图标时按站点按需授权，禁用时撤销；默认无任何访问权限）
 
 ### 架构设计
 
@@ -418,6 +414,16 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
 ## 📝 更新日志
 
 查看 [更新日志](CHANGELOG_CN.md) 了解版本历史和更新内容。 [English Changelog](CHANGELOG.md)
+
+## 🙏 致谢与参考
+
+本项目的自动内容检测站在已有工作的肩膀上。下面列出我们参考了什么、哪个功能借鉴了它、以及在本项目中做了哪些改进与扩展。
+
+- **[Smart TOC](https://github.com/FallenMax/smart-toc)**（FallenMax）—— *主内容检测的第 3 层「按标题祖先打分」（`src/utils/content-region.ts`）。* 我们借鉴了 Smart TOC 的核心思路：对每个标题的祖先元素按「标签权重 × 距离衰减」累加打分来定位正文容器。**我们的扩展：** Smart TOC 仅用 `scrollHeight² / 链接数` 对 top-5 候选重排；我们对 top-5 增加了更多结构信号——视口宽度占比、标题密度、链接密度惩罚、文本密度、高度占比、水平居中度，并对 `body`/`html` 给 −500 罚分。同时把它包进 4 层级联（landmark → class 启发 → 祖先打分 → 整页 fallback）而非单一策略，采样 ≤100 个标题、祖先深度 ≤6，并按 URL 缓存、节点断开时失效。
+
+- **[Boilerpipe](https://github.com/kohlschutter/boilerpipe)**（Kohlschütter 等）—— *内容与导航打分（同一第 3 层重排）。* 我们采用了 Boilerpipe 的文本密度结论——文本密度低于 ~10.5 通常意味着样板内容（导航/广告/侧栏）。**我们的做法：** 并未运行完整 Boilerpipe 流水线，而是只把这个阈值作为候选重排中的一个特征，容器需在多个信号上同时「像正文」才胜出。
+
+- **[W3C ARIA](https://www.w3.org/WAI/ARIA/)** —— *全代码库的检测与过滤。* 我们依赖标准 ARIA 语义而非仅靠 HTML 标签：`role="log"` / `aria-live`（ARIA23）驱动 `src/utils/chatbot-detector.ts` 的实时聊天检测；`role="heading"` 与 `aria-level` 决定 TOC 层级（`src/utils/toc-builder.ts` 中 `aria-level` 优先于标签名）；`aria-hidden`、`aria-expanded` 用于可见性过滤与 DOM 变更监听。这是对标准的合规使用（非改动算法）——ARIA 让扩展能读到标题标签无法表达的页面结构。
 
 ## 📄 开源协议
 

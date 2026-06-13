@@ -13,6 +13,12 @@
     'open'
   ];
   var OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
+  // Max mutation records scanned per observer callback. A single mutation burst
+  // on a streaming SPA can carry thousands of records, and this callback runs on
+  // the main thread — bounding the scan keeps the callback itself cheap. A
+  // meaningful change beyond the cap is durable and surfaces again in the next
+  // batch, so capping defers (never loses) detection.
+  var RECORD_SCAN_CAP = 500;
   var DEFAULT_HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 
   /**
@@ -28,6 +34,14 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     var observerRef: MutationObserver | null = null;
     var isContextValid = true;
     var ownedRoots = new WeakSet();
+    // Cached scope container. hasMeaningfulChange previously called
+    // document.querySelector(scopeSelector) once PER mutation record; on a
+    // chatbot page a single mutation burst can carry hundreds/thousands of
+    // records. The scope element changes rarely (only on SPA nav via
+    // updateScope or page restructuring), so cache it and invalidate via
+    // selector match + isConnected.
+    var _scopeCacheSel: string | null = null;
+    var _scopeCacheEl: Element | null = null;
 
     function scanOwnedRoots() {
       try {
@@ -76,19 +90,36 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
       return false;
     }
 
+    function getScopedContainer(): Element | null {
+      var sel = cfg && cfg.scopeSelector;
+      if (!sel) return null;
+      // Cache hit: same selector AND element still mounted. isConnected is a
+      // cheap boolean read (no layout), so per-record cost drops from a full
+      // selector evaluation to a property read. If the element was detached
+      // (or a fake test element without isConnected), it misses and re-queries.
+      if (_scopeCacheSel === sel && _scopeCacheEl && _scopeCacheEl.isConnected) {
+        return _scopeCacheEl;
+      }
+      var el: Element | null = null;
+      try { el = document.querySelector(sel); } catch (_) { return null; }
+      _scopeCacheSel = sel;
+      _scopeCacheEl = el;
+      return el;
+    }
+
     function hasMeaningfulChange(mutations: MutationRecord[]) {
-      for (var i = 0; i < mutations.length; i++) {
+      var scanLimit = mutations.length;
+      if (scanLimit > RECORD_SCAN_CAP) scanLimit = RECORD_SCAN_CAP;
+      for (var i = 0; i < scanLimit; i++) {
         var m = mutations[i];
         var t = m.target;
         if (isOwnedNode(t)) continue;
 
         // Scope check: if a scope selector is configured, only trigger for
-        // mutations inside the scoped container
+        // mutations inside the scoped container (cached; see getScopedContainer)
         if (cfg && cfg.scopeSelector) {
-          try {
-            var scopedContainer = document.querySelector(cfg.scopeSelector);
-            if (scopedContainer && !scopedContainer.contains(t as Node)) continue;
-          } catch (_) {} // Invalid selector — skip scope check
+          var scopedContainer = getScopedContainer();
+          if (scopedContainer && !scopedContainer.contains(t as Node)) continue;
         }
 
         if (m.type === 'childList') {
@@ -128,6 +159,8 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
       disconnect();
       isContextValid = true;
       ownedRoots = new WeakSet();
+      _scopeCacheSel = null;
+      _scopeCacheEl = null;
       scanOwnedRoots();
 
       var root = document.documentElement;

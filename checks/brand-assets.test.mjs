@@ -126,10 +126,14 @@ test('brand generator syncs runtime icons into WXT public assets', async () => {
   }
 });
 
-test('root and WXT public locale files remain in sync', async () => {
-  for (const locale of ['en', 'zh_CN']) {
-    const source = await readFile(path.join(ROOT, `_locales/${locale}/messages.json`));
-    const runtime = await readFile(path.join(ROOT, `public/_locales/${locale}/messages.json`));
-    assert.equal(sha256(runtime), sha256(source), `public locale should match root locale: ${locale}`);
-  }
+test('public locale files are valid JSON with matching keys', async () => {
+  // public/_locales is the single source of truth (WXT copies it into the build).
+  // Guard that both locales parse and stay in key-parity so a renamed/added
+  // message key is reflected in en AND zh_CN.
+  const en = JSON.parse(await readFile(path.join(ROOT, 'public/_locales/en/messages.json'), 'utf8'));
+  const zh = JSON.parse(await readFile(path.join(ROOT, 'public/_locales/zh_CN/messages.json'), 'utf8'));
+  const enKeys = Object.keys(en).sort();
+  const zhKeys = Object.keys(zh).sort();
+  assert.ok(enKeys.length > 0, 'locale message files must not be empty');
+  assert.deepEqual(enKeys, zhKeys, 'en and zh_CN locale message keys must match');
 });

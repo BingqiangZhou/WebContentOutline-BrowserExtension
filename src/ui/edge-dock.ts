@@ -50,6 +50,7 @@ function getPreviewLineMetrics(level: number): { width: number; inset: number } 
 }
 
 interface DockItem {
+  el?: Element;
   text: string;
   level: number;
   source?: string;
@@ -190,7 +191,7 @@ interface EdgeDockOptions {
   onPick?: () => void;
   onSiteConfig?: () => void;
   onSideChange?: (side: string) => void;
-  onModeChange?: (next: string, prev: string) => void;
+  onModeChange?: (next: string, prev: string, info?: { keyboard?: boolean }) => void;
   onDeactivate?: () => void;
 }
 
@@ -207,6 +208,10 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var menuCloseTimer: ReturnType<typeof setTimeout> | null = null;
   var dockItems: DockItem[] = Array.isArray(options.items) ? options.items : [];
   var activeIndex = -1;
+  // Tracks whether the most recent input was keyboard (vs pointer), so a
+  // keyboard-driven expansion can move focus into the panel (a11y) without
+  // stealing focus on hover.
+  var lastInputWasKeyboard = false;
 
   var root = document.createElement('aside');
   var ac = new AbortController();
@@ -241,12 +246,15 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var tocButton = document.createElement('div');
   tocButton.className = 'toc-edge-dock-button toc-edge-dock-toc';
   tocButton.tabIndex = 0;
-  tocButton.setAttribute('role', 'group');
+  // This element toggles the TOC panel on Enter/Space and carries
+  // aria-expanded/aria-controls, so role="button" is the correct semantics
+  // (role="group" announced it as a passive container to AT).
+  tocButton.setAttribute('role', 'button');
   tocButton.setAttribute('aria-label', msg('dockLabel') || 'TOC tools');
   var preview = document.createElement('span');
   preview.className = 'toc-edge-dock-preview';
-  preview.setAttribute('role', 'group');
-  preview.setAttribute('aria-label', msg('tocTitle') || 'TOC');
+  // The preview lines inside are the interactive bits; the wrapper is decorative.
+  preview.setAttribute('role', 'presentation');
   tocButton.replaceChildren(preview);
   tocButton.setAttribute('aria-controls', panelHost.id);
   tocButton.setAttribute('aria-expanded', 'false');
@@ -275,7 +283,10 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       line.className = 'toc-edge-dock-preview-line';
       line.dataset.index = String(index);
       line.setAttribute('aria-label', item && item.text ? item.text : 'TOC item');
-      if (index === activeIndex) line.classList.add('toc-edge-dock-preview-line-active');
+      if (index === activeIndex) {
+        line.classList.add('toc-edge-dock-preview-line-active');
+        line.setAttribute('aria-current', 'location');
+      }
       line.dataset.level = String(Math.max(1, Math.min(6, Number(item && item.level) || 2)));
       if (item && item.source) line.dataset.source = item.source;
       line.style.setProperty('width', metrics.width + 'px', 'important');
@@ -306,8 +317,10 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       var idx = parseInt(child.dataset.index || '-1', 10);
       if (idx === nextIndex) {
         child.classList.add('toc-edge-dock-preview-line-active');
+        child.setAttribute('aria-current', 'location');
       } else {
         child.classList.remove('toc-edge-dock-preview-line-active');
+        child.removeAttribute('aria-current');
       }
     }
   }
@@ -353,11 +366,19 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     menuCloseTimer = setTimeout(closeMenu, CFG.CLOSE_DELAY_MS);
   }
 
-  function openMenu() {
+  function openMenu(focusFirst?: boolean) {
     cancelMenuClose();
     controller.collapse();
     quickMenu.hidden = false;
     settingsButton.setAttribute('aria-expanded', 'true');
+    if (focusFirst) {
+      // Move focus to the first menu item when opened via keyboard or click
+      // (the role="menu" contract) — NOT on hover, which would steal focus.
+      try {
+        var first = quickMenu.querySelector('[role="menuitem"]') as HTMLElement | null;
+        if (first) first.focus();
+      } catch (_) {}
+    }
   }
 
   function runMenuAction(callback: (() => void) | undefined): void {
@@ -395,7 +416,10 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       root.setAttribute('data-mode', next);
       tocButton.setAttribute('aria-expanded', next === 'collapsed' ? 'false' : 'true');
       panelHost.hidden = next === 'collapsed';
-      options.onModeChange && options.onModeChange(next, prev);
+      // Signal whether this expansion was keyboard-driven so the app can move
+      // focus into the panel. Only meaningful when expanding (peek).
+      var info = next !== 'collapsed' ? { keyboard: lastInputWasKeyboard } : undefined;
+      options.onModeChange && options.onModeChange(next, prev, info);
     }
   });
   root.setAttribute('data-mode', controller.getMode());
@@ -496,6 +520,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function onTocPointerEnter(e: PointerEvent): void {
     lastPointerType = (e && e.pointerType) || 'mouse';
+    lastInputWasKeyboard = false;
     if (lastPointerType !== 'touch') {
       closeMenu();
       controller.peek();
@@ -508,6 +533,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function onSettingsPointerEnter(e: PointerEvent): void {
     lastPointerType = (e && e.pointerType) || 'mouse';
+    lastInputWasKeyboard = false;
     if (lastPointerType !== 'touch') openMenu();
   }
 
@@ -519,7 +545,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function onSettingsClick() {
     if (suppressClick) return;
-    openMenu();
+    openMenu(true);
   }
 
   function onRootFocusIn(e: FocusEvent): void {
@@ -527,7 +553,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     cancelMenuClose();
     var t = e && (e.target as HTMLElement | null);
     if (t === settingsButton) {
-      openMenu();
+      openMenu(true);
     } else if (
       t &&
       (
@@ -547,10 +573,26 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   }
 
   function onRootKeydown(e: KeyboardEvent): void {
+    lastInputWasKeyboard = true;
     if (e && (e.key === 'Enter' || e.key === ' ') && e.target === tocButton) {
       e.preventDefault();
       onTocClick();
       return;
+    }
+    // role="menu" arrow-key navigation between items (the menu contract).
+    if (e && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      var kt = e.target as HTMLElement | null;
+      var menuItem = kt && kt.closest ? kt.closest('[role="menuitem"]') as HTMLElement | null : null;
+      if (menuItem && quickMenu.contains(menuItem)) {
+        e.preventDefault();
+        var menuItems = Array.prototype.slice.call(quickMenu.querySelectorAll('[role="menuitem"]')) as HTMLElement[];
+        if (menuItems.length) {
+          var cur = menuItems.indexOf(menuItem);
+          var nextIdx = e.key === 'ArrowDown' ? (cur + 1) % menuItems.length : (cur - 1 + menuItems.length) % menuItems.length;
+          menuItems[nextIdx].focus();
+        }
+        return;
+      }
     }
     if (!e || e.key !== 'Escape') return;
     if (!quickMenu.hidden) {
@@ -563,6 +605,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   }
 
   function onDocumentPointerDown(e: PointerEvent): void {
+    lastInputWasKeyboard = false;
     var t = e && (e.target as Node | null);
     if (!quickMenu.hidden && e && t && !root.contains(t)) closeMenu();
     if (

@@ -2,7 +2,7 @@
 'use strict';
 
 import { getEnabledMap } from './storage.js';
-import { isHighRiskBroadCssSelector, isSafeXPathExpression } from './core-utils.js';
+import { isHighRiskBroadCssSelector, isSafeXPathExpression, debug } from './core-utils.js';
 import { TOC_MAX_CANDIDATES, SCROLL_TOP_PADDING, HEADER_CACHE_TTL, EXTENSION_OWNER } from './constants.js';
 
     /**
@@ -156,7 +156,7 @@ export function collectBySelector(selector: { type: string; expr: string; _root?
         if (isHighRiskBroadCssSelector(selector.expr)) {
           // Surface the rejection (debug level) so an over-broad user selector
           // isn't a completely silent empty TOC.
-          console.debug('[toc] selector rejected as too broad:', selector.expr);
+          debug('[toc] selector rejected as too broad:', selector.expr);
           return [];
         }
         // Query every reachable root (light DOM + open shadow roots + same-origin
@@ -194,11 +194,14 @@ export function uniqueInDocumentOrder(list: Element[]) {
           result.push(el);
         }
       }
-      // Tag each element with its source index so disconnected/error pairs
-      // (e.g. elements from different shadow/iframe roots, where
-      // compareDocumentPosition returns DOCUMENT_POSITION_DISCONNECTED) get a
-      // deterministic, transitive order instead of relying on sort stability.
-      for (var t = 0; t < result.length; t++) (result[t] as any).__tocSrcOrder = t;
+      // Tag each element's source index in a WeakMap (keyed by element identity)
+      // so disconnected/error pairs (e.g. elements from different shadow/iframe
+      // roots, where compareDocumentPosition returns DOCUMENT_POSITION_DISCONNECTED)
+      // get a deterministic, transitive order instead of relying on sort
+      // stability. A WeakMap never mutates the host element (unlike a previous
+      // __tocSrcOrder expando) and needs no cleanup.
+      var srcOrder = new WeakMap<Element, number>();
+      for (var t = 0; t < result.length; t++) srcOrder.set(result[t], t);
       result.sort(function(a, b) {
         if (a === b) return 0;
         try {
@@ -211,9 +214,8 @@ export function uniqueInDocumentOrder(list: Element[]) {
           }
         } catch (_) {}
         // Disconnected or unavailable: fall back to stable source order.
-        return ((a as any).__tocSrcOrder || 0) - ((b as any).__tocSrcOrder || 0);
+        return (srcOrder.get(a) || 0) - (srcOrder.get(b) || 0);
       });
-      for (var c = 0; c < result.length; c++) delete (result[c] as any).__tocSrcOrder;
       return result;
     }
 
@@ -238,7 +240,7 @@ export function uniqueInDocumentOrder(list: Element[]) {
      * (scrollHeight > clientHeight or scrollWidth > clientWidth).
      * Returns null if the document root is the scroll container (normal pages).
      */
-    function findScrollableAncestor(el: HTMLElement) {
+    function findScrollableAncestor(el: Element) {
       var node: HTMLElement | null = el.parentElement;
       while (node && node !== document.documentElement && node !== document.body) {
         try {
@@ -331,7 +333,7 @@ export function uniqueInDocumentOrder(list: Element[]) {
      * an internal scrollable container (e.g. ChatGPT, Claude, Gemini).
      * @param {Element} el
      */
-export function scrollToElement(el: HTMLElement) {
+export function scrollToElement(el: Element) {
       try {
         // Cache prefers-reduced-motion — it doesn't change during a session
         if (_reduceMotion == null) {

@@ -22,18 +22,45 @@ import {
   isContextInvalidatedError,
   isExtensionContextInvalidated,
   normalizeSide,
-  isTocContentIdentical
+  isTocContentIdentical,
+  debug
 } from '../utils/core-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
 
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
   // (createNavLock + NavLock interface now live in ./nav-lock.js)
 
+  // --- Orchestrator types ---
+
+  /** A TOC heading item. `el` is the source heading; the rest is derived state.
+   *  Components (dock/panel/tracker) consume subsets of these fields. */
+  interface TocItem {
+    id: string;
+    el: Element;
+    text: string;
+    level: number;
+    source?: string;
+    _userSelected?: boolean;
+  }
+
+  interface TocMeta { truncated: boolean; maxItems: number; totalCandidates: number; }
+
+  /** Per-site config handed to the orchestrator. `selectors` is normalized to an
+   *  array by the time it arrives, but typed optional to match the upstream
+   *  config-manager / findMatchingConfig contracts. */
+  interface TocAppConfig {
+    selectors?: Array<{ type: string; expr: string }>;
+    side?: string;
+    __markConfigDirty?: () => void;
+  }
+
+  interface TocAppOptions { onDeactivate?: () => void; }
+
   // Config change callback — wired when initForConfig runs
-  var _activeRebuild: (() => any) | null = null;
+  var _activeRebuild: (() => unknown) | null = null;
   setOnConfigChanged(function() { if (_activeRebuild) _activeRebuild(); });
 
-export function initForConfig(cfg: any, options: any) {
+export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     options = options || {};
     var onDeactivate = options.onDeactivate;
     var side: string = normalizeSide(cfg.side);
@@ -43,27 +70,39 @@ export function initForConfig(cfg: any, options: any) {
 
     var destroyed = false;
 
-    var buildNow = function() {
+    // AbortController for the in-flight build: a newer build or dispose aborts
+    // the previous chunked build so stale results are never rendered (e.g. a
+    // build started on page A doesn't finish and render after navigating to B).
+    var buildAbort: AbortController | null = null;
+    var buildNow = async function (): Promise<{ items: TocItem[]; meta: TocMeta | null } | { aborted: true }> {
+      if (buildAbort) { try { buildAbort.abort(); } catch (_) {} }
+      var ac = new AbortController();
+      buildAbort = ac;
       try {
-        var res = buildTocItems(cfg, []);
-        if (res && Array.isArray(res.items)) return res;
-        if (Array.isArray(res)) return { items: res, meta: null };
+        var res = await buildTocItems(cfg, [], ac.signal);
+        if (res && (res as any).aborted) return { aborted: true };
+        if (res && Array.isArray((res as any).items)) return res as { items: TocItem[]; meta: TocMeta | null };
+        if (Array.isArray(res)) return { items: res as TocItem[], meta: null };
       } catch (e) {
         console.warn('[toc] buildTocItems error:', e);
+      } finally {
+        if (buildAbort === ac) buildAbort = null;
       }
       return { items: [], meta: null };
     };
 
-    var buildResult = buildNow();
-    var items: any[] = buildResult.items;
-    var tocMeta: any = buildResult.meta;
-    var dockInstance: any = null;
-    var panelInstance: any = null;
-    var activeTracker: any = null;
+    // Seed empty: the first (async, chunked) build is triggered below once the
+    // dock and observers are wired. A collapsed empty dock briefly shows before
+    // items land — the same state as a page with no headings.
+    var items: TocItem[] = [];
+    var tocMeta: TocMeta | null = null;
+    var dockInstance: ReturnType<typeof renderEdgeDock> | null = null;
+    var panelInstance: ReturnType<typeof renderFloatingPanel> | null = null;
+    var activeTracker: ReturnType<typeof createActiveItemTracker> | null = null;
     var activeIndex = -1;
-    var rebuildScheduler: any = null;
-    var pickerInstance: any = null;
-    var rebuildInFlight: Promise<any> | null = null;
+    var rebuildScheduler: ReturnType<typeof createRebuildScheduler> | null = null;
+    var pickerInstance: ReturnType<typeof createElementPicker> | null = null;
+    var rebuildInFlight: Promise<boolean | void> | null = null;
     var navLock = createNavLock({
       onUnlock: function() {
         // When the nav lock releases, retry a rebuild that was parked while the
@@ -77,11 +116,11 @@ export function initForConfig(cfg: any, options: any) {
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
 
-    var findMatchingActiveIndex = function(nextItems: any[], previousItem: any, fallbackIndex: number) {
+    var findMatchingActiveIndex = function(nextItems: TocItem[], previousItem: TocItem | null, fallbackIndex: number) {
       if (!nextItems || !nextItems.length || !previousItem) return -1;
-      var byElement = nextItems.findIndex(function(item: any) { return item.el === previousItem.el; });
+      var byElement = nextItems.findIndex(function(item) { return item.el === previousItem.el; });
       if (byElement >= 0) return byElement;
-      var byText = nextItems.findIndex(function(item: any) { return item.text === previousItem.text; });
+      var byText = nextItems.findIndex(function(item) { return item.text === previousItem.text; });
       if (byText >= 0) return byText;
       return fallbackIndex >= 0 && fallbackIndex < nextItems.length ? fallbackIndex : -1;
     };
@@ -92,7 +131,7 @@ export function initForConfig(cfg: any, options: any) {
       if (panelInstance && panelInstance.setActiveIndex) panelInstance.setActiveIndex(activeIndex);
     };
 
-    var syncItemViews = function(previousItem: any, previousIndex: number) {
+    var syncItemViews = function(previousItem: TocItem | null, previousIndex: number) {
       var nextActiveIndex = findMatchingActiveIndex(items, previousItem, previousIndex);
       if (dockInstance && dockInstance.setItems) dockInstance.setItems(items);
       if (activeTracker && activeTracker.setItems) activeTracker.setItems(items);
@@ -123,7 +162,7 @@ export function initForConfig(cfg: any, options: any) {
             refreshLink.addEventListener('click', function(ev) {
               ev.preventDefault();
               location.reload();
-            });
+            }, { once: true });
 
             noticeEl.appendChild(noticeSpan);
             noticeEl.appendChild(document.createTextNode(' '));
@@ -146,7 +185,11 @@ export function initForConfig(cfg: any, options: any) {
         var prevItems = items;
         var previousActiveIndex = activeIndex;
         var previousActiveItem = items[activeIndex] || null;
-        var buildResult = buildNow();
+        var buildResult = await buildNow();
+        if (!buildResult || 'aborted' in buildResult) {
+          // A newer build superseded this one — leave items untouched.
+          return true;
+        }
         var newItems = buildResult.items;
         var newMeta = buildResult.meta;
 
@@ -184,9 +227,9 @@ export function initForConfig(cfg: any, options: any) {
         syncItemViews(previousActiveItem, previousActiveIndex);
       } catch (e) {
         if (isContextInvalidatedError(e)) {
-          console.debug('[toc] Extension context invalidated, stop TOC operations');
+          debug('[toc] Extension context invalidated, stop TOC operations');
           navLock.unlock();
-          items.forEach(function(it: any) { it._userSelected = false; });
+          items.forEach(function(it) { it._userSelected = false; });
           if (rebuildScheduler && rebuildScheduler.disconnect) {
             rebuildScheduler.disconnect();
           }
@@ -228,7 +271,7 @@ export function initForConfig(cfg: any, options: any) {
         }
 
         dispatchPickerEvent('toc-picker-start');
-        pickerInstance = createElementPicker(function(el: any) {
+        pickerInstance = createElementPicker(function(el) {
           dispatchPickerEvent('toc-picker-end');
           pickerInstance = null;
           var sel = '';
@@ -247,7 +290,7 @@ export function initForConfig(cfg: any, options: any) {
               }
             } catch (e) {
               if (!isContextInvalidatedError(e)) {
-                console.debug('[toc] save selector failed', e);
+                debug('[toc] save selector failed', e);
               }
             }
           });
@@ -258,7 +301,7 @@ export function initForConfig(cfg: any, options: any) {
         });
       } catch (e) {
         dispatchPickerEvent('toc-picker-end');
-        console.debug('[toc] start element picker failed:', e);
+        debug('[toc] start element picker failed:', e);
       }
     }
 
@@ -268,7 +311,7 @@ export function initForConfig(cfg: any, options: any) {
       panelInstance = null;
     }
 
-    function renderPanelCard() {
+    function renderPanelCard(panelOpts?: { focusOnOpen?: boolean }) {
       if (destroyed || panelInstance) return panelInstance;
       if (!dockInstance) return panelInstance;
       var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
@@ -283,49 +326,54 @@ export function initForConfig(cfg: any, options: any) {
         mountTarget: dockInstance.getPanelHost(),
         tocMeta: tocMeta,
         activeIndex: activeIndex,
-        onNavigate: function(_item: any, index: number) { syncActiveIndex(index); },
+        onNavigate: function(_item, index) { syncActiveIndex(index); },
+        focusOnOpen: !!(panelOpts && panelOpts.focusOnOpen),
       });
       return panelInstance;
     }
 
-    async function onDockModeChange(next: string, prev: string) {
+    async function onDockModeChange(next: string, prev: string, info?: { keyboard?: boolean }) {
       try {
         if (next === 'collapsed') {
           removePanelCard();
           return;
         }
 
+        // When expanded via keyboard, move focus into the panel (a11y). The dock
+        // only sets info.keyboard=true for keyboard-driven expansion, never hover.
+        var focusOnOpen = !!(info && info.keyboard);
         await rebuild();
         if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
-        if (!panelInstance) renderPanelCard();
+        if (!panelInstance) renderPanelCard({ focusOnOpen: focusOnOpen });
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
-          console.debug('[toc] dock mode update failed:', e);
+          debug('[toc] dock mode update failed:', e);
         }
       }
     }
 
-    function collapse(opts?: any) {
+    function collapse(opts?: { focus?: boolean }) {
       try {
         if (dockInstance) dockInstance.collapse(opts || {});
         else removePanelCard();
       } catch (e) {
-        console.debug('[toc] collapse failed:', e);
+        debug('[toc] collapse failed:', e);
       }
     }
 
-    async function expand(opts?: any) {
+    async function expand(opts?: { autoCollapse?: boolean }) {
       try {
         if (dockInstance) dockInstance.peek(opts || {});
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
-          console.debug('[toc] expand failed:', e);
+          debug('[toc] expand failed:', e);
         }
       }
     }
 
     var destroy = function() {
       destroyed = true;
+      if (buildAbort) { try { buildAbort.abort(); } catch (_) {} buildAbort = null; }
       items = [];
       rebuildInFlight = null;
       navLock.destroy();
@@ -360,7 +408,7 @@ export function initForConfig(cfg: any, options: any) {
         onPick: startPick,
         onSiteConfig: function() { return siteConfig(cfg); },
         onDeactivate: onDeactivate,
-        onNavigate: function(item: any, index: number) {
+        onNavigate: function(item, index) {
           if (!item || !item.el) return;
           syncActiveIndex(index);
           navLock.lock(1000);
@@ -374,11 +422,15 @@ export function initForConfig(cfg: any, options: any) {
       });
       activeTracker = createActiveItemTracker({
         items: items,
-        onChange: function(_item: any, index: number) {
+        onChange: function(_item, index) {
           if (!rebuildInFlight && !navLock.isLocked()) syncActiveIndex(index);
         }
       });
       syncActiveIndex(activeIndex);
+
+      // Kick off the first (async, chunked) build now that the dock, scheduler
+      // and active-item tracker are wired. rebuild() dedupes via rebuildInFlight.
+      rebuild();
 
       return {
         rebuild: rebuild,

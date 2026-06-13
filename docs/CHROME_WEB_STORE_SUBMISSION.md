@@ -53,15 +53,15 @@ The "scripting" permission is required to dynamically inject the extension's WXT
 ## Host permission justification *
 
 ```text
-The extension requires broad host permissions ("http://*/*" and "https://*/*") to inject its content script into any webpage the user chooses to enable it on, for the purpose of scanning the DOM for heading elements and generating the interactive table of contents.
+The extension declares its host access as OPTIONAL ("optional_host_permissions": "http://*/*" and "https://*/*") and requests it per-origin at runtime — only when the user explicitly clicks the toolbar icon to enable the TOC for that specific site (chrome.permissions.request, invoked from the action-onClicked user gesture). The extension has NO host access by default: it cannot read or inject into any page until the user grants access to that exact origin via the standard Chrome permission prompt. Access is revoked (chrome.permissions.remove) when the user disables the TOC for a site.
 
-Broad host permissions are strictly necessary instead of "activeTab" for two core reasons:
+Why optional per-origin host permissions rather than "activeTab":
 
-1. Automatic Availability on Enabled Sites: The extension's primary value is providing a seamless, always-ready TOC experience. Once a user enables the extension for a site, the floating TOC button and navigation should appear automatically on subsequent page loads and navigations within that site. Using "activeTab" would require the user to manually click the extension icon on every single page visit, fundamentally breaking this automatic behavior.
+1. Automatic Availability After a One-Time Grant: The extension's value is a seamless, always-ready TOC. "activeTab" grants only transient, single-tab access that expires on navigation, forcing the user to re-click the icon on every page visit. Optional host permissions, once granted for an origin, persist — so the TOC still appears automatically on subsequent loads and navigations within that site, with no repeated clicks.
 
-2. Per-Site Preference Enforcement: The extension stores per-origin enable/disable preferences in local storage. To apply these preferences immediately when a page loads or a tab is activated, the extension must have host-level access to determine whether to inject the content script before any user interaction occurs.
+2. Per-Site Preference Enforcement: Per-origin enable/disable preferences are stored locally. To apply them on page load / tab activation, the extension needs persistent (not transient) host access for the origins the user has chosen — exactly what optional host permissions provide, scoped to each individually granted origin.
 
-The extension does not collect, transmit, or store any page content, personal data, or browsing history on any remote server. All data processing happens entirely within the user's browser.
+Least-privilege: the broad match patterns in optional_host_permissions are the set the user MAY grant; actual access is limited to the specific origins the user explicitly approves, one site at a time. The extension does not collect, transmit, or store any page content, personal data, or browsing history on any remote server. All processing happens locally in the user's browser.
 ```
 
 ### Right panel hint
@@ -116,7 +116,7 @@ No. The extension makes zero outbound network requests. It does not use fetch(),
 | `storage` | Persist user preferences locally (enable/disable state, selector configs, UI state) |
 | `tabs` | Read tab URLs to look up per-site enable/disable state and set the correct toolbar icon |
 | `scripting` | Inject the bundled content script and stylesheet into pages where the user has enabled the extension |
-| `http://*/*`, `https://*/*` | Allow injection on any website the user chooses to enable the TOC for, with automatic activation on revisits |
+| `http://*/*`, `https://*/*` (optional_host_permissions) | Per-origin host access requested at runtime when the user enables a site (toolbar-icon click → standard Chrome prompt) and revoked on disable; grants automatic activation on revisits to that site. No host access by default |
 
 ---
 

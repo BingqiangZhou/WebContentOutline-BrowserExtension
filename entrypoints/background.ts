@@ -12,6 +12,7 @@ import {
   originFromUrl,
 } from '../src/shared/primitives.js';
 import { MAP_MAX_KEYS } from '../src/utils/constants.js';
+import { TOC_MESSAGE, type TocRequest } from '../src/shared/messages.js';
 
 // Storage keys needed by background.js
 const BG_STORAGE_KEYS = {
@@ -30,6 +31,14 @@ function isHttpUrl(url: string | undefined): boolean {
 const BG_MAX_MAP_KEYS = MAP_MAX_KEYS;
 const BG_MAX_CONFIG_SITES = 200;
 const BG_MAX_SELECTORS_PER_SITE = 50;
+
+// Surface lifecycle/injection failures (updateIconForTab, maybeAutoInject,
+// setGlobalDefaultIcon) that were previously swallowed by `.catch(() => {})`.
+// Gated behind __TOC_DEBUG so production stays quiet; set it in the service
+// worker console to see why a tab's icon or injection didn't apply.
+function bgWarn(e: unknown): void {
+  try { if ((globalThis as any).__TOC_DEBUG) console.warn('[toc/bg] lifecycle op failed:', e); } catch (_) {}
+}
 
 async function getEnabledMap(): Promise<Record<string, boolean>> {
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
@@ -199,7 +208,7 @@ async function updateIconForTab(tabId: number, url: string = ''): Promise<void> 
 function pingContentScript(tabId: number): Promise<boolean> {
   return new Promise((resolve) => {
     try {
-      browser.tabs.sendMessage(tabId, { type: 'toc:ping' }, (res: any) => {
+      browser.tabs.sendMessage(tabId, { type: TOC_MESSAGE.PING } satisfies TocRequest, (res: any) => {
         if (browser.runtime.lastError) resolve(false);
         else resolve(!!(res && res.ok));
       });
@@ -276,7 +285,7 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
     for (const t of tabs) {
       if (!t.id || t.id === exceptTabId) continue;
       try {
-        browser.tabs.sendMessage(t.id, { type: 'toc:updateEnabled', enabled }, () => { void browser.runtime.lastError; });
+        browser.tabs.sendMessage(t.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled } satisfies TocRequest, () => { void browser.runtime.lastError; });
         // Update icon for each tab
         await setTabIcon(t.id, enabled);
       } catch (_) {}
@@ -290,26 +299,38 @@ async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
   const origin = originFromUrl(tab.url);
-  const current = await getEnabledByOrigin(origin);
-  const nextEnabled = !current;
-  const saved = await setEnabledByOrigin(origin, nextEnabled);
-  if (!saved || !saved.ok) return;
-  // Update icon for this tab
-  await setTabIcon(tab.id, nextEnabled);
-  if (nextEnabled) {
-    // Enable: inject content script if needed, then tell it to start
-    await ensureContentScript(tab.id, tab.url);
+  const pattern = origin + '/*';
+  const currentlyEnabled = await getEnabledByOrigin(origin);
+
+  if (currentlyEnabled) {
+    // Disable: clear state, revoke per-origin host access, tell content to clean up.
+    await setEnabledByOrigin(origin, false);
+    try { await browser.permissions.remove({ origins: [pattern] }); } catch (_) {}
+    await setTabIcon(tab.id, false);
     try {
-      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: true }, () => { void browser.runtime.lastError; });
+      browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: false } satisfies TocRequest, () => { void browser.runtime.lastError; });
     } catch (_) {}
-  } else {
-    // Disable: tell content script to clean up
-    try {
-      browser.tabs.sendMessage(tab.id, { type: 'toc:updateEnabled', enabled: false }, () => { void browser.runtime.lastError; });
-    } catch (_) {}
+    await broadcastEnabledToOrigin(origin, false, tab.id);
+    return;
   }
+
+  // Enable: request per-origin host permission IN THE USER GESTURE. This must
+  // run early — chrome.permissions.request is only valid as a direct result of
+  // the action click. If the user denies the prompt, leave everything unchanged.
+  let approved = false;
+  try { approved = await browser.permissions.request({ origins: [pattern] }); } catch (_) {}
+  if (!approved) return;
+
+  const saved = await setEnabledByOrigin(origin, true);
+  if (!saved || !saved.ok) return;
+  await setTabIcon(tab.id, true);
+  // Inject content script if needed, then tell it to start
+  await ensureContentScript(tab.id, tab.url);
+  try {
+    browser.tabs.sendMessage(tab.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled: true } satisfies TocRequest, () => { void browser.runtime.lastError; });
+  } catch (_) {}
   // Broadcast to other tabs of same origin
-  await broadcastEnabledToOrigin(origin, nextEnabled, tab.id);
+  await broadcastEnabledToOrigin(origin, true, tab.id);
 }
 
 function startBackground() {
@@ -330,23 +351,43 @@ browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowI
 
 browser.tabs.onUpdated.addListener((tabId: number, changeInfo: any, tab: any) => {
   if (changeInfo.status === 'complete') {
-    updateIconForTab(tabId, tab?.url || changeInfo.url).catch(() => {});
-    if (tab?.url) maybeAutoInject(tabId, tab.url).catch(() => {});
+    updateIconForTab(tabId, tab?.url || changeInfo.url).catch(bgWarn);
+    if (tab?.url) maybeAutoInject(tabId, tab.url).catch(bgWarn);
   }
 });
 
 browser.tabs.onCreated.addListener((tab: any) => {
-  if (tab?.id) updateIconForTab(tab.id, tab.url).catch(() => {});
+  if (tab?.id) updateIconForTab(tab.id, tab.url).catch(bgWarn);
 });
+
+// After an update from required -> optional host_permissions, previously
+// granted broad host access is lost, so entries in tocSiteEnabledMap may no
+// longer match an actual permission. Clear those stale entries on startup so
+// the icon/state reflect reality and content scripts don't try to run where
+// they can't inject. The user re-enables (re-grants) with a single click.
+async function reconcileMapWithPermissions(): Promise<void> {
+  let map: Record<string, boolean>;
+  try { map = await getEnabledMap(); } catch (_) { return; }
+  let changed = false;
+  for (const origin of Object.keys(map)) {
+    if (!map[origin]) continue;
+    let granted = false;
+    try { granted = await browser.permissions.contains({ origins: [origin + '/*'] }); } catch (_) {}
+    if (!granted) { map[origin] = false; changed = true; }
+  }
+  if (changed) {
+    try { await saveEnabledMap(map); } catch (_) {}
+  }
+}
 
 async function processAllTabs() {
   try {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     for (const t of tabs) {
-      if (t.id) updateIconForTab(t.id, t.url).catch(() => {});
+      if (t.id) updateIconForTab(t.id, t.url).catch(bgWarn);
       // Only inject for enabled sites
       if (t.id && t.url && isHttpUrl(t.url)) {
-        maybeAutoInject(t.id, t.url).catch(() => {});
+        maybeAutoInject(t.id, t.url).catch(bgWarn);
       }
     }
   } catch (e) {
@@ -363,17 +404,19 @@ async function setGlobalDefaultIcon() {
 
 browser.runtime.onInstalled.addListener(async () => {
   await setGlobalDefaultIcon();
+  await reconcileMapWithPermissions();
   await processAllTabs();
 });
 
 browser.runtime.onStartup.addListener(async () => {
   await setGlobalDefaultIcon();
+  await reconcileMapWithPermissions();
   await processAllTabs();
 });
 
-setGlobalDefaultIcon().catch(() => {});
+setGlobalDefaultIcon().catch(bgWarn);
 
-browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any) => {
+browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendResponse: any) => {
   try {
     if (!msg || !msg.type) return;
     // Reject messages from other extensions
@@ -391,7 +434,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
     };
     const senderUrl = (): string => sender?.tab?.url || sender?.url || '';
 
-    if (msg.type === 'toc:ensureIcon') {
+    if (msg.type === TOC_MESSAGE.ENSURE_ICON) {
       const tabId = sender?.tab?.id;
       const url = senderUrl();
       if (!tabId || !isHttpUrl(url)) { sendResponse?.({ ok: false, reason: 'no-tab' }); return; }
@@ -401,7 +444,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       })();
       return true;
     }
-    if (msg.type === 'toc:mutateConfig') {
+    if (msg.type === TOC_MESSAGE.MUTATE_CONFIG) {
       if (!requireInternal()) return;
       const expectedPattern = sitePatternFromUrl(senderUrl());
       if (!expectedPattern || msg.urlPattern !== expectedPattern) { sendResponse?.({ ok: false, reason: 'bad-site' }); return; }
@@ -418,7 +461,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       })();
       return true;
     }
-    if (msg.type === 'toc:mutateUiState') {
+    if (msg.type === TOC_MESSAGE.MUTATE_UI_STATE) {
       if (!requireInternal()) return;
       const sourceValidation = validateUiStateMutationSource(msg, senderUrl());
       if (!sourceValidation.ok) { sendResponse?.(sourceValidation); return; }
@@ -435,7 +478,7 @@ browser.runtime.onMessage.addListener((msg: any, sender: any, sendResponse: any)
       return true;
     }
     // Content script requests to persist enabled state to storage (e.g. page-side "Close TOC")
-    if (msg.type === 'toc:persistActiveState') {
+    if (msg.type === TOC_MESSAGE.PERSIST_ACTIVE_STATE) {
       if (!requireInternal()) return;
       const tabId = sender?.tab?.id;
       const origin = msg.origin || originFromUrl(senderUrl());

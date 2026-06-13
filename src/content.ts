@@ -1,6 +1,7 @@
 
 import {
   msg,
+  debug,
   getConfigs,
   findMatchingConfig,
   getSiteEnabledByOrigin,
@@ -10,6 +11,7 @@ import {
   buildSitePattern
 } from './utils/toc-utils.js';
 import { initForConfig } from './core/toc-app.js';
+import { TOC_MESSAGE, type TocRequest } from './shared/messages.js';
 
 interface TocAppInstance {
   destroy?: () => void;
@@ -37,7 +39,7 @@ export function startTocContent(ctx: any) {
   var disposed = false;
   var listenersAttached = false;
 
-  var messageListener: ((msgObj: any, sender: any, sendResponse: (response?: any) => void) => boolean | void) | null = null;
+  var messageListener: ((msgObj: TocRequest, sender: any, sendResponse: (response?: any) => void) => boolean | void) | null = null;
   var storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => void) | null = null;
 
   function detachListeners() {
@@ -67,7 +69,7 @@ export function startTocContent(ctx: any) {
     cleanupOwnedElements();
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
-    if (opts?.reason) console.debug(msg('logPrefix') + ' disposed:', opts.reason);
+    if (opts?.reason) debug(msg('logPrefix') + ' disposed:', opts.reason);
   }
 
   // Expose a cleanup hook for dev reload / reinjection.
@@ -89,9 +91,9 @@ export function startTocContent(ctx: any) {
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
         cfg = getDefaultConfig();
-        console.debug(msg('logPrefix') + ' ' + msg('logNoConfigFound'));
+        debug(msg('logPrefix') + ' ' + msg('logNoConfigFound'));
       } else {
-        console.debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
+        debug(msg('logPrefix') + ' ' + msg('logConfigMatched'), cfg.urlPattern);
       }
       appInstance = initForConfig(cfg, {
         onDeactivate: function() {
@@ -99,7 +101,7 @@ export function startTocContent(ctx: any) {
           try {
             if (chrome.runtime?.sendMessage) {
               chrome.runtime.sendMessage(
-                { type: 'toc:persistActiveState', enabled: false, origin: location.origin },
+                { type: TOC_MESSAGE.PERSIST_ACTIVE_STATE, enabled: false, origin: location.origin } satisfies TocRequest,
                 function() { void chrome.runtime.lastError; }
               );
             }
@@ -153,18 +155,18 @@ export function startTocContent(ctx: any) {
 
   async function main() {
     if (disposed) return;
-    console.debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
+    debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
     try {
       await new Promise<void>(function(resolve) {
         try {
-          chrome.runtime.sendMessage({ type: 'toc:ensureIcon' }, function() { void chrome.runtime.lastError; resolve(); });
+          chrome.runtime.sendMessage({ type: TOC_MESSAGE.ENSURE_ICON } satisfies TocRequest, function() { void chrome.runtime.lastError; resolve(); });
         } catch (_) { resolve(); }
       });
       var enabled = await getSiteEnabledByOrigin();
       if (enabled) {
         await applyEnabledState(true);
       } else {
-        console.debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
+        debug(msg('logPrefix') + ' ' + msg('logSiteDisabled'));
       }
     } catch (e) {
       if (isContextInvalidatedError(e)) {
@@ -180,7 +182,7 @@ export function startTocContent(ctx: any) {
     listenersAttached = true;
 
     try {
-      messageListener = function(msgObj: any, sender: any, sendResponse: (response?: any) => void) {
+      messageListener = function(msgObj: TocRequest, sender: any, sendResponse: (response?: any) => void) {
         var responded = false;
         var respondOnce = function(payload: any) {
           if (responded) return;
@@ -193,13 +195,13 @@ export function startTocContent(ctx: any) {
             respondOnce({ ok: false, reason: 'bad-sender' });
             return;
           }
-          if (msgObj.type === 'toc:ping') {
+          if (msgObj.type === TOC_MESSAGE.PING) {
             respondOnce({ ok: !disposed });
             return;
           }
           if (disposed) { respondOnce({ ok: false, disposed: true }); return; }
 
-          if (msgObj.type === 'toc:openPanel') {
+          if (msgObj.type === TOC_MESSAGE.OPEN_PANEL) {
             (async function() {
               try {
                 await applyEnabledState(true, { expandPanel: true });
@@ -212,7 +214,7 @@ export function startTocContent(ctx: any) {
           }
 
           // Cross-tab sync: background tells us the new enabled state
-          if (msgObj.type === 'toc:updateEnabled') {
+          if (msgObj.type === TOC_MESSAGE.UPDATE_ENABLED) {
             var enabled = !!msgObj.enabled;
             if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
             (async function() {
@@ -250,7 +252,15 @@ export function startTocContent(ctx: any) {
     } catch (_) {}
   }
 
-  attachListeners();
+  try {
+    attachListeners();
+  } catch (e) {
+    // Sync throw during listener setup — never let it escape uncaught into the host page.
+    try {
+      if (isContextInvalidatedError(e)) { dispose({ reason: 'context-invalidated' }); return; }
+      console.warn(msg('logPrefix') + ' ' + msg('logInitFailed'), e);
+    } catch (_) {}
+  }
 
   // Wait for DOM to be stable before initializing TOC
   async function initWhenStable() {
@@ -261,5 +271,11 @@ export function startTocContent(ctx: any) {
     await main();
   }
 
-  initWhenStable();
+  initWhenStable().catch(function(e) {
+    // Async bootstrap rejection — never surface as an unhandled promise rejection.
+    try {
+      if (isContextInvalidatedError(e)) { dispose({ reason: 'context-invalidated' }); return; }
+      console.warn(msg('logPrefix') + ' ' + msg('logInitFailed'), e);
+    } catch (_) {}
+  });
 }

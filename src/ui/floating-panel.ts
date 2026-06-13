@@ -25,7 +25,7 @@ import { EXTENSION_OWNER } from '../utils/constants.js';
 
 interface TocItem {
   id: string;
-  el: HTMLElement;
+  el: Element;
   text: string;
   level: number;
   source?: string;
@@ -51,6 +51,7 @@ interface FloatingPanelOpts {
   activeIndex?: number;
   onNavigate?: (item: TocItem, index: number) => void;
   embedded?: boolean;
+  focusOnOpen?: boolean;
   navLock?: { lock: (durationMs?: number) => void; unlock: () => void; isLocked: () => boolean };
   [key: string]: any;
 }
@@ -68,6 +69,11 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var activeIndex: number = typeof opts.activeIndex === 'number' && Number.isFinite(opts.activeIndex) ? opts.activeIndex : -1;
     var onNavigate: ((item: TocItem, index: number) => void) | undefined = opts.onNavigate;
     var embedded = !!opts.embedded;
+    // When true, the panel moves focus to the active (or first) TOC item once
+    // shown — used when the dock is expanded via KEYBOARD so keyboard/SR users
+    // get an entry point into the panel. Never set for hover expansion (would
+    // steal focus from the page).
+    var focusOnOpen = !!opts.focusOnOpen && !embedded;
     var navLock = opts.navLock;
 
     // Remove any existing panel to prevent duplicates
@@ -144,7 +150,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         onCollapse && onCollapse();
       }
     };
-    panel.addEventListener('keydown', onPanelKeydown, true);
+    panel.addEventListener('keydown', onPanelKeydown, { capture: true, signal: listenersController.signal });
 
     var list = document.createElement('div');
     list.className = 'toc-list';
@@ -217,6 +223,17 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       });
     };
 
+    // Focus the active (or first) TOC item. Used on keyboard-driven open so the
+    // panel is operable without a mouse; arrow-key nav then takes over.
+    var focusActive = function(): void {
+      if (embedded || !items.length) return;
+      var targetIdx = activeIndex >= 0 && activeIndex < items.length ? activeIndex : 0;
+      var target = items[targetIdx];
+      if (target && target._node) {
+        try { (target._node as HTMLElement).focus({ preventScroll: false }); } catch (_) {}
+      }
+    };
+
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
       e.preventDefault();
       navLock && navLock.lock();
@@ -245,7 +262,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (!item) return;
       handleItemClick(item, node, idx, e);
     };
-    list.addEventListener('click', onListClick);
+    list.addEventListener('click', onListClick, { signal: listenersController.signal });
 
     onListKeydown = function(e: KeyboardEvent) {
       var key = e.key;
@@ -278,7 +295,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       e.preventDefault();
       handleItemClick(item, node, idx, e);
     };
-    list.addEventListener('keydown', onListKeydown);
+    list.addEventListener('keydown', onListKeydown, { signal: listenersController.signal });
 
     panel.appendChild(list);
     (mountTarget || document.documentElement).appendChild(panel);
@@ -289,6 +306,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       if (cleanedUp) return;
       if (!panel || !panel.isConnected) return;
       panel.style.removeProperty('visibility');
+      if (focusOnOpen) focusActive();
       if (skipAnimation) {
         // no animation needed
       } else {
@@ -308,12 +326,9 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var cleanup = function() {
       if (cleanedUp) return;
       cleanedUp = true;
-      if (onListClick) list.removeEventListener('click', onListClick);
-      if (onListKeydown) list.removeEventListener('keydown', onListKeydown);
-      onListClick = null;
-      onListKeydown = null;
-      if (onPanelKeydown) panel.removeEventListener('keydown', onPanelKeydown, true);
-      onPanelKeydown = null;
+      // All DOM listeners (scroll, panel/list keydown, list click) are registered
+      // with listenersController.signal, so a single abort() tears them all down —
+      // no manual removeEventListener bookkeeping (matches edge-dock's pattern).
       listenersController.abort();
       cleanupLock();
       if (expandAnimTimer) { clearTimeout(expandAnimTimer); expandAnimTimer = null; }
@@ -359,6 +374,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     return {
       remove() { panel.remove(); },
       setActiveIndex,
-      updateItems
+      updateItems,
+      focusActive
     };
   }

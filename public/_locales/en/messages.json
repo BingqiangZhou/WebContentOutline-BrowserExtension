@@ -15,37 +15,17 @@
     "message": "TOC",
     "description": "Short text for Table of Contents"
   },
-  "buttonCollapse": {
-    "message": "Collapse",
-    "description": "Button text to collapse the TOC panel"
-  },
-  "buttonCollapseTitle": {
-    "message": "Collapse to floating button",
-    "description": "Tooltip for collapse button"
-  },
   "buttonRefresh": {
     "message": "Refresh",
     "description": "Button text to refresh the TOC"
-  },
-  "buttonRefreshTitle": {
-    "message": "Re-scan page to generate TOC",
-    "description": "Tooltip for refresh button"
   },
   "buttonPickElement": {
     "message": "Pick Element",
     "description": "Button text to activate element picker"
   },
-  "buttonPickElementTitle": {
-    "message": "Click then select an element on the page to generate a selector",
-    "description": "Tooltip for pick element button"
-  },
   "buttonSiteConfig": {
     "message": "Site Config",
     "description": "Button text to manage site configuration"
-  },
-  "buttonSiteConfigTitle": {
-    "message": "View/Clear saved selectors for current site",
-    "description": "Tooltip for site config button"
   },
   "emptyTocMessage": {
     "message": "No TOC items found. Try refreshing the page or clicking the Refresh button.",
@@ -107,10 +87,6 @@
     "message": "[TOC Assistant]",
     "description": "Prefix for console log messages"
   },
-  "logMissingDependencies": {
-    "message": "Missing required dependency modules",
-    "description": "Error message when dependencies are missing"
-  },
   "logNoConfigFound": {
     "message": "No configuration found, starting panel with default empty config",
     "description": "Debug message when no config is found"
@@ -155,14 +131,6 @@
     "message": "Web TOC: Enabled (click to disable)",
     "description": "Icon title when extension is enabled for current site"
   },
-  "titleDisabledFallback": {
-    "message": "Web TOC: Disabled (per-site, click to enable)",
-    "description": "Fallback icon title for non-http pages"
-  },
-  "titleInjectionFailed": {
-    "message": "Web TOC Assistant: Injection failed (click to retry)",
-    "description": "Icon title when content script injection fails"
-  },
   "truncatedNotice": {
     "message": "For performance, TOC shows at most 400 items. Refine selectors to narrow results.",
     "description": "Notice when TOC items are truncated"
@@ -185,22 +153,6 @@
     "message": "Notifications",
     "description": "ARIA label for the toast/notification region"
   },
-  "errorStorageQuotaExceeded": {
-    "message": "Storage quota exceeded. Unable to save settings for this site.",
-    "description": "Shown when chrome.storage.local write fails due to quota limits"
-  },
-  "errorStorageWriteFailed": {
-    "message": "Failed to save settings. Please try again.",
-    "description": "Shown when chrome.storage.local write fails for unknown reasons"
-  },
-  "confirmStorageQuotaPrune": {
-    "message": "Storage quota reached. To save this change, older data must be removed. Continue?",
-    "description": "Confirmation shown before pruning data due to storage quota"
-  },
-  "warningStorageQuotaNotSaved": {
-    "message": "Storage quota reached. Changes were not saved.",
-    "description": "Shown when user declines pruning after hitting storage quota"
-  },
   "errorInvalidSelector": {
     "message": "Invalid selector. Unable to save.",
     "description": "Shown when a selector expression fails validation"
@@ -212,22 +164,6 @@
   "ctxInvalidatedRefresh": {
     "message": "Refresh Page",
     "description": "Clickable refresh button text shown in the extension context invalidated notice"
-  },
-  "titleStorageQuotaExceeded": {
-    "message": "Web TOC: Storage quota exceeded (changes not saved)",
-    "description": "Icon title when storage write fails due to quota limits"
-  },
-  "titleStorageWriteFailed": {
-    "message": "Web TOC: Storage error (changes not saved)",
-    "description": "Icon title when storage write fails for other reasons"
-  },
-  "warningStorageQuotaPruned": {
-    "message": "Storage quota reached. Some older data was removed to save your changes.",
-    "description": "Toast shown when data is pruned due to storage quota"
-  },
-  "deactivateToc": {
-    "message": "Close TOC",
-    "description": "Menu item to disable TOC for this site"
   },
   "dockDeactivate": {
     "message": "Close TOC",
