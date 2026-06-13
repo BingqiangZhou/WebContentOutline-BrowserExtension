@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#170---2026-06-13)
+[Table of Contents](#table-of-contents) • [Latest](#180---2026-06-13)
 
 ---
 
 ## Table of Contents
 
+- [1.8.0](#180---2026-06-13) - 2026-06-13
 - [1.7.0](#170---2026-06-13) - 2026-06-13
 - [1.6.2](#162---2026-06-08) - 2026-06-08
 - [1.6.1](#161---2026-06-07) - 2026-06-07
@@ -40,6 +41,26 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.8.0] - 2026-06-13
+
+A performance and accessibility release, plus a privacy improvement: host access is now requested per-site instead of up front, and generating the outline no longer blocks the page.
+
+### 🔧 Changed
+- **Per-site host access is now optional** — The extension no longer asks for broad host permissions at install time. Access is requested per-origin, in the toolbar-click gesture, only when you enable a site (stricter least-privilege; cleaner install).
+- **Outline generation no longer blocks the page** — TOC building is now asynchronous and yields to the main thread in batches, with superseded builds cancelled. Long pages and chatbot streaming stay responsive; the generated outline is unchanged.
+
+### 🚀 Added
+- **Accessibility for the panel and dock** — Keyboard focus now moves into the outline when the panel is opened via keyboard; the dock toggle uses the correct `button` role; the settings menu supports arrow-key navigation and focuses the first item on open; the active outline item is marked `aria-current`; preview-line animation respects `prefers-reduced-motion`; muted-text contrast meets WCAG AA.
+
+### ⚡ Technical Improvements
+- **Chatbot detection caches negative results** per URL — non-chatbot pages no longer re-run the ARIA/data/structure DOM probe on every rebuild.
+- **Long outline lists render faster** via `content-visibility: auto` (off-screen items are skipped).
+- **Robustness** — hardened content-script bootstrap, unified listener cleanup, a typed message protocol, and removed `any` from the app core.
+- **Smaller bundle** — removed an unused heading-weight constant, an unused barrel re-export, and 16 unused locale keys.
+- **Attribution** — the README now documents the referenced libraries (Smart TOC, Boilerpipe, W3C ARIA).
 
 ---
 
