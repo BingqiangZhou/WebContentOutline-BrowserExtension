@@ -80,11 +80,11 @@ A web table of contents generator that automatically creates interactive floatin
 
 #### 1. Enable/Disable Extension
 
-**How**: Click the "Web TOC Assistant" icon in the browser toolbar
+The TOC is **enabled by default** on every website — the edge-docked TOC toolbar appears automatically on any page with headings, no setup needed. Click the "Web TOC Assistant" icon in the browser toolbar to toggle it for the current site.
 
 **Effect**:
-- Enabled state: The transparent white-document icon turns black, and the edge-docked TOC toolbar appears on page
-- Disabled state: The transparent white-document icon turns gray, and the dock disappears
+- Enabled state (default): The transparent white-document icon is black, and the edge-docked TOC toolbar appears on page
+- Disabled state: Clicking the icon turns it gray and removes the dock for that site (the preference is remembered per site)
 - Sync effect: Other tabs of the same site automatically sync state
 
 #### 2. Expand TOC Panel
@@ -267,7 +267,7 @@ Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon
 - **Language**: Vanilla TypeScript + CSS3 (built by WXT/Vite)
 - **Storage**: `browser.storage.local` / Chromium extension storage
 - **Permissions**: `storage`, `tabs`, `scripting`
-- **Host Permissions**: `http://*/*`, `https://*/*` (optional — granted per-site on demand when you click the toolbar icon, revoked when disabled; no access by default)
+- **Host Permissions**: `http://*/*`, `https://*/*` (required — granted at install so the TOC can read any page you enable it on; no per-site permission prompt)
 
 ### Architecture
 

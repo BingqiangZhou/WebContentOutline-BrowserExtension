@@ -74,9 +74,11 @@ async function saveEnabledMap(map: Record<string, boolean>): Promise<{ ok: boole
   }
 }
 
+// Default enabled: a site with no entry in tocSiteEnabledMap is enabled; only
+// an explicit false disables it (opt-out per site).
 async function getEnabledByOrigin(origin: string): Promise<boolean> {
   const map = await getEnabledMap();
-  return !!(origin && map[origin]);
+  return !!origin && map[origin] !== false;
 }
 
 async function setEnabledByOrigin(origin: string, enabled: boolean): Promise<{ ok: boolean; enabled: boolean; error: Error | null }> {
@@ -264,14 +266,9 @@ async function maybeAutoInject(tabId: number, url: string): Promise<void> {
   const origin = originFromUrl(url);
   const enabled = await getEnabledByOrigin(origin);
   if (!enabled) return;
-  // Defense-in-depth against a stale enabled map: if host access was revoked
-  // via Chrome's site-access UI before the permissions.onRemoved listener
-  // reconciled the map, skip injection — executeScript would otherwise throw
-  // "Cannot access contents" and silently fail on every navigation. The map
-  // is corrected shortly by reconcileMapWithPermissions().
-  try {
-    if (!(await browser.permissions.contains({ origins: [origin + '/*'] }))) return;
-  } catch (_) {}
+  // Host access is required (granted at install time), so no per-origin
+  // permission check is needed — executeScript can inject into any http(s)
+  // page the user has enabled.
   await ensureContentScript(tabId, url);
 }
 
@@ -295,20 +292,12 @@ async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id || !tab.url) return;
   if (!isHttpUrl(tab.url)) return;
   const origin = originFromUrl(tab.url);
-  const pattern = origin + '/*';
   const currentlyEnabled = await getEnabledByOrigin(origin);
 
   if (currentlyEnabled) {
-    // Disable: revoke per-origin host access FIRST (least-privilege), then clear
-    // state and tell the content script to clean up. Removing before clearing
-    // the map means a failed removal is observable (warned) rather than silently
-    // leaving host access in place while the UI reports disabled. The map is
-    // cleared regardless — the user's intent is unambiguously "disable".
-    try {
-      await browser.permissions.remove({ origins: [pattern] });
-    } catch (e) {
-      console.warn('[toc] permissions.remove failed (host access may linger):', e, { origin });
-    }
+    // Disable: clear the per-site enabled state and tell the content script to
+    // clean up. Host access is required (granted at install), so there is no
+    // per-origin permission to revoke.
     await setEnabledByOrigin(origin, false);
     await setTabIcon(tab.id, false);
     try {
@@ -318,13 +307,8 @@ async function handleActionClick(tab: any): Promise<void> {
     return;
   }
 
-  // Enable: request per-origin host permission IN THE USER GESTURE. This must
-  // run early — chrome.permissions.request is only valid as a direct result of
-  // the action click. If the user denies the prompt, leave everything unchanged.
-  let approved = false;
-  try { approved = await browser.permissions.request({ origins: [pattern] }); } catch (_) {}
-  if (!approved) return;
-
+  // Enable: host access is required (granted at install), so enabling a site
+  // needs no permission prompt — just persist state, inject, and broadcast.
   const saved = await setEnabledByOrigin(origin, true);
   if (!saved || !saved.ok) return;
   await setTabIcon(tab.id, true);
@@ -382,32 +366,6 @@ browser.tabs.onRemoved.addListener((tabId: number) => {
   injectionLocks.delete(tabId);
 });
 
-// After an update from required -> optional host_permissions, previously
-// granted broad host access is lost, so entries in tocSiteEnabledMap may no
-// longer match an actual permission. Clear those stale entries on startup so
-// the icon/state reflect reality and content scripts don't try to run where
-// they can't inject. The user re-enables (re-grants) with a single click.
-async function reconcileMapWithPermissions(): Promise<void> {
-  let map: Record<string, boolean>;
-  try { map = await getEnabledMap(); } catch (_) { return; }
-  const cleared: string[] = [];
-  for (const origin of Object.keys(map)) {
-    if (!map[origin]) continue;
-    let granted = false;
-    try { granted = await browser.permissions.contains({ origins: [origin + '/*'] }); } catch (_) {}
-    if (!granted) { map[origin] = false; cleared.push(origin); }
-  }
-  if (cleared.length) {
-    try { await saveEnabledMap(map); } catch (_) {}
-    // Tear down any already-injected content script for revoked origins and
-    // flip their icons, so a permission revoked via Chrome's site-access UI is
-    // reflected immediately instead of lingering until the next SW startup.
-    for (const origin of cleared) {
-      await broadcastEnabledToOrigin(origin, false, undefined).catch(bgWarn);
-    }
-  }
-}
-
 async function processAllTabs() {
   try {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
@@ -425,32 +383,22 @@ async function processAllTabs() {
 
 async function setGlobalDefaultIcon() {
   try {
-    await browser.action.setIcon({ path: getIconPathMap(false) });
-    await browser.action.setTitle({ title: browser.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled (click to enable)' });
+    // Default-on: the extension is active by default, so the global fallback
+    // icon/title reflect enabled. Per-tab icons are set by updateIconForTab.
+    await browser.action.setIcon({ path: getIconPathMap(true) });
+    await browser.action.setTitle({ title: browser.i18n.getMessage('titleEnabled') || 'Web TOC: Enabled (click to disable)' });
   } catch (e) { console.warn('[toc] setGlobalDefaultIcon failed:', e); }
 }
 
 browser.runtime.onInstalled.addListener(async () => {
   await setGlobalDefaultIcon();
-  await reconcileMapWithPermissions();
   await processAllTabs();
 });
 
 browser.runtime.onStartup.addListener(async () => {
   await setGlobalDefaultIcon();
-  await reconcileMapWithPermissions();
   await processAllTabs();
 });
-
-// Keep tocSiteEnabledMap in sync when the user grants or revokes host access
-// via Chrome's site-access dropdown or chrome://settings/content — these
-// changes fire no tabs.* event, so without these listeners a revoked origin
-// would keep showing as enabled (stale icon), silently fail to inject, and
-// leave an orphaned content script running until the service worker restarts.
-try {
-  browser.permissions.onRemoved.addListener(() => { reconcileMapWithPermissions().catch(bgWarn); });
-  browser.permissions.onAdded.addListener(() => { reconcileMapWithPermissions().catch(bgWarn); });
-} catch (_) {}
 
 setGlobalDefaultIcon().catch(bgWarn);
 

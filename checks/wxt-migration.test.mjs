@@ -47,8 +47,8 @@ test('WXT config preserves MV3 permissions and static assets', () => {
 
   assert.match(config, /manifestVersion:\s*3/);
   assert.match(config, /permissions:\s*\['storage', 'tabs', 'scripting'\]/);
-  assert.match(config, /optional_host_permissions:\s*\['http:\/\/\*\/\*', 'https:\/\/\*\/\*'\]/);
-  assert.doesNotMatch(config, /\bhost_permissions:\s*\[/);
+  assert.match(config, /host_permissions:\s*\['http:\/\/\*\/\*', 'https:\/\/\*\/\*'\]/);
+  assert.doesNotMatch(config, /optional_host_permissions:\s*\[/);
   assert.match(contentEntry, /registration:\s*'runtime'/);
   assert.match(contentEntry, /cssInjectionMode:\s*'ui'/);
   assert.match(backgroundEntry, /content-scripts\/toc\.js/);

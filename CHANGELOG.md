@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#190---2026-06-13)
+[Table of Contents](#table-of-contents) • [Latest](#1100---2026-06-13)
 
 ---
 
 ## Table of Contents
 
+- [1.10.0](#1100---2026-06-13) - 2026-06-13
 - [1.9.0](#190---2026-06-13) - 2026-06-13
 - [1.8.0](#180---2026-06-13) - 2026-06-13
 - [1.7.0](#170---2026-06-13) - 2026-06-13
@@ -42,6 +43,19 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.10.0] - 2026-06-13
+
+A reliability and usability release: host access is once again requested at install time (reverting the per-site optional-permission model introduced in 1.8.0), and the TOC is now **enabled by default on every website** — it appears automatically, with per-site disable via the toolbar.
+
+### 🔧 Changed
+- **Host access is required again (reverts 1.8.0's optional per-site model)** — The extension once more requests broad host permissions at install time. Enabling a site is now a single toolbar click with no permission prompt, and there is no per-origin grant that can be lost or revoked. This fixes cases where the TOC silently failed to appear on sites the user had enabled.
+- **TOC enabled by default on every website** — The extension now shows the table of contents automatically on any page with headings, with no per-site setup. The toolbar click now toggles a site off/on (opt-out per site); previously each site had to be enabled individually.
+
+### ⚠️ Note for existing users
+- Updating from 1.8.0/1.9.0 is a **permission increase**: Chrome will prompt you to approve broader host access, and the extension may be disabled until you accept. After accepting, your enabled sites work as before — one click each.
 
 ---
 
