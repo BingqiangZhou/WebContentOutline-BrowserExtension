@@ -1153,14 +1153,22 @@ function detectChatPage(): ChatbotProfile | null {
   var currentUrl = '';
   try { currentUrl = location.href; } catch (_) {}
 
-  if (_cachedProfile && _cachedUrl === currentUrl) {
-    // Validate cached root element is still in the DOM
-    if (!_cachedProfile._rootEl || _cachedProfile._rootEl.isConnected) {
-      return _cachedProfile;
+  if (_cachedUrl === currentUrl) {
+    if (_cachedProfile) {
+      // Positive cache: validate the root element is still in the DOM.
+      if (!_cachedProfile._rootEl || _cachedProfile._rootEl.isConnected) {
+        return _cachedProfile;
+      }
+      // Stale positive (root detached) — clear and re-detect below.
+      _cachedProfile = null;
+    } else {
+      // Negative cache: a prior call already determined this URL is NOT a
+      // chatbot page. Skip the ARIA/data/structure DOM cascade on every
+      // subsequent rebuild — the first build already ran it. Without this,
+      // non-chatbot pages re-ran the full detection cascade on every rebuild.
+      // invalidateChatbotCache() clears this on navigation.
+      return null;
     }
-    // Cache stale — clear
-    _cachedProfile = null;
-    _cachedUrl = '';
   }
 
   // --- Page detection cascade ---
@@ -1214,7 +1222,12 @@ function detectChatPage(): ChatbotProfile | null {
     if (selectors) confidence = 0.7; // Hint table confidence
   }
 
-  if (!selectors) return null;
+  if (!selectors) {
+    // Cache the negative result so rebuilds on this URL skip the cascade.
+    _cachedProfile = null;
+    _cachedUrl = currentUrl;
+    return null;
+  }
 
   // Apply confidence bonuses
   if (selectors.source && selectors.source !== 'hint') confidence += 0.10; // Discovery succeeded

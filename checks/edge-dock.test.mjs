@@ -320,12 +320,12 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(dock, /function onRootPointerLeave\(e[^)]*\)[\s\S]*?lastPointerType !== 'touch'[\s\S]*?controller\.scheduleCollapse\(/);
   assert.match(dock, /function onDocumentPointerDown\(e[^)]*\)[\s\S]*?controller\.getMode\(\) === 'peek'[\s\S]*?controller\.collapse\(\);/);
   assert.doesNotMatch(dock, /controller\.pin\(\)|togglePinned|mode === 'pinned'|next === 'pinned'/);
-  assert.match(dock, /function openMenu\(\)[\s\S]*?controller\.collapse\(\);[\s\S]*?quickMenu\.hidden = false;/);
+  assert.match(dock, /function openMenu\([^)]*\)[\s\S]*?controller\.collapse\(\);[\s\S]*?quickMenu\.hidden = false;/);
   assert.match(dock, /function onSettingsPointerEnter[\s\S]*?lastPointerType !== 'touch'[\s\S]*?openMenu\(\);/);
   assert.match(dock, /function scheduleMenuClose\(\)[\s\S]*?setTimeout\(closeMenu, CFG\.CLOSE_DELAY_MS\)/);
   assert.match(dock, /PROGRAMMATIC_CLOSE_DELAY_MS:\s*1800/);
   assert.match(dock, /peek:\s*function\(opts[^)]*\)\s*\{[\s\S]*?controller\.peek\(\);[\s\S]*?opts && opts\.autoCollapse[\s\S]*?controller\.scheduleCollapse\(CFG\.PROGRAMMATIC_CLOSE_DELAY_MS\)/);
-  assert.match(dock, /function onRootFocusIn[\s\S]*?settingsButton[\s\S]*?openMenu\(\);/);
+  assert.match(dock, /function onRootFocusIn[\s\S]*?settingsButton[\s\S]*?openMenu\(true\);/);
   assert.match(dock, /function onRootFocusOut[\s\S]*?scheduleMenuClose\(\);/);
   assert.doesNotMatch(dock, /function onSettingsClick\(\)[\s\S]*?var open = quickMenu\.hidden;/);
   assert.match(dock, /settingsButton\.addEventListener\('pointerenter', onSettingsPointerEnter\b/);

@@ -311,7 +311,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       panelInstance = null;
     }
 
-    function renderPanelCard() {
+    function renderPanelCard(panelOpts?: { focusOnOpen?: boolean }) {
       if (destroyed || panelInstance) return panelInstance;
       if (!dockInstance) return panelInstance;
       var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
@@ -327,20 +327,24 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         tocMeta: tocMeta,
         activeIndex: activeIndex,
         onNavigate: function(_item, index) { syncActiveIndex(index); },
+        focusOnOpen: !!(panelOpts && panelOpts.focusOnOpen),
       });
       return panelInstance;
     }
 
-    async function onDockModeChange(next: string, prev: string) {
+    async function onDockModeChange(next: string, prev: string, info?: { keyboard?: boolean }) {
       try {
         if (next === 'collapsed') {
           removePanelCard();
           return;
         }
 
+        // When expanded via keyboard, move focus into the panel (a11y). The dock
+        // only sets info.keyboard=true for keyboard-driven expansion, never hover.
+        var focusOnOpen = !!(info && info.keyboard);
         await rebuild();
         if (!dockInstance || dockInstance.getMode() === 'collapsed') return;
-        if (!panelInstance) renderPanelCard();
+        if (!panelInstance) renderPanelCard({ focusOnOpen: focusOnOpen });
       } catch (e) {
         if (!isContextInvalidatedError(e)) {
           debug('[toc] dock mode update failed:', e);

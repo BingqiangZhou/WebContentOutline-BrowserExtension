@@ -51,11 +51,3 @@ export var SCROLL_TOP_PADDING = 8;
  * Fixed-header height cache TTL (ms).
  */
 export var HEADER_CACHE_TTL = 5000;
-
-/**
- * Heading level weights for noise filtering when all 6 levels are present.
- * Higher weight = more likely to be kept.
- */
-export var HEADING_LEVEL_WEIGHTS: Record<string, number> = {
-  H1: 40, H2: 100, H3: 80, H4: 60, H5: 20, H6: 10
-};
