@@ -1,8 +1,6 @@
 
 'use strict';
 
-  import { OWNED_SELECTOR } from '../utils/constants.js';
-
   var OBSERVED_ATTRIBUTES = [
     'hidden',
     'style',
@@ -23,8 +21,9 @@
 
   /**
    * Creates a MutationObserver-based DOM watcher that detects meaningful
-   * changes in the document and invokes a callback. Ignores changes
-   * originating from extension-owned elements.
+   * changes in the host document and invokes a callback. The extension's own UI
+   * lives in a shadow root whose mutations never reach this light-DOM observer,
+   * so it does not need to filter self-mutations.
    *
    * When scopeSelector is provided, only mutations inside elements matching
    * that selector are considered meaningful. This reduces noise from
@@ -33,7 +32,6 @@
 export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Array<{ type: string; expr: string }>; scopeSelector?: string | null }) {
     var observerRef: MutationObserver | null = null;
     var isContextValid = true;
-    var ownedRoots = new WeakSet();
     // Cached scope container. hasMeaningfulChange previously called
     // document.querySelector(scopeSelector) once PER mutation record; on a
     // chatbot page a single mutation burst can carry hundreds/thousands of
@@ -43,28 +41,8 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     var _scopeCacheSel: string | null = null;
     var _scopeCacheEl: Element | null = null;
 
-    function scanOwnedRoots() {
-      try {
-        var roots = document.querySelectorAll(OWNED_SELECTOR);
-        for (var i = 0; i < roots.length; i++) {
-          ownedRoots.add(roots[i]);
-        }
-      } catch (_) {}
-    }
-
     function isDefaultHeadingMode() {
       return !cfg || !Array.isArray(cfg.selectors) || cfg.selectors.length === 0;
-    }
-
-    function isOwnedNode(node: Node) {
-      try {
-        var element: Element | null = node && node.nodeType === 3 ? (node as Text).parentElement : node as Element;
-        if (!element) return false;
-        if (ownedRoots.has(element)) return true;
-        return !!(element.closest && element.closest(OWNED_SELECTOR));
-      } catch (_) {
-        return false;
-      }
     }
 
     function touchesDefaultHeading(node: Node, scanDescendants: boolean) {
@@ -113,7 +91,6 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
       for (var i = 0; i < scanLimit; i++) {
         var m = mutations[i];
         var t = m.target;
-        if (isOwnedNode(t)) continue;
 
         // Scope check: if a scope selector is configured, only trigger for
         // mutations inside the scoped container (cached; see getScopedContainer)
@@ -158,10 +135,8 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     function start() {
       disconnect();
       isContextValid = true;
-      ownedRoots = new WeakSet();
       _scopeCacheSel = null;
       _scopeCacheEl = null;
-      scanOwnedRoots();
 
       var root = document.documentElement;
       if (!root) return false;

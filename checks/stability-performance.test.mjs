@@ -952,9 +952,8 @@ test('extension DOM checks use owner attributes instead of generic host classes'
   const toast = read('src/utils/toast.ts');
   const constants = read('src/utils/constants.ts');
 
-  // All files use EXTENSION_OWNER / OWNED_SELECTOR from constants
-  assert.match(watcher, /OWNED_SELECTOR/);
-  assert.doesNotMatch(watcher, /OWNED_SELECTOR = '\.toc-edge-dock/);
+  // config/picker/toast reference the extension owner; dom-watcher no longer
+  // needs OWNED_SELECTOR (extension UI is shadow-isolated from the observer).
   assert.match(config, /EXTENSION_OWNER/);
   assert.match(picker, /EXTENSION_OWNER/);
   assert.match(toast, /EXTENSION_OWNER/);

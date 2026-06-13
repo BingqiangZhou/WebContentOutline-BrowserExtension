@@ -224,8 +224,10 @@ test('edge dock is included in cleanup, mutation filtering, and picker exclusion
   const domWatcher = fs.readFileSync(path.join(repoRoot, 'src/core/dom-watcher.ts'), 'utf8');
   const picker = fs.readFileSync(path.join(repoRoot, 'src/ui/element-picker.ts'), 'utf8');
 
-  // Both files reference the extension owner via OWNED_SELECTOR or EXTENSION_OWNER
-  assert.match(domWatcher, /OWNED_SELECTOR/);
+  // dom-watcher observes the host document (extension UI is shadow-isolated,
+  // so it no longer needs the OWNED_SELECTOR self-mutation filter); the picker
+  // still recognizes extension-owned elements.
+  assert.match(domWatcher, /document\.documentElement/);
   assert.match(picker, /EXTENSION_OWNER/);
 });
 
