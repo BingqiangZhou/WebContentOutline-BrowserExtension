@@ -435,6 +435,16 @@ The next major version is being planned. Core goals:
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and updates. [中文更新日志](CHANGELOG_CN.md)
 
+## 🙏 Acknowledgements
+
+This project's automatic content detection stands on the shoulders of prior work. Below is what we referenced, which feature borrows it, and how we extended it.
+
+- **[Smart TOC](https://github.com/FallenMax/smart-toc)** (FallenMax) — *Main-content detection, Layer 3 ancestor scoring (`src/utils/content-region.ts`).* We adapted Smart TOC's core idea: score each heading's ancestor elements (tag weight × distance decay, accumulated) to locate the article container. **Our extensions:** Smart TOC re-scores its top-5 candidates by `scrollHeight² / linkCount` alone; we re-score the top-5 with additional structural signals — viewport-width ratio, heading density, link-density penalty, text density, height ratio, and horizontal centering, plus a −500 penalty for `body`/`html`. We also wrap it in a 4-layer cascade (landmarks → class heuristics → ancestor scoring → whole-document fallback) rather than a single strategy, sample up to 100 headings with ancestor depth ≤ 6, and cache the result per URL with disconnect-invalidation.
+
+- **[Boilerpipe](https://github.com/kohlschutter/boilerpipe)** (Kohlschütter et al.) — *Content-vs-navigation scoring (same Layer 3 re-scoring).* We adopted Boilerpipe's text-density finding — a text density below ~10.5 typically indicates boilerplate (nav / ads / sidebar). **Our approach:** rather than running the full Boilerpipe pipeline, we lift only this threshold as one feature among several in the candidate re-scoring, so a container must look like content across multiple signals at once.
+
+- **[W3C ARIA](https://www.w3.org/WAI/ARIA/)** — *Detection and filtering across the codebase.* We rely on standard ARIA semantics rather than HTML tags alone: `role="log"` / `aria-live` (ARIA23) drive live-chat detection in `src/utils/chatbot-detector.ts`; `role="heading"` and `aria-level` determine TOC levels (with `aria-level` taking precedence over the tag name in `src/utils/toc-builder.ts`); `aria-hidden` and `aria-expanded` feed visibility filtering and DOM-change watching. This is standards-compliant usage (not a modified algorithm) — ARIA lets the extension read structure that heading tags can't express.
+
 ## 📄 License
 
 This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
