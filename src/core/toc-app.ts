@@ -111,9 +111,14 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       onUnlock: function() {
         // When the nav lock releases, retry a rebuild that was parked while the
         // user was navigating — so the TOC doesn't wait for the next external
-        // mutation/event to refresh. setPendingRebuild(true) is a no-op when
-        // nothing is parked, so calling it unconditionally is safe.
-        if (rebuildScheduler) rebuildScheduler.setPendingRebuild(true);
+        // mutation/event to refresh. Only flush when a rebuild is actually
+        // pending (parked by attemptRebuild while the lock was held).
+        // setPendingRebuild(true) is NOT a no-op — it forces attemptRebuild —
+        // so without this guard every TOC-item click would trigger a full
+        // rebuild ~1s later even when nothing changed.
+        if (rebuildScheduler && rebuildScheduler.getPendingRebuild && rebuildScheduler.getPendingRebuild()) {
+          rebuildScheduler.setPendingRebuild(true);
+        }
       }
     });
     var configDirty = true; // true on init so first rebuild reads from storage

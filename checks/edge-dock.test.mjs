@@ -231,6 +231,18 @@ test('toc app orchestrates the edge dock instead of the collapsed badge', () => 
   assert.match(app, /onNavigate:\s*function\(item[^)]*\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?navLock\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
 });
 
+test('nav-lock unlock only flushes a rebuild when one is parked (no rebuild on every click)', () => {
+  const app = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.ts'), 'utf8');
+  // setPendingRebuild(true) is NOT a no-op — it forces attemptRebuild. Without
+  // a pending check, every TOC-item click triggers a full rebuild ~1s later
+  // even when nothing changed (and it was the trigger that exposed the
+  // offscreen-filter data-loss bug). onUnlock must guard it with getPendingRebuild.
+  assert.match(
+    app,
+    /onUnlock:\s*function\s*\(\)\s*\{[^}]*getPendingRebuild[^}]*setPendingRebuild\(true\)/
+  );
+});
+
 test('floating panel mounts inside the edge dock and no longer owns dragging', () => {
   const panel = fs.readFileSync(path.join(repoRoot, 'src/ui/floating-panel.ts'), 'utf8');
 
