@@ -194,31 +194,28 @@ export function uniqueInDocumentOrder(list: Element[]) {
           result.push(el);
         }
       }
-      // Tag each element with its source index so disconnected/error pairs
-      // (e.g. elements from different shadow/iframe roots, where
-      // compareDocumentPosition returns DOCUMENT_POSITION_DISCONNECTED) get a
-      // deterministic, transitive order instead of relying on sort stability.
-      try {
-        for (var t = 0; t < result.length; t++) (result[t] as any).__tocSrcOrder = t;
-        result.sort(function(a, b) {
-          if (a === b) return 0;
-          try {
-            var pos = a.compareDocumentPosition(b);
-            // Only order by document position when the nodes are connected
-            // (same document tree). Bit 1 = DOCUMENT_POSITION_DISCONNECTED.
-            if (!(pos & 1)) {
-              if (pos & 2) return 1;
-              if (pos & 4) return -1;
-            }
-          } catch (_) {}
-          // Disconnected or unavailable: fall back to stable source order.
-          return ((a as any).__tocSrcOrder || 0) - ((b as any).__tocSrcOrder || 0);
-        });
-      } finally {
-        // Always strip the bookkeeping expando — even if sort threw — so we
-        // never leave __tocSrcOrder on host-page elements.
-        for (var c = 0; c < result.length; c++) delete (result[c] as any).__tocSrcOrder;
-      }
+      // Tag each element's source index in a WeakMap (keyed by element identity)
+      // so disconnected/error pairs (e.g. elements from different shadow/iframe
+      // roots, where compareDocumentPosition returns DOCUMENT_POSITION_DISCONNECTED)
+      // get a deterministic, transitive order instead of relying on sort
+      // stability. A WeakMap never mutates the host element (unlike a previous
+      // __tocSrcOrder expando) and needs no cleanup.
+      var srcOrder = new WeakMap<Element, number>();
+      for (var t = 0; t < result.length; t++) srcOrder.set(result[t], t);
+      result.sort(function(a, b) {
+        if (a === b) return 0;
+        try {
+          var pos = a.compareDocumentPosition(b);
+          // Only order by document position when the nodes are connected
+          // (same document tree). Bit 1 = DOCUMENT_POSITION_DISCONNECTED.
+          if (!(pos & 1)) {
+            if (pos & 2) return 1;
+            if (pos & 4) return -1;
+          }
+        } catch (_) {}
+        // Disconnected or unavailable: fall back to stable source order.
+        return (srcOrder.get(a) || 0) - (srcOrder.get(b) || 0);
+      });
       return result;
     }
 

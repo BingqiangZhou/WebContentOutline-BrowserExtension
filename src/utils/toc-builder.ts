@@ -8,6 +8,43 @@ import { tryBuildChatbotTocItems, getChatbotSentinelSelector, getChatbotConfiden
 import { TOC_TEXT_MAX_LEN, TOC_MAX_ITEMS, TOC_MAX_CANDIDATES } from './constants.js';
 import { dedupeMirrorItems } from './core-utils.js';
 
+    // Yield control back to the browser so a long TOC build does not block
+    // input/animation on the main thread. Prefer scheduler.yield() (Chrome 129+,
+    // yields within the task rather than waiting a full frame), then fall back to
+    // requestAnimationFrame, then setTimeout(0). If none are available (a
+    // locked-down host or a test sandbox), resolve immediately — the build still
+    // completes, just without yielding. Resolved once at module load.
+    var _yieldFn: (() => Promise<void>) | null = null;
+    (function resolveYield() {
+      try {
+        var sched = (globalThis as any).scheduler;
+        if (sched && typeof sched.yield === 'function') {
+          _yieldFn = function () { return sched.yield(); };
+          return;
+        }
+      } catch (_) {}
+      try {
+        var raf = (globalThis as any).requestAnimationFrame;
+        if (typeof raf === 'function') {
+          _yieldFn = function () { return new Promise<void>(function (resolve) { raf(function () { resolve(); }); }); };
+          return;
+        }
+      } catch (_) {}
+      try {
+        var st = (globalThis as any).setTimeout;
+        if (typeof st === 'function') {
+          _yieldFn = function () { return new Promise<void>(function (resolve) { st(resolve, 0); }); };
+          return;
+        }
+      } catch (_) {}
+      _yieldFn = function () { return Promise.resolve(); };
+    })();
+    function yieldToMain(): Promise<void> {
+      return _yieldFn ? _yieldFn() : Promise.resolve();
+    }
+    // Elements processed per chunk before yielding to the main thread.
+    var PHASE_BATCH = 64;
+
     var COLLAPSE_WS_RE = /\s+/g;
 
     function getTrimmedText(el: Element) {
@@ -32,7 +69,8 @@ function getTocItemLevel(el: Element) {
       return 2;
     }
 
-function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: string; _root?: Element | Document }>, cfg: { keepEmptyText?: boolean }) {
+async function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: string; _root?: Element | Document }>, cfg: { keepEmptyText?: boolean }, signal?: { aborted?: boolean }) {
+      if (signal && signal.aborted) return { aborted: true };
       var elements: Element[] = [];
       var list = Array.isArray(selectors) ? selectors : [];
       var perSelectorLimit = Math.max(1, Math.floor(TOC_MAX_CANDIDATES / Math.max(1, list.length)));
@@ -71,6 +109,10 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       var docScrollW = (docEl && docEl.scrollWidth) || 0;
       var docScrollH = (docEl && docEl.scrollHeight) || 0;
       for (var m = 0; m < candidates.length; m++) {
+        if (m > 0 && m % PHASE_BATCH === 0) {
+          if (signal && signal.aborted) return { aborted: true };
+          await yieldToMain();
+        }
         var el = candidates[m] as HTMLElement;
         if (!el || !el.isConnected) { geoData.push(null); continue; }
         // aria-hidden="true" — element is semantically hidden
@@ -105,6 +147,9 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
         geoData.push({ el: el, rect: rect });
       }
 
+      if (signal && signal.aborted) return { aborted: true };
+      await yieldToMain();
+
       // Phase 2: Filter using cached geometry — parent clipping + text extraction only for survivors
       // Per-build caches: ancestors are shared across many headings (a page's
       // <article>/<main>/<section> typically wrap dozens of h2/h3), so caching
@@ -115,6 +160,10 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       var ancRectCache = new Map<Element, DOMRect>();
       var items: Array<{ id: string; el: Element; text: string; level: number; source?: string; _pos?: { left: number; top: number; right: number; bottom: number } }> = [];
       for (var g = 0; g < geoData.length; g++) {
+        if (g > 0 && g % PHASE_BATCH === 0) {
+          if (signal && signal.aborted) return { aborted: true };
+          await yieldToMain();
+        }
         var entry = geoData[g];
         if (!entry) continue;
         var el2 = entry.el;
@@ -206,7 +255,8 @@ function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr: strin
       };
     }
 
-export function buildTocItems(cfg: { selectors?: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>) {
+export async function buildTocItems(cfg: { selectors?: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>, signal?: { aborted?: boolean }) {
+      if (signal && signal.aborted) return { aborted: true };
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
       // "Custom" = the USER configured selectors. The chatbot sentinel we inject
       // ourselves (see below) is marked _tocSentinel and excluded, otherwise it
@@ -270,7 +320,8 @@ export function buildTocItems(cfg: { selectors?: Array<{ type: string; expr: str
         }
       }
 
-      var result = buildTocItemsFromSelectors(combined, cfg);
+      var result = await buildTocItemsFromSelectors(combined, cfg, signal);
+      if (result && (result as any).aborted) return { aborted: true };
       // Mark items from user-configured selectors
       if (isCustom && result.items) {
         for (var si = 0; si < result.items.length; si++) {

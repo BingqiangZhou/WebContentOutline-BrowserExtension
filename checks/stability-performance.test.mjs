@@ -52,9 +52,7 @@ function loadDomWatcher() {
 
 function loadTocBuilder(options = {}) {
   const file = path.join(repoRoot, 'src/utils/toc-builder.ts');
-  const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
-    .replace(/^import .+;\r?\n/gm, '')
-    .replace(/export function /g, 'function '));
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
   const requestedLimits = [];
   const elements = options.elements || null;
   const sandbox = {
@@ -550,14 +548,14 @@ test('DOM watcher drains pending records without re-observing when root changes'
   assert.equal(observer.observeCalls.length, 1, 'observe should only be called once during start');
 });
 
-test('TOC builder never requests more than the global candidate budget', () => {
+test('TOC builder never requests more than the global candidate budget', async () => {
   const env = loadTocBuilder();
   const selectors = Array.from({ length: 50 }, (_, index) => ({
     type: 'css',
     expr: `.heading-${index}`
   }));
 
-  env.buildTocItemsFromSelectors(selectors, {});
+  await env.buildTocItemsFromSelectors(selectors, {});
 
   assert.ok(env.requestedLimits.length > 0);
   assert.ok(
@@ -566,7 +564,7 @@ test('TOC builder never requests more than the global candidate budget', () => {
   );
 });
 
-test('TOC builder filters invisible candidates before reading bounded text', () => {
+test('TOC builder filters invisible candidates before reading bounded text', async () => {
   const hidden = {
     tagName: 'H2',
     isConnected: true,
@@ -606,7 +604,7 @@ test('TOC builder filters invisible candidates before reading bounded text', () 
     }
   });
 
-  const result = env.buildTocItemsFromSelectors([{ type: 'css', expr: 'h2, h3' }], {});
+  const result = await env.buildTocItemsFromSelectors([{ type: 'css', expr: 'h2, h3' }], {});
 
   assert.deepEqual(textReads, [visible]);
   assert.deepEqual(Array.from(result.items, (item) => item.text), ['Visible heading']);

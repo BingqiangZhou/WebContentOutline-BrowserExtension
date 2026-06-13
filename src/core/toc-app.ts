@@ -70,20 +70,32 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
 
     var destroyed = false;
 
-    var buildNow = function() {
+    // AbortController for the in-flight build: a newer build or dispose aborts
+    // the previous chunked build so stale results are never rendered (e.g. a
+    // build started on page A doesn't finish and render after navigating to B).
+    var buildAbort: AbortController | null = null;
+    var buildNow = async function (): Promise<{ items: TocItem[]; meta: TocMeta | null } | { aborted: true }> {
+      if (buildAbort) { try { buildAbort.abort(); } catch (_) {} }
+      var ac = new AbortController();
+      buildAbort = ac;
       try {
-        var res = buildTocItems(cfg, []);
-        if (res && Array.isArray(res.items)) return res;
-        if (Array.isArray(res)) return { items: res, meta: null };
+        var res = await buildTocItems(cfg, [], ac.signal);
+        if (res && (res as any).aborted) return { aborted: true };
+        if (res && Array.isArray((res as any).items)) return res as { items: TocItem[]; meta: TocMeta | null };
+        if (Array.isArray(res)) return { items: res as TocItem[], meta: null };
       } catch (e) {
         console.warn('[toc] buildTocItems error:', e);
+      } finally {
+        if (buildAbort === ac) buildAbort = null;
       }
       return { items: [], meta: null };
     };
 
-    var buildResult = buildNow();
-    var items: TocItem[] = buildResult.items;
-    var tocMeta: TocMeta | null = buildResult.meta;
+    // Seed empty: the first (async, chunked) build is triggered below once the
+    // dock and observers are wired. A collapsed empty dock briefly shows before
+    // items land — the same state as a page with no headings.
+    var items: TocItem[] = [];
+    var tocMeta: TocMeta | null = null;
     var dockInstance: ReturnType<typeof renderEdgeDock> | null = null;
     var panelInstance: ReturnType<typeof renderFloatingPanel> | null = null;
     var activeTracker: ReturnType<typeof createActiveItemTracker> | null = null;
@@ -173,7 +185,11 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         var prevItems = items;
         var previousActiveIndex = activeIndex;
         var previousActiveItem = items[activeIndex] || null;
-        var buildResult = buildNow();
+        var buildResult = await buildNow();
+        if (!buildResult || 'aborted' in buildResult) {
+          // A newer build superseded this one — leave items untouched.
+          return true;
+        }
         var newItems = buildResult.items;
         var newMeta = buildResult.meta;
 
@@ -353,6 +369,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
 
     var destroy = function() {
       destroyed = true;
+      if (buildAbort) { try { buildAbort.abort(); } catch (_) {} buildAbort = null; }
       items = [];
       rebuildInFlight = null;
       navLock.destroy();
@@ -406,6 +423,10 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         }
       });
       syncActiveIndex(activeIndex);
+
+      // Kick off the first (async, chunked) build now that the dock, scheduler
+      // and active-item tracker are wired. rebuild() dedupes via rebuildInFlight.
+      rebuild();
 
       return {
         rebuild: rebuild,

@@ -32,6 +32,14 @@ const BG_MAX_MAP_KEYS = MAP_MAX_KEYS;
 const BG_MAX_CONFIG_SITES = 200;
 const BG_MAX_SELECTORS_PER_SITE = 50;
 
+// Surface lifecycle/injection failures (updateIconForTab, maybeAutoInject,
+// setGlobalDefaultIcon) that were previously swallowed by `.catch(() => {})`.
+// Gated behind __TOC_DEBUG so production stays quiet; set it in the service
+// worker console to see why a tab's icon or injection didn't apply.
+function bgWarn(e: unknown): void {
+  try { if ((globalThis as any).__TOC_DEBUG) console.warn('[toc/bg] lifecycle op failed:', e); } catch (_) {}
+}
+
 async function getEnabledMap(): Promise<Record<string, boolean>> {
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
   try {
@@ -343,13 +351,13 @@ browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowI
 
 browser.tabs.onUpdated.addListener((tabId: number, changeInfo: any, tab: any) => {
   if (changeInfo.status === 'complete') {
-    updateIconForTab(tabId, tab?.url || changeInfo.url).catch(() => {});
-    if (tab?.url) maybeAutoInject(tabId, tab.url).catch(() => {});
+    updateIconForTab(tabId, tab?.url || changeInfo.url).catch(bgWarn);
+    if (tab?.url) maybeAutoInject(tabId, tab.url).catch(bgWarn);
   }
 });
 
 browser.tabs.onCreated.addListener((tab: any) => {
-  if (tab?.id) updateIconForTab(tab.id, tab.url).catch(() => {});
+  if (tab?.id) updateIconForTab(tab.id, tab.url).catch(bgWarn);
 });
 
 // After an update from required -> optional host_permissions, previously
@@ -376,10 +384,10 @@ async function processAllTabs() {
   try {
     const tabs = await browser.tabs.query({ url: ['http://*/*', 'https://*/*'] });
     for (const t of tabs) {
-      if (t.id) updateIconForTab(t.id, t.url).catch(() => {});
+      if (t.id) updateIconForTab(t.id, t.url).catch(bgWarn);
       // Only inject for enabled sites
       if (t.id && t.url && isHttpUrl(t.url)) {
-        maybeAutoInject(t.id, t.url).catch(() => {});
+        maybeAutoInject(t.id, t.url).catch(bgWarn);
       }
     }
   } catch (e) {
@@ -406,7 +414,7 @@ browser.runtime.onStartup.addListener(async () => {
   await processAllTabs();
 });
 
-setGlobalDefaultIcon().catch(() => {});
+setGlobalDefaultIcon().catch(bgWarn);
 
 browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendResponse: any) => {
   try {

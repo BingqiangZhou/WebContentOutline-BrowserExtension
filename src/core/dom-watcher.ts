@@ -13,6 +13,12 @@
     'open'
   ];
   var OBSERVED_ATTR_SET = new Set(OBSERVED_ATTRIBUTES);
+  // Max mutation records scanned per observer callback. A single mutation burst
+  // on a streaming SPA can carry thousands of records, and this callback runs on
+  // the main thread — bounding the scan keeps the callback itself cheap. A
+  // meaningful change beyond the cap is durable and surfaces again in the next
+  // batch, so capping defers (never loses) detection.
+  var RECORD_SCAN_CAP = 500;
   var DEFAULT_HEADING_SELECTOR = 'h1, h2, h3, h4, h5, h6';
 
   /**
@@ -102,7 +108,9 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     }
 
     function hasMeaningfulChange(mutations: MutationRecord[]) {
-      for (var i = 0; i < mutations.length; i++) {
+      var scanLimit = mutations.length;
+      if (scanLimit > RECORD_SCAN_CAP) scanLimit = RECORD_SCAN_CAP;
+      for (var i = 0; i < scanLimit; i++) {
         var m = mutations[i];
         var t = m.target;
         if (isOwnedNode(t)) continue;
