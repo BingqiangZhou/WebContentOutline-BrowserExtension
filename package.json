@@ -1,6 +1,6 @@
 {
   "name": "web-toc-assistant",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "private": true,
   "scripts": {
     "assets:brand": "node scripts/generate-brand-assets.mjs",

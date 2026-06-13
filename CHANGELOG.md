@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#1100---2026-06-13)
+[Table of Contents](#table-of-contents) • [Latest](#1110---2026-06-13)
 
 ---
 
 ## Table of Contents
 
+- [1.11.0](#1110---2026-06-13) - 2026-06-13
 - [1.10.0](#1100---2026-06-13) - 2026-06-13
 - [1.9.0](#190---2026-06-13) - 2026-06-13
 - [1.8.0](#180---2026-06-13) - 2026-06-13
@@ -43,6 +44,23 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.11.0] - 2026-06-13
+
+A compatibility and stability release: the extension's UI now paints above high-z-index page overlays so it stays interactive on pages that also run translation or reader extensions, the outline reliably refreshes on highly dynamic/streaming pages, and Agnes AI conversations are now detected automatically.
+
+### 🚀 Added
+- **Agnes AI (app.agnes-ai.com) detection** — Chat conversations on Agnes are now detected automatically and turned into an outline of user prompts, joining ChatGPT, Claude, Gemini, DeepSeek, and the other supported chatbot platforms.
+
+### 🐛 Fixed
+- **Dock/panel frozen on pages with high-z-index overlays** — On sites that also run a translation or reader extension (or any high-z-index overlay), the edge dock and panel could appear frozen — hover did nothing, the menu wouldn't open, and the empty state never showed. The shadow host now carries a top-level z-index so the extension UI always paints above page overlays.
+- **Outline freezing under continuous DOM mutation** — On highly dynamic pages (e.g. an actively streaming chat combined with a translation extension rewriting text nodes), the rebuild debounce could be reset forever and the outline would stick on its last-rendered state. A max-wait deadline now guarantees a rebuild fires within a bounded interval.
+
+### ⚡ Technical Improvements
+- **Centralized `MAX_Z_INDEX`** — The maximum z-index is now a single constant in `src/utils/constants.ts`, shared by the shadow host and the element-picker highlight (previously duplicated).
+- **Scheduler teardown consolidation** — All rebuild-scheduler teardown paths now clear both timers through `clearScheduledTimers()`, closing a leak where the max-wait timer could outlive an invalidated extension context.
 
 ---
 

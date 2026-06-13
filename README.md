@@ -18,7 +18,7 @@ A web table of contents generator that automatically creates interactive floatin
 ### 🎯 TOC Generation
 - **Default Header Recognition**: Automatically uses page header structure (h1-h6 tags) when no selectors are configured
 - **Automatic Content Region Detection**: Intelligently identifies the main content area of a page, filtering out navigation bars, sidebars, and footers for more accurate TOC headings
-- **Chatbot Page Detection**: Automatically recognizes ChatGPT, Claude, Gemini, DeepSeek, Kimi and other AI chatbot pages, generating conversation-turn-based TOC
+- **Chatbot Page Detection**: Automatically recognizes ChatGPT, Claude, Gemini, DeepSeek, Kimi, Agnes and other AI chatbot pages, generating conversation-turn-based TOC
 - **Enhanced Visibility Detection**: Advanced element filtering using computed styles, bounding rects, and parent clipping detection to ensure only truly visible elements are included
 - **Automatic Filtering**: Automatically filters hidden elements (display:none, visibility:hidden, opacity:0), zero-size elements, and overflow-clipped content
 - **Custom Selectors**: Supports CSS and XPath selectors to adapt to various website structures
