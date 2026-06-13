@@ -46,11 +46,15 @@ function loadBuildTocItems(setup) {
       return setup.chatbotResult !== undefined ? setup.chatbotResult : null;
     },
     getChatbotSentinelSelector: function () { return setup.sentinel || null; },
-    document: { documentElement: { scrollWidth: 1200, scrollHeight: 900 } },
+    document: { documentElement: { scrollWidth: setup.scrollWidth != null ? setup.scrollWidth : 1200, scrollHeight: setup.scrollHeight != null ? setup.scrollHeight : 900 } },
     window: {
       getComputedStyle: function () {
         return { display: 'block', position: 'static', visibility: 'visible', opacity: '1' };
-      }
+      },
+      scrollX: setup.scrollX || 0,
+      scrollY: setup.scrollY || 0,
+      pageXOffset: setup.scrollX || 0,
+      pageYOffset: setup.scrollY || 0
     },
     TOC_MAX_CANDIDATES: 1200,
     TOC_TEXT_MAX_LEN: 200,
@@ -157,4 +161,40 @@ test('injected sentinel is marked and injected only once', async () => {
   await env.buildTocItems(cfg);
   var sentinels2 = cfg.selectors.filter(function (s) { return s._tocSentinel; });
   assert.equal(sentinels2.length, 1, 'sentinel not double-injected');
+});
+
+test('headings scrolled above the viewport are kept (long-page scroll regression)', async () => {
+  // Reproduces the reported bug: scroll a long page down and click a lower TOC
+  // item; the rebuild runs while upper headings are >1000px above the viewport.
+  // The offscreen filter must NOT drop them — they are legitimate, just scrolled
+  // out of view. Only headings hidden via top/left:-9999px (extreme DOCUMENT
+  // position) should be dropped.
+  var upperHeading = visibleHeading('H2', 'Upper section', {
+    // Viewport-relative rect is far above the viewport (scrolled past), but its
+    // DOCUMENT position (rect + scroll) is a normal ~476px from the doc top.
+    top: -1524, bottom: -1500, left: 0, right: 120, width: 120, height: 24
+  });
+  var lowerHeading = visibleHeading('H2', 'Lower section', {
+    top: 300, bottom: 324, left: 0, right: 120, width: 120, height: 24
+  });
+  // A heading genuinely hidden via position:absolute; top:-9999px — must drop.
+  var hiddenHeading = visibleHeading('H2', 'Hidden junk', {
+    top: -9999, bottom: -9975, left: 0, right: 120, width: 120, height: 24
+  });
+  var env = loadBuildTocItems({
+    confidence: 0,
+    regionRoot: null,
+    regionSource: 'fallback',
+    collectElements: [upperHeading, lowerHeading, hiddenHeading],
+    scrollY: 2000,       // page scrolled down 2000px
+    scrollHeight: 5000   // long page
+  });
+
+  var result = await env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
+
+  var texts = result.items.map(function (i) { return i.text; });
+  assert.ok(texts.indexOf('Upper section') >= 0, 'upper heading scrolled above the viewport must remain in the TOC');
+  assert.ok(texts.indexOf('Lower section') >= 0, 'lower heading must remain');
+  assert.ok(texts.indexOf('Hidden junk') < 0, 'a heading hidden at document top:-9999px must still be dropped');
+  assert.equal(result.items.length, 2);
 });

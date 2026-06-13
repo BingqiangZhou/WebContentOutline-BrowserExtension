@@ -145,9 +145,22 @@ async function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr:
         if (!rect || rect.width === 0 || rect.height === 0) { geoData.push(null); continue; }
         // Too small to be a visible heading — catches .sr-only (1×1 px) tricks
         if (rect.width < 2 || rect.height < 2) { geoData.push(null); continue; }
-        // Far off-screen — catches position:left:-9999px, transform:translate(-9999px)
-        var farOffscreen = rect.right < -1000 || rect.left > (docScrollW + 1000)
-                        || rect.bottom < -1000 || rect.top > (docScrollH + 1000);
+        // Far off-screen in DOCUMENT coordinates (rect + current scroll), NOT
+        // viewport coordinates. A heading legitimately scrolled out of view has
+        // a normal document position; only headings hidden via position:absolute;
+        // top/left:-9999px (or transform: translate(-9999px)) sit far outside the
+        // document. Using viewport rects here would wrongly drop the upper
+        // headings after scrolling down a long page — the TOC would lose items
+        // above the viewport (e.g. after clicking a lower TOC entry and the
+        // post-navigation rebuild running while scrolled). Scroll is read per
+        // element so it matches this element's viewport rect even if the page
+        // scrolls during a chunked build.
+        var sx = (typeof window.scrollX === 'number' ? window.scrollX : (window.pageXOffset || 0)) || 0;
+        var sy = (typeof window.scrollY === 'number' ? window.scrollY : (window.pageYOffset || 0)) || 0;
+        var docLeft = rect.left + sx;
+        var docTop = rect.top + sy;
+        var farOffscreen = docLeft < -1000 || docTop < -1000
+                        || docLeft > (docScrollW + 1000) || docTop > (docScrollH + 1000);
         if (farOffscreen) { geoData.push(null); continue; }
         geoData.push({ el: el, rect: rect });
       }
