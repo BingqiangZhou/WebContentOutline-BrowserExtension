@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#1110---2026-06-13)
+[Table of Contents](#table-of-contents) • [Latest](#1111---2026-06-13)
 
 ---
 
 ## Table of Contents
 
+- [1.11.1](#1111---2026-06-13) - 2026-06-13
 - [1.11.0](#1110---2026-06-13) - 2026-06-13
 - [1.10.0](#1100---2026-06-13) - 2026-06-13
 - [1.9.0](#190---2026-06-13) - 2026-06-13
@@ -44,6 +45,16 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 - [0.2.0](#020---2026-01-15) - 2026-01-15
 - [0.1.1](#011---2025-09-15) - 2025-09-15
 - [0.1.0](#010---2025-09-14) - 2025-09-14
+
+---
+
+## [1.11.1] - 2026-06-13
+
+A bug-fix release: the outline no longer loses its upper entries after scrolling a long page and clicking a lower item.
+
+### 🐛 Fixed
+- **Outline lost items above the viewport after navigating** — On a long page scrolled down (e.g. after clicking a lower TOC entry), a rebuild could drop headings that were simply scrolled out of view, so the upper part of the outline vanished. The offscreen visibility filter now uses document coordinates instead of viewport coordinates, so legitimately scrolled headings are kept while truly hidden ones (positioned at -9999px) are still filtered out.
+- **No more forced rebuild on every click** — Clicking a TOC item no longer triggers a full outline rebuild a second later when nothing changed; only a rebuild actually deferred during navigation is flushed. (This per-click rebuild was the trigger that exposed the item-loss bug above.)
 
 ---
 
