@@ -24,7 +24,9 @@ function loadScheduler(opts) {
   // Hybrid fake clock: short timers (<= threshold, e.g. the 400ms debounce)
   // fire synchronously to keep the test flow simple; long timers (the 30s
   // breaker recovery probe) are scheduled and fired by advance().
-  var LONG_TIMER_THRESHOLD = 5000;
+  // Override via opts.longTimerThreshold (e.g. 0) to queue the debounce too,
+  // so a test can interleave mutations faster than the debounce window.
+  var LONG_TIMER_THRESHOLD = opts.longTimerThreshold != null ? opts.longTimerThreshold : 5000;
   var longTimers = [];
   var nextTimerId = 1;
   var file = path.join(repoRoot, 'src/core/rebuild-scheduler.ts');
@@ -159,4 +161,25 @@ test('breaker self-recovers via a half-open probe after the recovery window', as
   env.captured.onMutation();
   await flush();
   assert.equal(rebuildCalls, 7, 'breaker fully resets once a probe succeeds');
+});
+
+test('rebuild fires within max-wait under a continuous mutation stream', async () => {
+  // Reproduces the "卡住" freeze on continuously-mutating pages (e.g. an AI chat
+  // app with a translate extension rewriting text nodes). The chatbot sentinel
+  // switches dom-watcher into broad mode, so every mutation schedules a rebuild.
+  // With longTimerThreshold:0 the 400ms debounce is queued (not fired inline),
+  // letting us interleave mutations every 200ms — faster than the debounce — to
+  // simulate the storm. A pure debounce would reset forever and never fire; the
+  // max-wait guarantee must still produce at least one rebuild.
+  var rebuildCalls = 0;
+  var env = loadScheduler({
+    onRebuild: function () { rebuildCalls++; return true; },
+    longTimerThreshold: 0,
+  });
+  env.handle.start({ selectors: [] });
+  await flush();
+
+  // 30 mutations, 200ms apart = 6000ms of continuous churn.
+  for (var i = 0; i < 30; i++) { env.captured.onMutation(); env.advance(200); await flush(); }
+  assert.ok(rebuildCalls >= 1, 'TOC rebuilds despite continuous mutation (no starvation)');
 });

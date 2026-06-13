@@ -282,9 +282,17 @@ test('high-frequency mutations use fixed debounce without site-specific branches
     env.getMutationHandler()();
   }
 
-  // Every mutation uses the same fixed debounce delay
+  // Every mutation schedules the same fixed 400ms debounce — no per-site or
+  // exponential variance. The scheduler additionally arms a single fixed 3000ms
+  // max-wait deadline (MAX_REBUILD_WAIT_MS in rebuild-scheduler.ts) so a
+  // continuous mutation stream can't starve rebuilds forever; that is the only
+  // non-debounce delay permitted here.
+  assert.ok(env.delays.includes(400), 'mutation debounce of 400ms is scheduled');
   for (const delay of env.delays) {
-    assert.equal(delay, 400, `all mutation debounces should be 400ms, got ${delay}`);
+    assert.ok(
+      delay === 400 || delay === 3000,
+      `unexpected delay ${delay}: only the fixed 400ms debounce and 3000ms max-wait are allowed`
+    );
   }
   scheduler.disconnect();
 });

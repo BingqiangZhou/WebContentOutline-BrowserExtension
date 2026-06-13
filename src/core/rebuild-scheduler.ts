@@ -14,6 +14,14 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
   // half-open probe lets the page retry once per RECOVERY_MS so a transient
   // burst of failures doesn't permanently freeze the TOC on the same page.
   var BREAKER_RECOVERY_MS = 30000;
+  // Maximum interval between the FIRST pending mutation and a rebuild. A pure
+  // debounce resets on every mutation, so a continuous mutation stream (e.g. a
+  // translate extension rewriting text nodes on a chatbot page, where the
+  // injected sentinel selector has switched dom-watcher into broad mode) can
+  // postpone rebuilds forever and freeze the TOC ("卡住"). The max-wait pins a
+  // deadline to the first pending mutation so a rebuild always fires eventually.
+  // Must exceed STREAMING_DEBOUNCE_MS so it only caps sustained storms.
+  var MAX_REBUILD_WAIT_MS = 3000;
 
   /**
    * Get dynamic debounce interval: longer during streaming to reduce rebuild frequency.
@@ -40,6 +48,10 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>,
     var hasPendingRebuild = false;
     var rebuildInFlight: Promise<boolean | void> | null = null;
     var debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    // Pinned max-wait timer (lodash maxWait semantics): armed on the first
+    // pending mutation and NOT reset by later mutations, so a sustained mutation
+    // burst still produces a rebuild within MAX_REBUILD_WAIT_MS.
+    var maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
     var consecutiveFailures = 0;
     var lastTripAt = 0;
     var recoveryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,7 +104,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>,
           consecutiveFailures = 0;
           lastTripAt = 0;
           clearRecoveryTimer();
-          if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+          clearScheduledTimers();
           if (domWatcher) domWatcher.invalidate();
           if (urlMonitor) urlMonitor.invalidate();
           return false;
@@ -137,21 +149,47 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>,
       return rebuildInFlight;
     };
 
+    // Clear both the debounce and the pinned max-wait timers.
+    function clearScheduledTimers() {
+      if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+      if (maxWaitTimer) { clearTimeout(maxWaitTimer); maxWaitTimer = null; }
+    }
+
+    // Shared body for the debounce/max-wait timers: clear any sibling timer,
+    // mark a rebuild pending, and dispatch it.
+    function runScheduledRebuild() {
+      clearScheduledTimers();
+      hasPendingRebuild = true;
+      attemptRebuild();
+    }
+
     var scheduleRebuild = function(immediate?: boolean) {
       if (!isExtensionContextValid) return;
       if (isBreakerTripped()) return;
       if (document.hidden) { hasPendingRebuild = true; return; }
       if (immediate) {
+        clearScheduledTimers();
         hasPendingRebuild = true;
         attemptRebuild();
         return;
       }
+      // Coalesce a mutation burst: reset the debounce on each mutation so a
+      // burst that settles fires a single rebuild.
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(function() {
         debounceTimer = null;
-        hasPendingRebuild = true;
-        attemptRebuild();
+        runScheduledRebuild();
       }, getDebounceMs());
+      // Pin a max-wait deadline to the FIRST pending mutation. Without this a
+      // continuous mutation stream resets the debounce forever and the TOC
+      // freezes on its last-rendered state. Only arm when not already armed so
+      // the deadline does not slide with later mutations.
+      if (!maxWaitTimer) {
+        maxWaitTimer = setTimeout(function() {
+          maxWaitTimer = null;
+          runScheduledRebuild();
+        }, MAX_REBUILD_WAIT_MS);
+      }
     };
 
     var onMutation = function() {
@@ -224,7 +262,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>,
         }
         if (domWatcher) { domWatcher.stop(); domWatcher = null; }
         if (urlMonitor) { urlMonitor.stop(); urlMonitor = null; }
-        if (debounceTimer) { clearTimeout(debounceTimer); debounceTimer = null; }
+        clearScheduledTimers();
         clearRecoveryTimer();
         hasPendingRebuild = false;
         rebuildInFlight = null;
