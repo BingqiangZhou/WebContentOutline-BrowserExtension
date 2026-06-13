@@ -287,6 +287,19 @@ var CHATBOT_HINTS: ChatbotAdapter[] = [
     assistantSelector: '[class*="copilot-assistant"], [class*="CopilotAssistantMessage"], [class*="SuggestedAction"]',
     sentinelSelector: '[class*="copilot-user"], [class*="copilot-assistant"], [class*="Copilot"]',
   },
+  {
+    // Agnes AI (app.agnes-ai.com): a Next.js + Ant Design chat app that renders
+    // turns as Tailwind utility-class divs — no headings, no role=log/feed, no
+    // data-message attributes — so the ARIA/data/structure cascade and selector
+    // discovery all miss it. User turns are right-aligned (justify-end); assistant
+    // turns are not. The outline is the list of user prompts.
+    match: function(hostname: string) {
+      return hostname === 'app.agnes-ai.com' || hostname.endsWith('.agnes-ai.com');
+    },
+    userSelector: '.animate-message-in.group.justify-end',
+    assistantSelector: '.animate-message-in.group:not(.justify-end)',
+    sentinelSelector: '.animate-message-in.group',
+  },
 ];
 
 // ---------------------------------------------------------------------------

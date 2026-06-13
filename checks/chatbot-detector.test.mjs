@@ -1022,3 +1022,61 @@ test('DeepSeek sentinel selector includes .ds-markdown and .ds-message', () => {
   assert.ok(sentinel.indexOf('ds-markdown') >= 0 && sentinel.indexOf('ds-message') >= 0,
     'sentinel should include DeepSeek-specific selectors');
 });
+
+// ---------------------------------------------------------------------------
+// Tests: Agnes AI (app.agnes-ai.com) — Tailwind-class chat, no semantic signals
+// ---------------------------------------------------------------------------
+
+test('Agnes: detected via hint; builds TOC from Tailwind message turns', () => {
+  // app.agnes-ai.com renders turns as Tailwind utility-class divs: no headings,
+  // no role=log/feed, no data-message attributes — auto-detection finds nothing.
+  // User turns are right-aligned (justify-end); assistant turns are not.
+  const userMsg1 = makeElement('div', {
+    className: 'animate-message-in group mb-5 flex justify-end gap-2.5',
+    docOrder: 0, offsetWidth: 600, offsetHeight: 100,
+  });
+  addTextContent(userMsg1, 'Summarize the quarterly report');
+  const assistantMsg1 = makeElement('div', {
+    className: 'animate-message-in group mb-5 flex gap-2.5',
+    docOrder: 1, offsetWidth: 600, offsetHeight: 400,
+  });
+  addTextContent(assistantMsg1, 'Here is the summary.');
+  const userMsg2 = makeElement('div', {
+    className: 'animate-message-in group mb-5 flex justify-end gap-2.5',
+    docOrder: 2, offsetWidth: 600, offsetHeight: 100,
+  });
+  addTextContent(userMsg2, 'What were the key risks?');
+  const assistantMsg2 = makeElement('div', {
+    className: 'animate-message-in group mb-5 flex gap-2.5',
+    docOrder: 3, offsetWidth: 600, offsetHeight: 300,
+  });
+  addTextContent(assistantMsg2, 'The key risks are...');
+  const allTurns = [userMsg1, assistantMsg1, userMsg2, assistantMsg2];
+
+  const mod = loadModule(
+    { hostname: 'app.agnes-ai.com', href: 'https://app.agnes-ai.com/?conversationId=123' },
+    {
+      querySelector(sel) {
+        // Hint validation probes the user selector.
+        if (sel === '.animate-message-in.group.justify-end') return userMsg1;
+        return null;
+      },
+      querySelectorAll(sel) {
+        if (sel === '.animate-message-in.group.justify-end') return [userMsg1, userMsg2];
+        if (sel === '.animate-message-in.group:not(.justify-end)') return [assistantMsg1, assistantMsg2];
+        if (sel === '.animate-message-in.group') return allTurns;
+        // No ARIA / data-attr / structural signals — forces hint fallback.
+        return [];
+      },
+      body: makeElement('body'),
+    }
+  );
+
+  assert.equal(mod.isChatbotPage(), true, 'Agnes should be detected via hint fallback');
+  const result = mod.tryBuildChatbotTocItems();
+  assert.ok(result !== null, 'should build a TOC for Agnes');
+  assert.ok(result.items.length >= 2, 'one level-1 item per user prompt');
+  assert.equal(result.items[0].level, 1);
+  assert.equal(result.items[0].source, 'user');
+  assert.ok(result.items[0].text.includes('quarterly'), 'first item is the first user prompt');
+});
