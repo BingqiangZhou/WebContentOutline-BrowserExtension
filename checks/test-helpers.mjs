@@ -43,6 +43,34 @@ export function loadTocMessage() {
 }
 
 /**
+ * Load the real `gatherOpenShadowRoots` from src/utils/dom-utils.ts so test
+ * sandboxes that strip imports can inject the genuine shadow-root traversal
+ * (content-region.ts delegates to it after the gatherQuery/RegionRoots merge).
+ */
+export function loadGatherOpenShadowRoots() {
+  const file = path.join(repoRoot, 'src/utils/dom-utils.ts');
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
+  const sandbox = { console, __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source + '\n__exports.gatherOpenShadowRoots = gatherOpenShadowRoots;', sandbox, { filename: file });
+  return sandbox.__exports.gatherOpenShadowRoots;
+}
+
+/**
+ * Load the real `normalizeSelectorList` from src/shared/primitives.ts so test
+ * sandboxes that strip imports can inject the genuine selector-list dedupe
+ * (storage.ts delegates to it after the normalizeSelectors/loop merge).
+ */
+export function loadNormalizeSelectorList() {
+  const file = path.join(repoRoot, 'src/shared/primitives.ts');
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
+  const sandbox = { console, __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source + '\n__exports.normalizeSelectorList = normalizeSelectorList;', sandbox, { filename: file });
+  return sandbox.__exports.normalizeSelectorList;
+}
+
+/**
  * Strip TypeScript syntax from source code using the TypeScript compiler API.
  *
  * This is bulletproof — handles all TS syntax including complex generics,
@@ -76,7 +104,7 @@ export function stripTsSyntax(source) {
 export function stripImportsAndExports(source) {
   return source
     .replace(/^import .+;\r?\n/gm, '')
-    .replace(/^export\s+\{[^}]*\};?\r?\n?/g, '')
+    .replace(/^export\s+\{[^}]*\};?\r?\n?/gm, '')
     .replace(/export\s+async\s+function /g, 'async function ')
     .replace(/export\s+function /g, 'function ')
     .replace(/export\s+default\s+/g, '')

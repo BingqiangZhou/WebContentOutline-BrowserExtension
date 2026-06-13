@@ -13,7 +13,6 @@ function getMeaningfulClasses(el: Element): string[] {
 }
 
 function escapeCssIdentifier(ident: string): string {
-  if (typeof ident !== 'string') return '';
   return ident.replace(/([^\w-])/g, '\\$1');
 }
 

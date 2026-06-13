@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax } from './test-helpers.mjs';
+import { stripTsSyntax, loadGatherOpenShadowRoots } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -110,6 +110,7 @@ function loadModule(docMock, locMock) {
     Map: globalThis.Map,
     Set: globalThis.Set,
     Record: undefined,
+    gatherOpenShadowRoots: loadGatherOpenShadowRoots(),
     __exports: {},
   };
   sandbox.globalThis = sandbox;

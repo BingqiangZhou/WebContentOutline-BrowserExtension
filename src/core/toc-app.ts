@@ -9,7 +9,6 @@ import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged }
 import { createRebuildScheduler } from './rebuild-scheduler.js';
 import { createActiveItemTracker } from './active-item-tracker.js';
 import { createNavLock } from './nav-lock.js';
-import type { NavLock } from './nav-lock.js';
 import {
   msg,
   showToast,
@@ -112,10 +111,9 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       onUnlock: function() {
         // When the nav lock releases, retry a rebuild that was parked while the
         // user was navigating — so the TOC doesn't wait for the next external
-        // mutation/event to refresh.
-        if (rebuildScheduler && rebuildScheduler.getPendingRebuild && rebuildScheduler.getPendingRebuild()) {
-          rebuildScheduler.setPendingRebuild(true);
-        }
+        // mutation/event to refresh. setPendingRebuild(true) is a no-op when
+        // nothing is parked, so calling it unconditionally is safe.
+        if (rebuildScheduler) rebuildScheduler.setPendingRebuild(true);
       }
     });
     var configDirty = true; // true on init so first rebuild reads from storage

@@ -75,55 +75,66 @@ export function findMatchingConfig(configs: Array<{ urlPattern?: string; selecto
     var SHADOW_ROOT_MAX_ROOTS = 50;
 
     /**
-     * Collect every queryable root reachable from `root`: the root itself plus
-     * open shadow roots and same-origin iframe documents (recursively, bounded).
-     * Closed shadow roots and cross-origin iframes are inaccessible and skipped.
-     * querySelectorAll / document.evaluate do not cross these boundaries on
-     * their own, so callers must query each returned root.
+     * Bounded BFS over queryable roots: `root` itself plus descendant open
+     * shadow roots (and, when includeIframes is set, rendered same-origin iframe
+     * documents). Closed shadow roots and cross-origin iframes are inaccessible
+     * and skipped. Shared by the heading collector (here, with iframe descent)
+     * and the content-region detector (without iframe descent).
      */
-function gatherQueryRoots(root: Element | Document | DocumentFragment | ShadowRoot): Array<Element | Document | DocumentFragment | ShadowRoot> {
-      var roots: Array<Element | Document | DocumentFragment | ShadowRoot> = [];
-      if (!root) return roots;
-      var queue: Array<{ node: Element | Document | DocumentFragment | ShadowRoot; depth: number }> = [{ node: root, depth: 0 }];
-      while (queue.length && roots.length < SHADOW_ROOT_MAX_ROOTS) {
-        var item = queue.shift();
-        if (!item) continue;
-        var node = item.node;
-        roots.push(node);
-        if (item.depth >= SHADOW_ROOT_MAX_DEPTH) continue;
-        var descendants: NodeListOf<Element> | null = null;
+export function gatherOpenShadowRoots(
+  root: Element | Document | DocumentFragment | ShadowRoot | null,
+  opts: { maxDepth: number; maxRoots: number; includeIframes: boolean }
+): Array<Element | Document | DocumentFragment | ShadowRoot> {
+  var roots: Array<Element | Document | DocumentFragment | ShadowRoot> = [];
+  if (!root) return roots;
+  var queue: Array<{ node: Element | Document | DocumentFragment | ShadowRoot; depth: number }> = [{ node: root, depth: 0 }];
+  while (queue.length && roots.length < opts.maxRoots) {
+    var item = queue.shift();
+    if (!item) continue;
+    var node = item.node;
+    roots.push(node);
+    if (item.depth >= opts.maxDepth) continue;
+    var descendants: NodeListOf<Element> | null = null;
+    try {
+      var qa = (node as any).querySelectorAll;
+      if (typeof qa === 'function') descendants = qa.call(node, '*');
+    } catch (_) {}
+    if (!descendants) continue;
+    for (var i = 0; i < descendants.length && roots.length < opts.maxRoots; i++) {
+      var el = descendants[i] as any;
+      // Open shadow root (closed shadow roots expose null and are skipped).
+      try {
+        var sr = el.shadowRoot;
+        if (sr) queue.push({ node: sr, depth: item.depth + 1 });
+      } catch (_) {}
+      // Same-origin iframe document (cross-origin access throws / returns null).
+      // Only descend into rendered iframes: a hidden / zero-size iframe's
+      // inner document is still laid out, so its headings would otherwise
+      // pass the visibility filter and leak in as invisible content.
+      if (opts.includeIframes && el.tagName === 'IFRAME') {
+        var iframeRendered = true;
         try {
-          var qa = (node as any).querySelectorAll;
-          if (typeof qa === 'function') descendants = qa.call(node, '*');
+          if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') iframeRendered = false;
+          else if (el.offsetWidth === 0 || el.offsetHeight === 0) iframeRendered = false;
         } catch (_) {}
-        if (!descendants) continue;
-        for (var i = 0; i < descendants.length && roots.length < SHADOW_ROOT_MAX_ROOTS; i++) {
-          var el = descendants[i] as any;
-          // Open shadow root (closed shadow roots expose null and are skipped).
+        if (iframeRendered) {
           try {
-            var sr = el.shadowRoot;
-            if (sr) queue.push({ node: sr, depth: item.depth + 1 });
+            var cd = el.contentDocument;
+            if (cd) queue.push({ node: cd, depth: item.depth + 1 });
           } catch (_) {}
-          // Same-origin iframe document (cross-origin access throws / returns null).
-          // Only descend into rendered iframes: a hidden / zero-size iframe's
-          // inner document is still laid out, so its headings would otherwise
-          // pass the visibility filter and leak in as invisible content.
-          if (el.tagName === 'IFRAME') {
-            var iframeRendered = true;
-            try {
-              if (el.getAttribute && el.getAttribute('aria-hidden') === 'true') iframeRendered = false;
-              else if (el.offsetWidth === 0 || el.offsetHeight === 0) iframeRendered = false;
-            } catch (_) {}
-            if (iframeRendered) {
-              try {
-                var cd = el.contentDocument;
-                if (cd) queue.push({ node: cd, depth: item.depth + 1 });
-              } catch (_) {}
-            }
-          }
         }
       }
-      return roots;
+    }
+  }
+  return roots;
+}
+
+    /**
+     * Collect every queryable root reachable from `root`: the root itself plus
+     * open shadow roots and same-origin iframe documents (recursively, bounded).
+     */
+function gatherQueryRoots(root: Element | Document | DocumentFragment | ShadowRoot): Array<Element | Document | DocumentFragment | ShadowRoot> {
+  return gatherOpenShadowRoots(root, { maxDepth: SHADOW_ROOT_MAX_DEPTH, maxRoots: SHADOW_ROOT_MAX_ROOTS, includeIframes: true });
     }
 
     /**

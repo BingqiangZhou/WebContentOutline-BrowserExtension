@@ -19,11 +19,6 @@ export var SELECTOR_EXPR_MAX_LENGTH = 2000;
 export var EXTENSION_OWNER = 'web-toc-assistant';
 
 /**
- * Selector matching all extension-owned elements.
- */
-export var OWNED_SELECTOR = '[data-toc-owner="' + EXTENSION_OWNER + '"]';
-
-/**
  * TOC building limits.
  */
 export var TOC_TEXT_MAX_LEN = 200;

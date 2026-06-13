@@ -8,7 +8,7 @@ import {
   isContextInvalidatedError,
   validateSelectorExpression
 } from './core-utils.js';
-import { serializedWrite, pruneObjectToLimit, normalizeSide } from '../shared/primitives.js';
+import { pruneObjectToLimit, normalizeSide, normalizeSelectorList } from '../shared/primitives.js';
 
 function normalizeSelectorEntry(entry: any) {
     if (!entry || typeof entry !== 'object') return null;
@@ -44,18 +44,7 @@ function normalizeTocConfigs(value: unknown) {
       seen.add(urlPattern);
 
       var side = normalizeSide(raw.side);
-      var selectorsRaw: any[] = Array.isArray(raw.selectors) ? raw.selectors : [];
-      var selectors: any[] = [];
-      var selSeen = new Set<string>();
-      for (var si = 0; si < selectorsRaw.length; si++) {
-        var norm = normalizeSelectorEntry(selectorsRaw[si]);
-        if (!norm) continue;
-        var dedupeKey = norm.type + ':' + norm.expr;
-        if (selSeen.has(dedupeKey)) continue;
-        selSeen.add(dedupeKey);
-        selectors.push(norm);
-        if (selectors.length >= maxSelectorsPerSite) break;
-      }
+      var selectors = normalizeSelectorList(raw.selectors, normalizeSelectorEntry, maxSelectorsPerSite);
 
       var cfg = Object.assign({}, raw, { urlPattern: urlPattern, side: side, selectors: selectors });
       delete cfg.collapsedDefault; // legacy Classic UI field cleanup
@@ -97,7 +86,6 @@ async function getStorage<T>(key: string, fallback: T): Promise<T> {
       }
       return fallback;
     } catch (e) {
-      if (isContextInvalidatedError(e)) return fallback;
       return fallback;
     }
   }

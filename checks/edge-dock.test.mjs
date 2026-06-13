@@ -108,7 +108,6 @@ function loadDockPreviewHelpers() {
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}
-__exports.getPreviewLineMetrics = getPreviewLineMetrics;
 __exports.selectPreviewItems = selectPreviewItems;`,
     sandbox,
     { filename: file }
@@ -209,15 +208,6 @@ test('collapsed outline preview windows long toc lists around the active item', 
     Array.from(selectPreviewItems(items, -1, 12), (item) => item.index),
     [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
   );
-});
-
-test('collapsed outline preview maps heading levels to line width and inset', () => {
-  const { getPreviewLineMetrics } = loadDockPreviewHelpers();
-
-  assert.deepEqual({ ...getPreviewLineMetrics(1) }, { width: 26, inset: 0 });
-  assert.deepEqual({ ...getPreviewLineMetrics(3) }, { width: 20, inset: 4 });
-  assert.deepEqual({ ...getPreviewLineMetrics(6) }, { width: 11, inset: 10 });
-  assert.deepEqual({ ...getPreviewLineMetrics(99) }, { width: 11, inset: 10 });
 });
 
 test('edge dock is included in cleanup, mutation filtering, and picker exclusion rules', () => {

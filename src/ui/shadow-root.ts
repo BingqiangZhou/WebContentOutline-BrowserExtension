@@ -8,7 +8,7 @@
 // replacing the old `data-toc-owner` + `all: unset !important` light-DOM
 // defense). The shadow HOST element itself stays in the host document and
 // carries `data-toc-owner` so that:
-//   - the element picker classifies it as own-UI (closest(OWNED_SELECTOR)),
+//   - the element picker classifies it as own-UI (closest('[data-toc-owner="..."]')),
 //   - cleanupOwnedElements can discover it,
 //   - computeOverlayOffset can skip it in the elementsFromPoint stack.
 //

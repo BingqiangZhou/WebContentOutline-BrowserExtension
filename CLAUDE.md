@@ -151,18 +151,11 @@ Split into three focused modules:
 
 ## Defensive Programming Patterns
 
-1. **Import validation**: Modules check imported symbols at initialization
-   ```javascript
-   if (!getConfigs || !initForConfig || !getSiteEnabledByOrigin) return;
-   ```
+1. **Error boundaries**: try/catch around all chrome API calls
 
-2. **Fallback storage**: localStorage if chrome.storage unavailable
+2. **Cleanup hooks**: `destroy()` methods on toc-app, rebuild-scheduler for full teardown
 
-3. **Error boundaries**: try/catch around all chrome API calls
-
-4. **Cleanup hooks**: `destroy()` methods on toc-app, rebuild-scheduler for full teardown
-
-5. **CSS isolation**: All styles use `!important` with global reset
+3. **CSS isolation**: All styles use `!important` with global reset
 
 ## CSS Architecture (`entrypoints/toc.content/style.css`)
 

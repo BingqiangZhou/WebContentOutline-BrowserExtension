@@ -1,10 +1,9 @@
 
 'use strict';
 
-import { msg, getFocusableWithin } from '../utils/toc-utils.js';
-import { createFocusTrap } from '../utils/focus-trap.js';
+import { msg } from '../utils/toc-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
-import { getTocShadowHost, getDeepActiveElement } from './shadow-root.js';
+import { createOverlayDialog } from './overlay-dialog.js';
 
   var CFG = {
     PICKER_TIMEOUT_MS: 20000,
@@ -12,27 +11,12 @@ import { getTocShadowHost, getDeepActiveElement } from './shadow-root.js';
   };
 
 export function showPickerResult(selector: string, saveCb: ((selector: string, close: () => void) => void) | undefined) {
-    var prevFocus = getDeepActiveElement();
-    var existing = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
-    if (existing) {
-      existing.remove();
-    }
+    var dlg = createOverlayDialog({ owner: EXTENSION_OWNER, title: msg('pickerResultTitle') });
+    var wrap = dlg.wrap;
+    var body = dlg.body;
+    var actions = dlg.actions;
+    var close = dlg.close;
 
-    var wrap = document.createElement('div');
-    wrap.className = 'toc-overlay';
-    wrap.setAttribute('data-toc-owner', EXTENSION_OWNER);
-    wrap.setAttribute('role', 'dialog');
-    wrap.setAttribute('aria-modal', 'true');
-    wrap.tabIndex = -1;
-
-    var header = document.createElement('div');
-    header.className = 'toc-overlay-header';
-    header.textContent = msg('pickerResultTitle');
-    header.id = 'toc-overlay-title-' + Math.random().toString(36).slice(2);
-    wrap.setAttribute('aria-labelledby', header.id);
-
-    var body = document.createElement('div');
-    body.className = 'toc-overlay-body';
     var textarea = document.createElement('textarea');
     textarea.className = 'toc-overlay-textarea';
     textarea.readOnly = true;
@@ -40,9 +24,6 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
     textarea.setAttribute('aria-label', msg('pickerResultTitle') || 'CSS selector');
     textarea.textContent = selector;
     body.appendChild(textarea);
-
-    var actions = document.createElement('div');
-    actions.className = 'toc-overlay-actions';
 
     var btnSave = document.createElement('button');
     btnSave.type = 'button';
@@ -61,28 +42,6 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
     actions.appendChild(btnSave);
     actions.appendChild(btnClose);
 
-    wrap.appendChild(header);
-    wrap.appendChild(body);
-    wrap.appendChild(actions);
-
-    var restoreFocus = function() {
-      if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
-        (prevFocus as HTMLElement).focus({ preventScroll: true });
-      }
-    };
-    var focusRaf: number | null = null;
-    var close = function() {
-      removeFocusTrap();
-      removeFocusTrap = function() {};
-      if (focusRaf) {
-        cancelAnimationFrame(focusRaf);
-        focusRaf = null;
-      }
-      wrap.remove();
-      restoreFocus();
-    };
-
-    var removeFocusTrap = createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin });
     wrap.addEventListener('click', function(e) {
       var target = e && e.target;
       var btn = target && (target as HTMLElement).closest ? (target as HTMLElement).closest('[data-act]') : null;
@@ -91,12 +50,7 @@ export function showPickerResult(selector: string, saveCb: ((selector: string, c
       if (act === 'close') close();
       if (act === 'save') { try { saveCb && saveCb(selector, close); } catch (e) { console.warn('[toc] saveCb error:', e); } }
     });
-    (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(wrap);
-    focusRaf = requestAnimationFrame(function() {
-      focusRaf = null;
-      if (!wrap || !wrap.isConnected) return;
-      btnSave.focus({ preventScroll: true });
-    });
+    dlg.mount(btnSave);
     return { close: close };
   }
 

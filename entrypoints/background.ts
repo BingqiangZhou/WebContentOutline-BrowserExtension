@@ -36,7 +36,7 @@ const BG_MAX_SELECTORS_PER_SITE = 50;
 // Gated behind __TOC_DEBUG so production stays quiet; set it in the service
 // worker console to see why a tab's icon or injection didn't apply.
 function bgWarn(e: unknown): void {
-  try { if ((globalThis as any).__TOC_DEBUG) console.warn('[toc/bg] lifecycle op failed:', e); } catch (_) {}
+  if ((globalThis as any).__TOC_DEBUG) console.warn('[toc/bg] lifecycle op failed:', e);
 }
 
 async function getEnabledMap(): Promise<Record<string, boolean>> {
@@ -223,9 +223,7 @@ async function injectIntoTab(tabId: number): Promise<{ ok: boolean; step?: strin
   // cssInjectionMode:'ui') and loads it into its shadow root, so the background
   // no longer injects the stylesheet into the host document.
   try {
-    if (CONTENT_SCRIPTS.length) {
-      await browser.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS as any });
-    }
+    await browser.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPTS as any });
   } catch (e) {
     console.warn('[toc] injectIntoTab failed (js):', e, { tabId });
     return { ok: false, step: 'js', error: e };
@@ -381,7 +379,7 @@ browser.tabs.onCreated.addListener((tab: any) => {
 // map tidy without waiting for that — important for long-lived sessions where
 // the SW stays alive.)
 browser.tabs.onRemoved.addListener((tabId: number) => {
-  try { injectionLocks.delete(tabId); } catch (_) {}
+  injectionLocks.delete(tabId);
 });
 
 // After an update from required -> optional host_permissions, previously

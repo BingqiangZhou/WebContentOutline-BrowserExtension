@@ -17,6 +17,24 @@
   box-sizing: border-box;
 }
 
+/* Per-element UA reset — neutralize the browser's UA defaults on extension
+   elements so they render like 1.6.2. Shadow DOM blocks the host page's CSS,
+   but NOT the UA stylesheet: <button>/<textarea> don't inherit font/color and
+   carry their own padding/border/radius, which leaked through after the shadow
+   migration dropped the old `all: unset` reset. `all` excludes custom
+   properties, so theme variables declared below are unaffected. Component
+   rules below re-apply the intended styling — they appear later in source
+   order and use !important, so they win (equal specificity -> source order). */
+.toc-floating, .toc-floating *,
+.toc-edge-dock, .toc-edge-dock * {
+  all: unset !important;
+  box-sizing: border-box !important;
+}
+.toc-floating *, .toc-edge-dock * {
+  font-family: inherit !important;
+  color: inherit !important;
+}
+
 /* Shared theme variables — all TOC components inherit from this block */
 .toc-floating,
 .toc-overlay,
@@ -734,8 +752,7 @@
   color: var(--toc-text-btn-hover) !important;
 }
 
-.toc-btn:focus,
-.toc-btn.toc-btn-active {
+.toc-btn:focus {
   background: var(--toc-bg-hover) !important;
   color: var(--toc-text-btn-hover) !important;
 }

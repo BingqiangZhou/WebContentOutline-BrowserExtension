@@ -51,7 +51,7 @@ export type TocRequest =
   // Content → background: persist UI state (e.g. badge/dock position per host).
   | {
       type: typeof TOC_MESSAGE.MUTATE_UI_STATE;
-      operation: 'set-badge-position' | 'set-panel-expanded';
+      operation: 'set-badge-position';
       key: string;
       value: unknown;
     };

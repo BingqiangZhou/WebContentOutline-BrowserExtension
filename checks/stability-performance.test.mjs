@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
 import vm from 'node:vm';
-import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems, loadTocMessage } from './test-helpers.mjs';
+import { stripTsSyntax, stripImportsAndExports, loadDedupeMirrorItems, loadTocMessage, loadNormalizeSelectorList } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -228,6 +228,7 @@ function loadStorageForNormalization() {
     isQuotaExceededError() { return false; },
     pruneObjectToLimit(map) { return map; },
     normalizeSide(side) { return side === 'left' ? 'left' : 'right'; },
+    normalizeSelectorList: loadNormalizeSelectorList(),
     showToast() {},
     __exports: {}
   };
@@ -820,7 +821,7 @@ test('badge position write falls back to local serialized map write without runt
   assert.equal(saved.x, 300);
 });
 
-test('UI state mutations preserve independent position and panel entries', () => {
+test('UI state mutations preserve independent position entries', () => {
   const { applyUiStateMutation } = loadUiStatePrimitives();
   const firstPosition = applyUiStateMutation({}, {
     operation: 'set-badge-position',
@@ -832,24 +833,10 @@ test('UI state mutations preserve independent position and panel entries', () =>
     key: 'chat.example.com',
     value: { x: 900, y: 260, anchorX: 'right' }
   }, 400);
-  const firstPanel = applyUiStateMutation({}, {
-    operation: 'set-panel-expanded',
-    key: 'https://docs.example.com',
-    value: true
-  }, 400);
-  const secondPanel = applyUiStateMutation(firstPanel.map, {
-    operation: 'set-panel-expanded',
-    key: 'https://chat.example.com',
-    value: false
-  }, 400);
 
   assert.deepEqual(plain(secondPosition.map), {
     'docs.example.com': { x: 0, y: 120, anchorX: 'left' },
     'chat.example.com': { x: 900, y: 260, anchorX: 'right' }
-  });
-  assert.deepEqual(plain(secondPanel.map), {
-    'https://docs.example.com': true,
-    'https://chat.example.com': false
   });
 });
 
@@ -874,21 +861,10 @@ test('serialized UI state writes preserve concurrent site updates', async () => 
       operation: 'set-badge-position',
       key: 'chat.example.com',
       value: { x: 30, y: 40 }
-    }, 0),
-    mutate('tocPanelExpandedMap', {
-      operation: 'set-panel-expanded',
-      key: 'https://docs.example.com',
-      value: true
-    }, 10),
-    mutate('tocPanelExpandedMap', {
-      operation: 'set-panel-expanded',
-      key: 'https://chat.example.com',
-      value: false
     }, 0)
   ]);
 
   assert.deepEqual(Object.keys(storage.tocBadgePosMap), ['docs.example.com', 'chat.example.com']);
-  assert.deepEqual(Object.keys(storage.tocPanelExpandedMap), ['https://docs.example.com', 'https://chat.example.com']);
 });
 
 test('UI state source validation rejects forged site keys', () => {
@@ -899,12 +875,8 @@ test('UI state source validation rejects forged site keys', () => {
     key: 'docs.example.com'
   }, 'https://evil.example.com/article')), { ok: false, reason: 'bad-site' });
   assert.deepEqual(plain(validateUiStateMutationSource({
-    operation: 'set-panel-expanded',
-    key: 'https://docs.example.com'
-  }, 'https://evil.example.com/article')), { ok: false, reason: 'bad-site' });
-  assert.deepEqual(plain(validateUiStateMutationSource({
-    operation: 'set-panel-expanded',
-    key: 'https://docs.example.com'
+    operation: 'set-badge-position',
+    key: 'docs.example.com'
   }, 'https://docs.example.com/article')), { ok: true, reason: null });
 });
 

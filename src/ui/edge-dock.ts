@@ -37,19 +37,6 @@ function resolveDockSide(pos: BadgePos | null, viewportWidth: number, fallbackSi
   return fallbackSide === 'left' ? 'left' : 'right';
 }
 
-function getPreviewLineMetrics(level: number): { width: number; inset: number } {
-  var metrics = [
-    { width: 26, inset: 0 },
-    { width: 23, inset: 2 },
-    { width: 20, inset: 4 },
-    { width: 17, inset: 6 },
-    { width: 14, inset: 8 },
-    { width: 11, inset: 10 }
-  ];
-  var safeLevel = Math.max(1, Math.min(6, Number(level) || 2));
-  return metrics[safeLevel - 1];
-}
-
 interface DockItem {
   el?: Element;
   text: string;
@@ -278,7 +265,6 @@ export function renderEdgeDock(options: EdgeDockOptions) {
     for (var i = 0; i < subset.length; i++) {
       var item = subset[i];
       var index = dockItems.indexOf(item);
-      var metrics = getPreviewLineMetrics(item && item.level);
       var line = document.createElement('button');
       line.type = 'button';
       line.className = 'toc-edge-dock-preview-line';
@@ -290,8 +276,6 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       }
       line.dataset.level = String(Math.max(1, Math.min(6, Number(item && item.level) || 2)));
       if (item && item.source) line.dataset.source = item.source;
-      line.style.setProperty('width', metrics.width + 'px', 'important');
-      line.style.setProperty('margin-left', metrics.inset + 'px', 'important');
       preview.appendChild(line);
     }
   }

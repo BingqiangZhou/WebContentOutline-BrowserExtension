@@ -1,13 +1,11 @@
 
 'use strict';
 
-import { createFocusTrap } from '../utils/focus-trap.js';
-import { getTocShadowHost, getDeepActiveElement } from '../ui/shadow-root.js';
+import { createOverlayDialog } from '../ui/overlay-dialog.js';
 import {
   showToast,
   getConfigs,
   findMatchingConfig,
-  getFocusableWithin,
   msg,
   validateSelectorExpression,
   normalizeSide,
@@ -27,10 +25,6 @@ import { TOC_MESSAGE } from '../shared/messages.js';
 
   export function setOnConfigChanged(fn: (() => void) | null) {
     _onConfigChanged = typeof fn === 'function' ? fn : null;
-  }
-
-  export function clearOnConfigChanged() {
-    _onConfigChanged = null;
   }
 
   function notifyConfigChanged() {
@@ -63,35 +57,18 @@ import { TOC_MESSAGE } from '../shared/messages.js';
   }
 
 export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
-    var box: HTMLDivElement | undefined;
+    var dlg: ReturnType<typeof createOverlayDialog> | undefined;
     try {
-      var prevFocus = getDeepActiveElement() as HTMLElement | null;
-      var existing = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"]');
-      if (existing) {
-        existing.remove();
-      }
-
       var configs = await getConfigs() as StoredConfig[];
       var urlPattern = buildSitePattern();
       var idx = configs.findIndex(function(c) { return c && c.urlPattern === urlPattern; });
       var list: Array<{ type: string; expr: string }> = (idx >= 0 && Array.isArray(configs[idx].selectors) ? configs[idx].selectors : null) || [];
 
-      box = document.createElement('div');
-      box.className = 'toc-overlay';
-      box.setAttribute('data-toc-owner', EXTENSION_OWNER);
-      box.setAttribute('role', 'dialog');
-      box.setAttribute('aria-modal', 'true');
-      box.tabIndex = -1;
-
-      var header = document.createElement('div');
-      header.className = 'toc-overlay-header';
-      header.textContent = msg('configDialogTitle') + ' - ' + urlPattern;
-      header.id = 'toc-overlay-title-' + Math.random().toString(36).slice(2);
-      box.setAttribute('aria-labelledby', header.id);
-      box.appendChild(header);
-
-      var body = document.createElement('div');
-      body.className = 'toc-overlay-body';
+      dlg = createOverlayDialog({ owner: EXTENSION_OWNER, title: msg('configDialogTitle') + ' - ' + urlPattern });
+      var box = dlg.wrap;
+      var body = dlg.body;
+      var actions = dlg.actions;
+      var close = dlg.close;
 
       var countLabel = document.createElement('div');
       countLabel.className = 'toc-config-count';
@@ -104,7 +81,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       var refreshList = async function(selectors: Array<{ type: string; expr: string }>) {
         listDiv.replaceChildren();
         if (selectors && selectors.length) {
-          selectors.forEach(function(s, sIndex) {
+          selectors.forEach(function(s) {
             var item = document.createElement('div');
             item.className = 'toc-selector-item';
 
@@ -164,10 +141,6 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
       await refreshList(list);
 
       body.appendChild(listDiv);
-      box.appendChild(body);
-
-      var actions = document.createElement('div');
-      actions.className = 'toc-overlay-actions';
 
       var btnClear = document.createElement('button');
       btnClear.type = 'button';
@@ -183,33 +156,6 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
 
       actions.appendChild(btnClear);
       actions.appendChild(btnClose);
-      box.appendChild(actions);
-
-      var restoreFocus = function() {
-        if (prevFocus && prevFocus.focus && document.contains(prevFocus)) {
-          prevFocus.focus({ preventScroll: true });
-        }
-      };
-      var focusRaf: number | null = null;
-      var close = function() {
-        removeFocusTrap();
-        removeFocusTrap = function() {};
-        if (focusRaf) {
-          cancelAnimationFrame(focusRaf);
-          focusRaf = null;
-        }
-        if (box) box.remove();
-        restoreFocus();
-      };
-
-      var getFocusable = function(): Element[] {
-        try {
-          if (box) return getFocusableWithin(box);
-        } catch (_) {}
-        return [];
-      };
-
-      var removeFocusTrap: (() => void) = createFocusTrap(box, { onClose: close, getFocusableWithin: getFocusable });
 
       box.addEventListener('click', async function(e) {
         try {
@@ -241,14 +187,9 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
         }
       });
 
-      (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(box);
-      focusRaf = requestAnimationFrame(function() {
-        focusRaf = null;
-        if (!box || !box.isConnected) return;
-        btnClose.focus({ preventScroll: true });
-      });
+      dlg.mount(btnClose);
     } catch (e) {
-      if (box && box.isConnected) box.remove();
+      if (dlg && dlg.wrap.isConnected) dlg.wrap.remove();
       console.error(msg('logClearConfigFailed'), e);
       showToast(msg('errorOperationFailed'), { type: 'error' });
     }

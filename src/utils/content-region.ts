@@ -1,6 +1,8 @@
 
 'use strict';
 
+import { gatherOpenShadowRoots } from './dom-utils.js';
+
 /**
  * Automatic content region detection for TOC generation.
  *
@@ -29,7 +31,7 @@ interface CandidateEntry {
 }
 
 /** A root that can be queried: the document, an element, or an open shadow root. */
-type QueryRoot = Element | Document | ShadowRoot;
+type QueryRoot = Element | Document | DocumentFragment | ShadowRoot;
 
 // ---------------------------------------------------------------------------
 // Cache
@@ -205,31 +207,10 @@ var REGION_SHADOW_MAX_ROOTS = 50;
 
 /** Collect `root` plus its descendant open shadow roots (bounded). Closed
  *  shadow roots expose null and are skipped. Mirrors the heading collector's
- *  bounds so the two stay consistent. */
+ *  bounds so the two stay consistent. Iframe descent is disabled — region
+ *  detection scopes to the top document's shadow trees. */
 function gatherRegionRoots(root: Element | Document | null): QueryRoot[] {
-  var roots: QueryRoot[] = [];
-  if (!root) return roots;
-  var queue: Array<{ node: QueryRoot; depth: number }> = [{ node: root as QueryRoot, depth: 0 }];
-  while (queue.length && roots.length < REGION_SHADOW_MAX_ROOTS) {
-    var item = queue.shift();
-    if (!item) continue;
-    roots.push(item.node);
-    if (item.depth >= REGION_SHADOW_MAX_DEPTH) continue;
-    var descendants: any = null;
-    try {
-      var qa = (item.node as any).querySelectorAll;
-      if (typeof qa === 'function') descendants = qa.call(item.node, '*');
-    } catch (_) {}
-    if (!descendants) continue;
-    for (var i = 0; i < descendants.length && roots.length < REGION_SHADOW_MAX_ROOTS; i++) {
-      var el = descendants[i];
-      try {
-        var sr = (el as any).shadowRoot;
-        if (sr) queue.push({ node: sr, depth: item.depth + 1 });
-      } catch (_) {}
-    }
-  }
-  return roots;
+  return gatherOpenShadowRoots(root, { maxDepth: REGION_SHADOW_MAX_DEPTH, maxRoots: REGION_SHADOW_MAX_ROOTS, includeIframes: false });
 }
 
 /** querySelector across gathered roots (light first, then shadow). */

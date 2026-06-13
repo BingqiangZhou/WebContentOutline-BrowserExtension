@@ -93,20 +93,28 @@ function normalizeSelector(selector: unknown): NormalizedSelector | null {
   return Object.assign({}, sel, { type: type, expr: expr }) as NormalizedSelector;
 }
 
-function normalizeSelectors(selectors: unknown, maxSelectors: number): NormalizedSelector[] {
-  var list = Array.isArray(selectors) ? selectors : [];
+/** Iterate a raw selector list, normalize each entry via `normalizeOne`,
+ *  dedupe by `type:expr`, and cap at `max`. Shared by the SW config path
+ *  (pure-string validation) and the content-script storage path (DOM-based
+ *  validation) — only the per-entry validator differs. */
+function normalizeSelectorList<T extends { type: string; expr: string }>(rawList: unknown, normalizeOne: (entry: unknown) => T | null, max: number): T[] {
+  var list = Array.isArray(rawList) ? rawList : [];
   var seen = new Set<string>();
-  var out: NormalizedSelector[] = [];
+  var out: T[] = [];
   for (var i = 0; i < list.length; i++) {
-    var sel = normalizeSelector(list[i]);
+    var sel = normalizeOne(list[i]);
     if (!sel) continue;
     var key = sel.type + ':' + sel.expr;
     if (seen.has(key)) continue;
     seen.add(key);
     out.push(sel);
-    if (out.length >= maxSelectors) break;
+    if (out.length >= max) break;
   }
   return out;
+}
+
+function normalizeSelectors(selectors: unknown, maxSelectors: number): NormalizedSelector[] {
+  return normalizeSelectorList<NormalizedSelector>(selectors, normalizeSelector, maxSelectors);
 }
 
 interface ConfigLimits {
@@ -260,11 +268,7 @@ function validateUiStateMutationSource(mutation: unknown, senderUrl: string): Ui
   try {
     var parsed = new URL(senderUrl);
     if (!/^https?:$/.test(parsed.protocol)) return { ok: false, reason: 'bad-site' };
-    var expectedKey = mut.operation === 'set-badge-position'
-      ? parsed.host
-      : mut.operation === 'set-panel-expanded'
-        ? parsed.origin
-        : '';
+    var expectedKey = mut.operation === 'set-badge-position' ? parsed.host : '';
     return expectedKey && String(mut.key || '').trim() === expectedKey
       ? { ok: true, reason: null }
       : { ok: false, reason: 'bad-site' };
@@ -292,9 +296,6 @@ function applyUiStateMutation(currentMap: unknown, mutation: unknown, maxKeys: n
   if (operation === 'set-badge-position') {
     value = normalizePosition(mut.value);
     if (!value) return { ok: false, reason: 'invalid-position', map: map };
-  } else if (operation === 'set-panel-expanded') {
-    if (typeof mut.value !== 'boolean') return { ok: false, reason: 'invalid-expanded', map: map };
-    value = mut.value;
   } else {
     return { ok: false, reason: 'invalid-operation', map: map };
   }
@@ -324,7 +325,7 @@ function normalizeSide(side: unknown): 'left' | 'right' {
 export {
   serializedWrite, isQuotaExceededError, touchObjectKey, pruneObjectToLimit,
   isPlainObject, isHighRiskBroadCssSelector,
-  normalizeSide, originFromUrl,
+  normalizeSide, originFromUrl, normalizeSelectorList,
   applyTocConfigMutation,
   validateUiStateMutationSource, applyUiStateMutation
 };
