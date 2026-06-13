@@ -15,7 +15,7 @@
 // Imported DIRECTLY (not via the toc-utils barrel) so the vm-eval test surface
 // does not grow.
 
-import { EXTENSION_OWNER } from '../utils/constants.js';
+import { EXTENSION_OWNER, MAX_Z_INDEX } from '../utils/constants.js';
 
 var TOC_CSS_PATH = 'content-scripts/toc.css';
 
@@ -83,6 +83,15 @@ export function getTocShadowRoot(): Promise<ShadowRoot | null> {
       host.style.left = '0';
       host.style.width = '0';
       host.style.height = '0';
+      // Top-level z-index on the HOST itself (not just the shadow-internal UI).
+      // The dock/panel set z-index: var(--toc-z-index), but that only orders them
+      // WITHIN this host's stacking context. The host is position:fixed with no
+      // z-index otherwise, so it stacks at z-index:auto in the page root — meaning
+      // a high-z-index page overlay (translate/reader extensions at ~2.1e9, modal
+      // libraries) paints OVER the whole extension UI and swallows pointer events,
+      // making the dock appear frozen (hover does nothing). Inline !important beats
+      // page CSS that might target .toc-shadow-host.
+      host.style.setProperty('z-index', String(MAX_Z_INDEX), 'important');
 
       var root = host.attachShadow({ mode: 'open' });
       await injectStylesheet(root);

@@ -2,12 +2,11 @@
 'use strict';
 
 import { msg } from '../utils/toc-utils.js';
-import { EXTENSION_OWNER } from '../utils/constants.js';
+import { EXTENSION_OWNER, MAX_Z_INDEX } from '../utils/constants.js';
 import { createOverlayDialog } from './overlay-dialog.js';
 
   var CFG = {
     PICKER_TIMEOUT_MS: 20000,
-    MAX_Z_INDEX: 2147483647,
   };
 
 export function showPickerResult(selector: string, saveCb: ((selector: string, close: () => void) => void) | undefined) {
@@ -62,7 +61,7 @@ export function createElementPicker(onPicked: ((el: HTMLElement) => void) | unde
     }
 
     var highlight: HTMLDivElement | null = document.createElement('div');
-    highlight.style.cssText = 'position:fixed;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:' + CFG.MAX_Z_INDEX + ';left:0;top:0;width:0;height:0;';
+    highlight.style.cssText = 'position:fixed;border:2px solid #2f6feb;background:rgba(47,111,235,0.08);pointer-events:none;z-index:' + MAX_Z_INDEX + ';left:0;top:0;width:0;height:0;';
     document.documentElement.appendChild(highlight);
 
     var prevCursor = document.body.style.cursor;

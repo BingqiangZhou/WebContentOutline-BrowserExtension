@@ -36,6 +36,16 @@ export var MAP_MAX_KEYS = 400;
 export var CSS_PATH_MAX_DEPTH = 20;
 
 /**
+ * z-index for extension overlays that must paint above all page content and
+ * other extensions' overlays (translate/reader extensions, modal libraries).
+ * Max signed 32-bit int — the highest value most browsers reliably honor.
+ * Single source of truth: used by the shadow host (shadow-root.ts), the
+ * element-picker highlight (element-picker.ts), and mirrored as the CSS
+ * --toc-z-index var for shadow-internal UI (style.css).
+ */
+export var MAX_Z_INDEX = 2147483647;
+
+/**
  * Scroll-to-element: gap (px) left between the top/header and the target so its
  * text sits just below the edge. Kept small so the heading lands at the top of
  * the visible area rather than far below it.
