@@ -426,6 +426,7 @@ The next major version is being planned. Core goals:
 - **AI-Powered Content Detection** — Leverage on-device AI models to automatically identify the main content region and generate TOC, replacing manual CSS/XPath selector configuration. This eliminates the need for API keys or cloud services — all AI processing runs locally in the browser
 - **Simplified UI** — Remove manual configuration UI (element picker, site config, action buttons) — the TOC panel becomes a pure navigation tool
 - **Zero-Config Experience** — Install and use immediately, no setup required
+- **Smart Activation** — The TOC is currently enabled on all pages by default (disableable per site), so many non-reading pages (admin consoles, image galleries, video sites) also show a TOC and can only be dismissed manually or ignored. We plan to add page-type detection so the TOC auto-activates only on text-heavy pages, avoiding clutter on unsuitable pages. This is expected to land alongside the AI features in v2.0.
 
 > **AI Approach**: We are evaluating on-device AI options that run entirely within the browser — no API keys, no cloud services, no data leaves your machine. The specific technology choice (e.g., Chrome's built-in AI APIs, WebAssembly-based models, or other local inference approaches) is still under investigation to ensure broad compatibility and reliable performance.
 
