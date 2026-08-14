@@ -126,6 +126,18 @@ var STOP_BUTTON_SELECTORS = [
 var _cachedProfile: ChatbotProfile | null = null;
 var _cachedUrl = '';
 
+// Cheap-change guard for tryBuildChatbotTocItems: caches the last build's
+// result keyed by a signature (user/assistant counts + last assistant text
+// length). During streaming, the rebuild scheduler fires every ~3s (max-wait
+// cap under a continuous mutation stream); without this guard each tick ran a
+// full build — hundreds of getComputedStyle calls + subtree clones on a long
+// conversation — even when only the last message's text had grown by a few
+// characters. When the signature is unchanged the cached items (holding live
+// element refs) are returned as-is and toc-app's identical-content check
+// short-circuits the rebuild.
+var _lastBuildSig = '';
+var _lastBuildResult: { items: TocItem[]; meta: { truncated: boolean; maxItems: number; totalCandidates: number; reason?: string } } | null = null;
+
 /**
  * Invalidate the chatbot detection cache.
  * Called on URL changes to force re-detection on new pages.
@@ -133,6 +145,10 @@ var _cachedUrl = '';
 export function invalidateChatbotCache() {
   _cachedProfile = null;
   _cachedUrl = '';
+  // Drop the last-build signature cache too — items hold element refs from
+  // the previous page's DOM.
+  _lastBuildSig = '';
+  _lastBuildResult = null;
   // Reset the streaming-detection baseline too: a stale _lastAssistantTextLen
   // from the previous route can make isStreaming() mis-report (and pin the
   // 1200ms debounce) for the first few mutations on the new page.
@@ -1108,13 +1124,17 @@ function tryHintFallback(needsUserSelectorOnly: boolean): SelectorResult | null 
           // Full validation: check that at least one user message exists
           var testEl2 = document.querySelector(hint.userSelector);
           if (testEl2) {
-            // Diagnostic: verify sentinel selector also produces results
-            try {
-              var sentinelCount = document.querySelectorAll(hint.sentinelSelector).length;
-              if (sentinelCount === 0) {
-                debug('[toc] hint selectors matched hostname but sentinel found 0 elements — selectors may be stale');
-              }
-            } catch (_) {}
+          // Diagnostic: verify sentinel selector also produces results
+          try {
+            var sentinelCount = document.querySelectorAll(hint.sentinelSelector).length;
+            if (sentinelCount === 0) {
+              // Surface as a real warning (not gated debug): a hostname match
+              // with a dead sentinel means the site's DOM changed and the TOC
+              // may be silently broken — exactly the signal needed when a user
+              // reports a site regression.
+              console.warn('[toc] chatbot hint matched but sentinel found 0 elements — selectors may be stale:', hint.sentinelSelector);
+            }
+          } catch (_) {}
             return {
               userSelector: hint.userSelector,
               assistantSelector: hint.assistantSelector,
@@ -1281,13 +1301,24 @@ var VISUALLY_HIDDEN_SEL = '.cdk-visually-hidden, .sr-only, .visually-hidden, [ar
 /**
  * Return the element's text with visually-hidden nodes removed.
  * Handles clip-path / offscreen techniques that innerText cannot filter.
+ * Walks text nodes in place (no cloneNode) — the old clone-the-subtree-then-
+ * prune approach copied the entire message DOM per heading on every rebuild.
  */
 function getVisibleText(el: Element): string {
   try {
-    var clone = el.cloneNode(true) as Element;
-    var hidden = clone.querySelectorAll(VISUALLY_HIDDEN_SEL);
-    for (var i = 0; i < hidden.length; i++) hidden[i].remove();
-    return (clone.textContent || '').trim();
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node: Text): number {
+        var parent = node.parentElement;
+        if (parent && parent.closest && parent.closest(VISUALLY_HIDDEN_SEL)) {
+          return NodeFilter.FILTER_REJECT;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    var out = '';
+    var n: Node | null;
+    while ((n = walker.nextNode())) out += n.nodeValue || '';
+    return out.trim();
   } catch (_) {
     return (el.textContent || '').trim();
   }
@@ -1386,7 +1417,7 @@ function readHeadingPos(el: HTMLElement): { left: number; top: number; right: nu
   }
 }
 
-function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta: { truncated: boolean; maxItems: number; totalCandidates: number } } | null {
+function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta: { truncated: boolean; maxItems: number; totalCandidates: number; reason?: string } } | null {
   var userMessages: HTMLElement[] = [];
   try { userMessages = Array.from(document.querySelectorAll(profile.userSelector)) as HTMLElement[]; } catch (_) { return null; }
 
@@ -1418,8 +1449,11 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
   }
   userMessages = uniqueUserMessages;
 
-  // Limit to most recent turns
-  if (userMessages.length > MAX_TURNS) {
+  // Limit to most recent turns. Record the pre-slice count so the build can
+  // flag truncation — a >50-turn conversation must not silently lose its
+  // early turns in the TOC without the panel's truncated notice.
+  var totalUserTurns = userMessages.length;
+  if (totalUserTurns > MAX_TURNS) {
     userMessages = userMessages.slice(userMessages.length - MAX_TURNS);
   }
 
@@ -1441,7 +1475,10 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
     var promptText = extractUserText(userEl);
     if (!promptText) continue;
 
-    // Add user prompt as level-1 item
+    // Add user prompt as level-1 item. _pos enables position-aware mirror
+    // dedup: a wrapper + inner element matched by the same selector collapse
+    // (overlapping rects), while two turns with identical prompt text at
+    // different positions are both kept (text-only dedup used to merge them).
     seenEls.add(userEl);
     items.push({
       id: 'toc-item-' + (itemId++),
@@ -1449,6 +1486,7 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
       text: promptText,
       level: 1,
       source: 'user',
+      _pos: readHeadingPos(userEl),
     });
 
     // Find nearest following assistant message using forward cursor — O(N+M) total
@@ -1540,12 +1578,18 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
   // standard extraction path.
   items = dedupeMirrorItems(items);
 
+  // Truncation semantics differ by cause: item cap (generic 400-item notice)
+  // vs turn cap (only the most recent turns are listed — different message).
+  var turnTruncated = totalUserTurns > MAX_TURNS;
+  var itemCapped = items.length >= MAX_ITEMS;
+
   return {
     items: items,
     meta: {
-      truncated: false,
-      maxItems: MAX_ITEMS,
-      totalCandidates: items.length,
+      truncated: turnTruncated || itemCapped,
+      maxItems: turnTruncated && !itemCapped ? MAX_TURNS : MAX_ITEMS,
+      reason: turnTruncated ? 'max-turns' : undefined,
+      totalCandidates: totalUserTurns,
     },
   };
 }
@@ -1555,6 +1599,44 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
 // ---------------------------------------------------------------------------
 
 /**
+ * Cheap fingerprint of the conversation state: two querySelectorAll counts +
+ * the last assistant's text length. Far cheaper than a full build (which runs
+ * getComputedStyle + text extraction per heading).
+ */
+function computeBuildSignature(profile: ChatbotProfile): string {
+  var userCount = 0;
+  var assistantCount = 0;
+  var lastLen = 0;
+  try { userCount = document.querySelectorAll(profile.userSelector).length; } catch (_) {}
+  try {
+    var assistants = document.querySelectorAll(profile.assistantSelector);
+    assistantCount = assistants.length;
+    if (assistantCount > 0) {
+      lastLen = (assistants[assistantCount - 1].textContent || '').length;
+    }
+  } catch (_) {}
+  return userCount + '|' + assistantCount + '|' + lastLen;
+}
+
+/**
+ * A cached result is only usable while its element refs are still mounted. A
+ * wholesale DOM replacement with an identical signature (same counts + text
+ * length — rare) would otherwise leave the TOC pointing at detached nodes.
+ * Sampling the first and last items is an O(1) sanity check.
+ */
+function cachedResultUsable(cached: { items: TocItem[] }): boolean {
+  if (!cached) return false;
+  if (cached.items.length === 0) return true;
+  var first = cached.items[0].el;
+  var last = cached.items[cached.items.length - 1].el;
+  try {
+    return !!(first && first.isConnected && last && last.isConnected);
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * If the current page is detected as a chatbot page (via DOM analysis),
  * build conversation-aware TOC items.
  * Returns null for non-chatbot pages (fall through to standard heading detection).
@@ -1562,7 +1644,17 @@ function buildChatbotTocItems(profile: ChatbotProfile): { items: TocItem[]; meta
 export function tryBuildChatbotTocItems() {
   var profile = detectChatPage();
   if (!profile) return null;
-  return buildChatbotTocItems(profile);
+  // Same conversation state as the last build → reuse its items. toc-app's
+  // isTocContentIdentical check then skips the whole rebuild pipeline.
+  var sig = computeBuildSignature(profile);
+  if (_lastBuildResult && sig === _lastBuildSig && cachedResultUsable(_lastBuildResult)) {
+    return _lastBuildResult;
+  }
+  var built = buildChatbotTocItems(profile);
+  if (!built) return null;
+  _lastBuildSig = sig;
+  _lastBuildResult = built;
+  return built;
 }
 
 /**

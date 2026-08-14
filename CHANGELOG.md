@@ -48,6 +48,31 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ---
 
+## [Unreleased]
+
+A correctness, performance, and manageability release: the rebuild circuit breaker actually works now, chat outlines keep repeated prompts and disclose turn truncation, streaming rebuilds are signature-gated, empty pages no longer show a stray dock, selectors can be typed by hand (CSS or XPath), and a new options page manages per-site state globally.
+
+### 🐛 Fixed
+- **Circuit breaker never tripped in production** — The rebuild scheduler's failure counter only incremented when the rebuild callback *threw*, but toc-app's `rebuild()` deliberately never rejects (it logs and resolves), so the breaker, its half-open recovery probe, and the 30s reset were all dead code in real usage. `rebuildOnce` now resolves with an explicit `ok`/`fail`/`halt` status and the scheduler counts resolved `fail`s. Covered by a new integration test that drives the scheduler with the real (never-rejecting) contract.
+- **Zombie TOC after a rapid enable→disable toggle** — Disabling the site while the content script was still mid-initialization left a permanently stranded dock (icon gray, UI present): the disable message's teardown found no instance to destroy, then initialization resumed anyway. `startApp` now re-checks the enabled state after every `await`.
+- **Identical chat prompts were merged into one entry** — Asking the same question twice (e.g. "Why?") left a single outline entry that always jumped to the first turn. User-prompt items now carry their viewport rect; mirror dedup keeps same-text turns at different positions while still collapsing wrapper+inner double matches (nested rects are also treated as mirrors now).
+- **Long conversations were silently truncated at 50 turns** — Conversations beyond 50 turns dropped their earliest entries from the outline with no notice. The truncation is now flagged and the panel shows a dedicated "only the most recent N turns" notice.
+- **`setEnabledByOrigin` reported the pre-toggle state wrong for default-on sites** — The rollback value used `!!map[origin]`, which read an absent (enabled-by-default) key as disabled.
+
+### 🚀 Improved
+- **Streaming chat rebuilds are signature-gated** — During active streaming, the rebuild scheduler fires every ~3s (max-wait cap) and each tick used to run a full outline build (hundreds of computed-style reads and text extraction per heading on long conversations). Builds are now cached against a cheap conversation signature (user/assistant counts + last message length); unchanged signatures reuse the previous items and toc-app's identical-content check skips the rebuild.
+- **Chat text extraction no longer clones subtrees** — `getVisibleText` walked a deep `cloneNode(true)` per heading on every build; it now uses a TreeWalker that skips visually-hidden nodes in place.
+- **No more stray dock on heading-less pages** — On pages with no outline content and no user-configured selectors (video players, admin consoles, galleries), a small empty dock tab floated mid-edge. The dock now hides itself entirely until headings appear (observers stay live, so late-loading pages still work). Sites with custom selectors always keep the dock.
+- **Stale chatbot hints are now observable** — When a per-site hint selector matches the hostname but its sentinel finds zero elements (a site redesign broke the selectors), a real console warning is emitted instead of gated debug output.
+- **Consistent navigation lock duration** — Dock-preview clicks and panel-item clicks now share one lock constant (1s) instead of 1s vs the 3s default.
+- **Outline list a11y semantics** — The outline list uses `listbox`/`option` with `aria-selected` instead of `menu`/`menuitem` with `aria-current` (it is a navigation outline, not a command menu).
+
+### ✨ Added
+- **Manual selector entry (CSS + XPath)** — The Site Configuration dialog gains an add-selector form, making the previously unreachable XPath support usable and letting power users type selectors by hand instead of only picking elements.
+- **Options page** — A global management page (extension details → Extension options) lists per-site activation states with toggles and per-site selector configurations with deletion, so decisions made on individual pages can be reviewed and undone without revisiting each site.
+
+---
+
 ## [1.11.1] - 2026-06-13
 
 A bug-fix release: the outline no longer loses its upper entries after scrolling a long page and clicking a lower item.

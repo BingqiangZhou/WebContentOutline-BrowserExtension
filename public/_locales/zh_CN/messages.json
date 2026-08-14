@@ -79,6 +79,78 @@
     "message": "删除该选择器",
     "description": "删除选择器按钮的提示文本"
   },
+  "configAddSelectorTitle": {
+    "message": "添加选择器",
+    "description": "手动添加选择器表单的标题"
+  },
+  "configSelectorTypeCss": {
+    "message": "CSS",
+    "description": "CSS 选择器选项标签"
+  },
+  "configSelectorTypeXpath": {
+    "message": "XPath",
+    "description": "XPath 表达式选项标签"
+  },
+  "configSelectorExprLabel": {
+    "message": "选择器表达式",
+    "description": "选择器表达式输入框的无障碍标签"
+  },
+  "configSelectorPlaceholder": {
+    "message": "例如 h2, .section-title",
+    "description": "选择器表达式输入框的占位文本"
+  },
+  "buttonAddSelector": {
+    "message": "添加",
+    "description": "添加所输入选择器的按钮文本"
+  },
+  "optionsTitle": {
+    "message": "Web TOC Assistant 设置",
+    "description": "选项页标题"
+  },
+  "optionsSitesHeading": {
+    "message": "站点启用状态",
+    "description": "站点启用/禁用分区的标题"
+  },
+  "optionsSitesDescription": {
+    "message": "未列出的站点默认启用；目录只会在能构建目录的页面上出现。",
+    "description": "站点分区下方对默认启用行为的说明"
+  },
+  "optionsNoSites": {
+    "message": "暂无站点级设置。在站点上点击工具栏图标即可在该站切换。",
+    "description": "站点列表为空时的提示"
+  },
+  "optionsConfigsHeading": {
+    "message": "选择器配置",
+    "description": "站点选择器配置分区的标题"
+  },
+  "optionsNoConfigs": {
+    "message": "尚未配置自定义选择器。可在页内目录菜单使用“选择元素”，或在“站点配置”中手动添加。",
+    "description": "选择器配置列表为空时的提示"
+  },
+  "optionsEnabled": {
+    "message": "已启用",
+    "description": "站点已启用时的开关标签"
+  },
+  "optionsDisabled": {
+    "message": "已禁用",
+    "description": "站点已禁用时的开关标签"
+  },
+  "optionsDeleteConfig": {
+    "message": "删除该站点的选择器",
+    "description": "删除配置按钮的无障碍标签"
+  },
+  "optionsSelectorsCount": {
+    "message": "$COUNT$ 个选择器",
+    "description": "选择器数量单元格文本；$COUNT$ 为数量",
+    "placeholders": {
+      "content": "$1",
+      "example": "3"
+    }
+  },
+  "optionsSaveFailed": {
+    "message": "保存失败，请重试",
+    "description": "存储写入失败时的错误提示"
+  },
   "errorOperationFailed": {
     "message": "操作失败，请检查控制台",
     "description": "操作失败时的错误消息"
@@ -142,6 +214,16 @@
       "max": {
         "content": "$1",
         "example": "400"
+      }
+    }
+  },
+  "truncatedRecentTurns": {
+    "message": "为保证性能，仅列出最近 $max$ 轮对话。",
+    "description": "聊天对话被截断为最近几轮时的提示",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "50"
       }
     }
   },

@@ -36,11 +36,14 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
    * and rebuild dispatch with simple debouncing and circuit breaker.
    *
    * @param {function} onRebuild - Async function called to perform a TOC rebuild.
-   * @param {object} [opts] - Options.
-   * @param {function} [opts.onConfigDirty] - Called when a URL change is detected.
+   *   May resolve with 'ok' | 'fail' | 'halt' (toc-app's status contract:
+   *   'fail' = a build error was caught and logged; the breaker counts it) or
+   *   reject (legacy contract — rejections are also counted as failures).
+   * @param {object} [opts] Options.
+   * @param {function} [opts.onConfigDirty] Called when a URL change is detected.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean } }) {
+export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 'halt' | boolean | void>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean } }) {
     opts = opts || {};
     var onConfigDirty: (() => void) | null = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
     var navLock = opts.navLock;
@@ -89,14 +92,20 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>,
     var domWatcher: ReturnType<typeof createDomWatcher> | null = null;
     var urlMonitor: ReturnType<typeof createUrlMonitor> | null = null;
 
+    // Record one rebuild failure: bump the counter and (re)arm the recovery
+    // window so a half-open probe is allowed through BREAKER_RECOVERY_MS later.
+    function noteFailure() {
+      consecutiveFailures++;
+      lastTripAt = Date.now();
+      armRecoveryProbeIfTripped();
+    }
+
     var safeRebuild = async function(): Promise<boolean> {
       if (!isExtensionContextValid) return false;
       if (isBreakerTripped()) return false;
+      var result: unknown;
       try {
-        await onRebuild();
-        consecutiveFailures = 0;
-        clearRecoveryTimer();
-        return true;
+        result = await onRebuild();
       } catch (e) {
         if (isContextInvalidatedError(e)) {
           isExtensionContextValid = false;
@@ -110,13 +119,20 @@ export function createRebuildScheduler(onRebuild: () => Promise<boolean | void>,
           return false;
         }
         console.warn('[toc] rebuild failed:', e);
-        consecutiveFailures++;
-        // Start/refresh the recovery window so a half-open probe is allowed
-        // through BREAKER_RECOVERY_MS later.
-        lastTripAt = Date.now();
-        armRecoveryProbeIfTripped();
+        noteFailure();
         return false;
       }
+      // Status accounting: toc-app's rebuild() deliberately never rejects
+      // (its call sites await it casually) — it resolves 'fail' after logging
+      // a caught build error instead. Consume that status here, or the
+      // breaker below can never trip in production.
+      if (result === 'fail') {
+        noteFailure();
+        return false;
+      }
+      consecutiveFailures = 0;
+      clearRecoveryTimer();
+      return true;
     };
 
     var attemptRebuild = async function(): Promise<boolean | void> {

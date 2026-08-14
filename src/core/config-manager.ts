@@ -142,6 +142,91 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
 
       body.appendChild(listDiv);
 
+      // Manual selector entry. The element picker only generates CSS selectors;
+      // without this form the XPath path of the builder is unreachable from the
+      // UI, and there is no way to type a selector by hand at all.
+      var addForm = document.createElement('div');
+      addForm.className = 'toc-config-add';
+
+      var addTitle = document.createElement('div');
+      addTitle.className = 'toc-config-add-title';
+      addTitle.textContent = msg('configAddSelectorTitle');
+      addForm.appendChild(addTitle);
+
+      var addRow = document.createElement('div');
+      addRow.className = 'toc-config-add-row';
+
+      var typeSelect = document.createElement('select');
+      typeSelect.className = 'toc-config-add-type';
+      typeSelect.setAttribute('aria-label', msg('configAddSelectorTitle'));
+      var cssOption = document.createElement('option');
+      cssOption.value = 'css';
+      cssOption.textContent = msg('configSelectorTypeCss');
+      var xpathOption = document.createElement('option');
+      xpathOption.value = 'xpath';
+      xpathOption.textContent = msg('configSelectorTypeXpath');
+      typeSelect.replaceChildren(cssOption, xpathOption);
+
+      var exprInput = document.createElement('input');
+      exprInput.type = 'text';
+      exprInput.className = 'toc-config-add-input';
+      exprInput.placeholder = msg('configSelectorPlaceholder');
+      exprInput.setAttribute('aria-label', msg('configSelectorExprLabel'));
+
+      var btnAdd = document.createElement('button');
+      btnAdd.type = 'button';
+      btnAdd.className = 'toc-btn';
+      btnAdd.dataset.act = 'add';
+      btnAdd.textContent = msg('buttonAddSelector');
+      btnAdd.setAttribute('aria-label', msg('buttonAddSelector'));
+
+      addRow.appendChild(typeSelect);
+      addRow.appendChild(exprInput);
+      addRow.appendChild(btnAdd);
+      addForm.appendChild(addRow);
+      body.appendChild(addForm);
+
+      var addSelectorFromInput = async function() {
+        try {
+          var selType = typeSelect.value === 'xpath' ? 'xpath' : 'css';
+          var selExpr = String(exprInput.value || '').trim();
+          if (!selExpr || !validateSelectorExpression(selType, selExpr)) {
+            showToast(msg('errorInvalidSelector'), { type: 'error' });
+            return;
+          }
+
+          var addResult = await requestConfigMutation({
+            operation: 'add-selector',
+            urlPattern: urlPattern,
+            selector: { type: selType, expr: selExpr },
+            side: normalizeSide(cfg.side)
+          });
+          if (!addResult || !addResult.ok) {
+            showToast(msg('errorOperationFailed'), { type: 'error' });
+            return;
+          }
+
+          var addedSelectors = selectorsFromMutationResult(addResult);
+          cfg.selectors = addedSelectors;
+          if (cfg.__markConfigDirty) cfg.__markConfigDirty();
+          exprInput.value = '';
+          await refreshList(addedSelectors);
+          countLabel.textContent = msg('configSavedSelectors') + ' (' + addedSelectors.length + ')';
+          notifyConfigChanged();
+        } catch (e) {
+          console.warn(msg('logSaveConfigFailed'), e);
+          showToast(msg('errorOperationFailed'), { type: 'error' });
+        }
+      };
+
+      btnAdd.addEventListener('click', function() { void addSelectorFromInput(); });
+      exprInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          void addSelectorFromInput();
+        }
+      });
+
       var btnClear = document.createElement('button');
       btnClear.type = 'button';
       btnClear.className = 'toc-btn toc-btn-danger';

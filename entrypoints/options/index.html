@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web TOC Assistant</title>
+  </head>
+  <body>
+    <main id="app">
+      <h1 id="app-title"></h1>
+
+      <section aria-labelledby="sites-heading">
+        <h2 id="sites-heading"></h2>
+        <p id="sites-description" class="section-note"></p>
+        <ul id="sites-list" class="card-list"></ul>
+        <p id="sites-empty" class="empty" hidden></p>
+      </section>
+
+      <section aria-labelledby="configs-heading">
+        <h2 id="configs-heading"></h2>
+        <ul id="configs-list" class="card-list"></ul>
+        <p id="configs-empty" class="empty" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

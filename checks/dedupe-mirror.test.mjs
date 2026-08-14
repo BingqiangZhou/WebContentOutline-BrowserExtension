@@ -48,3 +48,15 @@ test('items without _pos are text-deduped (e.g. chatbot user prompts)', () => {
   ]);
   assert.equal(out.length, 1);
 });
+
+test('nested same-text items (one rect containing the other) collapse', () => {
+  var dedupeMirrorItems = loadDedupeMirrorItems();
+  // A chatbot user selector can match a turn wrapper AND its inner text node.
+  // Padding can push their top-left corners apart by more than the 24px
+  // threshold, but containment is still a mirror copy.
+  var out = dedupeMirrorItems([
+    { id: '1', text: 'Turn', _pos: { left: 0, top: 500, right: 600, bottom: 560 } },
+    { id: '2', text: 'Turn', _pos: { left: 32, top: 520, right: 560, bottom: 540 } }
+  ]);
+  assert.equal(out.length, 1, 'contained duplicate must collapse');
+});

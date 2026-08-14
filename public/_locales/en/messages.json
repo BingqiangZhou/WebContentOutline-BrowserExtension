@@ -79,6 +79,78 @@
     "message": "Delete this selector",
     "description": "Tooltip for delete selector button"
   },
+  "configAddSelectorTitle": {
+    "message": "Add selector",
+    "description": "Heading of the manual selector add form"
+  },
+  "configSelectorTypeCss": {
+    "message": "CSS",
+    "description": "Option label for a CSS selector"
+  },
+  "configSelectorTypeXpath": {
+    "message": "XPath",
+    "description": "Option label for an XPath expression"
+  },
+  "configSelectorExprLabel": {
+    "message": "Selector expression",
+    "description": "Accessible label for the selector expression input"
+  },
+  "configSelectorPlaceholder": {
+    "message": "e.g. h2, .section-title",
+    "description": "Placeholder for the selector expression input"
+  },
+  "buttonAddSelector": {
+    "message": "Add",
+    "description": "Button text to add the entered selector"
+  },
+  "optionsTitle": {
+    "message": "Web TOC Assistant Settings",
+    "description": "Title of the options page"
+  },
+  "optionsSitesHeading": {
+    "message": "Per-site activation",
+    "description": "Heading of the per-site enable/disable section"
+  },
+  "optionsSitesDescription": {
+    "message": "Sites not listed below are enabled by default; the TOC only appears on pages where one can be built.",
+    "description": "Explanation of default-on behavior under the sites section"
+  },
+  "optionsNoSites": {
+    "message": "No per-site overrides yet. Click the toolbar icon on a site to toggle it there.",
+    "description": "Empty state for the per-site list"
+  },
+  "optionsConfigsHeading": {
+    "message": "Selector configurations",
+    "description": "Heading of the per-site selector config section"
+  },
+  "optionsNoConfigs": {
+    "message": "No custom selectors configured. Use \"Pick element\" in a page's TOC menu, or add one under Site Configuration.",
+    "description": "Empty state for the selector config list"
+  },
+  "optionsEnabled": {
+    "message": "Enabled",
+    "description": "Toggle label for an enabled site"
+  },
+  "optionsDisabled": {
+    "message": "Disabled",
+    "description": "Toggle label for a disabled site"
+  },
+  "optionsDeleteConfig": {
+    "message": "Delete this site's selectors",
+    "description": "Accessible label for the delete-config button"
+  },
+  "optionsSelectorsCount": {
+    "message": "$COUNT$ selectors",
+    "description": "Selector count cell text; $COUNT$ is the number",
+    "placeholders": {
+      "content": "$1",
+      "example": "3"
+    }
+  },
+  "optionsSaveFailed": {
+    "message": "Save failed. Please retry.",
+    "description": "Error toast when a storage write fails"
+  },
   "errorOperationFailed": {
     "message": "Operation failed. Please check the console.",
     "description": "Error message when operation fails"
@@ -142,6 +214,16 @@
       "max": {
         "content": "$1",
         "example": "400"
+      }
+    }
+  },
+  "truncatedRecentTurns": {
+    "message": "For performance, only the most recent $max$ conversation turns are listed.",
+    "description": "Notice when a chatbot conversation is truncated to recent turns",
+    "placeholders": {
+      "max": {
+        "content": "$1",
+        "example": "50"
       }
     }
   },
