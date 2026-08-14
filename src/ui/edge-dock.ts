@@ -44,13 +44,17 @@ interface DockItem {
   source?: string;
 }
 
-function selectPreviewItems(items: DockItem[], activeIndex: number, limit: number): DockItem[] {
-  var list = Array.isArray(items) ? items : [];
+/**
+ * Compute the preview window [start, end) around the active item. Returning
+ * the index range (not sliced items) lets renderPreview stamp dataset.index
+ * directly instead of reverse-looking each item up with indexOf.
+ */
+function previewWindowRange(total: number, activeIndex: number, limit: number): { start: number; end: number } {
   var size = Math.max(1, limit || 12);
-  if (list.length <= size) return list.slice();
+  if (!(total > size)) return { start: 0, end: Math.max(0, total) };
   var safeIndex = Number.isFinite(activeIndex) && activeIndex >= 0 ? activeIndex : 0;
-  var start = Math.max(0, Math.min(list.length - size, safeIndex - Math.floor(size / 2)));
-  return list.slice(start, start + size);
+  var start = Math.max(0, Math.min(total - size, safeIndex - Math.floor(size / 2)));
+  return { start: start, end: start + size };
 }
 
 interface DockStateControllerOptions {
@@ -196,6 +200,16 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   var menuCloseTimer: ReturnType<typeof setTimeout> | null = null;
   var dockItems: DockItem[] = Array.isArray(options.items) ? options.items : [];
   var activeIndex = -1;
+  // When true, the dock hides itself entirely while it has zero items (a page
+  // with no TOC content and no user-configured selectors). The observer-driven
+  // setItems() re-shows it as soon as headings appear, so late-loading pages
+  // still work. Pages with custom selectors never hide — the picker/settings
+  // entry points must stay reachable there.
+  var emptyHidden = false;
+
+  function applyEmptyState(): void {
+    root.classList.toggle('toc-dock-empty', emptyHidden && dockItems.length === 0);
+  }
   // Tracks whether the most recent input was keyboard (vs pointer), so a
   // keyboard-driven expansion can move focus into the panel (a11y) without
   // stealing focus on hover.
@@ -253,24 +267,18 @@ export function renderEdgeDock(options: EdgeDockOptions) {
 
   function renderPreview() {
     preview.replaceChildren();
-    var subset = selectPreviewItems(dockItems, activeIndex, 12);
-    // Track the window range for incremental updates
-    if (subset.length > 0 && subset.length < dockItems.length) {
-      previewWindowStart = dockItems.indexOf(subset[0]);
-      previewWindowSize = subset.length;
-    } else {
-      previewWindowStart = 0;
-      previewWindowSize = subset.length;
-    }
-    for (var i = 0; i < subset.length; i++) {
-      var item = subset[i];
-      var index = dockItems.indexOf(item);
+    var range = previewWindowRange(dockItems.length, activeIndex, 12);
+    previewWindowStart = range.start;
+    previewWindowSize = range.end - range.start;
+    for (var idx = range.start; idx < range.end; idx++) {
+      var item = dockItems[idx];
+      if (!item) continue;
       var line = document.createElement('button');
       line.type = 'button';
       line.className = 'toc-edge-dock-preview-line';
-      line.dataset.index = String(index);
+      line.dataset.index = String(idx);
       line.setAttribute('aria-label', item && item.text ? item.text : 'TOC item');
-      if (index === activeIndex) {
+      if (idx === activeIndex) {
         line.classList.add('toc-edge-dock-preview-line-active');
         line.setAttribute('aria-current', 'location');
       }
@@ -672,6 +680,11 @@ export function renderEdgeDock(options: EdgeDockOptions) {
       dockItems = Array.isArray(nextItems) ? nextItems : [];
       if (activeIndex >= dockItems.length) activeIndex = -1;
       renderPreview();
+      applyEmptyState();
+    },
+    setEmptyHidden: function(hidden: boolean) {
+      emptyHidden = !!hidden;
+      applyEmptyState();
     },
     setSide: function(nextSide: string) { updateSide(nextSide, true); }
   };

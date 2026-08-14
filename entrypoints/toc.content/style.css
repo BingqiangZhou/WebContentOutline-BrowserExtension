@@ -156,6 +156,14 @@
   right: auto !important;
 }
 
+/* Zero-item TOC on a site without user-configured selectors: hide the whole
+   dock (video players, admin consoles, image galleries). The dock re-shows
+   itself via setItems() the moment headings appear, so late-loading pages
+   still work. */
+.toc-edge-dock.toc-dock-empty {
+  display: none !important;
+}
+
 .toc-edge-dock-toolbar {
   display: flex !important;
   flex-direction: column !important;
@@ -601,6 +609,50 @@
   border: 1px solid var(--toc-border-list, rgba(0,0,0,0.08)) !important;
   border-radius: 6px !important;
   padding: 6px !important;
+}
+
+/* Manual selector add form (site config dialog) */
+.toc-config-add {
+  display: block !important;
+  margin-top: 8px !important;
+}
+
+.toc-config-add-title {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--toc-text-primary, #333) !important;
+  margin-bottom: 6px !important;
+}
+
+.toc-config-add-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.toc-config-add-type {
+  flex: 0 0 auto !important;
+  font-size: 12px !important;
+  padding: 5px 6px !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--toc-border-input, rgba(0,0,0,0.15)) !important;
+  background: var(--toc-bg-input, #fff) !important;
+  color: var(--toc-text-primary, #222) !important;
+}
+
+.toc-config-add-input {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  font-size: 12px !important;
+  padding: 5px 8px !important;
+  border-radius: 6px !important;
+  border: 1px solid var(--toc-border-input, rgba(0,0,0,0.15)) !important;
+  background: var(--toc-bg-input, #fff) !important;
+  color: var(--toc-text-primary, #222) !important;
+}
+
+.toc-config-add-row .toc-btn {
+  flex: 0 0 auto !important;
 }
 
 /* Selector list item */

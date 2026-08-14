@@ -4,6 +4,12 @@
   /** Navigation lock: prevents IntersectionObserver interference during user
    *  scroll/click navigation. Auto-unlocks after a duration and can notify a
    *  listener so a parked rebuild can be retried promptly. */
+
+  /** Shared lock duration for user-initiated navigation (dock preview click and
+   *  panel item click must behave identically). The panel additionally unlocks
+   *  early via its own scroll-stop/unlock timers, so this is the safety cap. */
+  export var NAV_LOCK_MS = 1000;
+
   export interface NavLock {
     lock: (durationMs?: number) => void;
     unlock: () => void;

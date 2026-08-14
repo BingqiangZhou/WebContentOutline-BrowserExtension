@@ -9,6 +9,7 @@ import {
   normalizeSide
 } from '../utils/toc-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
+import { NAV_LOCK_MS } from '../core/nav-lock.js';
 import { getTocShadowHost } from './shadow-root.js';
 
   /** Clear all children of an element using native replaceChildren(). */
@@ -37,6 +38,9 @@ interface TocMeta {
   truncated: boolean;
   maxItems: number;
   totalCandidates: number;
+  /** 'max-turns' — chatbot conversation truncated to recent turns (uses a
+   *  dedicated notice); absent — generic item-cap notice. */
+  reason?: string;
 }
 
 interface FloatingPanelOpts {
@@ -155,7 +159,10 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     var list = document.createElement('div');
     list.className = 'toc-list';
-    list.setAttribute('role', 'menu');
+    // listbox/option (not menu/menuitem): this is a navigation outline the
+    // user selects from, not a command menu. Roving tabindex + arrow/Home/End
+    // keys below already follow the listbox keyboard contract.
+    list.setAttribute('role', 'listbox');
     list.setAttribute('aria-orientation', 'vertical');
     list.setAttribute('aria-label', msg('tocTitle'));
 
@@ -171,14 +178,21 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         note.setAttribute('role', 'note');
         note.setAttribute('aria-live', 'polite');
         var max = currentTocMeta.maxItems || 400;
-        var msgWithMax = msg('truncatedNoticeWithMax', String(max));
-        if (msgWithMax && msgWithMax !== 'truncatedNoticeWithMax') {
-          note.textContent = msgWithMax;
+        if (currentTocMeta.reason === 'max-turns') {
+          // Conversation truncated to the most recent turns — the generic
+          // "refine your selectors" advice makes no sense on a chat page.
+          var turnsMsg = msg('truncatedRecentTurns', String(max));
+          note.textContent = (turnsMsg && turnsMsg !== 'truncatedRecentTurns') ? turnsMsg : '';
         } else {
-          var msgText = msg('truncatedNotice');
-          note.textContent = (msgText && msgText !== 'truncatedNotice') ? msgText : '';
+          var msgWithMax = msg('truncatedNoticeWithMax', String(max));
+          if (msgWithMax && msgWithMax !== 'truncatedNoticeWithMax') {
+            note.textContent = msgWithMax;
+          } else {
+            var msgText = msg('truncatedNotice');
+            note.textContent = (msgText && msgText !== 'truncatedNotice') ? msgText : '';
+          }
         }
-        list.appendChild(note);
+        if (note.textContent) list.appendChild(note);
       }
 
       if (!items.length) {
@@ -196,7 +210,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'toc-item';
-        btn.setAttribute('role', 'menuitem');
+        btn.setAttribute('role', 'option');
         btn.tabIndex = index === activeIndex || (activeIndex < 0 && index === 0) ? 0 : -1;
         btn.textContent = item.text;
         btn.dataset.index = String(index);
@@ -204,7 +218,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         if (item.source) btn.dataset.source = item.source;
         if (index === activeIndex) {
           btn.classList.add('active');
-          btn.setAttribute('aria-current', 'location');
+          btn.setAttribute('aria-selected', 'true');
         }
         item._node = btn;
         frag.appendChild(btn);
@@ -218,8 +232,8 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         if (!item._node) return;
         var isActive = index === activeIndex;
         item._node.classList.toggle('active', isActive);
-        if (isActive) item._node.setAttribute('aria-current', 'location');
-        else item._node.removeAttribute('aria-current');
+        if (isActive) item._node.setAttribute('aria-selected', 'true');
+        else item._node.removeAttribute('aria-selected');
         item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
       });
     };
@@ -237,7 +251,10 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
 
     var handleItemClick = function(item: TocItem, node: HTMLElement, index: number, e: MouseEvent | KeyboardEvent) {
       e.preventDefault();
-      navLock && navLock.lock();
+      // Same duration as the dock preview click (NAV_LOCK_MS) so both entry
+      // points behave identically; the early-unlock timers below usually fire
+      // sooner.
+      navLock && navLock.lock(NAV_LOCK_MS);
       setActiveIndex(index);
       onNavigate && onNavigate(item, index);
 
