@@ -27,6 +27,7 @@ A web table of contents generator that automatically creates interactive floatin
 ### 🎪 Visual Element Picker
 - **Hover Highlighting**: Real-time highlighting of target elements as you move your mouse
 - **One-click Selector Generation**: Automatically generates CSS selector when you click an element
+- **Manual Selector Entry**: Type CSS or XPath selectors by hand in the Site Configuration dialog
 - **Config Saving**: Saves selectors as site-specific configurations
 - **Automatic Exclusion**: Automatically excludes extension's own UI elements
 
@@ -37,6 +38,7 @@ A web table of contents generator that automatically creates interactive floatin
 - **Vertical Dragging**: Drag the dock up and down with mouse, touch, or stylus
 - **Position Memory**: Remembers dock side and vertical position per domain and constrains the dock after window resize
 - **Smooth Scrolling**: Smooth scroll to content when clicking TOC items
+- **Empty-page Awareness**: The dock hides itself on pages with no outline content and no custom selectors, and returns as soon as headings appear
 
 ### 🔄 Navigation Experience
 - **Current Position Highlighting**: Automatically highlights the TOC item corresponding to current reading position (IntersectionObserver)
@@ -47,12 +49,13 @@ A web table of contents generator that automatically creates interactive floatin
 
 ### ⚙️ Site Configuration Management
 - **Wildcard Matching**: URL pattern matching with wildcard support (e.g., `https://example.com/*`)
-- **Local Storage**: Configuration and site enable state saved to `chrome.storage.local`
-- **Config Management**: View and clear site configurations
+- **Local Storage**: Configuration and site enable state saved in `chrome.storage.local`
+- **Config Management**: View, add (CSS/XPath), and clear site configurations
 - **Multi-selector Support**: Configure multiple CSS/XPath selectors per site
 
 ### 🌐 Multi-site Control
 - **Per-site Enable/Disable**: Independent control for each website
+- **Options Page**: Review and undo per-site activation and selector configs globally (extension details → Extension options)
 - **Icon Status Indicator**: The transparent white-document toolbar icon turns black when enabled and gray when disabled
 - **Cross-tab Sync**: Automatic state synchronization across tabs of the same site
 
