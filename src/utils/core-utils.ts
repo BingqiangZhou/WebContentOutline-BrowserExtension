@@ -125,8 +125,18 @@ export function isTocContentIdentical(prevItems: Array<{ text: string; el: Eleme
     return true;
   }
 
-  function mirrorRectsOverlap(a: { left: number; top: number }, b: { left: number; top: number }): boolean {
-    return Math.abs(a.left - b.left) < 24 && Math.abs(a.top - b.top) < 24;
+  function mirrorRectsOverlap(a: { left: number; top: number; right?: number; bottom?: number }, b: { left: number; top: number; right?: number; bottom?: number }): boolean {
+    if (Math.abs(a.left - b.left) < 24 && Math.abs(a.top - b.top) < 24) return true;
+    // Nested duplicates: a chatbot userSelector can match BOTH a turn wrapper
+    // and its inner text element. Their top-left corners may differ by more
+    // than the threshold (padding), but one rect fully containing the other
+    // is still a mirror copy. Same-text headings never nest, so this cannot
+    // collapse legitimate repeats in the standard path.
+    var ar = a.right, ab = a.bottom, br = b.right, bb = b.bottom;
+    if (typeof ar !== 'number' || typeof ab !== 'number' || typeof br !== 'number' || typeof bb !== 'number') return false;
+    var aContainsB = a.left <= b.left && a.top <= b.top && ar >= br && ab >= bb;
+    var bContainsA = b.left <= a.left && b.top <= a.top && br >= ar && bb >= ab;
+    return aContainsB || bContainsA;
   }
 
   /**
@@ -135,7 +145,7 @@ export function isTocContentIdentical(prevItems: Array<{ text: string; el: Eleme
    * different positions are intentionally preserved. Items without a `_pos`
    * marker are never collapsed. Strips `_pos` from the returned items.
    */
-export function dedupeMirrorItems<T extends { text: string; _pos?: { left: number; top: number } }>(items: T[]): T[] {
+export function dedupeMirrorItems<T extends { text: string; _pos?: { left: number; top: number; right?: number; bottom?: number } }>(items: T[]): T[] {
     if (!items || items.length <= 1) {
       if (items) { for (var i0 = 0; i0 < items.length; i0++) delete (items[i0] as any)._pos; }
       return items || [];

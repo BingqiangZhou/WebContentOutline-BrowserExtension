@@ -18,12 +18,13 @@ interface TocAppInstance {
   destroy?: () => void;
   expand?: (opts?: any) => Promise<void>;
   collapse?: () => void;
-  refreshConfig?: () => Promise<void>;
+  // 'ok' | 'fail' | 'halt' — toc-app's RebuildStatus contract (never rejects).
+  refreshConfig?: () => Promise<'ok' | 'fail' | 'halt'>;
 }
 
 export function startTocContent(ctx: any) {
-  void ctx;
   'use strict';
+  void ctx;
 
   // If the script is injected again (dev reload / reinjection), dispose the
   // previous instance first. A prior injection that died mid-init (after setting
@@ -97,7 +98,11 @@ export function startTocContent(ctx: any) {
     try {
       if (disposed) return;
       var configs = await getConfigs();
-      if (disposed) return;
+      // Re-check state after EVERY await: an UPDATE_ENABLED(false) message can
+      // arrive while we are suspended here. That message's stopApp() finds no
+      // appInstance yet (initForConfig has not run), so without this guard
+      // initialization would continue and leave a zombie TOC on a disabled site.
+      if (disposed || !currentEnabled) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
         cfg = getDefaultConfig();
@@ -109,6 +114,7 @@ export function startTocContent(ctx: any) {
       // so the dock/panel mount into the shadow and are style-isolated from the
       // host page. Failure is non-fatal (UI falls back to the host document).
       await getTocShadowRoot();
+      if (disposed || !currentEnabled) return;
       appInstance = initForConfig(cfg, {
         onDeactivate: function() {
           // Page-side "Close TOC" → persist disabled state to background, then self-disable

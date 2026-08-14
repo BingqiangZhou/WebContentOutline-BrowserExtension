@@ -8,7 +8,7 @@ import { renderFloatingPanel } from '../ui/floating-panel.js';
 import { siteConfig, saveSelector, updateConfigFromStorage, setOnConfigChanged } from './config-manager.js';
 import { createRebuildScheduler } from './rebuild-scheduler.js';
 import { createActiveItemTracker } from './active-item-tracker.js';
-import { createNavLock } from './nav-lock.js';
+import { createNavLock, NAV_LOCK_MS } from './nav-lock.js';
 import {
   msg,
   showToast,
@@ -74,6 +74,13 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
 
     var destroyed = false;
 
+    /** Rebuild outcome, consumed by the rebuild scheduler's circuit breaker:
+     *  'ok' — completed (including no-op/aborted/skipped-identical builds)
+     *  'fail' — a build error was caught and logged (breaker counts these)
+     *  'halt' — instance torn down or extension context invalidated (never
+     *  counted as a failure; the scheduler is disconnected by these paths) */
+    type RebuildStatus = 'ok' | 'fail' | 'halt';
+
     // AbortController for the in-flight build: a newer build or dispose aborts
     // the previous chunked build so stale results are never rendered (e.g. a
     // build started on page A doesn't finish and render after navigating to B).
@@ -106,7 +113,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     var activeIndex = -1;
     var rebuildScheduler: ReturnType<typeof createRebuildScheduler> | null = null;
     var pickerInstance: ReturnType<typeof createElementPicker> | null = null;
-    var rebuildInFlight: Promise<boolean | void> | null = null;
+    var rebuildInFlight: Promise<RebuildStatus> | null = null;
     var navLock = createNavLock({
       onUnlock: function() {
         // When the nav lock releases, retry a rebuild that was parked while the
@@ -123,6 +130,24 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     });
     var configDirty = true; // true on init so first rebuild reads from storage
     cfg.__markConfigDirty = function() { configDirty = true; };
+
+    // True when the user has explicitly configured selectors for this site.
+    // Sites without custom selectors hide the dock entirely while the TOC is
+    // empty (no headings) — video players, admin consoles, galleries. With
+    // custom selectors the dock stays visible so picker/settings stay usable.
+    var hasCustomSelectors = function() {
+      var list = Array.isArray(cfg.selectors) ? cfg.selectors : [];
+      for (var i = 0; i < list.length; i++) {
+        if (list[i] && list[i].expr && !(list[i] as any)._tocSentinel) return true;
+      }
+      return false;
+    };
+
+    var syncEmptyDockState = function() {
+      if (dockInstance && dockInstance.setEmptyHidden) {
+        dockInstance.setEmptyHidden(!hasCustomSelectors());
+      }
+    };
 
     var findMatchingActiveIndex = function(nextItems: TocItem[], previousItem: TocItem | null, fallbackIndex: number) {
       if (!nextItems || !nextItems.length || !previousItem) return -1;
@@ -146,8 +171,8 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       syncActiveIndex(nextActiveIndex);
     };
 
-    var rebuildOnce = async function() {
-      if (destroyed) return false;
+    var rebuildOnce = async function(): Promise<RebuildStatus> {
+      if (destroyed) return 'halt';
 
       // Early exit: if extension context is invalidated, stop all rebuilds
       if (isExtensionContextInvalidated()) {
@@ -180,15 +205,18 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
           } catch (_) {}
         }
-        return false;
+        return 'halt';
       }
 
       try {
         if (configDirty) {
           await updateConfigFromStorage(cfg);
           configDirty = false;
+          // Selector set may have changed — recompute whether an empty TOC
+          // should hide the dock.
+          syncEmptyDockState();
         }
-        if (destroyed) return true;
+        if (destroyed) return 'ok';
 
         var prevItems = items;
         var previousActiveIndex = activeIndex;
@@ -196,13 +224,13 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         var buildResult = await buildNow();
         if (!buildResult || 'aborted' in buildResult) {
           // A newer build superseded this one — leave items untouched.
-          return true;
+          return 'ok';
         }
         var newItems = buildResult.items;
         var newMeta = buildResult.meta;
 
         // Skip rebuild if content is identical
-        if (isTocContentIdentical(prevItems, newItems)) return true;
+        if (isTocContentIdentical(prevItems, newItems)) return 'ok';
 
         items = newItems;
         tocMeta = newMeta;
@@ -213,7 +241,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         // No panel yet: update in-memory items so next expand is fresh, but skip full UI rebuild.
         if (!panelInstance) {
           syncItemViews(previousActiveItem, previousActiveIndex);
-          return true;
+          return 'ok';
         }
 
         var incrementalDone = false;
@@ -233,6 +261,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         }
 
         syncItemViews(previousActiveItem, previousActiveIndex);
+        return 'ok';
       } catch (e) {
         if (isContextInvalidatedError(e)) {
           debug('[toc] Extension context invalidated, stop TOC operations');
@@ -241,16 +270,21 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
           if (rebuildScheduler && rebuildScheduler.disconnect) {
             rebuildScheduler.disconnect();
           }
-          return false;
+          return 'halt';
         }
         console.warn('[toc] rebuild failed:', e);
+        return 'fail';
       }
     };
 
-    var rebuild = async function() {
+    var rebuild = function(): Promise<RebuildStatus> {
       if (rebuildInFlight) return rebuildInFlight;
-      rebuildInFlight = rebuildOnce().catch(function(e) {
+      // Never reject: casual await sites abound. Failures resolve as 'fail'
+      // so the rebuild scheduler's circuit breaker can count them — a
+      // rejected promise here is what silently killed the breaker before.
+      rebuildInFlight = rebuildOnce().catch(function(e): RebuildStatus {
         console.warn('[toc] rebuildOnce threw:', e);
+        return 'fail';
       }).finally(function() {
         rebuildInFlight = null;
       });
@@ -258,7 +292,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     };
 
     var refreshConfig = function() {
-      if (destroyed) return Promise.resolve(false);
+      if (destroyed) return Promise.resolve('halt' as RebuildStatus);
       configDirty = true;
       return rebuild();
     };
@@ -416,7 +450,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         onNavigate: function(item, index) {
           if (!item || !item.el) return;
           syncActiveIndex(index);
-          navLock.lock(1000);
+          navLock.lock(NAV_LOCK_MS);
           scrollToElement(item.el);
         },
         onSideChange: function(nextSide: string) {
@@ -432,6 +466,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         }
       });
       syncActiveIndex(activeIndex);
+      syncEmptyDockState();
 
       // Kick off the first (async, chunked) build now that the dock, scheduler
       // and active-item tracker are wired. rebuild() dedupes via rebuildInFlight.

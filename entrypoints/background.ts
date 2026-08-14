@@ -85,7 +85,9 @@ async function setEnabledByOrigin(origin: string, enabled: boolean): Promise<{ o
   if (!origin) return { ok: false, enabled: false, error: null };
   return serializedWrite('tocSiteEnabledMap', async () => {
     const map = await getEnabledMap();
-    const prev = !!map[origin];
+    // Default-on semantics: an absent entry means ENABLED, same as
+    // getEnabledByOrigin. `!!map[origin]` reported false for absent keys.
+    const prev = map[origin] !== false;
     touchObjectKey(map, origin, !!enabled);
     pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
     const res = await saveEnabledMap(map);
@@ -278,6 +280,11 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
     for (const t of tabs) {
       if (!t.id || t.id === exceptTabId) continue;
       try {
+        // When (re-)enabling, a tab that never received the content script
+        // (e.g. opened in the background while the site was disabled, or
+        // enabled from the options page) would silently drop the state update
+        // — ensure injection first. Idempotent: ping-then-inject.
+        if (enabled && t.url) await ensureContentScript(t.id, t.url);
         browser.tabs.sendMessage(t.id, { type: TOC_MESSAGE.UPDATE_ENABLED, enabled } satisfies TocRequest, () => { void browser.runtime.lastError; });
         // Update icon for each tab
         await setTabIcon(t.id, enabled);
