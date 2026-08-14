@@ -1080,3 +1080,157 @@ test('Agnes: detected via hint; builds TOC from Tailwind message turns', () => {
   assert.equal(result.items[0].source, 'user');
   assert.ok(result.items[0].text.includes('quarterly'), 'first item is the first user prompt');
 });
+
+// ---------------------------------------------------------------------------
+// Tests: same-text prompts, truncation flag, build-signature cache
+// ---------------------------------------------------------------------------
+
+/** Attach a viewport rect to a mock element so readHeadingPos()/mirror-dedup
+ *  position checks have real geometry to work with. */
+function withRect(el, top, opts = {}) {
+  const left = opts.left || 0;
+  const width = opts.width || 600;
+  const height = opts.height || 40;
+  el.getBoundingClientRect = () => ({ left, top, right: left + width, bottom: top + height, width, height });
+  return el;
+}
+
+function buildConversation(turns) {
+  // turns: [{ user: 'text', headings: ['...'] }]
+  const users = [];
+  const assistants = [];
+  const markdowns = [];
+  let order = 0;
+  for (const turn of turns) {
+    const user = withRect(addTextContent(makeElement('div', {
+      attributes: { 'data-message-author-role': 'user' },
+      docOrder: order++, offsetWidth: 600, offsetHeight: 80,
+    }), turn.user), 100 + order * 400);
+    const headingEls = (turn.headings || []).map((h, i) => {
+      const hEl = withRect(addTextContent(makeHeading('h2', h, { docOrder: order++ }), h), 130 + order * 400 + i * 40);
+      return hEl;
+    });
+    const markdown = makeElement('div', { className: 'markdown-body', children: headingEls, docOrder: order++ });
+    headingEls.forEach((h) => { h.parentElement = markdown; });
+    const assistant = withRect(addTextContent(makeElement('div', {
+      attributes: { 'data-message-author-role': 'assistant' },
+      docOrder: order++, children: [markdown],
+    }), turn.assistantText || 'answer...'), 200 + order * 400);
+    markdown.parentElement = assistant;
+    users.push(user);
+    assistants.push(assistant);
+    markdowns.push(markdown);
+  }
+  const doc = {
+    querySelector(sel) {
+      if (sel === '[data-message-author-role="user"]') return users[0] || null;
+      return null;
+    },
+    querySelectorAll(sel) {
+      if (sel === '[data-message-author-role]') return [...users, ...assistants];
+      if (sel === '[data-message-author-role="user"]') return users;
+      if (sel === '[data-message-author-role="assistant"]') return assistants;
+      if (sel.includes('markdown-body')) return markdowns;
+      return [];
+    },
+    body: makeElement('body'),
+  };
+  return { doc, users, assistants, markdowns };
+}
+
+test('two user turns with identical prompt text are both kept', () => {
+  resetCounter();
+  // Regression: unpositioned user prompts were text-deduped, so asking the
+  // same question twice left a single TOC entry jumping to the FIRST turn.
+  const { doc } = buildConversation([
+    { user: 'Why?', headings: ['First answer'] },
+    { user: 'Why?', headings: ['Second answer'] },
+  ]);
+  const mod = loadModule({ hostname: 'chatgpt.com', href: 'https://chatgpt.com/c/1' }, doc);
+
+  const result = mod.tryBuildChatbotTocItems();
+  assert.ok(result !== null);
+  const prompts = result.items.filter((i) => i.source === 'user');
+  assert.equal(prompts.length, 2, 'both same-text turns must survive mirror-dedup');
+  assert.equal(prompts[0].text, 'Why?');
+  assert.equal(prompts[1].text, 'Why?');
+  assert.notEqual(prompts[0].el, prompts[1].el);
+});
+
+test('wrapper and inner user elements at the same position still collapse', () => {
+  resetCounter();
+  const { doc, users } = buildConversation([{ user: 'Nested', headings: [] }]);
+  const wrapper = users[0];
+  // Simulate a user selector matching both the turn wrapper and an inner text
+  // node at the same visual position (e.g. 'user-query, user-query .query-text').
+  const inner = withRect(addTextContent(makeElement('div', {
+    docOrder: 0.5, offsetWidth: 560, offsetHeight: 40,
+  }), 'Nested'), wrapper.getBoundingClientRect().top + 5);
+  const allUsers = [...users, inner];
+  const origQuerySelectorAll = doc.querySelectorAll;
+  doc.querySelectorAll = function (sel) {
+    if (sel === '[data-message-author-role="user"]') return allUsers;
+    return origQuerySelectorAll.call(doc, sel);
+  };
+  const mod = loadModule({ hostname: 'chatgpt.com', href: 'https://chatgpt.com/c/2' }, doc);
+
+  const result = mod.tryBuildChatbotTocItems();
+  assert.ok(result !== null);
+  const prompts = result.items.filter((i) => i.source === 'user');
+  assert.equal(prompts.length, 1, 'overlapping wrapper+inner copies must still collapse');
+});
+
+test('conversations beyond MAX_TURNS set the truncated flag', () => {
+  resetCounter();
+  const turns = [];
+  for (let i = 0; i < 51; i++) turns.push({ user: 'Question ' + i, headings: [] });
+  const { doc } = buildConversation(turns);
+  const mod = loadModule({ hostname: 'chatgpt.com', href: 'https://chatgpt.com/c/3' }, doc);
+
+  const result = mod.tryBuildChatbotTocItems();
+  assert.ok(result !== null);
+  assert.equal(result.items.filter((i) => i.source === 'user').length, 50, 'only the most recent 50 turns appear');
+  assert.equal(result.meta.truncated, true, 'the panel must show its truncated notice');
+  assert.equal(result.meta.reason, 'max-turns', 'chat truncation uses the dedicated notice');
+  assert.equal(result.meta.maxItems, 50, 'the notice communicates the turn cap, not the item cap');
+  assert.equal(result.meta.totalCandidates, 51);
+});
+
+test('short conversations are not flagged as truncated', () => {
+  resetCounter();
+  const { doc } = buildConversation([
+    { user: 'One', headings: ['A'] },
+    { user: 'Two', headings: ['B'] },
+  ]);
+  const mod = loadModule({ hostname: 'chatgpt.com', href: 'https://chatgpt.com/c/4' }, doc);
+
+  const result = mod.tryBuildChatbotTocItems();
+  assert.ok(result !== null);
+  assert.equal(result.meta.truncated, false);
+});
+
+test('build-signature cache: unchanged conversation reuses the previous items', () => {
+  resetCounter();
+  const { doc, assistants } = buildConversation([
+    { user: 'Hello', headings: ['Intro'], assistantText: 'short answer' },
+    { user: 'More', headings: [], assistantText: 'another answer' },
+  ]);
+  const mod = loadModule({ hostname: 'chatgpt.com', href: 'https://chatgpt.com/c/5' }, doc);
+
+  const first = mod.tryBuildChatbotTocItems();
+  assert.ok(first !== null);
+  const second = mod.tryBuildChatbotTocItems();
+  assert.strictEqual(second, first, 'unchanged signature must reuse the cached result object');
+
+  // Streaming growth changes the signature → full rebuild produces a NEW array.
+  assistants[1].textContent = 'a much longer answer that keeps streaming in...';
+  const third = mod.tryBuildChatbotTocItems();
+  assert.notStrictEqual(third, first, 'signature change must trigger a rebuild');
+
+  // URL-change invalidation clears the cache even when the signature matches.
+  const fourth = mod.tryBuildChatbotTocItems();
+  assert.strictEqual(fourth, third);
+  mod.invalidateChatbotCache();
+  const fifth = mod.tryBuildChatbotTocItems();
+  assert.notStrictEqual(fifth, third, 'invalidateChatbotCache must drop the cached build');
+});

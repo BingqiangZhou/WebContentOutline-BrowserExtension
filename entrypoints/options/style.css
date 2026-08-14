@@ -1,0 +1,173 @@
+:root {
+  --bg: #f6f7f9;
+  --card: #ffffff;
+  --text: #202124;
+  --text-muted: #5f6368;
+  --border: rgba(15, 23, 42, 0.12);
+  --accent: #2f6feb;
+  --danger: #d93025;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17181c;
+    --card: #212226;
+    --text: #e8eaed;
+    --text-muted: #9aa0a6;
+    --border: rgba(232, 234, 237, 0.14);
+    --accent: #8ab4f8;
+    --danger: #f28b82;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0 0 20px;
+}
+
+h2 {
+  font-size: 15px;
+  margin: 28px 0 6px;
+}
+
+.section-note {
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.card-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.card-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.site-origin,
+.config-pattern {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.config-meta {
+  color: var(--text-muted);
+  font-size: 12.5px;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  background: var(--card);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+/* Switch */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 40px;
+  height: 22px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.switch .track {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  background: rgba(127, 127, 127, 0.4);
+  transition: background 0.15s ease;
+  flex: 0 0 auto;
+}
+
+.switch .track::after {
+  content: "";
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  margin: 3px;
+  transition: transform 0.15s ease;
+}
+
+.switch input:checked + .track {
+  background: var(--accent);
+}
+
+.switch input:checked + .track::after {
+  transform: translateX(18px);
+}
+
+.switch input:focus-visible + .track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch .state-label {
+  min-width: 64px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
+button.delete {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--danger);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+button.delete:hover {
+  background: rgba(217, 48, 37, 0.08);
+}
+
+button.delete:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}

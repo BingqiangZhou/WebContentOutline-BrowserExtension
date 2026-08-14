@@ -108,7 +108,7 @@ function loadDockPreviewHelpers() {
   sandbox.globalThis = sandbox;
   vm.runInNewContext(
     `${source}
-__exports.selectPreviewItems = selectPreviewItems;`,
+__exports.previewWindowRange = previewWindowRange;`,
     sandbox,
     { filename: file }
   );
@@ -197,17 +197,24 @@ test('legacy floating positions snap to the nearest edge while anchored position
 });
 
 test('collapsed outline preview windows long toc lists around the active item', () => {
-  const { selectPreviewItems } = loadDockPreviewHelpers();
-  const items = Array.from({ length: 20 }, (_, index) => ({ index }));
+  const { previewWindowRange } = loadDockPreviewHelpers();
 
-  assert.deepEqual(
-    Array.from(selectPreviewItems(items, 10, 12), (item) => item.index),
-    [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
-  );
-  assert.deepEqual(
-    Array.from(selectPreviewItems(items, -1, 12), (item) => item.index),
-    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
-  );
+  // Compare fields (not deepEqual): the vm returns cross-realm objects whose
+  // prototype differs from the host realm's Object.prototype.
+  var w1 = previewWindowRange(20, 10, 12);
+  assert.equal(w1.start, 4);
+  assert.equal(w1.end, 16);
+  var w2 = previewWindowRange(20, -1, 12);
+  assert.equal(w2.start, 0);
+  assert.equal(w2.end, 12);
+  // Short lists show everything.
+  var w3 = previewWindowRange(5, 2, 12);
+  assert.equal(w3.start, 0);
+  assert.equal(w3.end, 5);
+  // Active index near the end clamps to the last window.
+  var w4 = previewWindowRange(20, 19, 12);
+  assert.equal(w4.start, 8);
+  assert.equal(w4.end, 20);
 });
 
 test('edge dock is included in cleanup, mutation filtering, and picker exclusion rules', () => {
@@ -228,7 +235,7 @@ test('toc app orchestrates the edge dock instead of the collapsed badge', () => 
   assert.doesNotMatch(app, /renderCollapsedBadge/);
   assert.match(app, /getPanelHost/);
   assert.match(app, /dockInstance\.getMode\(\) === 'collapsed'/);
-  assert.match(app, /onNavigate:\s*function\(item[^)]*\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?navLock\.lock\(1000\)[\s\S]*?scrollToElement\(item\.el\)/);
+  assert.match(app, /onNavigate:\s*function\(item[^)]*\)[\s\S]*?syncActiveIndex\(index\)[\s\S]*?navLock\.lock\(NAV_LOCK_MS\)[\s\S]*?scrollToElement\(item\.el\)/);
 });
 
 test('nav-lock unlock only flushes a rebuild when one is parked (no rebuild on every click)', () => {
@@ -314,7 +321,7 @@ test('edge dock styles and localized menu labels are present', () => {
   assert.match(dock, /var tocButton = document\.createElement\('div'\)/);
   assert.match(dock, /var line = document\.createElement\('button'\)/);
   assert.match(dock, /line\.type = 'button'/);
-  assert.match(dock, /line\.dataset\.index = String\(index\)/);
+  assert.match(dock, /line\.dataset\.index = String\(idx\)/);
   assert.match(dock, /function navigatePreviewItem[\s\S]*?options\.onNavigate && options\.onNavigate\(item, index\)/);
   assert.match(dock, /function onPreviewClick[\s\S]*?e\.stopPropagation\(\)[\s\S]*?navigatePreviewItem\(parseInt\([\s\S]*?dataset\.index/);
   assert.match(dock, /preview\.addEventListener\('click', onPreviewClick\b/);
@@ -367,4 +374,23 @@ test('collapsed preview colors stay visible on light and dark host pages', () =>
   assert.match(css, /\.toc-edge-dock-preview-line-active\s*\{[^}]*background:\s*var\(--toc-preview-line-active\)[^}]*box-shadow:\s*0 0 0 1px var\(--toc-preview-ring-light\),\s*0 0 0 2px var\(--toc-preview-ring-dark\)/s);
   assert.match(css, /\.toc-edge-dock-preview-line:hover,[\s\S]*?\.toc-edge-dock-preview-line:focus-visible\s*\{[^}]*background:\s*var\(--toc-preview-line-hover\)[^}]*box-shadow:\s*0 0 0 1px var\(--toc-preview-ring-light\),\s*0 0 0 3px var\(--toc-preview-ring-dark\)/s);
   assert.doesNotMatch(darkTheme, /\.toc-edge-dock-preview-line(?:-active)?\s*\{/);
+});
+
+test('dock hides on empty TOCs without custom selectors and reshows when items arrive', () => {
+  const dock = fs.readFileSync(path.join(repoRoot, 'src/ui/edge-dock.ts'), 'utf8');
+  const app = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.ts'), 'utf8');
+  const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
+
+  // edge-dock exposes the toggle and re-evaluates it on every setItems so
+  // late-loading headings re-show the dock.
+  assert.match(dock, /setEmptyHidden: function/);
+  assert.match(dock, /root\.classList\.toggle\('toc-dock-empty', emptyHidden && dockItems\.length === 0\)/);
+  assert.match(dock, /applyEmptyState\(\);\s*\},\s*\n\s*setEmptyHidden/);
+  // toc-app drives it from the custom-selector check (sentinel selectors the
+  // chatbot path injects must NOT count as custom).
+  assert.match(app, /hasCustomSelectors = function/);
+  assert.match(app, /_tocSentinel/);
+  assert.match(app, /syncEmptyDockState/);
+  // The hiding rule must beat the base .toc-edge-dock display:block.
+  assert.match(css, /\.toc-edge-dock\.toc-dock-empty\s*\{\s*display: none !important;\s*\}/);
 });
