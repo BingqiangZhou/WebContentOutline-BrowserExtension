@@ -1,6 +1,6 @@
 Web TOC Assistant — Generate an Interactive Outline for Long Webpages
 
-Quickly navigate long articles, documentation, and complex webpages. Web TOC Assistant automatically analyzes page heading structure and generates an interactive outline that tracks your reading position, letting you jump to any section instantly.
+Quickly navigate long articles, documentation, and complex webpages. Click the toolbar icon once on a site you care about, and Web TOC Assistant analyzes its heading structure and generates an interactive outline that tracks your reading position, letting you jump to any section instantly. The outline only appears on sites you enable — other pages are never touched.
 
 
 ★ Edge Dock Navigation
@@ -16,13 +16,14 @@ A slim toolbar at the page edge provides live navigation as you read:
 
 ★ Key Features
 
-  • Automatic TOC generation — Detects standard h1-h6 headings on any webpage.
+  • Automatic TOC generation — Detects standard h1-h6 headings on every page you enable.
   • Content region detection — Intelligently identifies the main content area, filtering out navigation and footer noise.
   • Chatbot conversation TOC — Automatically detects ChatGPT, Claude, Gemini and other AI chatbot pages, generating turn-based outlines.
   • Source indicators — Color-coded markers distinguish user prompts and custom selector items at a glance.
   • Visual element picker — Click any page element directly to create custom outline rules.
-  • CSS and XPath selectors — Adapt the TOC to websites with non-standard heading structures.
-  • Per-site preferences — Save enable/disable state, selectors, and dock position for each website.
+  • CSS and XPath selectors — Pick an element visually or type a selector by hand, adapting the TOC to websites with non-standard heading structures.
+  • Opt-in per site — Off by default; one click on the toolbar icon turns it on for the current site, and selectors and dock position are saved separately per website.
+  • Options page — Review and manage every site's activation state and selector configs in one place.
   • Dynamic content updates — Refreshes automatically as page content changes, covering single-page applications, streaming responses, and continuously loading pages; stays reliable alongside translation and reader extensions.
   • Light and dark themes — Adapts automatically to your system theme.
 

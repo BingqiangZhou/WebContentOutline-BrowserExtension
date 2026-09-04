@@ -1,10 +1,10 @@
-No user account or login is required. The extension works immediately after installation.
+No user account or login is required. The extension is disabled by default after installation — nothing appears on any page until the user enables it for a site via the toolbar icon (step 2).
 
 ## Testing Steps
 
 1. Open a content-heavy page (e.g. https://en.wikipedia.org/wiki/Google).
 
-2. Click the extension icon in the browser toolbar. The transparent white-document icon turns black (enabled), and a small badge appears at the right edge of the viewport.
+2. Click the extension icon in the browser toolbar — this enables the TOC for the current site. The transparent white-document icon turns black (enabled), and a small badge appears at the right edge of the viewport.
 
 3. Hover over the badge to expand the Table of Contents panel. Click any TOC item to scroll to that section. The active heading is highlighted as you scroll.
 

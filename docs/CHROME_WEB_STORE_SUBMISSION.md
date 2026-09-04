@@ -11,7 +11,7 @@ An extension must have a single purpose that is narrow and easy-to-understand. L
 ### Single purpose description *
 
 ```text
-Automatically generates an interactive floating table of contents (TOC) for web pages by scanning DOM heading elements, allowing users to quickly navigate long-form content through a sidebar outline with click-to-scroll, active heading tracking, and per-site customization.
+Automatically generates an interactive table of contents (TOC) for web pages by scanning DOM heading elements, allowing users to quickly navigate long-form content through an edge-docked outline with click-to-scroll, active heading tracking, and per-site opt-in activation.
 ```
 
 ## Permission justification
@@ -29,7 +29,7 @@ Due to the Host Permission, your extension may require an in-depth review which 
 ## storage justification *
 
 ```text
-The "storage" permission is used to persist user preferences locally in chrome.storage.local. Specifically, it stores five categories of data, all of which remain on the user's device and are never transmitted externally:
+The "storage" permission is used to persist user preferences locally in chrome.storage.local. Specifically, it stores three categories of data, all of which remain on the user's device and are never transmitted externally:
 
 1. tocSiteEnabledMap — per-site (origin) enable/disable state, so the extension remembers whether the user has activated the TOC for a given website.
 2. tocConfigs — per-site selector configurations (CSS/XPath expressions and display side), saved when users customize which elements to include in the TOC via the built-in element picker.
@@ -41,13 +41,13 @@ All data is stored locally on the user's device. No data is sent to any external
 ## tabs justification *
 
 ```text
-The "tabs" permission is required to read the URL of the active tab (via chrome.tabs.get, chrome.tabs.query, and the tab.url property in event listeners). The extension uses the tab's origin (e.g., "https://example.com") as a lookup key to remember the user's per-site preference. The TOC is enabled by default on every website; the user can disable it for a specific site, and that preference is remembered by origin. This enables two core behaviors: (1) setting the correct toolbar icon state when the user switches tabs — the transparent white-document mark in black for sites where the TOC is active (the default) and gray for sites the user has disabled — and (2) automatically injecting the content script into http(s) tabs where the TOC is active, while skipping sites the user has disabled.
+The "tabs" permission is required to read the URL of the active tab (via chrome.tabs.get, chrome.tabs.query, and the tab.url property in event listeners). The extension uses the tab's origin (e.g., "https://example.com") as a lookup key to remember the user's per-site preference. The TOC is opt-in per site: it is disabled by default on every website, and the user enables it for a specific site by clicking the toolbar icon; that preference is remembered by origin. This enables two core behaviors: (1) setting the correct toolbar icon state when the user switches tabs — gray for sites where the TOC is not enabled (the default) and the transparent white-document mark in black for sites the user has enabled — and (2) automatically injecting the content script into http(s) tabs of sites the user has enabled, while skipping all other sites.
 ```
 
 ## scripting justification *
 
 ```text
-The "scripting" permission is required to dynamically inject the extension's WXT-built content script (`content-scripts/toc.js`) and stylesheet (`content-scripts/toc.css`) into web pages via the Chromium scripting API. The injected content script scans the page DOM for heading elements, builds an interactive table of contents, renders the floating navigation UI (sidebar, badge, panel), and implements scroll-tracking and click-to-scroll navigation. The TOC is enabled by default on every website, so the content script is injected into http(s) pages on page load to provide a seamless experience; the user can disable the TOC for a specific site via the toolbar, and on disabled sites nothing is injected. The extension also removes the injected stylesheet when a user disables the TOC for a site. No code is fetched from or sent to any remote server; all injected code is bundled within the extension package.
+The "scripting" permission is required to dynamically inject the extension's WXT-built content script (`content-scripts/toc.js`) into web pages via the Chromium scripting API. The injected content script scans the page DOM for heading elements, builds an interactive table of contents, renders the navigation UI (an edge dock with an expandable outline panel), and implements scroll-tracking and click-to-scroll navigation. The UI's stylesheet (`content-scripts/toc.css`) is bundled inside the extension package and loaded by the content script into an isolated shadow root, so no stylesheet is injected into the host page. The TOC is opt-in per site: it is disabled by default everywhere, and the content script is injected only into http(s) tabs of sites the user has enabled via the toolbar icon; when the user disables a site, the content script tears down and removes its UI. No code is fetched from or sent to any remote server; all injected code is bundled within the extension package.
 ```
 
 ## Host permission justification *
@@ -115,7 +115,7 @@ No. The extension makes zero outbound network requests. It does not use fetch(),
 |---|---|
 | `storage` | Persist user preferences locally (enable/disable state, selector configs, UI state) |
 | `tabs` | Read tab URLs to look up per-site enable/disable state and set the correct toolbar icon |
-| `scripting` | Inject the bundled content script and stylesheet into pages where the user has enabled the extension |
+| `scripting` | Inject the bundled content script into pages where the user has enabled the extension |
 | `http://*/*`, `https://*/*` (host_permissions) | Broad host access granted at install, so the extension can read the DOM and inject its content script on any http(s) page the user enables via the toolbar toggle. Applied only on user-enabled sites; nothing is collected or transmitted |
 
 ---
