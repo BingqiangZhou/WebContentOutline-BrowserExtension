@@ -143,8 +143,10 @@
     "message": "$COUNT$ 个选择器",
     "description": "选择器数量单元格文本；$COUNT$ 为数量",
     "placeholders": {
-      "content": "$1",
-      "example": "3"
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "optionsSaveFailed": {

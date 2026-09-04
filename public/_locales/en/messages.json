@@ -143,8 +143,10 @@
     "message": "$COUNT$ selectors",
     "description": "Selector count cell text; $COUNT$ is the number",
     "placeholders": {
-      "content": "$1",
-      "example": "3"
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
     }
   },
   "optionsSaveFailed": {
