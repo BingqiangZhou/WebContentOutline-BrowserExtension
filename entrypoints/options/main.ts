@@ -73,7 +73,8 @@ async function renderSites(): Promise<void> {
     label.className = 'site-origin';
     label.textContent = origin;
 
-    const enabled = map[origin] !== false;
+    // Opt-in: only an explicit true entry counts as enabled.
+    const enabled = map[origin] === true;
     const switchLabel = document.createElement('label');
     switchLabel.className = 'switch';
 

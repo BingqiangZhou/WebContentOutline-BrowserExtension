@@ -76,7 +76,7 @@ jobs:
           grep -q "content-scripts/toc.css" zip-list.txt
           grep -q "_locales/en/messages.json" zip-list.txt
           grep -q "icons/png/toc-disabled-128.png" zip-list.txt
-          ! grep -q "^.*\\.claude/" zip-list.txt
+          ! grep -q "^.*\\.zcode/" zip-list.txt
           ! grep -q "^.*src/" zip-list.txt
           ! grep -q "^.*entrypoints/" zip-list.txt
           ! grep -q "^.*wxt.config.ts" zip-list.txt

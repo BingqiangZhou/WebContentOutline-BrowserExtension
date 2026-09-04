@@ -4,12 +4,13 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 **[中文版本 / Chinese Version](CHANGELOG_CN.md)**
 
-[Table of Contents](#table-of-contents) • [Latest](#1111---2026-06-13)
+[Table of Contents](#table-of-contents) • [Latest](#1120---2026-09-04)
 
 ---
 
 ## Table of Contents
 
+- [1.12.0](#1120---2026-09-04) - 2026-09-04
 - [1.11.1](#1111---2026-06-13) - 2026-06-13
 - [1.11.0](#1110---2026-06-13) - 2026-06-13
 - [1.10.0](#1100---2026-06-13) - 2026-06-13
@@ -48,9 +49,12 @@ All notable changes to the Web TOC Assistant extension will be documented in thi
 
 ---
 
-## [Unreleased]
+## [1.12.0] - 2026-09-04
 
-A correctness, performance, and manageability release: the rebuild circuit breaker actually works now, chat outlines keep repeated prompts and disclose turn truncation, streaming rebuilds are signature-gated, empty pages no longer show a stray dock, selectors can be typed by hand (CSS or XPath), and a new options page manages per-site state globally.
+A behavior-changing release: the TOC is now **opt-in per site** — it runs only where you enable it. Alongside, a correctness/performance/manageability batch: the rebuild circuit breaker actually works now, chat outlines keep repeated prompts and disclose turn truncation, streaming rebuilds are signature-gated, empty pages no longer show a stray dock, selectors can be typed by hand (CSS or XPath), and a new options page manages per-site state globally.
+
+### 🔧 Changed
+- **Per-site opt-in: the TOC no longer runs on every website by default** — Since 1.10.0 the extension enabled itself on every site, which disturbed users on pages that never asked for a TOC. It is now off by default everywhere: content is injected only on sites with an explicit opt-in. Click the toolbar icon on a site to enable it there (click again to disable); review and toggle sites in the options page. For upgrading users, sites that were explicitly enabled keep working, while sites that were only enabled by default turn off until opted in. The toolbar's global fallback icon now shows the disabled state.
 
 ### 🐛 Fixed
 - **Circuit breaker never tripped in production** — The rebuild scheduler's failure counter only incremented when the rebuild callback *threw*, but toc-app's `rebuild()` deliberately never rejects (it logs and resolves), so the breaker, its half-open recovery probe, and the 30s reset were all dead code in real usage. `rebuildOnce` now resolves with an explicit `ok`/`fail`/`halt` status and the scheduler counts resolved `fail`s. Covered by a new integration test that drives the scheduler with the real (never-rejecting) contract.

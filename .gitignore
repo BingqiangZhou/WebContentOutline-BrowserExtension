@@ -2,10 +2,11 @@ test*
 
 *.zip
 
-# Superpowers plugin working docs (specs, plans) — local only
+# Agent working docs (specs, plans) — local only
 docs/superpowers/
 .superpowers/
 .worktrees/
+.zcode/plans/
 
 .DS_Store
 
