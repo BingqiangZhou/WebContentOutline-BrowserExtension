@@ -255,7 +255,7 @@ For complex page structures, you can use XPath:
 ├── docs/                      # Documentation assets
 │   ├── PRIVACY_POLICY.md      # Privacy policy
 │   └── descriptions/          # Screenshots & store descriptions
-├── CLAUDE.md                  # Claude Code development guide
+├── AGENTS.md                  # AI coding agent development guide
 └── README_CN.md               # Chinese version (中文版)
 ```
 
@@ -407,7 +407,7 @@ Source code is built by WXT:
 3. `import` from the module wherever needed (WXT/Vite resolves at build time)
 4. If it's a utility, consider adding to `utils/toc-utils.ts` barrel re-export
 
-For detailed technical documentation, see [`CLAUDE.md`](CLAUDE.md).
+For detailed technical documentation, see [`AGENTS.md`](AGENTS.md).
 
 ## 🤝 Contributing
 

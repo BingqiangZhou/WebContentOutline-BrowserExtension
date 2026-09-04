@@ -53,8 +53,8 @@ Find the previous release tag and analyze what changed:
 ```bash
 git tag --sort=-version:refname | head -5
 git log v{prev_version}..HEAD --oneline
-git diff v{prev_version}..HEAD --stat -- src/ entrypoints/ public/ wxt.config.ts package.json .github/workflows/ docs/ README.md README_CN.md CLAUDE.md
-git diff v{prev_version}..HEAD -- src/ entrypoints/ public/ wxt.config.ts package.json .github/workflows/ docs/ README.md README_CN.md CLAUDE.md
+git diff v{prev_version}..HEAD --stat -- src/ entrypoints/ public/ wxt.config.ts package.json .github/workflows/ docs/ README.md README_CN.md AGENTS.md
+git diff v{prev_version}..HEAD -- src/ entrypoints/ public/ wxt.config.ts package.json .github/workflows/ docs/ README.md README_CN.md AGENTS.md
 ```
 
 Categorize changes into:
@@ -130,7 +130,7 @@ Check if README.md / README_CN.md need updates:
 - **Update if**: new user-facing features, architecture changes, new storage keys, new permissions
 - **Skip if**: only bug fixes, internal refactoring, or performance changes invisible to users
 
-Also update `CLAUDE.md` if architecture, module structure, or storage schema changed.
+Also update `AGENTS.md` if architecture, module structure, or storage schema changed.
 
 ## Step 8: Build
 
@@ -157,7 +157,7 @@ unzip -l .output/webtoc-assistant-v${VERSION}.zip | head -20
 Verify:
 1. Zip exists and file size is reasonable (~50-100 KB)
 2. Contains expected runtime files: `manifest.json`, `background.js`, `content-scripts/toc.js`, `content-scripts/toc.css`, `_locales/`, `icons/`
-3. Does NOT contain dev/source files: `wxt.config.ts`, `entrypoints/`, `src/`, `.claude/`, `node_modules/`, `.output/`, `.gitignore`
+3. Does NOT contain dev/source files: `wxt.config.ts`, `entrypoints/`, `src/`, `.zcode/`, `node_modules/`, `.output/`, `.gitignore`
 
 Also inspect the generated manifest:
 
@@ -172,7 +172,7 @@ Expected: `version` matches `${VERSION}`, background is `background.js`, and `co
 ```bash
 git add package.json package-lock.json CHANGELOG.md CHANGELOG_CN.md
 # Only add docs/configs if they were actually modified
-git add README.md README_CN.md CLAUDE.md docs/ .github/workflows/release.yml wxt.config.ts 2>/dev/null
+git add README.md README_CN.md AGENTS.md docs/ .github/workflows/release.yml wxt.config.ts 2>/dev/null
 
 git commit -m "release: v${VERSION}"
 git tag -a "v${VERSION}" -m "Release v${VERSION}"

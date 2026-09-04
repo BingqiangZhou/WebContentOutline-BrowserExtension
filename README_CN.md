@@ -235,7 +235,7 @@
 ├── docs/                      # 文档资源
 │   ├── PRIVACY_POLICY.md      # 隐私政策
 │   └── descriptions/          # 截图与应用商店描述
-├── CLAUDE.md                  # Claude Code 开发指南
+├── AGENTS.md                  # AI 编码代理开发指南
 └── README.md                  # 英文版
 ```
 
@@ -387,7 +387,7 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
 3. 在需要使用的模块中通过 `import` 引入（WXT/Vite 在构建时自动解析）
 4. 如果是工具函数，考虑添加到 `utils/toc-utils.ts` 的 barrel 重导出
 
-详细的技术文档请查看 [`CLAUDE.md`](CLAUDE.md)。
+详细的技术文档请查看 [`AGENTS.md`](AGENTS.md)。
 
 ## 🤝 贡献指南
 
