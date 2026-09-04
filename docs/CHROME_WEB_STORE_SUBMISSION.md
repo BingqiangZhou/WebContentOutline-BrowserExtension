@@ -47,21 +47,19 @@ The "tabs" permission is required to read the URL of the active tab (via chrome.
 ## scripting justification *
 
 ```text
-The "scripting" permission is required to dynamically inject the extension's WXT-built content script (`content-scripts/toc.js`) into web pages via the Chromium scripting API. The injected content script scans the page DOM for heading elements, builds an interactive table of contents, renders the navigation UI (an edge dock with an expandable outline panel), and implements scroll-tracking and click-to-scroll navigation. The UI's stylesheet (`content-scripts/toc.css`) is bundled inside the extension package and loaded by the content script into an isolated shadow root, so no stylesheet is injected into the host page. The TOC is opt-in per site: it is disabled by default everywhere, and the content script is injected only into http(s) tabs of sites the user has enabled via the toolbar icon; when the user disables a site, the content script tears down and removes its UI. No code is fetched from or sent to any remote server; all injected code is bundled within the extension package.
+The "scripting" permission is required to dynamically inject the extension's WXT-built content script (`content-scripts/toc.js`) into web pages via the Chromium scripting API. The injected content script scans the page DOM for heading elements, builds an interactive table of contents, renders the navigation UI (an edge dock with an expandable outline panel), and implements scroll-tracking and click-to-scroll navigation. The UI's stylesheet is bundled inside the extension package and loaded by the content script into an isolated shadow root, so no stylesheet is injected into the host page. The TOC is opt-in per site: it is disabled by default everywhere, and the content script is injected only into http(s) tabs of sites the user has enabled via the toolbar icon; when the user disables a site, the content script removes its UI. No code is fetched from or sent to any remote server; all injected code is bundled within the extension package.
 ```
 
 ## Host permission justification *
 
 ```text
-The extension declares broad host access as REQUIRED ("host_permissions": "http://*/*" and "https://*/*"), granted at install time. This is necessary because the extension's single purpose — generating an interactive table of contents from a page's headings — requires reading the DOM and injecting a content script on whatever http(s) page the user chooses to use it on. The user cannot know in advance which sites they will want a TOC for, so host access must be available across all web pages rather than restricted to a fixed list. The extension only reads/injects on sites the user has explicitly enabled via the toolbar toggle (a per-site preference stored locally); on all other sites nothing is read or injected.
+The extension declares required broad host access (http://*/*, https://*/*) granted at install. Its single purpose — building a table of contents from page headings — needs DOM access on any page the user enables it on; users cannot know in advance which sites they will use, so access must cover all pages rather than a fixed list. It is opt-in per site: the extension reads and injects only on sites the user explicitly enables via the toolbar toggle (stored locally); on all other sites nothing is read or injected.
 
-Why broad required host permissions rather than "activeTab":
-"activeTab" grants only transient, single-tab access that expires on navigation, so the TOC could not reappear automatically on subsequent visits to an enabled site (the extension's core value). Broad host permissions let the extension honor the user's per-site enable/disable choice on every page load and tab activation without repeated clicks.
+Why not "activeTab": it is transient, single-tab access that expires on navigation, so the TOC could not reappear on later visits to enabled sites — the extension's core value.
 
-Why broad required host permissions rather than optional per-origin grants:
-Earlier versions (1.8.0–1.9.0) used optional per-origin host permissions requested at runtime. This caused reliability problems: the per-origin grant could be lost or revoked, after which the extension silently failed to appear on sites the user had enabled. Required host permissions eliminate that failure point, so an enabled site reliably shows the TOC.
+Why not optional per-origin grants: versions 1.8.0–1.9.0 used them, but grants could be lost or revoked, silently breaking enabled sites.
 
-The extension does not collect, transmit, or store any page content, personal data, or browsing history on any remote server. All DOM processing happens locally in the user's browser.
+No page content, personal data, or browsing history is collected, transmitted, or stored remotely; all DOM processing is local.
 ```
 
 ### Right panel hint
