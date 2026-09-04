@@ -112,11 +112,11 @@
     "description": "站点启用/禁用分区的标题"
   },
   "optionsSitesDescription": {
-    "message": "未列出的站点默认启用；目录只会在能构建目录的页面上出现。",
-    "description": "站点分区下方对默认启用行为的说明"
+    "message": "目录仅在下方已启用的站点上运行；在目标站点点击工具栏图标即可开启。",
+    "description": "站点分区下方对按站点手动开启行为的说明"
   },
   "optionsNoSites": {
-    "message": "暂无站点级设置。在站点上点击工具栏图标即可在该站切换。",
+    "message": "还没有已启用的站点。在需要的网站上点击工具栏图标即可开启目录。",
     "description": "站点列表为空时的提示"
   },
   "optionsConfigsHeading": {

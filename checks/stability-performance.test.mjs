@@ -415,7 +415,7 @@ async function loadContentScriptForConfigChanges(options = {}) {
     findMatchingConfig(list, url) {
       return (Array.isArray(list) ? list : []).find((cfg) => cfg && wildcardMatch(cfg.urlPattern, url)) || null;
     },
-    getSiteEnabledByOrigin() { return Promise.resolve(options.enabled !== false); },
+    getSiteEnabledByOrigin() { return Promise.resolve(options.enabled === true); },
     getPanelExpandedByOrigin() { return Promise.resolve(false); },
     getBadgePosByHost() { return Promise.resolve(null); },
     setBadgePosByHost(host, pos) {
@@ -756,7 +756,7 @@ test('content script refreshes config on every tocConfigs storage change', async
     urlPattern: 'https://docs.example.com/*',
     selectors: [{ type: 'css', expr: 'article h2' }]
   }];
-  const env = await loadContentScriptForConfigChanges({ configs: initial });
+  const env = await loadContentScriptForConfigChanges({ enabled: true, configs: initial });
   assert.equal(env.getInitConfig().urlPattern, 'https://docs.example.com/*');
 
   // Config refresh happens for any tocConfigs change, even unrelated URLs

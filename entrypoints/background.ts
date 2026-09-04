@@ -74,20 +74,20 @@ async function saveEnabledMap(map: Record<string, boolean>): Promise<{ ok: boole
   }
 }
 
-// Default enabled: a site with no entry in tocSiteEnabledMap is enabled; only
-// an explicit false disables it (opt-out per site).
+// Opt-in per site: a site is enabled only by an explicit true entry in
+// tocSiteEnabledMap; absent entries (and explicit false) are disabled.
 async function getEnabledByOrigin(origin: string): Promise<boolean> {
   const map = await getEnabledMap();
-  return !!origin && map[origin] !== false;
+  return !!origin && map[origin] === true;
 }
 
 async function setEnabledByOrigin(origin: string, enabled: boolean): Promise<{ ok: boolean; enabled: boolean; error: Error | null }> {
   if (!origin) return { ok: false, enabled: false, error: null };
   return serializedWrite('tocSiteEnabledMap', async () => {
     const map = await getEnabledMap();
-    // Default-on semantics: an absent entry means ENABLED, same as
+    // Opt-in semantics: an absent entry means DISABLED, same as
     // getEnabledByOrigin. `!!map[origin]` reported false for absent keys.
-    const prev = map[origin] !== false;
+    const prev = map[origin] === true;
     touchObjectKey(map, origin, !!enabled);
     pruneObjectToLimit(map, BG_MAX_MAP_KEYS);
     const res = await saveEnabledMap(map);
@@ -390,10 +390,11 @@ async function processAllTabs() {
 
 async function setGlobalDefaultIcon() {
   try {
-    // Default-on: the extension is active by default, so the global fallback
-    // icon/title reflect enabled. Per-tab icons are set by updateIconForTab.
-    await browser.action.setIcon({ path: getIconPathMap(true) });
-    await browser.action.setTitle({ title: browser.i18n.getMessage('titleEnabled') || 'Web TOC: Enabled (click to disable)' });
+    // Opt-in: most tabs/sites are disabled until the user enables them, so the
+    // global fallback icon/title reflect disabled. Per-tab icons are set by
+    // updateIconForTab.
+    await browser.action.setIcon({ path: getIconPathMap(false) });
+    await browser.action.setTitle({ title: browser.i18n.getMessage('titleDisabled') || 'Web TOC: Disabled (click to enable)' });
   } catch (e) { console.warn('[toc] setGlobalDefaultIcon failed:', e); }
 }
 

@@ -59,15 +59,15 @@ export function findMatchingConfig(configs: Array<{ urlPattern?: string; selecto
     }
 
     /**
-     * Whether current origin (or provided origin) is enabled. Default: ENABLED (true)
-     * — a site with no entry is enabled; only an explicit false disables it.
+     * Whether current origin (or provided origin) is enabled. Opt-in: a site is
+     * enabled only by an explicit true entry; absent entries are disabled.
      * @param {string} [origin]
      * @returns {Promise<boolean>}
      */
     export async function getSiteEnabledByOrigin(origin?: string) {
       var map: Record<string, boolean> = await getEnabledMap();
       var key = originKey(origin);
-      return !!key && map[key] !== false;
+      return !!key && map[key] === true;
     }
 
     // Depth/count caps for shadow-DOM + iframe traversal. Bounded so a huge

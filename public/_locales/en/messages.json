@@ -112,11 +112,11 @@
     "description": "Heading of the per-site enable/disable section"
   },
   "optionsSitesDescription": {
-    "message": "Sites not listed below are enabled by default; the TOC only appears on pages where one can be built.",
-    "description": "Explanation of default-on behavior under the sites section"
+    "message": "The TOC only runs on sites enabled below. Click the toolbar icon on a site to enable it there.",
+    "description": "Explanation of per-site opt-in behavior under the sites section"
   },
   "optionsNoSites": {
-    "message": "No per-site overrides yet. Click the toolbar icon on a site to toggle it there.",
+    "message": "No sites enabled yet. Click the toolbar icon on a site to enable the TOC there.",
     "description": "Empty state for the per-site list"
   },
   "optionsConfigsHeading": {

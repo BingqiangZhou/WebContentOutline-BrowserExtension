@@ -54,7 +54,7 @@ A web table of contents generator that automatically creates interactive floatin
 - **Multi-selector Support**: Configure multiple CSS/XPath selectors per site
 
 ### 🌐 Multi-site Control
-- **Per-site Enable/Disable**: Independent control for each website
+- **Per-site Opt-in**: The TOC is off by default; click the toolbar icon to enable it per website
 - **Options Page**: Review and undo per-site activation and selector configs globally (extension details → Extension options)
 - **Icon Status Indicator**: The transparent white-document toolbar icon turns black when enabled and gray when disabled
 - **Cross-tab Sync**: Automatic state synchronization across tabs of the same site
@@ -68,7 +68,7 @@ A web table of contents generator that automatically creates interactive floatin
 1. **Chrome**: Visit [Chrome Web Store](https://chromewebstore.google.com/detail/fnicpbioofepnfgpdhggjmhjalogbgcn)
 2. **Edge**: Visit [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/jejjhfkmfdlccdbifpihkepaabcdlijc)
 3. Click "Add to Chrome/Edge" to install
-4. Visit any webpage to start using
+4. Visit any webpage and click the toolbar icon to enable the TOC for that site
 
 #### Method 2: Load Unpacked Extension (Developer Mode)
 
@@ -77,17 +77,17 @@ A web table of contents generator that automatically creates interactive floatin
 3. Open Chrome browser and navigate to `chrome://extensions/` or Edge browser to `edge://extensions/`
 4. Enable "Developer Mode"
 5. Click "Load unpacked" and select the `.output/chrome-mv3` folder
-6. Visit any webpage to start using
+6. Visit any webpage and click the toolbar icon to enable the TOC for that site
 
 ### Basic Operations
 
 #### 1. Enable/Disable Extension
 
-The TOC is **enabled by default** on every website — the edge-docked TOC toolbar appears automatically on any page with headings, no setup needed. Click the "Web TOC Assistant" icon in the browser toolbar to toggle it for the current site.
+The TOC is **opt-in per site**: it only runs on sites where you have enabled it, so pages are never disturbed until you ask. Click the "Web TOC Assistant" icon in the browser toolbar to enable the TOC for the current site; click again to disable it.
 
 **Effect**:
-- Enabled state (default): The transparent white-document icon is black, and the edge-docked TOC toolbar appears on page
-- Disabled state: Clicking the icon turns it gray and removes the dock for that site (the preference is remembered per site)
+- Disabled state (default): The transparent white-document icon is gray, and nothing is injected into the page
+- Enabled state: Clicking the icon turns it black and shows the edge-docked TOC toolbar on pages with headings (the preference is remembered per site)
 - Sync effect: Other tabs of the same site automatically sync state
 
 #### 2. Expand TOC Panel
@@ -335,6 +335,7 @@ Site configuration is stored in `chrome.storage.local`:
 - `urlPattern`: URL matching pattern with `*` wildcard support
 - `side`: Panel display position (`left` or `right`)
 - `selectors`: Selector array, supports mixing CSS and XPath
+- `tocSiteEnabledMap`: Per-site opt-in map — only an explicit `true` enables a site; an absent entry means disabled
 - `tocBadgePosMap`: Dock anchor position per domain (legacy key retained for compatibility; includes `x`, `y`, `anchorX`)
 
 ## 🎯 Use Cases
@@ -429,7 +430,7 @@ The next major version is being planned. Core goals:
 - **AI-Powered Content Detection** — Leverage on-device AI models to automatically identify the main content region and generate TOC, replacing manual CSS/XPath selector configuration. This eliminates the need for API keys or cloud services — all AI processing runs locally in the browser
 - **Simplified UI** — Remove manual configuration UI (element picker, site config, action buttons) — the TOC panel becomes a pure navigation tool
 - **Zero-Config Experience** — Install and use immediately, no setup required
-- **Smart Activation** — The TOC is currently enabled on all pages by default (disableable per site), so many non-reading pages (admin consoles, image galleries, video sites) also show a TOC and can only be dismissed manually or ignored. We plan to add page-type detection so the TOC auto-activates only on text-heavy pages, avoiding clutter on unsuitable pages. This is expected to land alongside the AI features in v2.0.
+- **Smart Activation** — ~~Add page-type detection so the TOC auto-activates only on text-heavy pages, avoiding clutter on unsuitable pages~~ *(Resolved differently in v1.12 — the extension is now opt-in per site: the TOC appears only on sites you explicitly enable, so non-reading pages are never disturbed.)*
 
 > **AI Approach**: We are evaluating on-device AI options that run entirely within the browser — no API keys, no cloud services, no data leaves your machine. The specific technology choice (e.g., Chrome's built-in AI APIs, WebAssembly-based models, or other local inference approaches) is still under investigation to ensure broad compatibility and reliable performance.
 
