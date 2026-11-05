@@ -4,7 +4,7 @@
 
 ### 网页目录助手 - 为长网页自动生成可交互目录
 
-快速浏览长文章、技术文档和复杂网页。网页目录助手自动分析页面标题结构，生成跟随阅读位置的可交互目录，让你随时跳转到目标章节。
+快速浏览长文章、技术文档和复杂网页。在需要的网站上点击一次工具栏图标即可开启：网页目录助手自动分析页面标题结构，生成跟随阅读位置的可交互目录，让你随时跳转到目标章节。目录只出现在你开启过的网站上，不会打扰其他页面。
 
 ### Edge Dock 贴边导航
 
@@ -24,8 +24,9 @@
 - **Chatbot 对话目录**：自动识别 ChatGPT、Claude、Gemini 等 AI 对话页面，按对话轮次生成目录。
 - **目录来源标识**：用户提示和自定义选择器的目录项带有彩色标识，一目了然。
 - **可视化元素拾取**：直接在网页上点击目标元素，快速创建自定义目录规则。
-- **CSS 与 XPath 选择器**：适配标题结构不标准的网页。
-- **按网站保存配置**：为不同网站保存独立的启用状态、选择器和界面位置。
+- **CSS 与 XPath 选择器**：可视化拾取或手动输入选择器，适配标题结构不标准的网页。
+- **按网站手动开启**：默认不在任何网站运行，点击工具栏图标即可为当前网站开启或关闭；各网站的选择器与界面位置独立保存。
+- **全局选项页**：集中查看与管理各网站的启用状态和选择器配置。
 - **动态内容更新**：网页内容变化后自动更新目录，适合单页应用、流式回复和持续加载页面；与翻译、阅读等浏览器扩展也能稳定共存。
 - **浅色与深色主题**：自动适配系统主题。
 
@@ -52,7 +53,7 @@ https://github.com/BingqiangZhou/WebContentOutline-BrowserExtension
 
 ### Web TOC Assistant - Generate an Interactive Outline for Long Webpages
 
-Quickly navigate long articles, documentation, and complex webpages. Web TOC Assistant automatically analyzes page heading structure and generates an interactive outline that tracks your reading position, letting you jump to any section instantly.
+Quickly navigate long articles, documentation, and complex webpages. Click the toolbar icon once on a site you care about, and Web TOC Assistant analyzes its heading structure and generates an interactive outline that tracks your reading position, letting you jump to any section instantly. The outline only appears on sites you enable — other pages are never touched.
 
 ### Edge Dock Navigation
 
@@ -67,13 +68,14 @@ A slim toolbar at the page edge provides live navigation as you read:
 
 ### Key Features
 
-- **Automatic TOC generation**: Detects standard `h1-h6` headings on any webpage.
+- **Automatic TOC generation**: Detects standard `h1-h6` headings on every page you enable.
 - **Content region detection**: Intelligently identifies the main content area, filtering out navigation and footer noise.
 - **Chatbot conversation TOC**: Automatically detects ChatGPT, Claude, Gemini and other AI chatbot pages, generating turn-based outlines.
 - **Source indicators**: Color-coded markers distinguish user prompts and custom selector items at a glance.
 - **Visual element picker**: Click any page element directly to create custom outline rules.
-- **CSS and XPath selectors**: Adapt the TOC to websites with non-standard heading structures.
-- **Per-site preferences**: Save enable/disable state, selectors, and dock position for each website.
+- **CSS and XPath selectors**: Pick an element visually or type a selector by hand, adapting the TOC to websites with non-standard heading structures.
+- **Opt-in per site**: Off by default; one click on the toolbar icon turns it on for the current site, and selectors and dock position are saved separately per website.
+- **Options page**: Review and manage every site's activation state and selector configs in one place.
 - **Dynamic content updates**: Refreshes automatically as page content changes, covering single-page applications, streaming responses, and continuously loading pages; stays reliable alongside translation and reader extensions.
 - **Light and dark themes**: Adapts automatically to your system theme.
 

@@ -360,6 +360,5 @@ Classic UI 已在 v1.6.0 中移除（classic-floating-panel.ts、classic-collaps
 - **章节摘要** — Summarizer API
 - **TOC 翻译** — Translator API
 - **主题系统** — 用户自定义 CSS 变量
-- **设置页面** — Options Page
 - **首次提示药丸** — 新站点自动提示启用
 - **E2E 测试** — Playwright 自动化

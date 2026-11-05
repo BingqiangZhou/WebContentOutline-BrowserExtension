@@ -2,11 +2,13 @@ test*
 
 *.zip
 
-# Agent working docs (specs, plans) — local only
+# Superpowers plugin working docs (specs, plans) — local only
 docs/superpowers/
 .superpowers/
 .worktrees/
-.zcode/plans/
+
+# Claude Code local settings (permission grants) — local only
+.claude/settings.local.json
 
 .DS_Store
 
