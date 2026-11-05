@@ -47,17 +47,23 @@ function bgWarn(e: unknown): void {
 // result (setEnabledByOrigin does, via touchObjectKey/prune); a failed write
 // must not corrupt the cached state.
 let enabledMapCache: Record<string, boolean> | null = null;
+// Bumped on every onChanged replacement of the cache. A storage read/write
+// issued BEFORE a newer cross-context write must not publish its (now stale)
+// result when it resolves — guard every cache publish against the generation
+// captured before the await (TOCTOU stale-guard).
+let enabledMapGeneration = 0;
 
 async function getEnabledMap(): Promise<Record<string, boolean>> {
   if (enabledMapCache) return { ...enabledMapCache };
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
+  const genAtRead = enabledMapGeneration;
   try {
     if (browser?.storage?.local) {
       const res = await browser.storage.local.get([KEY]);
       const map = (res[KEY] as Record<string, boolean>) || {};
-      // Do not cache on the fallback path — a transient failure must not pin
-      // an empty map for the rest of this SW lifetime.
-      enabledMapCache = map;
+      // Publish only if no onChanged landed while the read was in flight —
+      // the onChanged value is strictly newer.
+      if (genAtRead === enabledMapGeneration) enabledMapCache = map;
       return { ...map };
     }
   } catch (e) {
@@ -70,16 +76,20 @@ async function saveEnabledMap(map: Record<string, boolean>): Promise<{ ok: boole
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
   try {
     if (!browser?.storage?.local) return { ok: false, error: new Error('browser.storage.local unavailable') };
+    const genAtSet = enabledMapGeneration;
     await browser.storage.local.set({ [KEY]: map });
-    enabledMapCache = map;
+    // Publish only if no NEWER foreign write landed while our set was in
+    // flight — otherwise its onChanged already installed the newer value.
+    if (genAtSet === enabledMapGeneration) enabledMapCache = map;
     return { ok: true, pruned: false };
   } catch (e) {
     if (isQuotaExceededError(e)) {
       try {
         const pruned = { ...map };
         pruneObjectToLimit(pruned, BG_MAX_MAP_KEYS);
+        const genAtRetry = enabledMapGeneration;
         await browser.storage.local.set({ [KEY]: pruned });
-        enabledMapCache = pruned;
+        if (genAtRetry === enabledMapGeneration) enabledMapCache = pruned;
         return { ok: true, pruned: true };
       } catch (e2) {
         return { ok: false, error: e2 as Error };
@@ -319,14 +329,16 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
 // exception-safe so a closed tab or a rejected API never leaves an unhandled
 // rejection (the badge simply stays until the tab is discarded).
 async function flashUnsupportedTabBadge(tabId: number): Promise<void> {
+  // Color BEFORE text: the badge's first painted frame must already use the
+  // muted gray, not the API default (red).
+  try {
+    await browser.action.setBadgeBackgroundColor({ tabId, color: '#5f6368' });
+  } catch (_) {}
   try {
     await browser.action.setBadgeText({ tabId, text: '!' });
   } catch (_) {
     return;
   }
-  try {
-    await browser.action.setBadgeBackgroundColor({ tabId, color: '#5f6368' });
-  } catch (_) {}
   setTimeout(() => {
     browser.action.setBadgeText({ tabId, text: '' }).catch(() => {});
   }, 1600);
@@ -334,6 +346,10 @@ async function flashUnsupportedTabBadge(tabId: number): Promise<void> {
 
 async function handleActionClick(tab: any): Promise<void> {
   if (!tab || !tab.id) return;
+  // Clear any badge left by a previous unsupported-page flash (its 1.6s clear
+  // timer is lost if the SW was evicted first, and badge state survives
+  // same-tab navigation) — every click is a self-heal point.
+  try { browser.action.setBadgeText({ tabId: tab.id, text: '' }).catch(() => {}); } catch (_) {}
   if (!isHttpUrl(tab.url)) {
     // Unsupported page (or a URL the extension cannot read): say something
     // instead of silently ignoring the click.
@@ -391,6 +407,7 @@ try {
     const change = changes && changes[BG_STORAGE_KEYS.SITE_ENABLE_MAP];
     if (!change) return;
     const nv = change.newValue;
+    enabledMapGeneration++;
     enabledMapCache = (nv && typeof nv === 'object') ? nv as Record<string, boolean> : {};
   });
 } catch (e) {

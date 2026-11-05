@@ -289,14 +289,16 @@ export function startTocContent(ctx: any) {
     }
     // Double-rAF: lets the first paint/layout pass settle (the old fixed
     // 50ms timeout delayed the first dock appearance on every enabled page).
-    // Falls back to setTimeout(0) where rAF is unavailable (locked-down host
-    // or a test sandbox).
+    // Hidden tabs never run rAF (Chromium suspends it there), so fall back to
+    // a timer — background-opened tabs still initialize (throttled) instead
+    // of waiting for first visibility. Same fallback where rAF is
+    // unavailable (locked-down host or a test sandbox).
     await new Promise<void>(function(r: () => void) {
-      if (typeof (globalThis as any).requestAnimationFrame === 'function') {
-        requestAnimationFrame(function() { requestAnimationFrame(function() { r(); }); });
-      } else {
+      if (document.hidden || typeof (globalThis as any).requestAnimationFrame !== 'function') {
         setTimeout(r, 0);
+        return;
       }
+      requestAnimationFrame(function() { requestAnimationFrame(function() { r(); }); });
     });
     await main();
   }

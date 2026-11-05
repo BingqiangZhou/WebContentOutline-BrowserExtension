@@ -344,3 +344,14 @@ test('bootstrap settle uses double-rAF instead of a fixed 50ms timeout', () => {
   assert.match(fn[0], /requestAnimationFrame[\s\S]*?requestAnimationFrame/, 'double-rAF settle inside initWhenStable');
   assert.doesNotMatch(fn[0], /setTimeout\(r, 50\)/, 'no fixed 50ms delay');
 });
+
+test('bootstrap settle keeps never-visible tabs initializing via setTimeout', () => {
+  const content = fs.readFileSync(path.join(repoRoot, 'src/content.ts'), 'utf8');
+  const fn = content.match(/async function initWhenStable\(\)[\s\S]*?\n  \}/);
+  assert.ok(fn, 'initWhenStable should exist');
+  // Chromium suspends rAF entirely in hidden tabs; the settle must fall back
+  // to a timer there so background-opened tabs still initialize (throttled).
+  assert.match(fn[0], /document\.hidden[\s\S]*?setTimeout\(r, 0\)/);
+  // Visible tabs still settle on double-rAF.
+  assert.match(fn[0], /requestAnimationFrame[\s\S]*?requestAnimationFrame/);
+});
