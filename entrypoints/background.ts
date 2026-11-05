@@ -293,8 +293,10 @@ async function maybeAutoInject(tabId: number, url: string): Promise<void> {
 async function broadcastEnabledToOrigin(origin: string, enabled: boolean, exceptTabId: number | undefined): Promise<void> {
   try {
     const tabs = await getTabsByOrigin(origin);
-    for (const t of tabs) {
-      if (!t.id || t.id === exceptTabId) continue;
+    // Fan out per-tab work in parallel: each tab's ping→inject + message +
+    // icon sequence is independent, so one slow tab cannot serialize the rest.
+    await Promise.allSettled(tabs.map(async (t: any) => {
+      if (!t.id || t.id === exceptTabId) return;
       try {
         // When (re-)enabling, a tab that never received the content script
         // (e.g. opened in the background while the site was disabled, or
@@ -305,7 +307,7 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
         // Update icon for each tab
         await setTabIcon(t.id, enabled);
       } catch (_) {}
-    }
+    }));
   } catch (e) {
     console.warn('[toc] broadcastEnabledToOrigin failed:', e, { origin, enabled });
   }

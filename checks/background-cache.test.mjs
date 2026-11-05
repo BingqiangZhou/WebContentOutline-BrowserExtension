@@ -166,3 +166,24 @@ test('enabled-map reads hit storage once and follow onChanged updates', async ()
   assert.equal(env.storageReads(), 1, 'onChanged replaced the cache, not a re-read');
   assert.equal(env.storedMap()['https://a.example'], false);
 });
+
+test('broadcast fans out to all same-origin tabs in parallel', async () => {
+  const env = loadBackground({ 'https://a.example': false }, { pingOk: false });
+  env.setTabs([
+    { id: 1, url: 'https://a.example/x' }, // the clicked tab
+    { id: 2, url: 'https://a.example/y' },
+    { id: 3, url: 'https://a.example/z' },
+    { id: 4, url: 'https://other.example/w' } // different origin — excluded
+  ]);
+  await env.clickToolbarIcon({ id: 1, url: 'https://a.example/x' });
+  assert.deepEqual(env.injectedTabs().sort(function (a, b) { return a - b; }), [1, 2, 3]);
+  assert.equal(env.iconOf(2), true); // per-tab icons set
+  assert.equal(env.iconOf(3), true);
+  assert.equal(env.iconOf(4), undefined, 'different-origin tab untouched');
+  assert.ok(env.sentMessages().some(function (m) { return m.tabId === 2 && m.enabled === true; }));
+  // The broadcast loop fans out in parallel (allSettled), not a serial await chain.
+  const backgroundSource = fs.readFileSync(path.join(repoRoot, 'entrypoints/background.ts'), 'utf8');
+  const fnBody = backgroundSource.match(/async function broadcastEnabledToOrigin\([\s\S]*?\n\}/);
+  assert.ok(fnBody, 'broadcastEnabledToOrigin should exist');
+  assert.match(fnBody[0], /Promise\.allSettled\(/);
+});
