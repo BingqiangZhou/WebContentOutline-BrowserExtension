@@ -205,3 +205,42 @@ test('buildTocItems no longer carries the dead extraSelectors parameter', () => 
   assert.doesNotMatch(builderSource, /extraSelectors/, 'toc-builder must not reference extraSelectors');
   assert.match(appSource, /buildTocItems\(cfg, ac\.signal\)/, 'toc-app passes (cfg, signal)');
 });
+
+test('region scoping never mutates the caller’s stored selector config', async () => {
+  // Regression: combined aliased cfg.selectors, so the scoping loop replaced
+  // the caller’s entries (the persisted config objects) with _root-scoped
+  // copies — a stale detached _root then blocked re-scoping after the SPA
+  // replaced the region without a URL change, leaving the TOC empty.
+  var regionV1 = { id: 'region-v1' };
+  var env = loadBuildTocItems({
+    confidence: 0,
+    regionRoot: regionV1,
+    regionSource: 'landmark',
+    collectElements: [visibleHeading('H2', 'In content')]
+  });
+  var cfg = { selectors: [{ type: 'css', expr: 'h2' }] };
+  await env.buildTocItems(cfg);
+  assert.equal(cfg.selectors.length, 1);
+  assert.equal(cfg.selectors[0].expr, 'h2');
+  assert.equal(cfg.selectors[0]._root, undefined, 'caller entries must not gain _root');
+  // The DOM layer still receives the scoped copy: scoping keeps working.
+  assert.equal(env.calls.collectBySelector.length, 1);
+  assert.equal(env.calls.collectBySelector[0]._root, regionV1);
+});
+
+test('region scoping preserves the injected chatbot sentinel entry', async () => {
+  // Regression: the aliased combined array let the scoping loop replace the
+  // sentinel entry, stripping _tocSentinel — which permanently flipped the
+  // page to "custom selectors" and disabled chatbot detection.
+  var env = loadBuildTocItems({
+    confidence: 0,
+    regionRoot: { id: 'region' },
+    regionSource: 'landmark',
+    collectElements: [visibleHeading('H2', 'In content')]
+  });
+  var cfg = { selectors: [{ type: 'css', expr: 'h2' }] };
+  cfg.selectors.push({ type: 'css', expr: '.msg-row', _tocSentinel: true });
+  await env.buildTocItems(cfg);
+  var sentinels = cfg.selectors.filter(function (s) { return s._tocSentinel === true; });
+  assert.equal(sentinels.length, 1, 'sentinel entry must survive non-chatbot rebuilds');
+});

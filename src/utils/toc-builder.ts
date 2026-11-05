@@ -284,7 +284,11 @@ export async function buildTocItems(cfg: { selectors?: Array<{ type: string; exp
       for (var bi = 0; bi < base.length; bi++) {
         if (base[bi] && !(base[bi] as any)._tocSentinel) { isCustom = true; break; }
       }
-      var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = base;
+      // Copy the array: the region-scoping loop below REPLACES entries, and
+      // with an aliased array it would rewrite cfg.selectors itself — pinning
+      // a stale detached _root into the (persisted-shape) config and stripping
+      // the injected _tocSentinel marker on non-chatbot rebuilds.
+      var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = base.slice();
 
       // Detect the content region once. A non-fallback root scopes selectors so
       // nav/footer headings do not leak into the TOC.
