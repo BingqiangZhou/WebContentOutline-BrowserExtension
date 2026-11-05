@@ -226,16 +226,37 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       list.appendChild(frag);
     };
 
+    // Apply active state to ONE item node (active class + aria-selected +
+    // roving tabIndex). Same contract as the render-time stamping in
+    // renderItemButtons, including "index 0 is the tab stop when nothing is
+    // active".
+    function applyActiveNode(index: number, makeActive: boolean): void {
+      var item = items[index];
+      if (!item || !item._node) return;
+      var node = item._node;
+      node.classList.toggle('active', makeActive);
+      if (makeActive) node.setAttribute('aria-selected', 'true');
+      else node.removeAttribute('aria-selected');
+      node.tabIndex = makeActive || (activeIndex < 0 && index === 0) ? 0 : -1;
+    }
+
     var setActiveIndex = function(nextIndex: number): void {
-      activeIndex = Number.isFinite(nextIndex) ? nextIndex : -1;
-      items.forEach(function(item: TocItem, index: number) {
-        if (!item._node) return;
-        var isActive = index === activeIndex;
-        item._node.classList.toggle('active', isActive);
-        if (isActive) item._node.setAttribute('aria-selected', 'true');
-        else item._node.removeAttribute('aria-selected');
-        item._node.tabIndex = isActive || (activeIndex < 0 && index === 0) ? 0 : -1;
-      });
+      var normalized = Number.isFinite(nextIndex) ? nextIndex : -1;
+      if (normalized === activeIndex) return;
+      var prev = activeIndex;
+      activeIndex = normalized;
+      // Two-node update (mirrors edge-dock's updatePreviewActive): scroll
+      // batches hit this on every reading-position change, and a full
+      // items.forEach over up to 400 buttons per change was wasted work.
+      if (prev >= 0 && prev < items.length) applyActiveNode(prev, false);
+      // Leaving "no active item" demotes the first item's tab stop.
+      if (prev < 0 && items.length > 0 && activeIndex >= 0) applyActiveNode(0, false);
+      if (activeIndex >= 0 && activeIndex < items.length) {
+        applyActiveNode(activeIndex, true);
+      } else {
+        // No active item: the first item becomes the roving tab stop.
+        applyActiveNode(0, false);
+      }
     };
 
     // Focus the active (or first) TOC item. Used on keyboard-driven open so the
