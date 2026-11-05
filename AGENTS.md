@@ -195,7 +195,7 @@ Split into three focused modules:
 
 ## Manifest V3 Specifics
 
-- `permissions`: ["storage", "tabs", "scripting"]
+- `permissions`: ["storage", "scripting"] (no `tabs` — the host permissions below already expose `tab.url` for the http(s) tabs the extension touches)
 - `host_permissions`: ["http://*/*", "https://*/*"]
 - `default_locale`: "en" - i18n support; user-facing strings must be added to BOTH `public/_locales/en/messages.json` and `public/_locales/zh_CN/messages.json`
 - Content script is bundled by WXT and injected dynamically via `browser.scripting.executeScript`

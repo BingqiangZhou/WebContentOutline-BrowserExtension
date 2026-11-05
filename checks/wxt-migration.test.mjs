@@ -46,7 +46,11 @@ test('WXT config preserves MV3 permissions and static assets', () => {
   const backgroundEntry = fs.readFileSync(path.join(repoRoot, 'entrypoints/background.ts'), 'utf8');
 
   assert.match(config, /manifestVersion:\s*3/);
-  assert.match(config, /permissions:\s*\['storage', 'tabs', 'scripting'\]/);
+  // No "tabs" permission: host_permissions (http/https) already expose
+  // tab.url for exactly the http(s) tabs the extension acts on, and
+  // messaging/injection need no tabs grant.
+  assert.match(config, /permissions:\s*\['storage', 'scripting'\]/);
+  assert.doesNotMatch(config, /'tabs'/);
   assert.match(config, /host_permissions:\s*\['http:\/\/\*\/\*', 'https:\/\/\*\/\*'\]/);
   assert.doesNotMatch(config, /optional_host_permissions:\s*\[/);
   assert.match(contentEntry, /registration:\s*'runtime'/);

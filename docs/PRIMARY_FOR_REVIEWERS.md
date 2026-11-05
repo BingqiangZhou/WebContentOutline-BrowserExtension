@@ -23,7 +23,6 @@ No user account or login is required. The extension is disabled by default after
 ## Permissions Justification
 
 - storage: Per-site enabled state and user preferences
-- tabs: Determine active tab URL for per-site logic
 - scripting: Inject content script dynamically
 - host_permissions (http/https): Read DOM headings and render floating UI. No data is collected, transmitted, or sent externally. Zero outbound network requests.
 

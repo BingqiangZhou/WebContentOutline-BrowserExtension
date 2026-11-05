@@ -28,7 +28,12 @@ export default defineConfig({
     // baseline. The CSS/JS uses nothing newer than :where()/:is() (Chrome 88);
     // 102 sits safely above all requirements and covers Edge (Chromium) 102+.
     minimum_chrome_version: '102',
-    permissions: ['storage', 'tabs', 'scripting'],
+    // No "tabs" permission: host_permissions (http/https) below already make
+    // tab.url visible in tabs.query/get and tab events for exactly the http(s)
+    // tabs the extension acts on, and tabs.sendMessage / scripting.executeScript
+    // need no tabs grant — so "tabs" was redundant and only added store-review
+    // friction.
+    permissions: ['storage', 'scripting'],
     // Host access is REQUIRED: granted at install time so the TOC can read and
     // inject into any page the user enables it on, with no per-site permission
     // prompt and no per-origin grant to lose. (Previously optional per-origin;

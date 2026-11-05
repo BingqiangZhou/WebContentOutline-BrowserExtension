@@ -249,7 +249,7 @@
 - **扩展标准**：Manifest V3
 - **开发语言**：原生 TypeScript + CSS3（使用 WXT/Vite 构建）
 - **存储方案**：`browser.storage.local` / Chromium 扩展存储
-- **权限需求**：`storage`、`tabs`、`scripting`
+- **权限需求**：`storage`、`scripting`
 - **站点权限**：`http://*/*`、`https://*/*`（必需——安装时即授予，可读取你启用的任意页面；无需按站点单独授权）
 
 ### 架构设计

@@ -44,6 +44,10 @@ All data is stored locally on the user's device. No data is sent to any external
 The "tabs" permission is required to read the URL of the active tab (via chrome.tabs.get, chrome.tabs.query, and the tab.url property in event listeners). The extension uses the tab's origin (e.g., "https://example.com") as a lookup key to remember the user's per-site preference. The TOC is opt-in per site: it is disabled by default on every website, and the user enables it for a specific site by clicking the toolbar icon; that preference is remembered by origin. This enables two core behaviors: (1) setting the correct toolbar icon state when the user switches tabs — gray for sites where the TOC is not enabled (the default) and the transparent white-document mark in black for sites the user has enabled — and (2) automatically injecting the content script into http(s) tabs of sites the user has enabled, while skipping all other sites.
 ```
 
+## tabs justification *
+
+REMOVED — the extension no longer requests the "tabs" permission. Tab URLs remain readable for exactly the http(s) tabs the extension acts on because the required host_permissions (http://*/*, https://*/*) already grant that visibility; messaging and script injection need no tabs grant. Keep this note so the store form's tabs justification field is intentionally left blank if the permission is ever re-added.
+
 ## scripting justification *
 
 ```text
@@ -112,7 +116,6 @@ No. The extension makes zero outbound network requests. It does not use fetch(),
 | Permission | Justification |
 |---|---|
 | `storage` | Persist user preferences locally (enable/disable state, selector configs, UI state) |
-| `tabs` | Read tab URLs to look up per-site enable/disable state and set the correct toolbar icon |
 | `scripting` | Inject the bundled content script into pages where the user has enabled the extension |
 | `http://*/*`, `https://*/*` (host_permissions) | Broad host access granted at install, so the extension can read the DOM and inject its content script on any http(s) page the user enables via the toolbar toggle. Applied only on user-enabled sites; nothing is collected or transmitted |
 

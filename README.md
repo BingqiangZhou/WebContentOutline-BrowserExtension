@@ -269,7 +269,7 @@ Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon
 - **Extension Standard**: Manifest V3
 - **Language**: Vanilla TypeScript + CSS3 (built by WXT/Vite)
 - **Storage**: `browser.storage.local` / Chromium extension storage
-- **Permissions**: `storage`, `tabs`, `scripting`
+- **Permissions**: `storage`, `scripting`
 - **Host Permissions**: `http://*/*`, `https://*/*` (required — granted at install so the TOC can read any page you enable it on; no per-site permission prompt)
 
 ### Architecture
