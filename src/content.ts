@@ -287,7 +287,17 @@ export function startTocContent(ctx: any) {
     if (document.readyState === 'loading') {
       await new Promise<void>(function(r: () => void) { document.addEventListener('DOMContentLoaded', r, { once: true }); });
     }
-    await new Promise<void>(function(r: () => void) { setTimeout(r, 50); });
+    // Double-rAF: lets the first paint/layout pass settle (the old fixed
+    // 50ms timeout delayed the first dock appearance on every enabled page).
+    // Falls back to setTimeout(0) where rAF is unavailable (locked-down host
+    // or a test sandbox).
+    await new Promise<void>(function(r: () => void) {
+      if (typeof (globalThis as any).requestAnimationFrame === 'function') {
+        requestAnimationFrame(function() { requestAnimationFrame(function() { r(); }); });
+      } else {
+        setTimeout(r, 0);
+      }
+    });
     await main();
   }
 

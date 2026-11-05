@@ -336,3 +336,11 @@ test('project exposes WXT build scripts and keeps package versions aligned', () 
   assert.equal(packageLock.packages[''].version, packageJson.version);
   assert.match(changelog, new RegExp(`## \\[${packageJson.version.replaceAll('.', '\\.')}(-[\\w.]+)?\\] - \\d{4}-\\d{2}-\\d{2}`));
 });
+
+test('bootstrap settle uses double-rAF instead of a fixed 50ms timeout', () => {
+  const content = fs.readFileSync(path.join(repoRoot, 'src/content.ts'), 'utf8');
+  const fn = content.match(/async function initWhenStable\(\)[\s\S]*?\n  \}/);
+  assert.ok(fn, 'initWhenStable should exist');
+  assert.match(fn[0], /requestAnimationFrame[\s\S]*?requestAnimationFrame/, 'double-rAF settle inside initWhenStable');
+  assert.doesNotMatch(fn[0], /setTimeout\(r, 50\)/, 'no fixed 50ms delay');
+});
