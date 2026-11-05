@@ -39,12 +39,26 @@ function bgWarn(e: unknown): void {
   if ((globalThis as any).__TOC_DEBUG) console.warn('[toc/bg] lifecycle op failed:', e);
 }
 
+// Read cache for tocSiteEnabledMap. Tab events (onUpdated/onActivated) hit this
+// map on every page load, so the cache collapses those storage reads to one per
+// SW lifetime per change. Derived read cache only — never a source of truth:
+// storage.onChanged replaces it on writes from this SW, the options page, or any
+// other context. A shallow COPY is returned because callers may mutate the
+// result (setEnabledByOrigin does, via touchObjectKey/prune); a failed write
+// must not corrupt the cached state.
+let enabledMapCache: Record<string, boolean> | null = null;
+
 async function getEnabledMap(): Promise<Record<string, boolean>> {
+  if (enabledMapCache) return { ...enabledMapCache };
   const KEY = BG_STORAGE_KEYS.SITE_ENABLE_MAP;
   try {
     if (browser?.storage?.local) {
       const res = await browser.storage.local.get([KEY]);
-      return (res[KEY] as Record<string, boolean>) || {};
+      const map = (res[KEY] as Record<string, boolean>) || {};
+      // Do not cache on the fallback path — a transient failure must not pin
+      // an empty map for the rest of this SW lifetime.
+      enabledMapCache = map;
+      return { ...map };
     }
   } catch (e) {
     console.warn('[toc] getEnabledMap failed:', e);
@@ -57,6 +71,7 @@ async function saveEnabledMap(map: Record<string, boolean>): Promise<{ ok: boole
   try {
     if (!browser?.storage?.local) return { ok: false, error: new Error('browser.storage.local unavailable') };
     await browser.storage.local.set({ [KEY]: map });
+    enabledMapCache = map;
     return { ok: true, pruned: false };
   } catch (e) {
     if (isQuotaExceededError(e)) {
@@ -64,6 +79,7 @@ async function saveEnabledMap(map: Record<string, boolean>): Promise<{ ok: boole
         const pruned = { ...map };
         pruneObjectToLimit(pruned, BG_MAX_MAP_KEYS);
         await browser.storage.local.set({ [KEY]: pruned });
+        enabledMapCache = pruned;
         return { ok: true, pruned: true };
       } catch (e2) {
         return { ok: false, error: e2 as Error };
@@ -339,6 +355,21 @@ function startBackground() {
   backgroundStarted = true;
 
 browser.action.onClicked.addListener(handleActionClick);
+
+// Keep the enabled-map read cache in sync with writes from ANY context (this
+// SW, the options page, another extension context). onChanged fires after the
+// write commits, so the cache always converges to persisted state.
+try {
+  browser.storage.onChanged.addListener((changes: Record<string, { newValue?: unknown }>, area: string) => {
+    if (area !== 'local') return;
+    const change = changes && changes[BG_STORAGE_KEYS.SITE_ENABLE_MAP];
+    if (!change) return;
+    const nv = change.newValue;
+    enabledMapCache = (nv && typeof nv === 'object') ? nv as Record<string, boolean> : {};
+  });
+} catch (e) {
+  console.warn('[toc] storage.onChanged listener failed:', e);
+}
 
 browser.tabs.onActivated.addListener(async (activeInfo: { tabId: number; windowId: number }) => {
   try {
