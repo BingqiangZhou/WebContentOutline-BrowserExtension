@@ -157,7 +157,7 @@ unzip -l .output/webtoc-assistant-v${VERSION}.zip | head -20
 Verify:
 1. Zip exists and file size is reasonable (~50-100 KB)
 2. Contains expected runtime files: `manifest.json`, `background.js`, `content-scripts/toc.js`, `content-scripts/toc.css`, `_locales/`, `icons/`
-3. Does NOT contain dev/source files: `wxt.config.ts`, `entrypoints/`, `src/`, `.zcode/`, `node_modules/`, `.output/`, `.gitignore`
+3. Does NOT contain dev/source files: `wxt.config.ts`, `entrypoints/`, `src/`, `.claude/`, `node_modules/`, `.output/`, `.gitignore`
 
 Also inspect the generated manifest:
 
