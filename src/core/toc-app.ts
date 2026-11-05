@@ -90,7 +90,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       var ac = new AbortController();
       buildAbort = ac;
       try {
-        var res = await buildTocItems(cfg, [], ac.signal);
+        var res = await buildTocItems(cfg, ac.signal);
         if (res && (res as any).aborted) return { aborted: true };
         if (res && Array.isArray((res as any).items)) return res as { items: TocItem[]; meta: TocMeta | null };
         if (Array.isArray(res)) return { items: res as TocItem[], meta: null };

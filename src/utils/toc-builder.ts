@@ -274,7 +274,7 @@ async function buildTocItemsFromSelectors(selectors: Array<{ type: string; expr:
       };
     }
 
-export async function buildTocItems(cfg: { selectors?: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, extraSelectors?: Array<{ type: string; expr: string }>, signal?: { aborted?: boolean }) {
+export async function buildTocItems(cfg: { selectors?: Array<{ type: string; expr: string; _root?: Element | Document }>; keepEmptyText?: boolean }, signal?: { aborted?: boolean }) {
       if (signal && signal.aborted) return { aborted: true };
       var base = Array.isArray(cfg.selectors) ? cfg.selectors : [];
       // "Custom" = the USER configured selectors. The chatbot sentinel we inject
@@ -284,7 +284,7 @@ export async function buildTocItems(cfg: { selectors?: Array<{ type: string; exp
       for (var bi = 0; bi < base.length; bi++) {
         if (base[bi] && !(base[bi] as any)._tocSentinel) { isCustom = true; break; }
       }
-      var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = (Array.isArray(extraSelectors) ? extraSelectors : []).concat(base);
+      var combined: Array<{ type: string; expr: string; _root?: Element | Document }> = base;
 
       // Detect the content region once. A non-fallback root scopes selectors so
       // nav/footer headings do not leak into the TOC.

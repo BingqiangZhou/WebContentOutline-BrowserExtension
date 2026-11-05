@@ -198,3 +198,10 @@ test('headings scrolled above the viewport are kept (long-page scroll regression
   assert.ok(texts.indexOf('Hidden junk') < 0, 'a heading hidden at document top:-9999px must still be dropped');
   assert.equal(result.items.length, 2);
 });
+
+test('buildTocItems no longer carries the dead extraSelectors parameter', () => {
+  const builderSource = fs.readFileSync(path.join(repoRoot, 'src/utils/toc-builder.ts'), 'utf8');
+  const appSource = fs.readFileSync(path.join(repoRoot, 'src/core/toc-app.ts'), 'utf8');
+  assert.doesNotMatch(builderSource, /extraSelectors/, 'toc-builder must not reference extraSelectors');
+  assert.match(appSource, /buildTocItems\(cfg, ac\.signal\)/, 'toc-app passes (cfg, signal)');
+});
