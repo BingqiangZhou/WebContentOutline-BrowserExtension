@@ -80,13 +80,14 @@ function loadPanelSource() {
 }
 
 // Faithful stand-in for core-utils' isTocContentIdentical as the panel uses it:
-// same length and same text+level per index → identical.
+// same length and same el+text+level per index → identical (mirrors the real
+// comparator in src/utils/core-utils.ts).
 function isTocContentIdentical(a, b) {
   if (a === b) return true;
   if (!Array.isArray(a) || !Array.isArray(b)) return false;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
-    if (a[i].text !== b[i].text || a[i].level !== b[i].level) return false;
+    if (a[i].text !== b[i].text || a[i].el !== b[i].el || a[i].level !== b[i].level) return false;
   }
   return true;
 }
@@ -245,4 +246,35 @@ test('non-append changes and truncation-note changes fall back to a full re-rend
   assert.equal(env.updateItems([L.a, L.b, L.c, L.d], { truncated: true, maxItems: 400, totalCandidates: 5 }), true);
   assert.equal(env.listHasNote(), true, 'truncation note appears via the full path');
   assert.equal(env.buttonCount(), 4);
+});
+
+test('append with FRESH item objects keeps prefix nodes wired (production shape)', () => {
+  // Production rebuilds create NEW item objects on every build; only
+  // el/text/level match the previous prefix. The fast path must carry the
+  // existing _node references onto the new prefix objects — otherwise
+  // setActiveIndex / arrow-key focus / focusActive silently no-op for the
+  // whole pre-existing list after the first streaming append.
+  const L = letterItems();
+  const env = loadPanel([L.a, L.b, L.c]);
+  env.panel.setActiveIndex(1);
+  const before = [env.nodeFor(0), env.nodeFor(1), env.nodeFor(2)];
+  env.resetButtonCreations();
+  const fresh = [
+    { id: 'a2', el: L.a.el, text: 'A', level: 2 },
+    { id: 'b2', el: L.b.el, text: 'B', level: 2 },
+    { id: 'c2', el: L.c.el, text: 'C', level: 2 },
+    { id: 'd2', el: {}, text: 'D', level: 2 }
+  ];
+  assert.equal(env.updateItems(fresh, null), true);
+  assert.equal(env.createdButtons(), 1, 'still append-only');
+  assert.equal(env.nodeFor(0), before[0], 'prefix _node carried to the fresh object');
+  assert.equal(env.nodeFor(1), before[1]);
+  assert.equal(env.nodeFor(2), before[2]);
+  // Prove the carried nodes stay live: syncing within the prefix must move
+  // the active highlight, not no-op.
+  env.resetMutationCounters();
+  env.panel.setActiveIndex(0);
+  assert.equal(env.nodeFor(0).classList.contains('active'), true);
+  assert.equal(env.nodeFor(1).classList.contains('active'), false);
+  assert.deepEqual(env.mutatedIndexes().sort(function (a, b) { return a - b; }), [0, 1]);
 });

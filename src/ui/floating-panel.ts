@@ -413,6 +413,14 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         if (!next || next.el !== prev.el || next.text !== prev.text || next.level !== prev.level) return false;
       }
       var prevLen = items.length;
+      // Carry the existing button nodes onto the fresh prefix objects:
+      // production rebuilds create NEW item objects, so without this the
+      // prefix entries of the swapped array have no _node — setActiveIndex,
+      // arrow-key focus, and focusActive would silently no-op for the whole
+      // pre-existing list until a full re-render.
+      for (var c = 0; c < prevLen; c++) {
+        (newItems[c] as TocItem)._node = items[c]._node;
+      }
       items = newItems;
       currentTocMeta = newTocMeta || null;
       renderItemButtonsFrom(prevLen);
