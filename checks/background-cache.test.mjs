@@ -187,3 +187,16 @@ test('broadcast fans out to all same-origin tabs in parallel', async () => {
   assert.ok(fnBody, 'broadcastEnabledToOrigin should exist');
   assert.match(fnBody[0], /Promise\.allSettled\(/);
 });
+
+test('clicking the icon on an unsupported page flashes the badge and clears it', async () => {
+  const env = loadBackground({});
+  await env.clickToolbarIcon({ id: 7, url: 'chrome://extensions/' });
+  assert.deepEqual(env.badgeTexts(), [{ tabId: 7, text: '!' }]);
+  env.runTimers();
+  assert.deepEqual(env.badgeTexts(), [{ tabId: 7, text: '!' }, { tabId: 7, text: '' }]);
+  // Tab gone / API rejects during clear — no unhandled rejection, badge already shown.
+  const env2 = loadBackground({}, { badgeThrowOnClear: true });
+  await env2.clickToolbarIcon({ id: 8, url: 'file:///C:/x' });
+  env2.runTimers();
+  assert.deepEqual(env2.badgeTexts(), [{ tabId: 8, text: '!' }]);
+});

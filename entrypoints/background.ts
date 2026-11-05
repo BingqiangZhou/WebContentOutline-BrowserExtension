@@ -313,9 +313,33 @@ async function broadcastEnabledToOrigin(origin: string, enabled: boolean, except
   }
 }
 
+// Brief visual feedback when the toolbar icon is clicked on a page the TOC
+// cannot run on (chrome://, file://, extension pages, or any page whose URL is
+// not readable): flash '!' on that tab's badge for ~1.6s. The clear is
+// exception-safe so a closed tab or a rejected API never leaves an unhandled
+// rejection (the badge simply stays until the tab is discarded).
+async function flashUnsupportedTabBadge(tabId: number): Promise<void> {
+  try {
+    await browser.action.setBadgeText({ tabId, text: '!' });
+  } catch (_) {
+    return;
+  }
+  try {
+    await browser.action.setBadgeBackgroundColor({ tabId, color: '#5f6368' });
+  } catch (_) {}
+  setTimeout(() => {
+    browser.action.setBadgeText({ tabId, text: '' }).catch(() => {});
+  }, 1600);
+}
+
 async function handleActionClick(tab: any): Promise<void> {
-  if (!tab || !tab.id || !tab.url) return;
-  if (!isHttpUrl(tab.url)) return;
+  if (!tab || !tab.id) return;
+  if (!isHttpUrl(tab.url)) {
+    // Unsupported page (or a URL the extension cannot read): say something
+    // instead of silently ignoring the click.
+    await flashUnsupportedTabBadge(tab.id);
+    return;
+  }
   const origin = originFromUrl(tab.url);
   const currentlyEnabled = await getEnabledByOrigin(origin);
 
