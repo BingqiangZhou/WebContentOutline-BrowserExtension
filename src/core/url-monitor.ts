@@ -26,6 +26,8 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void }) {
     var origReplaceState: ((...args: any[]) => void) | null = null;
     var wrappedPushState: ((...args: any[]) => void) | null = null;
     var wrappedReplaceState: ((...args: any[]) => void) | null = null;
+    // Navigation API listener state (preferred detection; see setupUrlHooks).
+    var navApiListener: (() => void) | null = null;
     // Polling fallback state
     var pollTimer: ReturnType<typeof setTimeout> | null = null;
     var visibilityHandler: (() => void) | null = null;
@@ -98,6 +100,20 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void }) {
       try {
         lastKnownUrl = location.href;
 
+        // Prefer the Navigation API when present (Chromium 102+, matching
+        // minimum_chrome_version): `navigatesuccess` fires after EVERY
+        // successful navigation — same-document pushState/replaceState,
+        // traversals (popstate), and hash changes alike — so none of the
+        // History monkey-patching or the popstate/hashchange listeners below
+        // are needed. Those remain the fallback for environments without it.
+        var navApi: any = null;
+        try { navApi = (globalThis as any).navigation; } catch (_) {}
+        if (navApi && typeof navApi.addEventListener === 'function') {
+          navApiListener = function() { try { onUrlChange(); } catch (_) {} };
+          navApi.addEventListener('navigatesuccess', navApiListener);
+          return;
+        }
+
         popstateHandler = function() { try { onUrlChange(); } catch (_) {} };
         hashchangeHandler = function() { try { onUrlChange(); } catch (_) {} };
         window.addEventListener('popstate', popstateHandler);
@@ -134,6 +150,17 @@ export function createUrlMonitor(opts: { checkAndReconnect?: () => void }) {
     }
 
     function teardownUrlHooks() {
+      // Remove the Navigation API listener first when one was installed.
+      if (navApiListener) {
+        try {
+          var navApi: any = null;
+          try { navApi = (globalThis as any).navigation; } catch (_) {}
+          if (navApi && typeof navApi.removeEventListener === 'function') {
+            navApi.removeEventListener('navigatesuccess', navApiListener);
+          }
+        } catch (_) {}
+        navApiListener = null;
+      }
       // Restore the original history methods so we never leave our wrappers in
       // place after teardown — but ONLY if our wrapper is still installed. If
       // the page replaced history.pushState/replaceState after us, leave its
