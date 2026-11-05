@@ -121,8 +121,9 @@ function loadPanel(items) {
       for (let i = 0; i < timers.length; i++) if (timers[i].id === id) timers.splice(i, 1);
     },
     AbortController: AbortController,
-    // Stripped-import shims
-    msg: (k) => k,
+    // Stripped-import shims. msg returns a non-key string so the panel's
+    // "untranslated fallback" guards (msg(key) !== key) never strip content.
+    msg: (k) => 'localized:' + k,
     normalizeSide: (s) => s,
     isTocContentIdentical: isTocContentIdentical,
     cleanupOwnedElements: () => {},
@@ -164,6 +165,7 @@ function loadPanel(items) {
       currentItems = newItems.slice();
       return panel.updateItems(newItems, meta);
     },
+    resetButtonCreations() { buttonCreations = 0; },
     mutatedIndexes() {
       const out = [];
       currentItems.forEach(function (item, i) {
@@ -213,4 +215,34 @@ test('setActiveIndex is idempotent for the same index', () => {
   env.resetMutationCounters();
   env.panel.setActiveIndex(3);
   assert.deepEqual(env.mutatedIndexes(), []);
+});
+
+function letterItems() {
+  const mk = (id, text) => ({ id: id, el: {}, text: text, level: 2 });
+  return { a: mk('a', 'A'), b: mk('b', 'B'), c: mk('c', 'C'), d: mk('d', 'D'), e: mk('e', 'E') };
+}
+
+test('tail-append update reuses existing nodes and appends only the delta', () => {
+  const L = letterItems();
+  const env = loadPanel([L.a, L.b, L.c]);
+  const before = [env.nodeFor(0), env.nodeFor(1), env.nodeFor(2)];
+  env.resetButtonCreations();
+  assert.equal(env.updateItems([L.a, L.b, L.c, L.d, L.e], null), true);
+  assert.equal(env.buttonCount(), 5);
+  assert.equal(env.createdButtons(), 2, 'only the appended items create buttons');
+  assert.deepEqual([env.nodeFor(0), env.nodeFor(1), env.nodeFor(2)], before, 'prefix nodes preserved by identity');
+  assert.equal(env.nodeFor(4).textContent, 'E');
+});
+
+test('non-append changes and truncation-note changes fall back to a full re-render', () => {
+  const L = letterItems();
+  const env = loadPanel([L.a, L.b, L.c]);
+  const before = [env.nodeFor(0), env.nodeFor(1), env.nodeFor(2)];
+  const b2 = { id: 'b2', el: L.b.el, text: 'B changed', level: 2 };
+  env.updateItems([L.a, b2, L.c], null); // mid-list text change
+  assert.notEqual(env.nodeFor(1), before[1], 'mid-list change re-renders the list');
+  assert.equal(env.buttonCount(), 3);
+  assert.equal(env.updateItems([L.a, L.b, L.c, L.d], { truncated: true, maxItems: 400, totalCandidates: 5 }), true);
+  assert.equal(env.listHasNote(), true, 'truncation note appears via the full path');
+  assert.equal(env.buttonCount(), 4);
 });

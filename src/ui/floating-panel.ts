@@ -204,9 +204,10 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
       }
     };
 
-    var renderItemButtons = function(): void {
+    var renderItemButtonsFrom = function(startIndex: number): void {
       var frag = document.createDocumentFragment();
       items.forEach(function(item: TocItem, index: number) {
+        if (index < startIndex) return;
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'toc-item';
@@ -224,6 +225,10 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
         frag.appendChild(btn);
       });
       list.appendChild(frag);
+    };
+
+    var renderItemButtons = function(): void {
+      renderItemButtonsFrom(0);
     };
 
     // Apply active state to ONE item node (active class + aria-selected +
@@ -383,6 +388,37 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     // Used by cleanupOwnedElements() for teardown
     panel.__TOC_CLEANUP__ = function() { cleanup(); };
 
+    // Same "a truncation notice is shown" state? An append must not skip the
+    // full re-render that adds (or removes) the notice row.
+    function sameNoticeState(m1: TocMeta | null, m2: TocMeta | null): boolean {
+      var t1 = !!(m1 && m1.truncated);
+      var t2 = !!(m2 && m2.truncated);
+      if (t1 !== t2) return false;
+      if (!t1) return true;
+      return String((m1 && m1.reason) || '') === String((m2 && m2.reason) || '');
+    }
+
+    /** Streaming fast path: the new list extends the old one (identical
+     *  prefix — same element, text, level per index), so append only the new
+     *  buttons instead of rebuilding the whole list. Chat pages append one
+     *  conversation turn at a time; a full rebuild of up to 400 buttons per
+     *  debounce tick was the common case there. Any prefix mismatch or a
+     *  truncation-notice change falls back to the full re-render. */
+    function tryAppendUpdate(newItems: TocItem[], newTocMeta: TocMeta | null): boolean {
+      if (items.length === 0 || newItems.length <= items.length) return false;
+      if (!sameNoticeState(currentTocMeta, newTocMeta)) return false;
+      for (var i = 0; i < items.length; i++) {
+        var prev = items[i];
+        var next = newItems[i];
+        if (!next || next.el !== prev.el || next.text !== prev.text || next.level !== prev.level) return false;
+      }
+      var prevLen = items.length;
+      items = newItems;
+      currentTocMeta = newTocMeta || null;
+      renderItemButtonsFrom(prevLen);
+      return true;
+    }
+
     var updateItems = function(newItems: TocItem[], newTocMeta: TocMeta | null): boolean {
       if (cleanedUp) return false;
       if (!panel || !panel.isConnected) return false;
@@ -396,6 +432,9 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
           return false;
         }
       }
+
+      // Append-only fast path (streaming chats): identical prefix → append delta.
+      if (tryAppendUpdate(newItems, newTocMeta || null)) return true;
 
       // Swap the items array — all existing closures will see the new value
       items = newItems;
