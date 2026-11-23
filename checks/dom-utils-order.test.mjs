@@ -1,5 +1,6 @@
 /**
- * uniqueInDocumentOrder: ordering correctness + no host-DOM mutation.
+ * dom-utils: uniqueInDocumentOrder ordering correctness + no host-DOM mutation,
+ * and cleanupOwnedElements reaching the extension's own (closed) shadow root.
  *
  * - Ordering / dedup tests are characterization (pass before & after the
  *   WeakMap refactor).
@@ -84,4 +85,47 @@ test('uniqueInDocumentOrder never writes __tocSrcOrder onto host elements', () =
   fn([a.el, b.el]);
   assert.equal(a.writes(), 0, 'must not write __tocSrcOrder onto host element A');
   assert.equal(b.writes(), 0, 'must not write __tocSrcOrder onto host element B');
+});
+
+// Loads dom-utils.ts with an owned element sitting inside the extension's
+// shadow root. No [data-toc-owner] host is discoverable in the light DOM and
+// `host.shadowRoot` is null for a closed root, so the only way in is the
+// module accessor.
+function loadCleanupOwnedElements() {
+  var file = path.join(repoRoot, 'src/utils/dom-utils.ts');
+  var source = stripTsSyntax(fs.readFileSync(file, 'utf8')
+    .replace(/^import .+;\r?\n/gm, '')
+    .replace(/export\s+async\s+function /g, 'async function ')
+    .replace(/export function /g, 'function '));
+  var hooks = { cleanup: 0, remove: 0 };
+  var owned = {
+    __TOC_CLEANUP__: function () { hooks.cleanup++; },
+    remove: function () { hooks.remove++; }
+  };
+  var shadowRoot = { querySelectorAll: function () { return [owned]; } };
+  var sandbox = {
+    console: console,
+    Node: { ELEMENT_NODE: 1 },
+    XPathResult: { ORDERED_NODE_ITERATOR_TYPE: 1 },
+    EXTENSION_OWNER: 'web-toc-assistant',
+    getTocShadowRootSync: function () { return shadowRoot; },
+    document: {
+      documentElement: { nodeType: 1 },
+      querySelector: function () { return null; },
+      querySelectorAll: function () { return []; }
+    },
+    uiConst: function (_n, f) { return f; },
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source + '\n__exports.cleanupOwnedElements = cleanupOwnedElements;', sandbox, { filename: file });
+  return { cleanupOwnedElements: sandbox.__exports.cleanupOwnedElements, hooks: hooks };
+}
+
+test('cleanupOwnedElements tears down UI that lives inside the closed shadow root', () => {
+  var env = loadCleanupOwnedElements();
+  env.cleanupOwnedElements();
+  // Without this, every disable/re-enable leaks the dock's and panel's listeners and timers.
+  assert.equal(env.hooks.cleanup, 1, 'the owned element must run its cleanup hook');
+  assert.equal(env.hooks.remove, 1, 'the owned element must be removed');
 });

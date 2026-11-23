@@ -129,7 +129,7 @@ function loadPanel(items) {
     isTocContentIdentical: isTocContentIdentical,
     cleanupOwnedElements: () => {},
     scrollToElement: () => {},
-    getTocShadowHost: () => null,
+    getTocShadowRootSync: () => null,
     EXTENSION_OWNER: 'web-toc-assistant',
     NAV_LOCK_MS: 3000,
     __exports: {}

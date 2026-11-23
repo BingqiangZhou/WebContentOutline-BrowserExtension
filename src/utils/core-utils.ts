@@ -33,9 +33,14 @@ export function msg(key: string, substitutions?: string | string[]): string {
 
   /**
    * Verbose diagnostics, gated so production content scripts stay quiet.
-   * Enable at runtime from devtools with: `__TOC_DEBUG = true` on the page
-   * (i.e. window/globalThis). console.warn/console.error are intentionally
-   * NOT gated — those are legitimate error signals that should always surface.
+   * console.warn/console.error are intentionally NOT gated — those are
+   * legitimate error signals that should always surface.
+   *
+   * Enabling it: set `__TOC_DEBUG = true` on the globalThis of the context you
+   * want logs from. A content script runs in an isolated world, so the page's
+   * own console context does NOT reach it — in DevTools, pick the extension's
+   * content-script context in the console's context dropdown first. For the
+   * background service worker, set it in that worker's own console.
    */
   export function debug(...args: unknown[]): void {
     try {

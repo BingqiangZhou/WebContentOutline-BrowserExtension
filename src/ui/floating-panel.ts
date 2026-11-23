@@ -10,7 +10,7 @@ import {
 } from '../utils/toc-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
 import { NAV_LOCK_MS } from '../core/nav-lock.js';
-import { getTocShadowHost } from './shadow-root.js';
+import { getTocShadowRootSync } from './shadow-root.js';
 
   /** Clear all children of an element using native replaceChildren(). */
   function clearChildren(el: HTMLElement): void {
@@ -342,7 +342,7 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     list.addEventListener('keydown', onListKeydown, { signal: listenersController.signal });
 
     panel.appendChild(list);
-    (mountTarget || getTocShadowHost()?.shadowRoot || document.documentElement).appendChild(panel);
+    (mountTarget || getTocShadowRootSync() || document.documentElement).appendChild(panel);
 
     // Show panel — optionally skip expand animation
     showRaf = requestAnimationFrame(function() {

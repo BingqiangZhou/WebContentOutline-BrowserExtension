@@ -32,6 +32,7 @@ function loadBackground(initialMap, overrides) {
   const storageChangedListeners = [];
   let actionClickListener = null;
   let tabsUpdatedListener = null;
+  let messageListener = null;
   let tabsList = [];
   // Optional gates: hold the FIRST storage read / write until released, so a
   // test can land an onChanged write mid-flight (the TOCTOU window).
@@ -108,8 +109,9 @@ function loadBackground(initialMap, overrides) {
       lastError: null,
       onInstalled: { addListener: function () {} },
       onStartup: { addListener: function () {} },
-      onMessage: { addListener: function () {} },
-      getURL: function (p) { return String(p); }
+      onMessage: { addListener: function (fn) { messageListener = fn; } },
+      // Realistic: an absolute extension URL (background.ts compares sender URLs against it).
+      getURL: function (p) { return 'chrome-extension://test-extension/' + String(p); }
     },
     i18n: { getMessage: function (key) { return key; } },
     scripting: {
@@ -174,6 +176,16 @@ function loadBackground(initialMap, overrides) {
       assert.ok(tabsUpdatedListener, 'tabs.onUpdated listener should be registered');
       tabsUpdatedListener(tab.id, { status: 'complete' }, tab);
       await this.flush();
+    },
+    // Deliver a runtime message the way chrome does and return the payload the
+    // listener passed to sendResponse once its async work has settled.
+    fireMessage: async function (msg, sender) {
+      assert.ok(messageListener, 'runtime.onMessage listener should be registered');
+      let payload;
+      messageListener(msg, sender, function (response) { payload = response; });
+      await new Promise(function (resolve) { setImmediate(resolve); });
+      await this.flush();
+      return payload;
     },
     setTabs: function (tabs) { tabsList = tabs; },
     storageReads: function () { return storageReadCount; },
@@ -285,4 +297,64 @@ test('a later click clears any leftover badge for that tab', async () => {
     env.badgeTexts().some(function (b) { return b.tabId === 7 && b.text === ''; }),
     'the next click clears a stuck badge'
   );
+});
+
+// ---------------------------------------------------------------------------
+// PERSIST_ACTIVE_STATE: who may change which origin's enabled state
+//
+// MUTATE_CONFIG and MUTATE_UI_STATE already bind a request to the sender's own
+// site. PERSIST_ACTIVE_STATE took the payload's origin at face value, so a
+// content script on one site could switch another site on or off.
+// ---------------------------------------------------------------------------
+
+const TOC_MESSAGE = loadTocMessage();
+// A content script: `url` is the page document it runs in, and it lives in a tab.
+const CONTENT_SENDER = { id: 'test-extension', url: 'https://a.example/x', tab: { id: 1, url: 'https://a.example/x' } };
+// The options page, in both shapes it really arrives in. Each carries a tab:
+// opened as its own tab, or embedded in the extensions page (then the tab is
+// chrome://extensions). `sender.tab` therefore cannot tell it from a content script.
+const OPTIONS_PAGE = 'chrome-extension://test-extension/options.html';
+const OPTIONS_SENDERS = [
+  { as: 'its own tab', sender: { id: 'test-extension', url: OPTIONS_PAGE, tab: { id: 7, url: OPTIONS_PAGE } } },
+  { as: 'embedded in the extensions page', sender: { id: 'test-extension', url: OPTIONS_PAGE, tab: { id: 8, url: 'chrome://extensions/' } } },
+  { as: 'a tab-less context', sender: { id: 'test-extension', url: OPTIONS_PAGE } }
+];
+
+function persist(enabled, origin) {
+  return { type: TOC_MESSAGE.PERSIST_ACTIVE_STATE, enabled, origin };
+}
+
+test('a content script cannot persist the enabled state of another origin', async () => {
+  const env = loadBackground({});
+  const res = await env.fireMessage(persist(true, 'https://evil.example'), CONTENT_SENDER);
+  assert.equal(res && res.ok, false);
+  assert.equal(res && res.reason, 'bad-origin');
+  assert.equal(env.storedMap()['https://evil.example'], undefined, 'the other site stays untouched');
+  assert.equal(env.storedMap()['https://a.example'], undefined, 'the sender does not change either');
+});
+
+test('a content script persists its own origin, named or implied', async () => {
+  const named = loadBackground({});
+  const namedRes = await named.fireMessage(persist(true, 'https://a.example'), CONTENT_SENDER);
+  assert.equal(namedRes && namedRes.ok, true);
+  assert.equal(named.storedMap()['https://a.example'], true);
+  assert.equal(named.iconOf(1), true, 'the tab icon follows');
+
+  const implied = loadBackground({});
+  const impliedRes = await implied.fireMessage(persist(true, ''), CONTENT_SENDER);
+  assert.equal(impliedRes && impliedRes.ok, true);
+  assert.equal(implied.storedMap()['https://a.example'], true);
+});
+
+test('the options page may name any origin, but has to name one', async () => {
+  for (const { as, sender } of OPTIONS_SENDERS) {
+    const env = loadBackground({});
+    const named = await env.fireMessage(persist(false, 'https://other.example'), sender);
+    assert.equal(named && named.ok, true, `options page as ${as}: the toggle must work`);
+    assert.equal(env.storedMap()['https://other.example'], false);
+
+    const nameless = await env.fireMessage(persist(true, ''), sender);
+    assert.equal(nameless && nameless.ok, false, `options page as ${as}: no origin to persist`);
+    assert.equal(nameless && nameless.reason, 'bad-origin');
+  }
 });

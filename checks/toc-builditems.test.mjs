@@ -33,7 +33,8 @@ function loadBuildTocItems(setup) {
     uiConst: function (n, f) { return f; },
     collectBySelector: function (selector, _budget) {
       calls.collectBySelector.push(selector);
-      return setup.collectElements || [];
+      // collectElements may depend on the query root (selector._root).
+      return typeof setup.collectElements === 'function' ? setup.collectElements(selector) : (setup.collectElements || []);
     },
     uniqueInDocumentOrder: function (nodes) { return nodes; },
     getBoundedText: function (el) { return el.textContent || ''; },
@@ -243,4 +244,50 @@ test('region scoping preserves the injected chatbot sentinel entry', async () =>
   await env.buildTocItems(cfg);
   var sentinels = cfg.selectors.filter(function (s) { return s._tocSentinel === true; });
   assert.equal(sentinels.length, 1, 'sentinel entry must survive non-chatbot rebuilds');
+});
+
+// ---------------------------------------------------------------------------
+// Region scoping vs. the user's intent
+// ---------------------------------------------------------------------------
+
+test('custom selectors that match nothing inside the content region fall back to the whole page', async () => {
+  // The user picked an element OUTSIDE <main> — a sidebar link, say. Scoped to
+  // the region the selector finds nothing, and the TOC came up empty with no
+  // hint why. An empty region-scoped pass is cheap, so try the whole page.
+  var regionRoot = { id: 'main-root' };
+  var sidebarChapter = visibleHeading('H2', 'Sidebar chapter');
+  var env = loadBuildTocItems({
+    confidence: 0,
+    regionRoot: regionRoot,
+    regionSource: 'landmark',
+    collectElements: function (selector) { return selector._root ? [] : [sidebarChapter]; }
+  });
+
+  var result = await env.buildTocItems({ selectors: [{ type: 'css', expr: 'a.nav-item' }] });
+
+  assert.equal(env.calls.collectBySelector.length, 2, 'a second, unscoped pass runs');
+  assert.strictEqual(env.calls.collectBySelector[0]._root, regionRoot, 'the region is tried first');
+  assert.equal(env.calls.collectBySelector[1]._root, undefined, 'the retry covers the whole page');
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].text, 'Sidebar chapter');
+  assert.equal(result.items[0].source, 'custom');
+});
+
+test('custom selectors with matches inside the content region stay scoped', async () => {
+  // Region scoping is what keeps nav/sidebar noise out of a generic selector.
+  var regionRoot = { id: 'main-root' };
+  var env = loadBuildTocItems({
+    confidence: 0,
+    regionRoot: regionRoot,
+    regionSource: 'landmark',
+    collectElements: function (selector) {
+      return selector._root ? [visibleHeading('H2', 'In article')] : [visibleHeading('H2', 'In sidebar')];
+    }
+  });
+
+  var result = await env.buildTocItems({ selectors: [{ type: 'css', expr: 'h2' }] });
+
+  assert.equal(env.calls.collectBySelector.length, 1, 'no unscoped pass when the region has matches');
+  assert.equal(result.items.length, 1);
+  assert.equal(result.items[0].text, 'In article');
 });

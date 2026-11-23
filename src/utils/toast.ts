@@ -1,18 +1,18 @@
 import { msg } from './core-utils.js';
 import { EXTENSION_OWNER } from './constants.js';
-import { getTocShadowHost } from '../ui/shadow-root.js';
+import { getTocShadowRootSync } from '../ui/shadow-root.js';
 
   var TOAST_DURATION_MS = 3000;
 
 function ensureToastContainer() {
-    var existing = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]');
+    var existing = (getTocShadowRootSync() ?? document).querySelector('.toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]');
     if (existing) return existing;
     var container = document.createElement('div');
     container.className = 'toc-toast-container';
     container.setAttribute('data-toc-owner', EXTENSION_OWNER);
     container.setAttribute('role', 'region');
     container.setAttribute('aria-label', msg('toastRegionLabel'));
-    (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(container);
+    (getTocShadowRootSync() ?? document.documentElement).appendChild(container);
     return container;
   }
 

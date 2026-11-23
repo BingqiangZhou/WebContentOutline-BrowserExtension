@@ -9,8 +9,11 @@
 // defense). The shadow HOST element itself stays in the host document and
 // carries `data-toc-owner` so that:
 //   - the element picker classifies it as own-UI (closest('[data-toc-owner="..."]')),
-//   - cleanupOwnedElements can discover it,
 //   - computeOverlayOffset can skip it in the elementsFromPoint stack.
+//
+// The root is CLOSED: page scripts cannot reach it through `host.shadowRoot`, so
+// they can neither read the extension's UI nor click its buttons. Extension code
+// cannot either — every reader goes through getTocShadowRootSync().
 //
 // Imported DIRECTLY (not via the toc-utils barrel) so the vm-eval test surface
 // does not grow.
@@ -23,9 +26,13 @@ var _shadowHost: HTMLElement | null = null;
 var _shadowRoot: ShadowRoot | null = null;
 var _initPromise: Promise<ShadowRoot | null> | null = null;
 
-/** Sync accessor for the shadow host (null until getTocShadowRoot() resolves). */
-export function getTocShadowHost(): HTMLElement | null {
-  return _shadowHost;
+/**
+ * The shared shadow root (null until getTocShadowRoot() resolves). The only way
+ * to reach the extension's UI tree: the root is closed, so `host.shadowRoot`
+ * returns null even for the code that attached it.
+ */
+export function getTocShadowRootSync(): ShadowRoot | null {
+  return _shadowRoot;
 }
 
 /**
@@ -37,8 +44,12 @@ export function getDeepActiveElement(): Element | null {
   var el: Element | null = null;
   try {
     el = document.activeElement;
-    while (el && (el as any).shadowRoot && (el as any).shadowRoot.activeElement) {
-      el = (el as any).shadowRoot.activeElement;
+    for (var guard = 0; el && guard < 10; guard++) {
+      // Our own root is closed (`host.shadowRoot` is null), so it is reachable
+      // only through the module reference; the page's open roots expose theirs.
+      var root: any = (el === _shadowHost && _shadowRoot) ? _shadowRoot : (el as any).shadowRoot;
+      if (!root || !root.activeElement) break;
+      el = root.activeElement;
     }
   } catch (_) {}
   return el;
@@ -93,7 +104,8 @@ export function getTocShadowRoot(): Promise<ShadowRoot | null> {
       // page CSS that might target .toc-shadow-host.
       host.style.setProperty('z-index', String(MAX_Z_INDEX), 'important');
 
-      var root = host.attachShadow({ mode: 'open' });
+      // Closed (see the file header): the page must not be able to reach the UI.
+      var root = host.attachShadow({ mode: 'closed' });
       await injectStylesheet(root);
       document.documentElement.appendChild(host);
       _shadowHost = host;

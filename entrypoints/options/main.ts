@@ -110,11 +110,14 @@ async function persistSiteEnabled(
   // Persist through the background worker so icon updates and same-origin
   // tab broadcasts happen exactly as they do for the toolbar-icon toggle.
   try {
-    await chrome.runtime.sendMessage({
+    const res = (await chrome.runtime.sendMessage({
       type: TOC_MESSAGE.PERSIST_ACTIVE_STATE,
       enabled,
       origin
-    } satisfies TocRequest);
+    } satisfies TocRequest)) as { ok?: boolean } | undefined;
+    // sendMessage resolves — it does not reject — with { ok: false } when the
+    // background could not persist. That is a failure; report it as one.
+    if (!res || !res.ok) throw new Error('persist failed');
     stateLabel.textContent = enabled ? msg('optionsEnabled') : msg('optionsDisabled');
   } catch {
     showMessage(listEl.closest('section') || listEl, msg('optionsSaveFailed'));
@@ -146,7 +149,9 @@ async function renderConfigs(): Promise<void> {
     const meta = document.createElement('div');
     meta.className = 'config-meta';
     const selectorCount = Array.isArray(cfg.selectors) ? cfg.selectors.length : 0;
-    meta.textContent = `${selectorCount ? msg('optionsSelectorsCount', String(selectorCount)) : '—'} · ${cfg.side === 'left' ? 'left' : 'right'}`;
+    // Deliberately no dock side here: a config's `side` is frozen at creation and
+    // usually disagrees with where the dock really is (tocBadgePosMap.anchorX).
+    meta.textContent = selectorCount ? msg('optionsSelectorsCount', String(selectorCount)) : '—';
     mainCol.append(pattern, meta);
 
     const del = document.createElement('button');

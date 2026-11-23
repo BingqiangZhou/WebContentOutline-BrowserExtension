@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'vitest';
+import { loadTocApp } from './test-helpers.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -70,4 +71,24 @@ test('i18n no longer has classic ui strings', () => {
   assert.equal(zh.dockSwitchToClassic, undefined);
   assert.equal(zh.classicSwitchToModern, undefined);
   assert.equal(zh.classicSwitchToModernTitle, undefined);
+});
+
+test('using the element picker tells the host page nothing', async () => {
+  // toc-app used to dispatch `toc-picker-start` / `toc-picker-end` CustomEvents on
+  // window. Nothing in the extension listened, but any page script could — every
+  // pick announced that this extension was in use.
+  const dispatched = [];
+  const env = loadTocApp({ window: { dispatchEvent: (event) => { dispatched.push(event.type); } } });
+  const app = env.initForConfig({ urlPattern: 'https://site.example/*', side: 'right', selectors: [] }, {});
+
+  env.dockOptions().onPick();                          // the dock menu's "Pick element"
+
+  assert.deepEqual(dispatched, []);
+  app.destroy();
+});
+
+test('message protocol keeps no unused response type and labels OPEN_PANEL as reserved', () => {
+  const messages = read('src/shared/messages.ts');
+  assert.doesNotMatch(messages, /TocResponse/);
+  assert.match(messages, /Reserved trigger[\s\S]*?OPEN_PANEL/);
 });

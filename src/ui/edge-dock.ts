@@ -4,7 +4,7 @@
 import { msg, getBadgePosByHost, setBadgePosByHost, cleanupOwnedElements, normalizeSide } from '../utils/toc-utils.js';
 import { createDragController, DragState } from '../utils/drag-helper.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
-import { getTocShadowHost } from './shadow-root.js';
+import { getTocShadowRootSync } from './shadow-root.js';
 
 var SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -338,7 +338,7 @@ export function renderEdgeDock(options: EdgeDockOptions) {
   root.appendChild(panelHost);
   root.appendChild(quickMenu);
   root.appendChild(toolbar);
-  (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(root);
+  (getTocShadowRootSync() ?? document.documentElement).appendChild(root);
 
   function closeMenu() {
     cancelMenuClose();

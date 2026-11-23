@@ -177,7 +177,8 @@ function addTextContent(el, text) {
 // Module loader
 // ---------------------------------------------------------------------------
 
-function loadModule(locMock, docMock) {
+// extras: extra sandbox globals, e.g. a controllable `Date`.
+function loadModule(locMock, docMock, extras = {}) {
   const file = path.join(repoRoot, 'src/utils/chatbot-detector.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\r?\n/gm, '')
@@ -204,6 +205,7 @@ function loadModule(locMock, docMock) {
     Number: globalThis.Number,
     parseFloat: globalThis.parseFloat,
     __exports: {},
+    ...extras,
   };
   sandbox.globalThis = sandbox;
 
@@ -1233,4 +1235,171 @@ test('build-signature cache: unchanged conversation reuses the previous items', 
   mod.invalidateChatbotCache();
   const fifth = mod.tryBuildChatbotTocItems();
   assert.notStrictEqual(fifth, third, 'invalidateChatbotCache must drop the cached build');
+});
+
+// ---------------------------------------------------------------------------
+// Tests: negative cache expiry
+//
+// A "not a chat page" verdict used to be cached per URL forever (until
+// navigation). SPAs that render the conversation in place — same href, new
+// DOM — never switched to the conversation outline.
+// ---------------------------------------------------------------------------
+
+// A page whose messages carry explicit author roles (Layer 2 detection).
+function chatDoc() {
+  const userMsg = makeElement('div', {
+    attributes: { 'data-message-author-role': 'user' },
+    docOrder: 0, offsetWidth: 600, offsetHeight: 100,
+  });
+  addTextContent(userMsg, 'Hello');
+  const assistantMsg = makeElement('div', {
+    attributes: { 'data-message-author-role': 'assistant' },
+    docOrder: 1,
+  });
+  addTextContent(assistantMsg, 'Hi there');
+  return {
+    querySelector() { return null; },
+    querySelectorAll(sel) {
+      if (sel === '[data-message-author-role]') return [userMsg, assistantMsg];
+      if (sel === '[data-message-author-role="user"]') return [userMsg];
+      if (sel === '[data-message-author-role="assistant"]') return [assistantMsg];
+      return [];
+    },
+    body: makeElement('body'),
+  };
+}
+
+const emptyDoc = {
+  querySelector() { return null; },
+  querySelectorAll() { return []; },
+  body: makeElement('body'),
+};
+
+test('a page that becomes a chat without a URL change is detected once the negative cache expires', () => {
+  const clock = { now: 1_000_000 };
+  let doc = emptyDoc;
+  // The URL never changes; only the DOM behind it does.
+  const sameUrlDoc = {
+    querySelector(sel) { return doc.querySelector(sel); },
+    querySelectorAll(sel) { return doc.querySelectorAll(sel); },
+    get body() { return doc.body; },
+  };
+  const mod = loadModule(
+    { hostname: 'unknown-chatbot.com', href: 'https://unknown-chatbot.com/' },
+    sameUrlDoc,
+    { Date: { now: () => clock.now } }
+  );
+  assert.equal(mod.isChatbotPage(), false, 'nothing rendered yet');
+
+  doc = chatDoc();                                    // the SPA renders the conversation in place
+  assert.equal(mod.isChatbotPage(), false, 'inside the TTL the negative result is reused');
+
+  clock.now += 5001;
+  assert.equal(mod.isChatbotPage(), true, 'an expired negative result re-runs the cascade');
+});
+
+test('invalidateChatbotCache re-detects immediately instead of waiting for the TTL', () => {
+  let doc = emptyDoc;
+  const sameUrlDoc = {
+    querySelector(sel) { return doc.querySelector(sel); },
+    querySelectorAll(sel) { return doc.querySelectorAll(sel); },
+    get body() { return doc.body; },
+  };
+  const mod = loadModule(
+    { hostname: 'unknown-chatbot.com', href: 'https://unknown-chatbot.com/' },
+    sameUrlDoc,
+    { Date: { now: () => 1_000_000 } }
+  );
+  assert.equal(mod.isChatbotPage(), false);
+
+  doc = chatDoc();
+  mod.invalidateChatbotCache();                       // what a navigation does
+  assert.equal(mod.isChatbotPage(), true);
+});
+
+// ---------------------------------------------------------------------------
+// Tests: Strategy G never guesses from child position
+//
+// The structure layer passes on ordinary pages (three <article>s, a textarea and
+// any submit button — a blog index with a comment form). Strategy G then used to
+// split <main>'s children into "user" and "assistant" by the odd/even position
+// of short/long entries. That reached exactly the 0.7 confidence threshold and
+// replaced the page's real TOC with a nonsense outline.
+// ---------------------------------------------------------------------------
+
+// <main> whose direct children are the given articles, plus what the structure
+// layer looks for: repeated blocks, a textarea and a submit button.
+function alternatingListDoc(children) {
+  const main = makeElement('main', { children });
+  return {
+    querySelector(selector) { return selector === 'main' ? main : null; },
+    querySelectorAll(selector) {
+      if (selector === 'article') return children.slice(0, 3);
+      if (selector === 'textarea') return [makeElement('textarea')];
+      if (selector.includes('button[type="submit"]')) return [makeElement('button')];
+      // data-testid selectors are answered the way a real document would, so a
+      // test can see what a derived selector really SELECTS.
+      const testIdOf = (child) => String(child.getAttribute('data-testid') || '');
+      const exact = selector.match(/^\[data-testid="([^"]+)"\]$/);
+      if (exact) return children.filter((child) => testIdOf(child) === exact[1]);
+      const partial = selector.match(/^\[data-testid\*="([^"]+)"\]$/);
+      if (partial) return children.filter((child) => testIdOf(child).includes(partial[1]));
+      return [];
+    },
+    body: makeElement('body'),
+  };
+}
+
+// Five articles — short, long, short, long, short — so the text lengths
+// straddle the median and alternate 4 times.
+function alternatingChildren(attributeFor) {
+  const lengths = [8, 400, 9, 500, 10];
+  return lengths.map((length, index) => {
+    const attributes = attributeFor ? attributeFor(index) : {};
+    const child = makeElement('article', { attributes, docOrder: index });
+    addTextContent(child, 'x'.repeat(length));
+    return child;
+  });
+}
+
+const listHost = { hostname: 'example.com', href: 'https://example.com/blog' };
+
+test('a list page with a comment form is not mistaken for a chat', () => {
+  const mod = loadModule(listHost, alternatingListDoc(alternatingChildren()));
+  assert.equal(mod.isChatbotPage(), false);
+});
+
+test('alternating children whose selectors cannot tell the groups apart are not a chat', () => {
+  // The same data-testid on every entry: both groups derive the same selector,
+  // i.e. they are one set of nodes, not two sides of a conversation.
+  const mod = loadModule(listHost, alternatingListDoc(alternatingChildren(() => ({ 'data-testid': 'feed-item' }))));
+  assert.equal(mod.isChatbotPage(), false);
+});
+
+test('alternating children that carry distinct role-bearing test ids are still recognized', () => {
+  const mod = loadModule(listHost, alternatingListDoc(alternatingChildren(
+    (index) => ({ 'data-testid': index % 2 === 0 ? 'msg-from-customer' : 'msg-from-agent' })
+  )));
+  assert.equal(mod.isChatbotPage(), true);
+});
+
+test('a list whose entries carry unique test ids is not mistaken for a chat', () => {
+  // A card grid, say: data-testid="card-1" … "card-5". Each side "derives" a
+  // substring selector — [data-testid*="card-1"] and [data-testid*="card-2"] —
+  // distinct strings that each select a single entry. One node is not one side
+  // of a conversation, however distinct the strings look.
+  const mod = loadModule(listHost, alternatingListDoc(alternatingChildren(
+    (index) => ({ 'data-testid': 'card-' + (index + 1) })
+  )));
+  assert.equal(mod.isChatbotPage(), false);
+});
+
+test('a derived selector that also selects the other side is not accepted', () => {
+  // Short entries: "item", "item-user-2", "item-user-3"; long ones:
+  // "item-agent-1", "item-agent-2". The user side derives [data-testid*="item"],
+  // which selects the agent entries too — it does not separate the two sides.
+  const mod = loadModule(listHost, alternatingListDoc(alternatingChildren(
+    (index) => ({ 'data-testid': index === 0 ? 'item' : 'item-' + (index % 2 === 0 ? 'user' : 'agent') + '-' + index })
+  )));
+  assert.equal(mod.isChatbotPage(), false);
 });

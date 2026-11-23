@@ -3,7 +3,7 @@
 
 import { getFocusableWithin } from '../utils/toc-utils.js';
 import { createFocusTrap } from '../utils/focus-trap.js';
-import { getTocShadowHost, getDeepActiveElement } from './shadow-root.js';
+import { getTocShadowRootSync, getDeepActiveElement } from './shadow-root.js';
 
 /**
  * Build the shared `.toc-overlay` dialog skeleton used by the element-picker
@@ -24,7 +24,7 @@ export function createOverlayDialog(opts: { owner: string; title: string }): {
   mount: (focusTarget: HTMLElement) => void;
 } {
   var prevFocus = getDeepActiveElement();
-  var existing = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-overlay[data-toc-owner="' + opts.owner + '"]');
+  var existing = (getTocShadowRootSync() ?? document).querySelector('.toc-overlay[data-toc-owner="' + opts.owner + '"]');
   if (existing) existing.remove();
 
   var wrap = document.createElement('div');
@@ -49,7 +49,9 @@ export function createOverlayDialog(opts: { owner: string; title: string }): {
   actions.className = 'toc-overlay-actions';
 
   var restoreFocus = function() {
-    if (prevFocus && (prevFocus as HTMLElement).focus && document.contains(prevFocus)) {
+    // `isConnected`, not `document.contains()`: the opener lives inside the
+    // extension's shadow tree, and contains() does not cross the shadow boundary.
+    if (prevFocus && (prevFocus as HTMLElement).focus && prevFocus.isConnected) {
       (prevFocus as HTMLElement).focus({ preventScroll: true });
     }
   };
@@ -68,7 +70,7 @@ export function createOverlayDialog(opts: { owner: string; title: string }): {
 
   var mount = function(focusTarget: HTMLElement) {
     wrap.appendChild(actions);
-    (getTocShadowHost()?.shadowRoot ?? document.documentElement).appendChild(wrap);
+    (getTocShadowRootSync() ?? document.documentElement).appendChild(wrap);
     focusRaf = requestAnimationFrame(function() {
       focusRaf = null;
       if (!wrap || !wrap.isConnected) return;

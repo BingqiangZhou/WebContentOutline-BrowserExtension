@@ -13,7 +13,21 @@ function getMeaningfulClasses(el: Element): string[] {
 }
 
 function escapeCssIdentifier(ident: string): string {
-  return ident.replace(/([^\w-])/g, '\\$1');
+  var s = String(ident == null ? '' : ident);
+  // The platform function covers every identifier edge case (a leading digit,
+  // "-" + digit, a lone "-", non-ASCII…). The hand-rolled path below is only
+  // for sandboxes without it.
+  if (typeof CSS !== 'undefined' && CSS && typeof CSS.escape === 'function') {
+    try { return CSS.escape(s); } catch (_) {}
+  }
+  // Fallback: escape non-identifier characters, then a leading digit as hex +
+  // space ("\32 x"): an identifier may not start with a digit, "-"+digit included.
+  // Otherwise `.2xl\:flex` (a Tailwind breakpoint class) is a selector
+  // querySelector rejects, and the saved selector matches nothing.
+  var out = s.replace(/([^\w-])/g, '\\$1');
+  if (/^\d/.test(s)) out = '\\3' + s.charAt(0) + ' ' + out.slice(1);
+  else if (/^-\d/.test(s)) out = '-\\3' + s.charAt(1) + ' ' + out.slice(2);
+  return out;
 }
 
 export function buildClassSelector(el: Element): string {

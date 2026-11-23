@@ -1,7 +1,8 @@
 
 import { STORAGE_KEYS, SELECTOR_EXPR_MAX_LENGTH, MAP_MAX_KEYS } from './constants.js';
-// Note: PANEL_STATE_MAP ('tocPanelExpandedMap') is a legacy key from the removed Classic UI.
-// It is kept in STORAGE_KEYS only to silently clean up storage reads; no active code writes to it.
+// 'tocPanelExpandedMap' is a legacy key of the removed Classic UI. It is no
+// longer in STORAGE_KEYS and nothing writes it; a value left in storage by an
+// older version is simply never read.
 import {
   isPlainObject,
   isExtensionContextInvalidated,

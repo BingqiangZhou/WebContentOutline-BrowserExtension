@@ -59,6 +59,12 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
     var lastTripAt = 0;
     var recoveryTimer: ReturnType<typeof setTimeout> | null = null;
     var visibilityHandler: (() => void) | null = null;
+    // Set when a rebuild request lands while one is already in flight. That
+    // request has already been debounced, so it is re-dispatched once the
+    // in-flight rebuild SUCCEEDS. A failed one stays pending until the next
+    // external trigger: an immediate retry would count two failures per burst
+    // and trip the breaker about twice as fast on a page that is merely erroring.
+    var queuedDuringFlight = false;
 
     // Breaker is "tripped" only while latched open AND inside the recovery
     // window. Outside the window a probe is allowed through (safeRebuild resets
@@ -139,6 +145,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
       if (!isExtensionContextValid) return false;
       if (rebuildInFlight) {
         hasPendingRebuild = true;
+        queuedDuringFlight = true;
         return rebuildInFlight;
       }
       if (navLock && navLock.isLocked()) {
@@ -155,15 +162,31 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
           if (!ok && isExtensionContextValid) {
             hasPendingRebuild = true;
           }
+          flushQueuedRebuild(!!ok);
           return !!ok;
         } catch (_) {
           rebuildInFlight = null;
+          queuedDuringFlight = false;
           return false;
         }
       })();
 
       return rebuildInFlight;
     };
+
+    // Re-dispatch a request that arrived during the flight that just finished.
+    // The flag is read and cleared first, so this is strictly about that flight.
+    // Every parked case below keeps its own re-dispatch path and is left alone.
+    function flushQueuedRebuild(lastOk: boolean) {
+      if (!queuedDuringFlight) return;
+      queuedDuringFlight = false;
+      if (!lastOk || !isExtensionContextValid) return;
+      if (document.hidden) return;                  // visibilitychange handler re-dispatches
+      if (navLock && navLock.isLocked()) return;    // nav-lock onUnlock re-dispatches
+      if (isBreakerTripped()) return;               // recovery probe re-dispatches
+      if (!hasPendingRebuild) return;
+      attemptRebuild();
+    }
 
     // Clear both the debounce and the pinned max-wait timers.
     function clearScheduledTimers() {
@@ -242,8 +265,10 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
 
       // Create dom-watcher with optional scope selector for chatbot pages
       var scopeSelector: string | null = getChatbotContainerSelector() || null;
+      // The list is read live: the chatbot sentinel is pushed into cfg.selectors
+      // by the first rebuild, after this watcher has already started.
       domWatcher = createDomWatcher(onMutation, {
-        selectors: cfg.selectors,
+        getSelectors: function() { return Array.isArray(cfg.selectors) ? cfg.selectors : []; },
         scopeSelector: scopeSelector,
       });
       var watcherOk = domWatcher.start();
@@ -282,6 +307,7 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
         clearRecoveryTimer();
         hasPendingRebuild = false;
         rebuildInFlight = null;
+        queuedDuringFlight = false;
         isExtensionContextValid = false;
         consecutiveFailures = 0;
         lastTripAt = 0;

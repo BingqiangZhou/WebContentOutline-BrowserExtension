@@ -549,8 +549,25 @@ browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendRespons
     if (msg.type === TOC_MESSAGE.PERSIST_ACTIVE_STATE) {
       if (!requireInternal()) return;
       const tabId = sender?.tab?.id;
-      const origin = msg.origin || originFromUrl(senderUrl());
       const enabled = !!msg.enabled;
+      // WHO asks decides WHICH origin may change:
+      //  - a content script: only its own page's origin — the same binding
+      //    MUTATE_CONFIG and MUTATE_UI_STATE enforce;
+      //  - one of this extension's own pages (the options page): any origin it
+      //    can name, because it has no site of its own. An origin that cannot
+      //    be resolved is refused ("null" is an opaque origin).
+      // `sender.tab` cannot tell the two apart — an options page opened in a
+      // tab has one too — so look at the sender document's own URL.
+      const fromExtensionPage = typeof sender?.url === 'string' && sender.url.startsWith(browser.runtime.getURL(''));
+      let origin: string;
+      if (fromExtensionPage) {
+        origin = originFromUrl(String(msg.origin || ''));
+        if (!origin || origin === 'null') { sendResponse?.({ ok: false, reason: 'bad-origin' }); return; }
+      } else {
+        const pageOrigin = originFromUrl(senderUrl());
+        origin = msg.origin || pageOrigin;
+        if (!pageOrigin || origin !== pageOrigin) { sendResponse?.({ ok: false, reason: 'bad-origin' }); return; }
+      }
       (async () => {
         try {
           const saved = await setEnabledByOrigin(origin, enabled);

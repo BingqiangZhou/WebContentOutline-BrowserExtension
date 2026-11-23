@@ -33,8 +33,8 @@ export type TocRequest =
   | { type: typeof TOC_MESSAGE.PING }
   // Content → background: ask the SW to refresh this tab's action icon.
   | { type: typeof TOC_MESSAGE.ENSURE_ICON }
-  // External trigger (popup/options, not present in this tree) → content:
-  // open the TOC panel. Kept for compatibility; no internal sender today.
+  // Reserved trigger → content: open the TOC panel. No sender in this tree
+  // today; kept as the stable entry point for a future popup or command.
   | { type: typeof TOC_MESSAGE.OPEN_PANEL }
   // Background → content: broadcast the new per-origin enabled state (cross-tab).
   | { type: typeof TOC_MESSAGE.UPDATE_ENABLED; enabled: boolean }
@@ -55,12 +55,3 @@ export type TocRequest =
       key: string;
       value: unknown;
     };
-
-// Response envelope. All handlers reply with at least `{ ok }`; the index
-// signature carries the mutation-result extras (`config`, `reason`, …) without
-// forcing every call site to spell them out.
-export interface TocResponse {
-  ok: boolean;
-  reason?: string;
-  [key: string]: unknown;
-}

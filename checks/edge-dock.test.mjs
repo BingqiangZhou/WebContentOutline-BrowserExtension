@@ -394,3 +394,25 @@ test('dock hides on empty TOCs without custom selectors and reshows when items a
   // The hiding rule must beat the base .toc-edge-dock display:block.
   assert.match(css, /\.toc-edge-dock\.toc-dock-empty\s*\{\s*display: none !important;\s*\}/);
 });
+
+test('site-config dialog controls drop the UA button and input styling', () => {
+  const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
+
+  // The dialog's delete button is a <button> outside the dock and panel
+  // subtrees — the only ones the shared `all: unset` reset covers — so without
+  // its own reset it kept the UA's 2px outset border and default font.
+  const reset = css.match(/\.toc-selector-delete\s*\{[^}]*all:\s*unset !important[^}]*font-family:\s*inherit[^}]*\}/);
+  assert.ok(reset, '.toc-selector-delete needs its own all: unset reset');
+  // Same specificity, later wins: placed after the positioning rule, the reset
+  // would also wipe that rule's position/padding/transition.
+  assert.ok(
+    css.indexOf(reset[0]) < css.search(/\.toc-selector-delete\s*\{\s*position:\s*absolute/),
+    'the reset must precede the rule that positions the button'
+  );
+
+  // <select>/<input> keep their native border and arrow; only the font is inherited.
+  assert.match(css, /\.toc-config-add-type,\s*\.toc-config-add-input\s*\{[^}]*font-family:\s*inherit/);
+
+  // Leftovers of the removed Classic badge.
+  assert.doesNotMatch(css, /--toc-bg-badge|--toc-shadow-badge/);
+});

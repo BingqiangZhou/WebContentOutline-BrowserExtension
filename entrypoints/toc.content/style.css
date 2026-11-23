@@ -86,15 +86,12 @@
   --toc-bg-hover-item: rgba(64, 128, 255, 0.1);
   --toc-bg-active-item: rgba(64, 128, 255, 0.12);
   --toc-bg-hover-item-strong: rgba(64, 128, 255, 0.15);
-  --toc-bg-badge: #2f6feb;
   --toc-text-item-active: #235;
   --toc-text-item-hover: #222;
   --toc-border-toast-info: #2f6feb;
   --toc-border-toast-success: #1e8e3e;
   --toc-border-toast-warning: #f29900;
   --toc-border-toast-error: #d93025;
-  --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.2);
-  --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.25);
   --toc-source-user: #2f6feb;
   --toc-source-custom: #1e8e3e;
 
@@ -685,6 +682,25 @@
   min-width: 0 !important;
 }
 
+/* The dialog's controls are <button>/<select>/<input>: they do not inherit the
+   font and (for the button) carry the UA border. The shared `all: unset` reset
+   near the top only covers the dock and panel subtrees, so reset them here.
+   This block MUST stay before the positioning rule below — same specificity,
+   the later one wins, and a later reset would wipe that rule's position and
+   padding. */
+.toc-selector-delete {
+  all: unset !important;
+  font-family: inherit !important;
+  box-sizing: border-box !important;
+}
+
+/* <select>/<input> keep their native border and dropdown arrow: only the font
+   is inherited. */
+.toc-config-add-type,
+.toc-config-add-input {
+  font-family: inherit !important;
+}
+
 /* Delete button - absolute overlay, no layout shift */
 .toc-selector-delete {
   position: absolute !important;
@@ -1044,11 +1060,8 @@
     --toc-bg-hover-item: rgba(64, 128, 255, 0.15);
     --toc-bg-active-item: rgba(64, 128, 255, 0.2);
     --toc-bg-hover-item-strong: rgba(64, 128, 255, 0.2);
-    --toc-bg-badge: #2f6feb;
     --toc-text-item-active: #64b5f6;
     --toc-text-item-hover: #e0e0e0;
-    --toc-shadow-badge: 0 8px 24px rgba(0,0,0,0.4);
-    --toc-shadow-badge-hover: 0 10px 28px rgba(0,0,0,0.5);
     --toc-source-user: #64b5f6;
     --toc-source-custom: #81c995;
   }

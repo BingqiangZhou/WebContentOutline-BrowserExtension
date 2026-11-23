@@ -4,6 +4,7 @@
 import { getEnabledMap } from './storage.js';
 import { isHighRiskBroadCssSelector, isSafeXPathExpression, debug } from './core-utils.js';
 import { TOC_MAX_CANDIDATES, SCROLL_TOP_PADDING, HEADER_CACHE_TTL, EXTENSION_OWNER } from './constants.js';
+import { getTocShadowRootSync } from '../ui/shadow-root.js';
 
     /**
      * Simple wildcard matcher: supports * as any chars
@@ -394,12 +395,12 @@ export function scrollToElement(el: Element) {
 export function cleanupOwnedElements(selectorFallback?: string) {
       var selector = selectorFallback || '.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-overlay[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]';
       try {
-        // Owned UI lives inside the shared shadow root; the shadow host is the
-        // only owned element in the host document. Scan the shadow root first,
-        // then the document (fallback for the picker highlight box / if shadow
-        // init failed). The host itself is torn down by disposeTocShadowRoot().
-        var host = document.querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"]');
-        var shadow: any = host && (host as any).shadowRoot ? (host as any).shadowRoot : null;
+        // Owned UI lives inside the shared shadow root, which is CLOSED — reach
+        // it through the module accessor, never `host.shadowRoot` (null for a
+        // closed root). Scan the shadow root first, then the document (fallback
+        // for the picker highlight box / if shadow init failed). The host itself
+        // is torn down by disposeTocShadowRoot().
+        var shadow: any = getTocShadowRootSync();
         var scopes: any[] = [];
         if (shadow) scopes.push(shadow);
         scopes.push(document);

@@ -110,3 +110,97 @@ export function stripImportsAndExports(source) {
     .replace(/export\s+default\s+/g, '')
     .replace(/export\s+(var|let|const)\s+/g, '$1 ');
 }
+
+/**
+ * Turn one TypeScript module's source into plain script text for a vm sandbox:
+ * strip TS syntax, then every import and export form — including the multi-line
+ * `import { … } from '…'` lists that stripImportsAndExports leaves behind.
+ * The sandbox has to supply the module's imports as globals.
+ */
+export function moduleScript(source) {
+  return stripImportsAndExports(stripTsSyntax(source))
+    .replace(/^import\s[^;]*;/gm, '');
+}
+
+/**
+ * Runs the REAL src/core/toc-app.ts (the orchestrator) with its collaborators
+ * stubbed. Storage and the TOC build are controllable:
+ *  - `updateConfigFromStorage` returns the selector `.new` from its 2nd call on,
+ *    and with `opts.parkConfigReads` every read stays pending until
+ *    `releaseConfigRead()` is called.
+ *  - every rebuild parks inside `buildTocItems` until `finishBuild()` is called.
+ * `opts.window` replaces the sandbox's `window`.
+ */
+export function loadTocApp(opts = {}) {
+  const counters = { configReads: 0, builds: 0 };
+  const pendingBuilds = [];
+  const pendingConfigReads = [];
+  let dockOptions = null;
+  const sandbox = {
+    console: { ...console, warn() {}, debug() {} },
+    AbortController,
+    updateConfigFromStorage: (cfg) => {
+      counters.configReads++;
+      if (counters.configReads >= 2) cfg.selectors = [{ type: 'css', expr: '.new' }];
+      if (!opts.parkConfigReads) return Promise.resolve();
+      return new Promise((resolve) => pendingConfigReads.push(resolve));
+    },
+    buildTocItems: () => {
+      counters.builds++;
+      return new Promise((resolve) => pendingBuilds.push(resolve));
+    },
+    // Everything else: inert stubs with the real surface.
+    renderEdgeDock: (options) => {
+      dockOptions = options;
+      return {
+        setEmptyHidden() {}, setItems() {}, setActiveIndex() {},
+        getSide: () => 'right', getPanelHost: () => null, getMode: () => 'collapsed',
+        destroy() {}, collapse() {}, peek() {}
+      };
+    },
+    renderFloatingPanel: () => { throw new Error('the panel is not rendered in this scenario'); },
+    createElementPicker: () => ({ cleanup() {} }),
+    showPickerResult() {},
+    siteConfig: async () => {},
+    saveSelector: async () => false,
+    setOnConfigChanged() {},
+    createRebuildScheduler: () => ({
+      start() {}, disconnect() {},
+      getPendingRebuild: () => false, setPendingRebuild() {}
+    }),
+    createActiveItemTracker: () => ({ setItems() {}, destroy() {} }),
+    createNavLock: () => ({ lock() {}, unlock() {}, isLocked: () => false, destroy() {} }),
+    NAV_LOCK_MS: 1000,
+    msg: (key) => key,
+    showToast() {},
+    cleanupOwnedElements() {},
+    scrollToElement() {},
+    invalidateScrollCaches() {},
+    buildClassSelector: () => '',
+    cssPathFor: () => '',
+    isContextInvalidatedError: () => false,
+    isExtensionContextInvalidated: () => false,
+    normalizeSide: (side) => (side === 'left' ? 'left' : 'right'),
+    isTocContentIdentical: () => false,
+    debug() {},
+    EXTENSION_OWNER: 'web-toc-assistant',
+    getTocShadowRootSync: () => null,
+    window: opts.window || {},
+    // No production code should construct one; defined so that a test spying on
+    // window.dispatchEvent can SEE a (re)introduced window event instead of the
+    // construct throwing and being swallowed by a try/catch.
+    CustomEvent: class { constructor(type) { this.type = type; } },
+    document: { createElement: () => ({ setAttribute() {}, appendChild() {}, addEventListener() {} }) },
+    __exports: {}
+  };
+  sandbox.globalThis = sandbox;
+  const file = path.join(repoRoot, 'src/core/toc-app.ts');
+  vm.runInNewContext(moduleScript(fs.readFileSync(file, 'utf8')) + '\n__exports.initForConfig = initForConfig;', sandbox, { filename: file });
+  return {
+    counters,
+    initForConfig: sandbox.__exports.initForConfig,
+    finishBuild() { pendingBuilds.shift()([{ id: 'toc-item-0', el: {}, text: 'heading', level: 2 }]); },
+    releaseConfigRead() { pendingConfigReads.shift()(); },
+    dockOptions: () => dockOptions
+  };
+}

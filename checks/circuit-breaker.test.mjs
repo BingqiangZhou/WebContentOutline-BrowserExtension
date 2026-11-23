@@ -14,20 +14,21 @@ function flush() {
   return new Promise(function (resolve) { setTimeout(resolve, 0); });
 }
 
-// Load rebuild-scheduler in a vm sandbox with synchronous setTimeout (collapses
-// debounce) and a controllable clock. Returns the scheduler handle plus captured
-// mutation/url-change callbacks so tests can drive it.
+// Load rebuild-scheduler in a vm sandbox with a fake setTimeout (short timers
+// collapse to the next microtask) and a controllable clock. Returns the scheduler
+// handle plus captured mutation/url-change callbacks so tests can drive it.
 function loadScheduler(opts) {
   var onRebuild = opts.onRebuild;
   var currentTime = opts.startTime || 1_000_000;
   var captured = { onMutation: null, onUrlChange: null };
   // Hybrid fake clock: short timers (<= threshold, e.g. the 400ms debounce)
-  // fire synchronously to keep the test flow simple; long timers (the 30s
-  // breaker recovery probe) are scheduled and fired by advance().
+  // run on the next microtask to keep the test flow simple; long timers (the
+  // 30s breaker recovery probe) are scheduled and fired by advance().
   // Override via opts.longTimerThreshold (e.g. 0) to queue the debounce too,
   // so a test can interleave mutations faster than the debounce window.
   var LONG_TIMER_THRESHOLD = opts.longTimerThreshold != null ? opts.longTimerThreshold : 5000;
   var longTimers = [];
+  var shortTimers = new Map();
   var nextTimerId = 1;
   var file = path.join(repoRoot, 'src/core/rebuild-scheduler.ts');
   var source = stripTsSyntax(fs.readFileSync(file, 'utf8')
@@ -38,15 +39,29 @@ function loadScheduler(opts) {
     console: console,
     Date: { now: function () { return currentTime; } },
     document: { hidden: false, addEventListener: function () {}, removeEventListener: function () {} },
+    // A short timer runs AFTER scheduleRebuild has returned, the way a real
+    // timer does. Fired synchronously, the max-wait callback ran while the
+    // debounce-started rebuild was already in flight: a phantom "request landed
+    // mid-rebuild" on every mutation, which cannot happen for real (the debounce
+    // callback clears the max-wait timer).
     setTimeout: function (fn, delay) {
       var d = Number(delay) || 0;
-      if (d <= LONG_TIMER_THRESHOLD) { try { fn(); } catch (_) {} return nextTimerId++; }
       var id = nextTimerId++;
+      if (d <= LONG_TIMER_THRESHOLD) {
+        shortTimers.set(id, fn);
+        Promise.resolve().then(function () {
+          if (!shortTimers.has(id)) return;
+          shortTimers.delete(id);
+          try { fn(); } catch (_) {}
+        });
+        return id;
+      }
       longTimers.push({ id: id, fn: fn, fireAt: currentTime + d });
       return id;
     },
     clearTimeout: function (id) {
       if (id == null) return;
+      shortTimers.delete(id);
       for (var i = 0; i < longTimers.length; i++) {
         if (longTimers[i].id === id) { longTimers.splice(i, 1); return; }
       }
@@ -155,12 +170,15 @@ test('breaker self-recovers via a half-open probe after the recovery window', as
   assert.equal(rebuildCalls, 6, 'a half-open probe runs after the recovery window');
 
   // The page heals; the next probe (after the refreshed window) succeeds and
-  // fully resets the breaker.
+  // fully resets the breaker. The mutation sent right behind it lands while the
+  // probe is still in flight and is re-dispatched once the probe succeeds —
+  // which is itself the proof that the breaker no longer blocks rebuilds (a
+  // still-open breaker would hold that request back).
   shouldFail = false;
   env.advance(31_000);
   env.captured.onMutation();
   await flush();
-  assert.equal(rebuildCalls, 7, 'breaker fully resets once a probe succeeds');
+  assert.equal(rebuildCalls, 8, 'the probe succeeds (7th) and the next mutation rebuilds (8th)');
 });
 
 test('rebuild fires within max-wait under a continuous mutation stream', async () => {

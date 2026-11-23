@@ -25,11 +25,15 @@
    * lives in a shadow root whose mutations never reach this light-DOM observer,
    * so it does not need to filter self-mutations.
    *
+   * With no selectors, only changes that touch headings are meaningful (default
+   * heading mode). `getSelectors` supplies that list live — it can change after
+   * start() — and `selectors` is the static fallback.
+   *
    * When scopeSelector is provided, only mutations inside elements matching
    * that selector are considered meaningful. This reduces noise from
    * unrelated page elements (notifications, tooltips, etc.).
    */
-export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Array<{ type: string; expr: string }>; scopeSelector?: string | null }) {
+export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Array<{ type: string; expr: string }>; getSelectors?: () => Array<{ type: string; expr: string }>; scopeSelector?: string | null }) {
     var observerRef: MutationObserver | null = null;
     var isContextValid = true;
     // Cached scope container. hasMeaningfulChange previously called
@@ -41,8 +45,21 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     var _scopeCacheSel: string | null = null;
     var _scopeCacheEl: Element | null = null;
 
+    // The list can change after start(): the chatbot sentinel is pushed into
+    // cfg.selectors by the first rebuild, and a config refresh replaces the
+    // array. Read it live; never trust a snapshot.
+    function currentSelectors(): Array<{ type: string; expr: string }> {
+      if (cfg && typeof cfg.getSelectors === 'function') {
+        try {
+          var live = cfg.getSelectors();
+          if (Array.isArray(live)) return live;
+        } catch (_) {}
+      }
+      return (cfg && Array.isArray(cfg.selectors)) ? cfg.selectors : [];
+    }
+
     function isDefaultHeadingMode() {
-      return !cfg || !Array.isArray(cfg.selectors) || cfg.selectors.length === 0;
+      return currentSelectors().length === 0;
     }
 
     function touchesDefaultHeading(node: Node, scanDescendants: boolean) {
@@ -88,6 +105,8 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
     function hasMeaningfulChange(mutations: MutationRecord[]) {
       var scanLimit = mutations.length;
       if (scanLimit > RECORD_SCAN_CAP) scanLimit = RECORD_SCAN_CAP;
+      // Read once per batch (the loop below used to re-evaluate it per record).
+      var defaultHeadingMode = isDefaultHeadingMode();
       for (var i = 0; i < scanLimit; i++) {
         var m = mutations[i];
         var t = m.target;
@@ -101,16 +120,16 @@ export function createDomWatcher(onMutation: () => void, cfg: { selectors?: Arra
 
         if (m.type === 'childList') {
           var hasNodes = (m.addedNodes && m.addedNodes.length) || (m.removedNodes && m.removedNodes.length);
-          if (hasNodes && (!isDefaultHeadingMode() || childListTouchesDefaultHeading(m))) return true;
+          if (hasNodes && (!defaultHeadingMode || childListTouchesDefaultHeading(m))) return true;
         }
         if (m.type === 'attributes') {
           var name = m.attributeName || '';
-          if (OBSERVED_ATTR_SET.has(name) && (!isDefaultHeadingMode() || touchesDefaultHeading(t, true))) {
+          if (OBSERVED_ATTR_SET.has(name) && (!defaultHeadingMode || touchesDefaultHeading(t, true))) {
             return true;
           }
         }
         if (m.type === 'characterData') {
-          if (!isDefaultHeadingMode() || touchesDefaultHeading(t, false)) return true;
+          if (!defaultHeadingMode || touchesDefaultHeading(t, false)) return true;
         }
       }
       return false;

@@ -26,6 +26,7 @@ function loadScheduler(opts) {
   var captured = { onMutation: null, onUrlChange: null };
   var LONG_TIMER_THRESHOLD = 5000;
   var longTimers = [];
+  var shortTimers = new Map();
   var nextTimerId = 1;
   var file = path.join(repoRoot, 'src/core/rebuild-scheduler.ts');
   var source = stripTsSyntax(fs.readFileSync(file, 'utf8')
@@ -36,15 +37,26 @@ function loadScheduler(opts) {
     console: console,
     Date: { now: function () { return currentTime; } },
     document: { hidden: false, addEventListener: function () {}, removeEventListener: function () {} },
+    // A short timer runs AFTER scheduleRebuild has returned, the way a real
+    // timer does (see checks/circuit-breaker.test.mjs for why that matters).
     setTimeout: function (fn, delay) {
       var d = Number(delay) || 0;
-      if (d <= LONG_TIMER_THRESHOLD) { try { fn(); } catch (_) {} return nextTimerId++; }
       var id = nextTimerId++;
+      if (d <= LONG_TIMER_THRESHOLD) {
+        shortTimers.set(id, fn);
+        Promise.resolve().then(function () {
+          if (!shortTimers.has(id)) return;
+          shortTimers.delete(id);
+          try { fn(); } catch (_) {}
+        });
+        return id;
+      }
       longTimers.push({ id: id, fn: fn, fireAt: currentTime + d });
       return id;
     },
     clearTimeout: function (id) {
       if (id == null) return;
+      shortTimers.delete(id);
       for (var i = 0; i < longTimers.length; i++) {
         if (longTimers[i].id === id) { longTimers.splice(i, 1); return; }
       }

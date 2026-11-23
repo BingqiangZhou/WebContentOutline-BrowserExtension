@@ -16,7 +16,7 @@ import { dedupeMirrorItems, debug } from './core-utils.js';
  * A hint table provides fallback for known sites when auto-detection fails.
  *
  * URL-aware cache: reuses detection result across DOM rebuilds on the same URL,
- * auto-invalidates on SPA navigation.
+ * auto-invalidates on SPA navigation; negative verdicts also expire on a timer.
  */
 
 // ---------------------------------------------------------------------------
@@ -126,6 +126,14 @@ var STOP_BUTTON_SELECTORS = [
 var _cachedProfile: ChatbotProfile | null = null;
 var _cachedUrl = '';
 
+/**
+ * A negative verdict ("not a chat page") is reused only this long. The DOM can
+ * become a chat without a URL change (a conversation rendered in place), and
+ * only re-running the cascade can notice. invalidateChatbotCache() resets it.
+ */
+var NEGATIVE_CACHE_TTL_MS = 5000;
+var _negativeCheckedAt = 0;
+
 // Cheap-change guard for tryBuildChatbotTocItems: caches the last build's
 // result keyed by a signature (user/assistant counts + last assistant text
 // length). During streaming, the rebuild scheduler fires every ~3s (max-wait
@@ -155,6 +163,9 @@ export function invalidateChatbotCache() {
   _lastAssistantTextLen = 0;
   // Drop the cached streaming verdict so the new page recomputes immediately.
   _streamingCheckedAt = 0;
+  // A navigation is a fresh page context: the next call re-runs the cascade
+  // even if the previous verdict on this URL was negative.
+  _negativeCheckedAt = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -471,7 +482,10 @@ function detectByStructure(): DetectionResult | null {
       '[data-testid*="send" i], [class*="send-button"], ' +
       'button[type="submit"]'
     );
-    // Filter: only count submit buttons inside or near a chat input area
+    // Any match counts — including every `button[type="submit"]`, so an
+    // ordinary comment form qualifies. The score alone never makes a page a
+    // chat: the selector discovery that follows has to find attributes that
+    // separate the two sides of a conversation.
     if (sendButtons.length > 0) {
       hasSendButton = true;
     }
@@ -890,10 +904,34 @@ function deriveSelectorFromElements(elements: Element[], roleHint: string): stri
 }
 
 /**
+ * True when `selector` really SELECTS one side of a conversation: at least two
+ * members of its own `group` (a conversation has several turns per side) and
+ * none of the `other` group.
+ *
+ * Comparing selector strings is not enough. `deriveSelectorFromElements` falls
+ * back to a substring testid selector, so a list whose entries carry unique
+ * test ids produced the distinct strings `[data-testid*="card-1"]` and
+ * `[data-testid*="card-2"]` — each selecting a single entry — and was taken
+ * for a chat.
+ */
+function selectsItsSide(selector: string, group: Element[], other: Element[]): boolean {
+  var matched: NodeListOf<Element> | null = null;
+  try { matched = document.querySelectorAll(selector); } catch (_) { return false; }
+  if (!matched || matched.length < 2) return false;
+  var own = 0;
+  for (var i = 0; i < matched.length; i++) {
+    if (other.indexOf(matched[i]) >= 0) return false;
+    if (group.indexOf(matched[i]) >= 0) own++;
+  }
+  return own >= 2;
+}
+
+/**
  * Strategy G: Alternating pattern detection.
  * Zero-shot detection for unknown chat platforms that use no distinguishing
  * data attributes or ARIA roles. Detects the universal chat pattern of
- * alternating short (user) and long (assistant) messages.
+ * alternating short (user) and long (assistant) messages, then derives the two
+ * selectors from the groups' attributes. Attributes only — never position.
  */
 function discoverByAlternation(): SelectorResult | null {
   // Find a likely chat container: [role="log"], [role="feed"], or main
@@ -963,11 +1001,16 @@ function discoverByAlternation(): SelectorResult | null {
 
   if (alternations < 2) return null; // Not enough alternation — probably not a chat
 
-  // Try to derive selectors from element attributes
+  // The alternating lengths only locate the two groups; the selectors still
+  // have to come from their attributes, and each has to really SELECT its own
+  // side (see selectsItsSide). One selector for both groups — or a "selector"
+  // that picks a single entry — is not two sides of a conversation.
   var userSel = deriveSelectorFromElements(userGroup, 'user');
   var assistantSel = deriveSelectorFromElements(assistantGroup, 'assistant');
 
-  if (userSel && assistantSel) {
+  if (userSel && assistantSel
+      && selectsItsSide(userSel, userGroup, assistantGroup)
+      && selectsItsSide(assistantSel, assistantGroup, userGroup)) {
     return {
       userSelector: userSel,
       assistantSelector: assistantSel,
@@ -976,76 +1019,11 @@ function discoverByAlternation(): SelectorResult | null {
     };
   }
 
-  // Fallback: use positional selectors scoped to the container
-  // This handles platforms using generic <div> elements with no attributes
-  try {
-    var containerSel = getContainerSelector(container);
-    if (containerSel) {
-      // Determine which indices are user vs assistant
-      // Use :nth-child for the dominant pattern
-      var userIndices: number[] = [];
-      var assistantIndices: number[] = [];
-      for (var n = 0; n < children.length; n++) {
-        // Get 1-based child index relative to parent
-        var childIndex = getChildIndex(children[n]);
-        if (textLengths[n] <= median) {
-          userIndices.push(childIndex);
-        } else {
-          assistantIndices.push(childIndex);
-        }
-      }
-
-      // Check if a simple even/odd pattern works
-      var allUserEven = userIndices.every(function(idx) { return idx % 2 === 0; });
-      var allUserOdd = userIndices.every(function(idx) { return idx % 2 !== 0; });
-      var allAssistantEven = assistantIndices.every(function(idx) { return idx % 2 === 0; });
-      var allAssistantOdd = assistantIndices.every(function(idx) { return idx % 2 !== 0; });
-
-      if ((allUserEven && allAssistantOdd) || (allUserOdd && allAssistantEven)) {
-        var userNth = allUserEven ? ':nth-child(even)' : ':nth-child(odd)';
-        var assistantNth = allUserEven ? ':nth-child(odd)' : ':nth-child(even)';
-        return {
-          userSelector: containerSel + ' > ' + userNth,
-          assistantSelector: containerSel + ' > ' + assistantNth,
-          sentinelSelector: containerSel + ' > *',
-          source: 'alternation-positional',
-        };
-      }
-    }
-  } catch (_) {}
-
+  // Deliberately NO positional fallback. ":nth-child(odd) is the user,
+  // :nth-child(even) is the assistant" fits every list whose entries alternate
+  // in length — a blog index with a comment form reached exactly the 0.7
+  // confidence threshold and lost its real TOC. Position is not evidence.
   return null;
-}
-
-/**
- * Get a CSS selector for a container element.
- * Tries ID first, then role attribute, then tag name.
- */
-function getContainerSelector(el: Element): string | null {
-  if (!el) return null;
-  try {
-    if (el.id) return '#' + CSS.escape(el.id);
-  } catch (_) {}
-  try {
-    var role = el.getAttribute('role');
-    if (role) return '[' + 'role="' + role + '"]';
-  } catch (_) {}
-  try {
-    return el.tagName.toLowerCase();
-  } catch (_) { return null; }
-}
-
-/**
- * Get the 1-based index of an element among its siblings.
- */
-function getChildIndex(el: Element): number {
-  var parent = el.parentElement;
-  if (!parent) return 1;
-  var children = parent.children;
-  for (var i = 0; i < children.length; i++) {
-    if (children[i] === el) return i + 1;
-  }
-  return 1;
 }
 
 /**
@@ -1194,12 +1172,14 @@ function detectChatPage(): ChatbotProfile | null {
       }
       // Stale positive (root detached) — clear and re-detect below.
       _cachedProfile = null;
-    } else {
+    } else if (Date.now() - _negativeCheckedAt < NEGATIVE_CACHE_TTL_MS) {
       // Negative cache: a prior call already determined this URL is NOT a
       // chatbot page. Skip the ARIA/data/structure DOM cascade on every
       // subsequent rebuild — the first build already ran it. Without this,
       // non-chatbot pages re-ran the full detection cascade on every rebuild.
-      // invalidateChatbotCache() clears this on navigation.
+      // invalidateChatbotCache() clears this on navigation — and it expires on
+      // its own after NEGATIVE_CACHE_TTL_MS, because the DOM may have become a
+      // chat since without any URL change.
       return null;
     }
   }
@@ -1256,9 +1236,11 @@ function detectChatPage(): ChatbotProfile | null {
   }
 
   if (!selectors) {
-    // Cache the negative result so rebuilds on this URL skip the cascade.
+    // Cache the negative result so rebuilds on this URL skip the cascade
+    // (for NEGATIVE_CACHE_TTL_MS — see the cache block above).
     _cachedProfile = null;
     _cachedUrl = currentUrl;
+    _negativeCheckedAt = Date.now();
     return null;
   }
 

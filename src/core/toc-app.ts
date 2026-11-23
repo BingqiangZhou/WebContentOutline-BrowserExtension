@@ -25,7 +25,7 @@ import {
   debug
 } from '../utils/core-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
-import { getTocShadowHost } from '../ui/shadow-root.js';
+import { getTocShadowRootSync } from '../ui/shadow-root.js';
 
   /** Navigation lock: prevents IntersectionObserver interference during user scroll navigation. */
   // (createNavLock + NavLock interface now live in ./nav-lock.js)
@@ -180,7 +180,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
           rebuildScheduler.disconnect();
         }
         // Show notice on existing panel
-        if (panelInstance && !(getTocShadowHost()?.shadowRoot ?? document).querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"] .toc-ctx-invalidated-notice')) {
+        if (panelInstance && !(getTocShadowRootSync() ?? document).querySelector('[data-toc-owner="' + EXTENSION_OWNER + '"] .toc-ctx-invalidated-notice')) {
           try {
             var noticeEl = document.createElement('div');
             noticeEl.className = 'toc-ctx-invalidated-notice';
@@ -200,7 +200,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
             noticeEl.appendChild(noticeSpan);
             noticeEl.appendChild(document.createTextNode(' '));
             noticeEl.appendChild(refreshLink);
-            var panelEl = (getTocShadowHost()?.shadowRoot ?? document).querySelector('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
+            var panelEl = (getTocShadowRootSync() ?? document).querySelector('.toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
             var listEl = panelEl && panelEl.querySelector('.toc-list');
             if (listEl && listEl.parentNode) listEl.parentNode.insertBefore(noticeEl, listEl);
           } catch (_) {}
@@ -277,6 +277,10 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       }
     };
 
+    // Set when a config refresh lands while a rebuild is in flight: that rebuild
+    // may have read the selectors before the change, so exactly one follow-up runs.
+    var configRefreshQueued = false;
+
     var rebuild = function(): Promise<RebuildStatus> {
       if (rebuildInFlight) return rebuildInFlight;
       // Never reject: casual await sites abound. Failures resolve as 'fail'
@@ -287,6 +291,15 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
         return 'fail';
       }).finally(function() {
         rebuildInFlight = null;
+        if (!configRefreshQueued) return;
+        configRefreshQueued = false;
+        if (destroyed) return;
+        // The rebuild that just finished cleared configDirty AFTER the refresh
+        // set it, and may have built on the stale selectors it read before the
+        // change — the follow-up has to read the config again.
+        configDirty = true;
+        // Deferred, so the follow-up never starts inside this .finally() callback.
+        Promise.resolve().then(function() { rebuild(); });
       });
       return rebuildInFlight;
     };
@@ -294,6 +307,9 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     var refreshConfig = function() {
       if (destroyed) return Promise.resolve('halt' as RebuildStatus);
       configDirty = true;
+      // Joining the in-flight rebuild alone would lose the change: it may already
+      // be past its config read. Queue one follow-up for when it finishes.
+      if (rebuildInFlight) configRefreshQueued = true;
       return rebuild();
     };
 
@@ -301,20 +317,12 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     liveRebuilds.add(rebuild);
 
     function startPick() {
-      var dispatchPickerEvent = function(type: string) {
-        try {
-          window.dispatchEvent(new CustomEvent(type));
-        } catch (_) {}
-      };
       try {
         if (pickerInstance && pickerInstance.cleanup) {
           pickerInstance.cleanup();
-          dispatchPickerEvent('toc-picker-end');
         }
 
-        dispatchPickerEvent('toc-picker-start');
         pickerInstance = createElementPicker(function(el) {
-          dispatchPickerEvent('toc-picker-end');
           pickerInstance = null;
           var sel = '';
           var cls = buildClassSelector(el);
@@ -338,11 +346,9 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
           });
         }, function() {
           // canceled
-          dispatchPickerEvent('toc-picker-end');
           pickerInstance = null;
         });
       } catch (e) {
-        dispatchPickerEvent('toc-picker-end');
         debug('[toc] start element picker failed:', e);
       }
     }
@@ -418,6 +424,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       if (buildAbort) { try { buildAbort.abort(); } catch (_) {} buildAbort = null; }
       items = [];
       rebuildInFlight = null;
+      configRefreshQueued = false;
       navLock.destroy();
       removePanelCard();
       if (activeTracker && activeTracker.destroy) activeTracker.destroy();

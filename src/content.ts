@@ -48,6 +48,15 @@ export function startTocContent(ctx: any) {
   var currentEnabled = false;
   var disposed = false;
   var listenersAttached = false;
+  // Bumped on every change of the enabled state. A boolean alone cannot tell
+  // "still enabled" from "disabled and enabled again": an enable → disable →
+  // enable burst (a fast triple-click on the toolbar icon) while startApp() is
+  // parked in an await would run it twice and orphan the first app instance —
+  // its observers outlive the disable.
+  var enabledGeneration = 0;
+  // How many UPDATE_ENABLED messages this tab has received. Each one supersedes
+  // the bootstrap's own read of the enabled state (see main()).
+  var stateNotices = 0;
 
   var messageListener: ((msgObj: TocRequest, sender: any, sendResponse: (response?: any) => void) => boolean | void) | null = null;
   var storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }, areaName: string) => void) | null = null;
@@ -73,6 +82,7 @@ export function startTocContent(ctx: any) {
     if (disposed) return;
     disposed = true;
     currentEnabled = false;
+    enabledGeneration++;
     detachListeners();
     if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
@@ -97,12 +107,15 @@ export function startTocContent(ctx: any) {
   async function startApp() {
     try {
       if (disposed) return;
+      // Whose enable is this? Any later state change (disable, or disable and
+      // enable again) retires this start — see enabledGeneration above.
+      var gen = enabledGeneration;
       var configs = await getConfigs();
       // Re-check state after EVERY await: an UPDATE_ENABLED(false) message can
       // arrive while we are suspended here. That message's stopApp() finds no
       // appInstance yet (initForConfig has not run), so without this guard
       // initialization would continue and leave a zombie TOC on a disabled site.
-      if (disposed || !currentEnabled) return;
+      if (disposed || !currentEnabled || gen !== enabledGeneration) return;
       var cfg = findMatchingConfig(configs, location.href);
       if (!cfg) {
         cfg = getDefaultConfig();
@@ -114,7 +127,7 @@ export function startTocContent(ctx: any) {
       // so the dock/panel mount into the shadow and are style-isolated from the
       // host page. Failure is non-fatal (UI falls back to the host document).
       await getTocShadowRoot();
-      if (disposed || !currentEnabled) return;
+      if (disposed || !currentEnabled || gen !== enabledGeneration) return;
       appInstance = initForConfig(cfg, {
         onDeactivate: function() {
           // Page-side "Close TOC" → persist disabled state to background, then self-disable
@@ -163,6 +176,7 @@ export function startTocContent(ctx: any) {
       return;
     }
     currentEnabled = want;
+    enabledGeneration++;
     if (!want) {
       // Disabled: destroy TOC app, clean up DOM
       stopApp();
@@ -175,6 +189,13 @@ export function startTocContent(ctx: any) {
 
   async function main() {
     if (disposed) return;
+    // Any UPDATE_ENABLED that lands while this bootstrap is suspended supersedes
+    // the enabled state it reads below: the message listener has already applied
+    // what the background wants. That holds even for a message that changes
+    // nothing in this tab — e.g. the site is disabled while the script is still
+    // starting, so "false" matches the not-yet-enabled state and looks like a
+    // no-op, yet the pending read (an older "true") must not start the TOC.
+    var noticesAtStart = stateNotices;
     debug(msg('logPrefix') + ' ' + msg('logContentScriptStarted'), location.href);
     try {
       await new Promise<void>(function(resolve) {
@@ -183,6 +204,7 @@ export function startTocContent(ctx: any) {
         } catch (_) { resolve(); }
       });
       var enabled = await getSiteEnabledByOrigin();
+      if (disposed || noticesAtStart !== stateNotices) return;
       if (enabled) {
         await applyEnabledState(true);
       } else {
@@ -236,6 +258,10 @@ export function startTocContent(ctx: any) {
           // Cross-tab sync: background tells us the new enabled state
           if (msgObj.type === TOC_MESSAGE.UPDATE_ENABLED) {
             var enabled = !!msgObj.enabled;
+            // Counted before the "unchanged" shortcut: even a message that
+            // changes nothing here tells the bootstrap that its own read of the
+            // enabled state is stale (see main()).
+            stateNotices++;
             if (enabled === currentEnabled) { respondOnce({ ok: true, unchanged: true }); return; }
             (async function() {
               try {

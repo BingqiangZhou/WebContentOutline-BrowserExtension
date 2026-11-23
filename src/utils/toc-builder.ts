@@ -330,10 +330,12 @@ export async function buildTocItems(cfg: { selectors?: Array<{ type: string; exp
         }
       }
 
+      var scopedToRegion = false;
       if (combined.length === 0) {
         // Auto path: default heading selector, including ARIA headings.
         combined = [{ type: 'css', expr: 'h1, h2, h3, h4, h5, h6, [role="heading"]', _root: regionRoot || undefined }];
       } else if (regionRoot) {
+        scopedToRegion = true;
         // Custom path: scope each selector to the content region (copy so the
         // user's stored config objects are not mutated).
         for (var ci = 0; ci < combined.length; ci++) {
@@ -345,6 +347,19 @@ export async function buildTocItems(cfg: { selectors?: Array<{ type: string; exp
 
       var result = await buildTocItemsFromSelectors(combined, cfg, signal);
       if (result && (result as any).aborted) return { aborted: true };
+
+      // The user may have picked an element OUTSIDE the detected content region
+      // (sidebar nav, header): scoped to the region, the selectors match nothing
+      // and the TOC came up empty. An empty pass is cheap, so retry against the
+      // whole page. The automatic heading path is deliberately not retried — a
+      // region without headings is the detector's verdict there, and the
+      // nav/footer headings outside it must stay out of the TOC.
+      if (scopedToRegion && result.items && result.items.length === 0) {
+        var unscoped = combined.map(function(s) { return { type: s.type, expr: s.expr }; });
+        var retry = await buildTocItemsFromSelectors(unscoped, cfg, signal);
+        if (retry && (retry as any).aborted) return { aborted: true };
+        if (retry.items && retry.items.length > 0) result = retry;
+      }
       // Mark items from user-configured selectors
       if (isCustom && result.items) {
         for (var si = 0; si < result.items.length; si++) {
