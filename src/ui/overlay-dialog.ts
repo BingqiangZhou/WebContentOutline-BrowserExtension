@@ -3,7 +3,7 @@
 
 import { getFocusableWithin } from '../utils/toc-utils.js';
 import { createFocusTrap } from '../utils/focus-trap.js';
-import { getTocShadowRootSync, getDeepActiveElement } from './shadow-root.js';
+import { getTocShadowRootSync, getDeepActiveElement, isTocShadowRootTornDown } from './shadow-root.js';
 
 /**
  * Build the shared `.toc-overlay` dialog skeleton used by the element-picker
@@ -69,6 +69,14 @@ export function createOverlayDialog(opts: { owner: string; title: string }): {
   var removeFocusTrap: (() => void) = createFocusTrap(wrap, { onClose: close, getFocusableWithin: getFocusableWithin });
 
   var mount = function(focusTarget: HTMLElement) {
+    // The extension was torn down on this tab (site disabled) while the dialog
+    // was being prepared. The document fallback below is for "no root could be
+    // created", not for this: mounting would put an unstyled, still interactive
+    // dialog into the page's own DOM. Release what was set up and stay silent.
+    if (!getTocShadowRootSync() && isTocShadowRootTornDown()) {
+      close();
+      return;
+    }
     wrap.appendChild(actions);
     (getTocShadowRootSync() ?? document.documentElement).appendChild(wrap);
     focusRaf = requestAnimationFrame(function() {

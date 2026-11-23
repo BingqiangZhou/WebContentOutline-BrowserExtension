@@ -43,7 +43,9 @@ function loadSchedulerWithRealWatcher() {
       querySelector: (selector) => (selector === '[role="log"]' ? chatContainer : null),
       querySelectorAll: () => []
     },
-    // Timers fire synchronously (the shortcut checks/breaker-integration.test.mjs uses).
+    // Timers fire synchronously, which collapses the debounce. (It also makes
+    // the max-wait timer fire during the rebuild the debounce just started — a
+    // phantom "request during rebuild"; harmless for what this file asserts.)
     setTimeout: (fn) => { fn(); return 1; },
     clearTimeout: () => {},
     createUrlMonitor: () => ({ start() {}, stop() {}, invalidate() {} }),

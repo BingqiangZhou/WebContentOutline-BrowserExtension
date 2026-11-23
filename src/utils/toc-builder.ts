@@ -351,10 +351,14 @@ export async function buildTocItems(cfg: { selectors?: Array<{ type: string; exp
       // The user may have picked an element OUTSIDE the detected content region
       // (sidebar nav, header): scoped to the region, the selectors match nothing
       // and the TOC came up empty. An empty pass is cheap, so retry against the
-      // whole page. The automatic heading path is deliberately not retried — a
-      // region without headings is the detector's verdict there, and the
-      // nav/footer headings outside it must stay out of the TOC.
-      if (scopedToRegion && result.items && result.items.length === 0) {
+      // whole page. Only for selectors the USER chose:
+      //  - the automatic heading path is not retried — a region without headings
+      //    is the detector's verdict there, and the nav/footer headings outside
+      //    it must stay out of the TOC;
+      //  - a list holding only the chatbot sentinel is not retried either — the
+      //    sentinel is ours, not the user's, and would turn raw message
+      //    elements into TOC items.
+      if (scopedToRegion && isCustom && result.items && result.items.length === 0) {
         var unscoped = combined.map(function(s) { return { type: s.type, expr: s.expr }; });
         var retry = await buildTocItemsFromSelectors(unscoped, cfg, signal);
         if (retry && (retry as any).aborted) return { aborted: true };

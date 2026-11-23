@@ -43,10 +43,15 @@ import { invalidateChatbotCache, isStreaming, getChatbotContainerSelector } from
    * @param {function} [opts.onConfigDirty] Called when a URL change is detected.
    * @returns {object} handle with start(cfg), disconnect(), getPendingRebuild(), setPendingRebuild()
    */
-export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 'halt' | boolean | void>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean } }) {
+export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 'halt' | boolean | void>, opts: { onConfigDirty?: () => void; navLock?: { isLocked: () => boolean }; isRebuildInFlight?: () => boolean }) {
     opts = opts || {};
     var onConfigDirty: (() => void) | null = typeof opts.onConfigDirty === 'function' ? opts.onConfigDirty : null;
     var navLock = opts.navLock;
+    // Whether the caller (toc-app) is running a rebuild IT started directly — an
+    // expanding dock, the Refresh button, a config change. The scheduler cannot
+    // see those in its own `rebuildInFlight`; without this, a request that lands
+    // during one was dispatched straight into it, only JOINED it, and was lost.
+    var isRebuildInFlight: (() => boolean) | null = typeof opts.isRebuildInFlight === 'function' ? opts.isRebuildInFlight : null;
     var isExtensionContextValid = true;
     var hasPendingRebuild = false;
     var rebuildInFlight: Promise<boolean | void> | null = null;
@@ -154,6 +159,15 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
       }
       if (!hasPendingRebuild) return true;
 
+      // A rebuild the caller started on its own is still running. Dispatching
+      // now would only join it and lose this request, so park it instead; the
+      // caller reports through notifySettled() when that rebuild is over.
+      if (isRebuildInFlight && isRebuildInFlight()) {
+        hasPendingRebuild = true;
+        queuedDuringFlight = true;
+        return false;
+      }
+
       hasPendingRebuild = false;
       rebuildInFlight = (async (): Promise<boolean> => {
         try {
@@ -176,14 +190,14 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
 
     // Re-dispatch a request that arrived during the flight that just finished.
     // The flag is read and cleared first, so this is strictly about that flight.
-    // Every parked case below keeps its own re-dispatch path and is left alone.
+    // A successful flight has already reset the breaker, and every parked case
+    // below keeps its own re-dispatch path and is left alone.
     function flushQueuedRebuild(lastOk: boolean) {
       if (!queuedDuringFlight) return;
       queuedDuringFlight = false;
       if (!lastOk || !isExtensionContextValid) return;
       if (document.hidden) return;                  // visibilitychange handler re-dispatches
       if (navLock && navLock.isLocked()) return;    // nav-lock onUnlock re-dispatches
-      if (isBreakerTripped()) return;               // recovery probe re-dispatches
       if (!hasPendingRebuild) return;
       attemptRebuild();
     }
@@ -313,6 +327,12 @@ export function createRebuildScheduler(onRebuild: () => Promise<'ok' | 'fail' | 
         lastTripAt = 0;
       },
       getPendingRebuild: function() { return hasPendingRebuild; },
+      // The caller's own (not scheduler-dispatched) rebuild has settled. A
+      // request that had to be parked behind it is dispatched now — or left
+      // parked when that rebuild failed, like any other failure.
+      notifySettled: function(ok: boolean) {
+        flushQueuedRebuild(!!ok);
+      },
       setPendingRebuild: function(val: boolean) {
         hasPendingRebuild = !!val;
         if (hasPendingRebuild) attemptRebuild();

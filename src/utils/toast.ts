@@ -1,10 +1,15 @@
 import { msg } from './core-utils.js';
 import { EXTENSION_OWNER } from './constants.js';
-import { getTocShadowRootSync } from '../ui/shadow-root.js';
+import { getTocShadowRootSync, isTocShadowRootTornDown } from '../ui/shadow-root.js';
 
   var TOAST_DURATION_MS = 3000;
 
 function ensureToastContainer() {
+    // The extension was torn down on this tab (site disabled): a toast that is
+    // only now arriving belongs to a request that was in flight across the
+    // disable. The document fallback below is for "no root could be created",
+    // not for this — mounting here would put unstyled UI into the page's DOM.
+    if (!getTocShadowRootSync() && isTocShadowRootTornDown()) return null;
     var existing = (getTocShadowRootSync() ?? document).querySelector('.toc-toast-container[data-toc-owner="' + EXTENSION_OWNER + '"]');
     if (existing) return existing;
     var container = document.createElement('div');
@@ -27,7 +32,8 @@ export function showToast(text: string, opts?: { type?: 'info'|'success'|'warnin
       var type = opts.type || 'info';
       var durationMs: number = Number.isFinite(opts.durationMs) ? opts.durationMs! : TOAST_DURATION_MS;
       var container = ensureToastContainer();
-
+      if (!container) return { close: function() {} };   // torn down: nothing to show
+      const toastContainer = container;   // narrowed for the closure below
       var toast = document.createElement('div');
       toast.className = 'toc-toast toc-toast-' + type;
       toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
@@ -53,7 +59,7 @@ export function showToast(text: string, opts?: { type?: 'info'|'success'|'warnin
           timerId = null;
         }
         toast.remove();
-        if (container.childElementCount === 0) container.remove();
+        if (toastContainer.childElementCount === 0) toastContainer.remove();
       };
 
       closeBtn.addEventListener('click', removeToast, { once: true });

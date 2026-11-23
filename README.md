@@ -195,8 +195,11 @@ You can configure multiple selectors for the same site:
 
 For complex page structures, you can use XPath:
 - `//article//h2` - All h2 under article
-- `//article//*[@class='title']` - Any element with class "title" inside an article
+- `//*[@id='main']//h2` - All h2 inside the element with `id="main"`
+- `//*[@class='title']` - Any element with class "title"
 - `//div[@id='content']//h3` - Headers within specific container
+
+(A bare descendant star — every element of the page — is refused as too broad; a star with a condition, as above, is fine.)
 
 ### Advanced Features
 
@@ -317,7 +320,6 @@ Site configuration is stored in `chrome.storage.local`:
   "tocConfigs": [
     {
       "urlPattern": "https://example.com/*",
-      "side": "right",
       "selectors": [
         { "type": "css", "expr": "h1, h2, h3, h4, h5, h6" },
         { "type": "css", "expr": ".article-title, .section-header" },
@@ -330,17 +332,16 @@ Site configuration is stored in `chrome.storage.local`:
     "https://another.com": false
   },
   "tocBadgePosMap": {
-    "example.com": { "x": 100, "y": 200 }
+    "example.com": { "x": 100, "y": 200, "anchorX": "right" }
   }
 }
 ```
 
 **Field Description**:
 - `urlPattern`: URL matching pattern with `*` wildcard support
-- `side`: Panel display position (`left` or `right`)
 - `selectors`: Selector array, supports mixing CSS and XPath
 - `tocSiteEnabledMap`: Per-site opt-in map — only an explicit `true` enables a site; an absent entry means disabled
-- `tocBadgePosMap`: Dock anchor position per domain (legacy key retained for compatibility; includes `x`, `y`, `anchorX`)
+- `tocBadgePosMap`: Dock anchor position per domain — `x`, `y` and `anchorX` (`left` or `right`). The dock's side lives here, not in `tocConfigs`
 
 ## 🎯 Use Cases
 

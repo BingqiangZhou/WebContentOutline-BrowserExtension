@@ -291,3 +291,25 @@ test('custom selectors with matches inside the content region stay scoped', asyn
   assert.equal(result.items.length, 1);
   assert.equal(result.items[0].text, 'In article');
 });
+
+test('a sentinel-only selector list is not retried outside the content region', async () => {
+  // After chat detection stops matching on a page, cfg.selectors can be left
+  // holding nothing but the chatbot sentinel. That is not a user selector: the
+  // whole-page retry exists for elements the user picked, and must not promote
+  // raw message elements into the TOC.
+  var regionRoot = { id: 'main-root' };
+  var rawMessage = visibleHeading('DIV', 'Raw message text');
+  var env = loadBuildTocItems({
+    confidence: 0,
+    regionRoot: regionRoot,
+    regionSource: 'landmark',
+    collectElements: function (selector) { return selector._root ? [] : [rawMessage]; }
+  });
+
+  var result = await env.buildTocItems({
+    selectors: [{ type: 'css', expr: '[data-message-author-role]', _tocSentinel: true }]
+  });
+
+  assert.equal(env.calls.collectBySelector.length, 1, 'no whole-page retry for a selector the user did not choose');
+  assert.equal(result.items.length, 0);
+});

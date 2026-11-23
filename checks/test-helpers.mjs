@@ -130,12 +130,15 @@ export function moduleScript(source) {
  *    `releaseConfigRead()` is called.
  *  - every rebuild parks inside `buildTocItems` until `finishBuild()` is called.
  * `opts.window` replaces the sandbox's `window`.
+ * `opts.realScheduler` runs the REAL rebuild-scheduler and nav-lock next to
+ * toc-app instead of inert stubs (reached through `scheduler()`).
  */
 export function loadTocApp(opts = {}) {
   const counters = { configReads: 0, builds: 0 };
   const pendingBuilds = [];
   const pendingConfigReads = [];
   let dockOptions = null;
+  let configChanged = null;
   const sandbox = {
     console: { ...console, warn() {}, debug() {} },
     AbortController,
@@ -163,11 +166,22 @@ export function loadTocApp(opts = {}) {
     showPickerResult() {},
     siteConfig: async () => {},
     saveSelector: async () => false,
-    setOnConfigChanged() {},
-    createRebuildScheduler: () => ({
-      start() {}, disconnect() {},
-      getPendingRebuild: () => false, setPendingRebuild() {}
-    }),
+    // config-manager's notifyConfigChanged() fans out to whatever toc-app registered.
+    setOnConfigChanged(fn) { configChanged = fn; },
+    createRebuildScheduler: (onRebuild, schedulerOpts) => {
+      // With opts.realScheduler this is re-pointed at the real factory below
+      // (under its own name, so this capturing stub keeps being the one toc-app calls).
+      schedulerHandle = opts.realScheduler
+        ? sandbox.__tocRealCreateRebuildScheduler(onRebuild, schedulerOpts)
+        : { start() {}, disconnect() {}, getPendingRebuild: () => false, setPendingRebuild() {} };
+      return schedulerHandle;
+    },
+    // rebuild-scheduler collaborators (only used with opts.realScheduler)
+    createDomWatcher: () => ({ start: () => true, stop() {}, invalidate() {}, checkAndReconnect() {} }),
+    createUrlMonitor: () => ({ start() {}, stop() {}, invalidate() {} }),
+    invalidateChatbotCache() {},
+    isStreaming: () => false,
+    getChatbotContainerSelector: () => null,
     createActiveItemTracker: () => ({ setItems() {}, destroy() {} }),
     createNavLock: () => ({ lock() {}, unlock() {}, isLocked: () => false, destroy() {} }),
     NAV_LOCK_MS: 1000,
@@ -190,17 +204,41 @@ export function loadTocApp(opts = {}) {
     // window.dispatchEvent can SEE a (re)introduced window event instead of the
     // construct throwing and being swallowed by a try/catch.
     CustomEvent: class { constructor(type) { this.type = type; } },
-    document: { createElement: () => ({ setAttribute() {}, appendChild() {}, addEventListener() {} }) },
+    // Timers never fire and the clock stands still: the scheduler's debounce,
+    // max-wait and breaker windows are driven by tests, not by time.
+    setTimeout: () => 1,
+    clearTimeout() {},
+    Date: { now: () => 1_000_000 },
+    document: {
+      hidden: false, addEventListener() {}, removeEventListener() {},
+      createElement: () => ({ setAttribute() {}, appendChild() {}, addEventListener() {} })
+    },
     __exports: {}
   };
   sandbox.globalThis = sandbox;
+  let schedulerHandle = null;
   const file = path.join(repoRoot, 'src/core/toc-app.ts');
+  if (opts.realScheduler) {
+    // The real nav-lock and scheduler, with the real scheduler factory parked
+    // under its own name. The factory declaration in the prepended scripts
+    // replaces this sandbox's `createRebuildScheduler` (the capturing stub), so
+    // the stub is put back afterwards: toc-app must keep calling the stub for
+    // tests to reach the handle.
+    const capturingStub = sandbox.createRebuildScheduler;
+    const schedulerScripts = ['src/core/nav-lock.ts', 'src/core/rebuild-scheduler.ts']
+      .map((rel) => moduleScript(fs.readFileSync(path.join(repoRoot, rel), 'utf8')))
+      .join('\n');
+    vm.runInNewContext(schedulerScripts + '\n__tocRealCreateRebuildScheduler = createRebuildScheduler;', sandbox, { filename: 'nav-lock.ts + rebuild-scheduler.ts' });
+    sandbox.createRebuildScheduler = capturingStub;
+  }
   vm.runInNewContext(moduleScript(fs.readFileSync(file, 'utf8')) + '\n__exports.initForConfig = initForConfig;', sandbox, { filename: file });
   return {
     counters,
     initForConfig: sandbox.__exports.initForConfig,
     finishBuild() { pendingBuilds.shift()([{ id: 'toc-item-0', el: {}, text: 'heading', level: 2 }]); },
     releaseConfigRead() { pendingConfigReads.shift()(); },
-    dockOptions: () => dockOptions
+    dockOptions: () => dockOptions,
+    notifyConfigChanged() { if (configChanged) configChanged(); },
+    scheduler: () => schedulerHandle
   };
 }

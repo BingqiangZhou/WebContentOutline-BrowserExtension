@@ -173,13 +173,11 @@ test('config mutations retain sequential additions from separate tabs', () => {
   const first = applyTocConfigMutation([], {
     operation: 'add-selector',
     urlPattern: 'https://example.com/*',
-    side: 'right',
     selector: { type: 'css', expr: 'article h2' }
   }, 100);
   const second = applyTocConfigMutation(first.configs, {
     operation: 'add-selector',
     urlPattern: 'https://example.com/*',
-    side: 'right',
     selector: { type: 'css', expr: 'article h3' }
   }, 101);
 
@@ -354,4 +352,29 @@ test('bootstrap settle keeps never-visible tabs initializing via setTimeout', ()
   assert.match(fn[0], /document\.hidden[\s\S]*?setTimeout\(r, 0\)/);
   // Visible tabs still settle on double-rAF.
   assert.match(fn[0], /requestAnimationFrame[\s\S]*?requestAnimationFrame/);
+});
+
+test('the background accepts an XPath star with a predicate and still refuses a bare one', () => {
+  // The background runs its own copy of the rule when it normalizes a selector
+  // (applyTocConfigMutation), so it has to agree with the content-side validator.
+  const applyTocConfigMutation = loadConfigPrimitives();
+  const site = 'https://example.com/*';
+
+  const accepted = applyTocConfigMutation([], {
+    operation: 'add-selector',
+    urlPattern: site,
+    selector: { type: 'xpath', expr: "//*[@id='main']//h2" }
+  }, 100);
+  assert.equal(accepted.ok, true);
+  assert.equal(accepted.configs[0].selectors[0].expr, "//*[@id='main']//h2");
+
+  for (const bare of ['//*', './/*', '//*/*']) {
+    const refused = applyTocConfigMutation(accepted.configs, {
+      operation: 'add-selector',
+      urlPattern: site,
+      selector: { type: 'xpath', expr: bare }
+    }, 101);
+    assert.equal(refused.ok, false, `the background must refuse ${bare}`);
+    assert.equal(refused.reason, 'invalid-selector');
+  }
 });

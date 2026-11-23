@@ -8,7 +8,6 @@ import {
   findMatchingConfig,
   msg,
   validateSelectorExpression,
-  normalizeSide,
   buildSitePattern
 } from '../utils/toc-utils.js';
 import { EXTENSION_OWNER } from '../utils/constants.js';
@@ -17,7 +16,6 @@ import { TOC_MESSAGE } from '../shared/messages.js';
   interface StoredConfig {
     urlPattern?: string;
     selectors?: Array<{ type: string; expr: string }>;
-    side?: string;
   }
 
   // Callback set by toc-app.js via setOnConfigChanged()
@@ -56,7 +54,7 @@ import { TOC_MESSAGE } from '../shared/messages.js';
     return entry && Array.isArray(entry.selectors) ? entry.selectors.slice() : [];
   }
 
-export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
+export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: string }>; __markConfigDirty?: () => void }) {
     var dlg: ReturnType<typeof createOverlayDialog> | undefined;
     try {
       var configs = await getConfigs() as StoredConfig[];
@@ -198,8 +196,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
           var addResult = await requestConfigMutation({
             operation: 'add-selector',
             urlPattern: urlPattern,
-            selector: { type: selType, expr: selExpr },
-            side: normalizeSide(cfg.side)
+            selector: { type: selType, expr: selExpr }
           });
           if (!addResult || !addResult.ok) {
             showToast(msg('errorOperationFailed'), { type: 'error' });
@@ -280,7 +277,7 @@ export async function siteConfig(cfg: { selectors?: Array<{ type: string; expr: 
     }
   }
 
-export async function saveSelector(selector: string, cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
+export async function saveSelector(selector: string, cfg: { selectors?: Array<{ type: string; expr: string }>; __markConfigDirty?: () => void }) {
     try {
       if (!cfg) {
         showToast(msg('errorOperationFailed') || 'No config found', { type: 'error' });
@@ -294,13 +291,11 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
 
       var urlPattern = buildSitePattern();
       var entry = { type: 'css', expr: expr };
-      var sidePersist = normalizeSide(cfg.side);
 
       var result = await requestConfigMutation({
         operation: 'add-selector',
         urlPattern: urlPattern,
-        selector: entry,
-        side: sidePersist
+        selector: entry
       });
       if (result && result.ok) {
         cfg.selectors = selectorsFromMutationResult(result);
@@ -313,7 +308,7 @@ export async function saveSelector(selector: string, cfg: { selectors?: Array<{ 
     }
   }
 
-export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: string; expr: string }>; side?: string; __markConfigDirty?: () => void }) {
+export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: string; expr: string }>; __markConfigDirty?: () => void }) {
     try {
       var configs = await getConfigs() as StoredConfig[];
       var urlPattern = buildSitePattern();
@@ -324,7 +319,6 @@ export async function updateConfigFromStorage(cfg: { selectors?: Array<{ type: s
 
       if (latest) {
         cfg.selectors = Array.isArray(latest.selectors) ? latest.selectors.slice() : [];
-        cfg.side = latest.side === 'left' || latest.side === 'right' ? latest.side : cfg.side;
       } else {
         cfg.selectors = [];
       }

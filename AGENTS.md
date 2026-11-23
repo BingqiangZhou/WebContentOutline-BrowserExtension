@@ -51,6 +51,7 @@ entrypoints/toc.content/index.ts
       └── core/toc-app.ts (orchestrator)
             ├── utils/toc-builder.ts → dom-utils.ts, content-region.ts, chatbot-detector.ts
             ├── ui/shadow-root.ts (single shared closed Shadow DOM root + CSS injection)
+            ├── utils/dom-utils.ts → ui/shadow-root.ts (closed-root accessor for cleanupOwnedElements)
             ├── ui/edge-dock.ts, ui/element-picker.ts, ui/floating-panel.ts
             ├── ui/overlay-dialog.ts (shared .toc-overlay dialog) → focus-trap.ts
             ├── core/config-manager.ts → ui/overlay-dialog.ts
@@ -65,7 +66,7 @@ entrypoints/background.ts
   └── src/shared/primitives.ts, src/shared/messages.ts
 
 entrypoints/options/main.ts
-  └── src/shared/primitives.ts, src/shared/messages.ts
+  └── src/shared/messages.ts
 ```
 
 ### Window Globals
@@ -86,16 +87,19 @@ Only a few window globals remain for compatibility/debugging:
 - Injects `content-scripts/toc.js` via `browser.scripting` (only that file: the content script fetches `content-scripts/toc.css` itself — `cssInjectionMode: 'ui'`, web-accessible — into its shadow root)
 - Cross-tab synchronization for same origin
 - Message handling goes through the centralized `TOC_MESSAGE` protocol in `src/shared/messages.ts` (discriminated union with typed payloads — add new message types there, never as raw literals)
+- Binds every state-changing message to its sender: a content script may only change the state and the config of its own site; one of the extension's own pages (the options page) may name any. The distinction is `isFromExtensionPage()` — decided by the sender document's URL, never by `sender.tab`, which an options page opened in a tab has too
 
 **`entrypoints/options/`** - Options page (extension page)
 - Lists the per-site opt-in state from `tocSiteEnabledMap` and the selector configs from `tocConfigs`; site-level actions stay available via the toolbar icon on the page itself
-- Mutates storage through the same shared primitives/messages as the background
+- Follows storage while open (`storage.onChanged` re-renders a list, returning keyboard focus to the same row) — the toolbar icon and the in-page config dialog change it behind the page's back. Each list renders under a generation: a render that is still awaiting storage gives way when a newer one starts, so overlapping renders (a storage event plus the page's own refresh) cannot duplicate rows
+- Writes only through the background (`PERSIST_ACTIVE_STATE`, `MUTATE_CONFIG` `clear-site`), so its changes are serialized with the in-page dialog's. A refused write is reported and the list is put back to the stored state
 
 **`src/content.ts`** - Content script bootstrap
 - Checks site enable state on load
 - Imports `initForConfig` from `core/toc-app.ts` via ESM (using WXT-compatible `.js` import specifiers in source)
 - Sets up reinjection guard and cleanup hooks
 - Message listeners via `TOC_MESSAGE` from the same shared protocol module
+- Disabling the site takes the whole shadow host down — nothing of the extension stays in the page; the next enable recreates it. UI that arrives after that teardown (a toast or dialog whose request was in flight across the disable) is dropped, never mounted into the page's own DOM: the `?? document` fallback at the mount points is for "no root could be created", not for a torn-down root (`isTocShadowRootTornDown()`)
 
 ### Core Subsystems
 
@@ -110,6 +114,8 @@ Only a few window globals remain for compatibility/debugging:
 - Per-site URL pattern matching (wildcards supported)
 - Selector management (CSS/XPath)
 - Config change notification via callback pattern (`setOnConfigChanged` / `_onConfigChanged`)
+- No dock `side` in a config: the dock's side is the per-host position the dock saves itself in `tocBadgePosMap.anchorX`. A `side` left in a stored config by an older version is dropped when the config is read
+- Selector validation has two copies that must refuse and allow exactly the same expressions: `isSafeXPathExpression()` in `utils/core-utils.ts` (content, shown as "Invalid selector" in the dialog) and `isHighRiskBroadXPathExpression()` in `shared/primitives.ts` (background, which would otherwise answer a bare "Operation failed"). XPath refused: a bare descendant star (`//*`, `.//*`, `//*/*`), everything under `html`/`body` (`//html/*`, `//body/*`), and the explicit descendant axis (`descendant::*`). XPath allowed: a star with a predicate (`//*[@id='main']//h2`). CSS: only an exact broad selector (`*`, `html *`, `body *`, `:root *`) is refused. `checks/stability-performance.test.mjs` pins the parity of the XPath copies
 
 **3. TOC Building Pipeline (`utils/toc-builder.ts`)**
 ```
@@ -119,18 +125,19 @@ Selectors (CSS/XPath)
   → Filter hidden/empty elements
   → Map to TOC items {id, el, text}
 ```
+User selectors run inside the detected content region and are retried against the whole page only when the region has no match (an element picked in the sidebar). A list holding only the chatbot sentinel is not retried, and neither is the automatic heading path.
 
 **4. UI State Management (`core/toc-app.ts`)**
 - Uses nav-lock from `core/nav-lock.ts` (createNavLock with onUnlock hook)
 - Active item restoration after rebuild
-- Pending rebuild queue (processes after navigation unlock)
+- Pending rebuild queue (processes after navigation unlock; the floating panel flushes it through the scheduler with `setPendingRebuild(true)`)
 - Component lifecycle coordination with `destroy()` cleanup
 
 **5. Dynamic Content Updates**
 Split into three focused modules:
 - `core/dom-watcher.ts` — MutationObserver-based DOM change detection; with no selectors only heading-touching changes count, and the selector list is read live through `getSelectors()` (the chatbot sentinel is pushed into it after `start()`)
 - `core/url-monitor.ts` — URL change detection: the Navigation API (`navigatesuccess`, Chromium 102+) when present, otherwise popstate/hashchange with History API wrapping, plus a polling fallback
-- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock (received via opts), a half-open recovery probe, and circuit breaker (pauses after 5 consecutive failures)
+- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock (received via opts), a half-open recovery probe, and circuit breaker (pauses after 5 consecutive failures). It also knows when toc-app is running a rebuild it started itself (`isRebuildInFlight`: hover-expand, the Refresh button, a config change) and parks a request that lands during one until toc-app reports `notifySettled()` — dispatching into it would only join it and lose the request
 
 **6. Config Change Notification**
 - Callback pattern via `setOnConfigChanged()` in `core/config-manager.ts`
@@ -145,10 +152,9 @@ Split into three focused modules:
   "tocConfigs": [
     {
       urlPattern: "https://example.com/*",
-      side: "right",
       selectors: [
         { type: "css", expr: "h1, h2, h3" },
-        { type: "xpath", expr: "//article//h2" }
+        { type: "xpath", expr: "//*[@id='main']//h2" }
       ]
     }
   ],
@@ -179,6 +185,7 @@ Split into three focused modules:
 - CSS custom properties for light/dark theming (driven by `prefers-color-scheme`)
 - Per-element reset: `.toc-floating, .toc-floating *, .toc-edge-dock, .toc-edge-dock * { all: unset !important; }` (the site-config dialog's own controls get theirs in separate rules, since a `<select>`/`<input>` must keep its native border and arrow)
 - Styles also use `!important` as a secondary defense
+- The reduced-motion block (`@media (prefers-reduced-motion: reduce)`) MUST stay the last block: it has the same specificity as the component rules that set the transitions and only wins by coming later
 - Components: edge dock, floating panel, overlay dialogs, buttons
 
 ## Key Algorithms

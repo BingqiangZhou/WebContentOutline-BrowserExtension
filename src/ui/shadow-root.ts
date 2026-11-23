@@ -25,6 +25,14 @@ var TOC_CSS_PATH = 'content-scripts/toc.css';
 var _shadowHost: HTMLElement | null = null;
 var _shadowRoot: ShadowRoot | null = null;
 var _initPromise: Promise<ShadowRoot | null> | null = null;
+// Bumped by every teardown. An initialization that is still loading its
+// stylesheet when a teardown happens must not attach its host afterwards —
+// that left an empty shell on the page that nobody owned.
+var _lifecycleGeneration = 0;
+// True between a teardown and the next successful initialization: the extension
+// is gone from this tab on purpose (the site was disabled), so UI that arrives
+// late must not be mounted at all — see isTocShadowRootTornDown().
+var _tornDown = false;
 
 /**
  * The shared shadow root (null until getTocShadowRoot() resolves). The only way
@@ -33,6 +41,18 @@ var _initPromise: Promise<ShadowRoot | null> | null = null;
  */
 export function getTocShadowRootSync(): ShadowRoot | null {
   return _shadowRoot;
+}
+
+/**
+ * True while there is no root because it was TORN DOWN, as opposed to never
+ * having been created. The UI mount points fall back to the host document when
+ * `getTocShadowRootSync()` is null; that fallback is right for "no root could be
+ * created" and wrong here: a toast or dialog that was already in flight (a config
+ * mutation answering after the disable) would land in the page's own DOM —
+ * unstyled, and reachable by the page's scripts. Such late UI is dropped.
+ */
+export function isTocShadowRootTornDown(): boolean {
+  return _tornDown && !_shadowRoot;
 }
 
 /**
@@ -63,6 +83,8 @@ export function getDeepActiveElement(): Element | null {
  * teardown — this is the host-level disposal.
  */
 export function disposeTocShadowRoot() {
+  _lifecycleGeneration++;
+  _tornDown = true;
   if (_shadowHost && _shadowHost.isConnected) {
     try { _shadowHost.remove(); } catch (_) {}
   }
@@ -80,6 +102,7 @@ export function disposeTocShadowRoot() {
 export function getTocShadowRoot(): Promise<ShadowRoot | null> {
   if (_shadowRoot) return Promise.resolve(_shadowRoot);
   if (_initPromise) return _initPromise;
+  const generation = _lifecycleGeneration;
   _initPromise = (async function (): Promise<ShadowRoot | null> {
     try {
       var host = document.createElement('div');
@@ -107,9 +130,14 @@ export function getTocShadowRoot(): Promise<ShadowRoot | null> {
       // Closed (see the file header): the page must not be able to reach the UI.
       var root = host.attachShadow({ mode: 'closed' });
       await injectStylesheet(root);
+      // Torn down while the stylesheet was loading (the site was disabled, or
+      // the script was reinjected): attaching now would leave a host nobody owns.
+      if (generation !== _lifecycleGeneration) return null;
       document.documentElement.appendChild(host);
       _shadowHost = host;
       _shadowRoot = root;
+      // The extension is (again) present on this tab.
+      _tornDown = false;
       return root;
     } catch (e) {
       console.warn('[toc] shadow root init failed:', e);

@@ -15,12 +15,23 @@ import { stripTsSyntax, stripImportsAndExports, loadTocMessage } from './test-he
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function loadBackground(initialMap, overrides) {
+// The REAL config-mutation primitive, so a test can see what a MUTATE_CONFIG
+// message actually leaves in storage.
+const realApplyTocConfigMutation = (() => {
+  const file = path.join(repoRoot, 'src/shared/primitives.ts');
+  const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
+  const sandbox = { console, SELECTOR_EXPR_MAX_LENGTH: 2000, __exports: {} };
+  sandbox.globalThis = sandbox;
+  vm.runInNewContext(source + '\n__exports.applyTocConfigMutation = applyTocConfigMutation;', sandbox, { filename: file });
+  return sandbox.__exports.applyTocConfigMutation;
+})();
+
+function loadBackground(initialMap, overrides, stored) {
   overrides = overrides || {};
   const file = path.join(repoRoot, 'entrypoints/background.ts');
   const source = stripImportsAndExports(stripTsSyntax(fs.readFileSync(file, 'utf8')));
 
-  const store = { tocSiteEnabledMap: Object.assign({}, initialMap || {}) };
+  const store = Object.assign({ tocSiteEnabledMap: Object.assign({}, initialMap || {}) }, stored || {});
   let storageReadCount = 0;
   const iconByTab = new Map(); // tabId -> enabled (last wins)
   const badgeTexts = [];
@@ -138,7 +149,7 @@ function loadBackground(initialMap, overrides) {
     isQuotaExceededError: function () { return false; },
     touchObjectKey: function (map, key, value) { map[key] = value; },
     pruneObjectToLimit: function (map) { return map; },
-    applyTocConfigMutation: function () { return { ok: true, changed: false, configs: [] }; },
+    applyTocConfigMutation: realApplyTocConfigMutation,
     applyUiStateMutation: function () { return { ok: true, map: {} }; },
     validateUiStateMutationSource: function () { return { ok: true }; },
     originFromUrl: function (url) {
@@ -190,6 +201,7 @@ function loadBackground(initialMap, overrides) {
     setTabs: function (tabs) { tabsList = tabs; },
     storageReads: function () { return storageReadCount; },
     storedMap: function () { return store.tocSiteEnabledMap; },
+    storedConfigs: function () { return (store.tocConfigs || []).slice(); },
     iconOf: function (tabId) { return iconByTab.get(tabId); },
     badgeTexts: function () { return badgeTexts.slice(); },
     badgeApiCalls: function () { return badgeApiCalls.slice(); },
@@ -357,4 +369,22 @@ test('the options page may name any origin, but has to name one', async () => {
     assert.equal(nameless && nameless.ok, false, `options page as ${as}: no origin to persist`);
     assert.equal(nameless && nameless.reason, 'bad-origin');
   }
+});
+
+test('a content script can only mutate the config of its own site; the options page can mutate any', async () => {
+  // The in-page config dialog is bound to its own site (MUTATE_CONFIG). The
+  // options page has no site and names the pattern — it used to be refused like
+  // a cross-site content script, which is why it wrote config storage directly.
+  const configB = { urlPattern: 'https://b.example/*', selectors: [{ type: 'css', expr: 'h2' }], updatedAt: 1 };
+  const clearB = { type: TOC_MESSAGE.MUTATE_CONFIG, operation: 'clear-site', urlPattern: 'https://b.example/*' };
+  const env = loadBackground({}, {}, { tocConfigs: [configB] });
+
+  const fromOtherSite = await env.fireMessage(clearB, CONTENT_SENDER);   // a content script on a.example
+  assert.equal(fromOtherSite && fromOtherSite.ok, false);
+  assert.equal(fromOtherSite && fromOtherSite.reason, 'bad-site');
+  assert.equal(env.storedConfigs().length, 1, 'the config of the other site survives');
+
+  const fromOptions = await env.fireMessage(clearB, OPTIONS_SENDERS[0].sender);   // the options page, in its own tab
+  assert.equal(fromOptions && fromOptions.ok, true, 'the options page names the site it changes');
+  assert.equal(env.storedConfigs().length, 0);
 });

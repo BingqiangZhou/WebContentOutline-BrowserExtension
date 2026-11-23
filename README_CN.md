@@ -188,8 +188,11 @@
 
 对于复杂的页面结构，可以使用XPath：
 - `//article//h2` - article 下的所有 h2
-- `//article//*[@class='title']` - article 内任何 class 为 title 的元素
+- `//*[@id='main']//h2` - `id="main"` 的元素内的所有 h2
+- `//*[@class='title']` - 任何 class 为 title 的元素
 - `//div[@id='content']//h3` - 特定容器内的标题
+
+（不带条件、会选中页面所有元素的裸通配符写法因范围过大会被拒绝；像上面这样带条件的写法则可以使用。）
 
 ## 🛠️ 技术实现
 
@@ -297,7 +300,6 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
   "tocConfigs": [
     {
       "urlPattern": "https://example.com/*",
-      "side": "right",
       "selectors": [
         { "type": "css", "expr": "h1, h2, h3, h4, h5, h6" },
         { "type": "css", "expr": ".article-title, .section-header" },
@@ -310,17 +312,16 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
     "https://another.com": false
   },
   "tocBadgePosMap": {
-    "example.com": { "x": 100, "y": 200 }
+    "example.com": { "x": 100, "y": 200, "anchorX": "right" }
   }
 }
 ```
 
 **字段说明**：
 - `urlPattern`：URL 匹配模式，支持 `*` 通配符
-- `side`：面板显示位置（`left` 或 `right`）
 - `selectors`：选择器数组，支持 CSS 和 XPath 混用
 - `tocSiteEnabledMap`：按站点手动开启记录——仅显式 `true` 表示启用，无记录即禁用
-- `tocBadgePosMap`：工具条吸附位置存储（保留旧键名以兼容历史数据），包含 `x`、`y`、`anchorX`
+- `tocBadgePosMap`：工具条吸附位置，按域名保存——`x`、`y` 和 `anchorX`（`left` 或 `right`）。工具条停靠在哪一侧记录在这里，不在 `tocConfigs` 里
 
 ## 🎯 适用场景
 

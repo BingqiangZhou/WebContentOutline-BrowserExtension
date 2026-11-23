@@ -63,23 +63,9 @@ test('localized copy no longer claims default-on behavior', () => {
   assert.match(zh.optionsNoSites.message, /工具栏图标/);
 });
 
-test('options page reports a refused persist as a failure and shows no stale side', () => {
-  const options = readSource('entrypoints/options/main.ts');
-  const body = options.match(/async function persistSiteEnabled\([\s\S]*?\n\}/);
-  assert.ok(body, 'persistSiteEnabled should exist');
-
-  // chrome.runtime.sendMessage RESOLVES with { ok: false } when the background
-  // cannot persist. The toggle must not report the new state as saved then.
-  assert.match(body[0], /\.ok/, 'the response must be checked');
-  assert.ok(
-    body[0].indexOf('.ok') < body[0].indexOf('stateLabel.textContent = enabled'),
-    'the response must be checked before the toggle reports the new state'
-  );
-
-  // A site config's `side` is frozen at creation and usually disagrees with
-  // where the dock actually is (tocBadgePosMap.anchorX) — do not display it.
-  assert.doesNotMatch(options, /cfg\.side === 'left' \? 'left' : 'right'/);
-});
+// How the options page handles a refused persist, follows storage changes and
+// keeps keyboard focus is behavior, tested by executing the page in
+// checks/options-page.test.mjs — not by matching its source text.
 
 // --- Behavior: the real content-side predicate against stored maps ---
 

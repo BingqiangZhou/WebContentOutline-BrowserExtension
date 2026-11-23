@@ -11,8 +11,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 // Loads src/ui/shadow-root.ts in a vm sandbox with a minimal mocked DOM so we
 // can call getTocShadowRoot(), inspect the host element it creates and the mode
 // it was attached with, and drive getDeepActiveElement(). Returns the module
-// exports plus handles to the captured host and root.
-function loadShadowRoot() {
+// exports plus handles to the captured host and root. `extras.fetch` replaces
+// the stylesheet fetch (pass a parking promise to hold initialization).
+function loadShadowRoot(extras = {}) {
   const file = path.join(repoRoot, 'src/ui/shadow-root.ts');
   const source = stripTsSyntax(fs.readFileSync(file, 'utf8')
     .replace(/^import .+;\r?\n/gm, '')
@@ -21,6 +22,7 @@ function loadShadowRoot() {
   let createdHost = null;
   let createdRoot = null;
   let attachInit = null;
+  let hostAppends = 0;
 
   function makeStyle() {
     // Record setProperty calls (with priority) so we can assert z-index !important.
@@ -65,10 +67,11 @@ function loadShadowRoot() {
         if ((tag || '').toLowerCase() === 'div') createdHost = el;
         return el;
       },
-      documentElement: { appendChild() {} },
+      // Only the host is ever appended here; count how often it reaches the page.
+      documentElement: { appendChild(node) { if (node === createdHost) hostAppends++; } },
     },
     // fetchCss() resolves to '' -> injectStylesheet() returns without touching CSSStyleSheet.
-    fetch() { return Promise.resolve({ text: () => '' }); },
+    fetch: extras.fetch || (() => Promise.resolve({ text: () => '' })),
     __exports: {}
   };
   sandbox.globalThis = sandbox;
@@ -76,7 +79,8 @@ function loadShadowRoot() {
   // whole file failing at load time when an export is not defined yet.
   const expose = (name) => `__exports[${JSON.stringify(name)}] = typeof ${name} === 'undefined' ? undefined : ${name};`;
   vm.runInNewContext(
-    source + '\n' + expose('getTocShadowRoot') + '\n' + expose('getTocShadowRootSync') + '\n' + expose('getDeepActiveElement'),
+    source + '\n' + expose('getTocShadowRoot') + '\n' + expose('getTocShadowRootSync') + '\n' +
+    expose('getDeepActiveElement') + '\n' + expose('disposeTocShadowRoot'),
     sandbox,
     { filename: file }
   );
@@ -85,6 +89,7 @@ function loadShadowRoot() {
     getCreatedHost: () => createdHost,
     getCreatedRoot: () => createdRoot,
     getAttachMode: () => attachInit && attachInit.mode,
+    hostAppends: () => hostAppends,
     setActiveElement: (el) => { sandbox.document.activeElement = el; }
   });
 }
@@ -138,4 +143,28 @@ test('focus capture still descends into the page\'s own open shadow roots', asyn
   const otherHost = { shadowRoot: { activeElement: inner } };
   mod.setActiveElement(otherHost);
   assert.strictEqual(mod.getDeepActiveElement(), inner);
+});
+
+test('a teardown while the stylesheet is still loading leaves no host behind', async () => {
+  // The site can be disabled (or the script reinjected) while getTocShadowRoot()
+  // is parked on its CSS fetch. The initialization that is already running must
+  // not attach its host afterwards — that left an empty shell on the page that
+  // nobody owned.
+  let releaseCss = null;
+  const mod = loadShadowRoot({ fetch: () => new Promise((resolve) => { releaseCss = resolve; }) });
+
+  const pending = mod.getTocShadowRoot();            // parked on the stylesheet
+  mod.disposeTocShadowRoot();                        // torn down meanwhile
+  releaseCss({ text: () => '' });
+
+  assert.equal(await pending, null, 'the retired initialization reports failure');
+  assert.equal(mod.hostAppends(), 0, 'no host may be attached after a teardown');
+  assert.equal(mod.getTocShadowRootSync(), null);
+
+  // The next enable starts clean (its stylesheet load parks too — release it).
+  const second = mod.getTocShadowRoot();
+  releaseCss({ text: () => '' });
+  await second;
+  assert.equal(mod.hostAppends(), 1);
+  assert.notEqual(mod.getTocShadowRootSync(), null);
 });

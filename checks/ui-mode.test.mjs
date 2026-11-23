@@ -79,7 +79,7 @@ test('using the element picker tells the host page nothing', async () => {
   // pick announced that this extension was in use.
   const dispatched = [];
   const env = loadTocApp({ window: { dispatchEvent: (event) => { dispatched.push(event.type); } } });
-  const app = env.initForConfig({ urlPattern: 'https://site.example/*', side: 'right', selectors: [] }, {});
+  const app = env.initForConfig({ urlPattern: 'https://site.example/*', selectors: [] }, {});
 
   env.dockOptions().onPick();                          // the dock menu's "Pick element"
 

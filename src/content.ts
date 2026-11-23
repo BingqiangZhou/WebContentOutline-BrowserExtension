@@ -84,10 +84,7 @@ export function startTocContent(ctx: any) {
     currentEnabled = false;
     enabledGeneration++;
     detachListeners();
-    if (appInstance?.destroy) appInstance.destroy();
-    appInstance = null;
-    cleanupOwnedElements();
-    disposeTocShadowRoot();
+    stopApp();
     window.__TOC_ASSISTANT_LOADED__ = false;
     window.__TOC_ASSISTANT_CLEANUP__ = undefined;
     if (opts?.reason) debug(msg('logPrefix') + ' disposed:', opts.reason);
@@ -99,7 +96,6 @@ export function startTocContent(ctx: any) {
   function getDefaultConfig() {
     return {
       urlPattern: buildSitePattern(),
-      side: 'right',
       selectors: [] as Array<{ type: string; expr: string }>
     };
   }
@@ -155,6 +151,10 @@ export function startTocContent(ctx: any) {
     if (appInstance?.destroy) appInstance.destroy();
     appInstance = null;
     cleanupOwnedElements();
+    // Take the shadow host down as well. It was the one trace of the extension
+    // a disabled page kept (the dock and panel inside it were already gone), and
+    // it stays reachable for page scripts to find. The next enable recreates it.
+    disposeTocShadowRoot();
   }
 
   async function applyExpandState(opts?: { expandPanel?: boolean }) {
@@ -176,7 +176,7 @@ export function startTocContent(ctx: any) {
       return;
     }
     currentEnabled = want;
-    enabledGeneration++;
+    var gen = ++enabledGeneration;
     if (!want) {
       // Disabled: destroy TOC app, clean up DOM
       stopApp();
@@ -184,6 +184,10 @@ export function startTocContent(ctx: any) {
     }
     // Enabled: start TOC app
     await startApp();
+    // A disable or re-enable that landed while startApp() was running retired
+    // that start (see enabledGeneration). The app that exists now — if any —
+    // belongs to a newer request, and this call's panel state is not for it.
+    if (disposed || gen !== enabledGeneration) return;
     await applyExpandState(opts);
   }
 

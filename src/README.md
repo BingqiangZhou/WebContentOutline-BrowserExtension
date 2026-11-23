@@ -101,17 +101,19 @@ src/
 
 **`chatbot-detector.ts`** — 三层检测（ARIA 语义 → data 属性 → 结构启发式）加 Hint 表兜底；七种选择器发现策略，全部依据属性，不按位置猜测；把对话转成"提问为一级、AI 回复中的标题为子级"的目录。检测结果按 URL 缓存，否定结果 5 秒后过期。
 
-**`toc-builder.ts`** — 优先级：用户选择器 > 聊天对话目录 > 默认标题。用户选择器和默认标题都限定在检测到的正文区域内；用户选择器在区域内零命中时回退到全页。构建过程分块让出主线程。
+**`toc-builder.ts`** — 优先级：用户选择器 > 聊天对话目录 > 默认标题。用户选择器和默认标题都限定在检测到的正文区域内；用户选择器在区域内零命中时回退到全页（只限用户自己选的元素：只剩聊天哨兵的选择器列表和自动标题路径都不回退）。构建过程分块让出主线程。
 
 **`css-selector.ts`** — 优先使用 class 选择器，回退到路径选择器；标识符经 `CSS.escape` 转义。
 
+选择器校验有两份、必须保持一致：`core-utils.ts` 的 `isSafeXPathExpression()`（内容脚本侧）和 `shared/primitives.ts` 的 `isHighRiskBroadXPathExpression()`（后台侧）。XPath 拒绝裸的子孙通配符（`//*`、`.//*`、`//*/*`），允许带谓词的写法（`//*[@id='main']//h2`）。
+
 ### UI 层
 
-**`shadow-root.ts`** — 所有 UI 挂在同一个 **closed** Shadow root 里，页面脚本无法经 `host.shadowRoot` 触达。扩展代码通过 `getTocShadowRootSync()` 取 root；`getDeepActiveElement()` 沿模块引用下钻，取到真正获得焦点的元素。
+**`shadow-root.ts`** — 所有 UI 挂在同一个 **closed** Shadow root 里，页面脚本无法经 `host.shadowRoot` 触达。扩展代码通过 `getTocShadowRootSync()` 取 root；`getDeepActiveElement()` 沿模块引用下钻，取到真正获得焦点的元素。禁用站点时宿主元素一并移除，页面上不留任何扩展的痕迹；初始化途中被销毁的初始化不会再把宿主挂回去。
 
-**`edge-dock.ts`** — 固定吸附页面左侧或右侧，整体仅上下拖动。收起态显示最多 12 条目录横线，点击横线直接跳转；桌面端悬停时向页面内侧展开；触屏点击临时切换。快捷设置：刷新、拾取元素、站点配置、切换侧边、关闭目录。侧边和竖直位置按域名保存。
+**`edge-dock.ts`** — 固定吸附页面左侧或右侧，整体仅上下拖动。收起态显示最多 12 条目录横线，点击横线直接跳转；桌面端悬停时向页面内侧展开；触屏点击临时切换。快捷设置：刷新、拾取元素、站点配置、切换侧边、关闭目录。侧边和竖直位置按域名保存在 `tocBadgePosMap`（站点配置里没有侧边字段）。
 
-**`floating-panel.ts`** — 展开后的目录列表（listbox 语义，支持方向键、Home/End）。点击目录项时持有导航锁；流式追加时只渲染新增的条目。
+**`floating-panel.ts`** — 展开后的目录列表（listbox 语义，支持方向键、Home/End）。点击目录项时持有导航锁；导航期间被挂起的重建请求在解锁后经调度器补跑；流式追加时只渲染新增的条目。
 
 **`element-picker.ts`** — 实时高亮悬停元素，点击生成选择器；ESC、右键或 20 秒无操作取消。
 
@@ -121,7 +123,7 @@ src/
 
 **`toc-app.ts`** — 主应用协调器。`initForConfig(cfg, options)` 返回 `{ rebuild, refreshConfig, collapse, expand, destroy }`。配置刷新若落在一次重建进行期间，会排队一次补跑。
 
-**`config-manager.ts`** — 站点配置对话框、拾取结果保存、从 storage 读取最新配置；所有变更经后台的 `toc:mutateConfig` 消息串行写入。
+**`config-manager.ts`** — 站点配置对话框、拾取结果保存、从 storage 读取最新配置；所有变更经后台的 `toc:mutateConfig` 消息串行写入（后台只允许内容脚本改自己站点的配置）；配置的 `side` 字段已移除，停靠侧只认 `tocBadgePosMap.anchorX`。
 
 **`rebuild-scheduler.ts`** — 协调 dom-watcher 和 url-monitor：
 - 固定防抖：400ms（常规），1200ms（流式内容期间）

@@ -39,6 +39,7 @@ function loadContentScript(opts = {}) {
   const pendingEnabledReads = [];
   const timers = [];
   let messageListener = null;
+  let shadowDisposals = 0;
 
   const sandbox = {
     console: { ...console, debug() {}, warn() {}, error() {}, log() {} },
@@ -70,16 +71,17 @@ function loadContentScript(opts = {}) {
       ? new Promise((resolve) => pendingEnabledReads.push(resolve))
       : Promise.resolve(false)),
     getTocShadowRoot: () => new Promise((resolve) => pendingShadowRoots.push(resolve)),
-    disposeTocShadowRoot() {},
+    disposeTocShadowRoot() { shadowDisposals++; },
     TOC_MESSAGE: loadTocMessage(),
     initForConfig() {
       const instance = {
         id: instances.length + 1,
         destroyed: false,
+        expands: 0,
         rebuild: async () => 'ok',
         refreshConfig: async () => 'ok',
         collapse() {},
-        expand: async () => {},
+        expand: async () => { instance.expands++; },
         destroy() { instance.destroyed = true; }
       };
       instances.push(instance);
@@ -101,11 +103,22 @@ function loadContentScript(opts = {}) {
       messageListener({ type: sandbox.TOC_MESSAGE.UPDATE_ENABLED, enabled }, { id: 'ext-id' }, () => {});
       await settle();
     },
+    // What a future popup/command would send: start the app with the panel open.
+    async openPanel() {
+      messageListener({ type: sandbox.TOC_MESSAGE.OPEN_PANEL }, { id: 'ext-id' }, () => {});
+      await settle();
+    },
     releaseConfigReads() { pendingConfigReads.splice(0).forEach((resolve) => resolve([])); },
     releaseShadowRoots() { pendingShadowRoots.splice(0).forEach((resolve) => resolve({})); },
+    // Release only the OLDEST parked call, so a test can choose the resumption order.
+    releaseOneConfigRead() { if (pendingConfigReads.length) pendingConfigReads.shift()([]); },
+    releaseOneShadowRoot() { if (pendingShadowRoots.length) pendingShadowRoots.shift()({}); },
+    // Release only the NEWEST parked shadow-root lookup.
+    releaseLastShadowRoot() { if (pendingShadowRoots.length) pendingShadowRoots.pop()({}); },
     releaseEnabledRead() { pendingEnabledReads.splice(0).forEach((resolve) => resolve(true)); },
     instances: () => instances.slice(),
-    alive: () => instances.filter((instance) => !instance.destroyed)
+    alive: () => instances.filter((instance) => !instance.destroyed),
+    shadowDisposals: () => shadowDisposals
   };
 }
 
@@ -189,5 +202,45 @@ test('a redundant "enabled" notice does not retire a start that is still in flig
 
   assert.equal(env.instances().length, 1);
   await env.send(false);
+  assert.equal(env.alive().length, 0);
+});
+
+test('an open-panel request whose start was retired does not expand the newer instance', async () => {
+  // OPEN_PANEL starts the app and then wants the panel expanded. If that start
+  // is retired by a disable + re-enable, the app that exists afterwards belongs
+  // to the newer enable — which asked for nothing.
+  const env = loadContentScript();
+  await env.openPanel();                             // startApp #1 parks in getConfigs(); wants the panel open
+  env.releaseOneConfigRead();                        // #1 moves on and parks at the shadow root
+  await env.settle();
+  await env.send(false);
+  await env.send(true);                              // startApp #2: a plain enable
+  env.releaseOneConfigRead();                        // #2 moves on and parks at the shadow root
+  await env.settle();
+  env.releaseLastShadowRoot();                       // #2 completes first …
+  await env.settle();
+  env.releaseOneShadowRoot();                        // … then the retired #1 comes back
+  await env.settle();
+
+  assert.equal(env.instances().length, 1);
+  assert.equal(env.instances()[0].expands, 0, 'the retired request must not expand the newer instance');
+  await env.send(false);
+  assert.equal(env.alive().length, 0);
+});
+
+test('disabling the site takes the shadow host down', async () => {
+  // The host element is the one trace of the extension a page can still find
+  // after a disable. Nothing of the extension may remain on a disabled site.
+  const env = loadContentScript();
+  await env.send(true);
+  env.releaseConfigReads();
+  await env.settle();
+  env.releaseShadowRoots();
+  await env.settle();
+  assert.equal(env.instances().length, 1);
+  assert.equal(env.shadowDisposals(), 0, 'enabled: the host stays up');
+
+  await env.send(false);
+  assert.equal(env.shadowDisposals(), 1, 'disabled: the host is removed');
   assert.equal(env.alive().length, 0);
 });

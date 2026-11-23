@@ -62,6 +62,7 @@ function loadOverlayDialog(prevFocus) {
       contains: () => false
     },
     getTocShadowRootSync: () => null,
+    isTocShadowRootTornDown: () => false,
     getDeepActiveElement: () => prevFocus,
     getFocusableWithin: () => [],
     requestAnimationFrame(fn) { fn(); return 1; },

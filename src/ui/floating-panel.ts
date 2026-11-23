@@ -47,7 +47,6 @@ interface FloatingPanelOpts {
   items?: TocItem[];
   side?: string;
   onCollapse?: () => void;
-  onRefresh?: () => void;
   mountTarget?: HTMLElement;
   getPendingRebuild?: () => boolean;
   setPendingRebuild?: (v: boolean) => void;
@@ -65,7 +64,6 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
     var items: TocItem[] = opts.items || [];
     var side: string | undefined = opts.side;
     var onCollapse: (() => void) | undefined = opts.onCollapse;
-    var onRefresh: (() => void) | undefined = opts.onRefresh;
     var mountTarget: HTMLElement | undefined = opts.mountTarget;
     var getPendingRebuild: (() => boolean) | undefined = opts.getPendingRebuild;
     var setPendingRebuild: ((v: boolean) => void) | undefined = opts.setPendingRebuild;
@@ -112,9 +110,14 @@ export function renderFloatingPanel(opts: FloatingPanelOpts) {
           if (pendingRebuildTimer) clearTimeout(pendingRebuildTimer);
           pendingRebuildTimer = setTimeout(function() {
             pendingRebuildTimer = null;
+            // Flush the parked request through the scheduler. Withdrawing it and
+            // calling a bare rebuild instead used to JOIN a rebuild that was
+            // already in flight, and the parked change was lost until the next
+            // unrelated mutation. setPendingRebuild(true) forces the dispatch
+            // (or the scheduler's follow-up) and still respects a nav-lock that
+            // was taken again in the meantime.
             if (getPendingRebuild && getPendingRebuild()) {
-              setPendingRebuild && setPendingRebuild(false);
-              try { onRefresh && onRefresh(); } catch (e) { console.warn('[toc] refresh after unlock failed', e); }
+              setPendingRebuild && setPendingRebuild(true);
             }
           }, CFG.PENDING_REBUILD_RECHECK_MS);
         }

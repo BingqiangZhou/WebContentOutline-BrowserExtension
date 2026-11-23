@@ -9,7 +9,7 @@ import {
   isContextInvalidatedError,
   validateSelectorExpression
 } from './core-utils.js';
-import { pruneObjectToLimit, normalizeSide, normalizeSelectorList } from '../shared/primitives.js';
+import { pruneObjectToLimit, normalizeSelectorList } from '../shared/primitives.js';
 
 function normalizeSelectorEntry(entry: any) {
     if (!entry || typeof entry !== 'object') return null;
@@ -44,11 +44,13 @@ function normalizeTocConfigs(value: unknown) {
       if (seen.has(urlPattern)) continue;
       seen.add(urlPattern);
 
-      var side = normalizeSide(raw.side);
       var selectors = normalizeSelectorList(raw.selectors, normalizeSelectorEntry, maxSelectorsPerSite);
 
-      var cfg = Object.assign({}, raw, { urlPattern: urlPattern, side: side, selectors: selectors });
+      var cfg = Object.assign({}, raw, { urlPattern: urlPattern, selectors: selectors });
       delete cfg.collapsedDefault; // legacy Classic UI field cleanup
+      // Legacy: the dock's side is the per-host position the dock saves itself
+      // (tocBadgePosMap.anchorX), never a site-config field.
+      delete cfg.side;
       normalized.push(cfg);
       if (normalized.length >= maxSites) break;
     }
@@ -112,7 +114,7 @@ async function setStorage(key: string, value: unknown): Promise<boolean> {
   // Convenience accessors
 
 export function getConfigs() {
-    return getStorage<Array<{ urlPattern?: string; selectors?: Array<{ type: string; expr: string }>; side?: string }>>(STORAGE_KEYS.TOC_CONFIGS, []);
+    return getStorage<Array<{ urlPattern?: string; selectors?: Array<{ type: string; expr: string }> }>>(STORAGE_KEYS.TOC_CONFIGS, []);
   }
 
 export function getEnabledMap() {

@@ -38,15 +38,16 @@ export type TocRequest =
   | { type: typeof TOC_MESSAGE.OPEN_PANEL }
   // Background → content: broadcast the new per-origin enabled state (cross-tab).
   | { type: typeof TOC_MESSAGE.UPDATE_ENABLED; enabled: boolean }
-  // Content → background: page-side "Close TOC" persists disabled state.
+  // The in-page "Close TOC" menu entry (content script) or the options page →
+  // background: persist the per-origin enabled state.
   | { type: typeof TOC_MESSAGE.PERSIST_ACTIVE_STATE; enabled: boolean; origin: string }
-  // Content → background: add/remove a selector or clear a site's config.
+  // The in-page config dialog (content script) or the options page → background:
+  // add/remove a selector or clear a site's config.
   | {
       type: typeof TOC_MESSAGE.MUTATE_CONFIG;
       operation: 'add-selector' | 'remove-selector' | 'clear-site';
       urlPattern: string;
       selector?: SelectorPayload;
-      side?: string;
     }
   // Content → background: persist UI state (e.g. badge/dock position per host).
   | {

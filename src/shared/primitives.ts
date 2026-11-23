@@ -71,7 +71,9 @@ function isHighRiskBroadCssSelector(expr: string): boolean {
 function isHighRiskBroadXPathExpression(expr: string): boolean {
   var normalized = String(expr || '').trim().replace(/\s+/g, '').toLowerCase();
   if (!normalized) return false;
-  if (/^\/\/*\*/.test(normalized) || /^\.\/\*/.test(normalized)) return true;
+  // Same rule as the content-side isSafeXPathExpression: a bare descendant
+  // star is too broad, a star with a predicate (`//*[@id='main']`) is not.
+  if (/^(\.\/\/|\/\/)\*(?!\[)/.test(normalized)) return true;
   if (/^\/\/(html|body)\/(descendant-or-self::)?\*/.test(normalized)) return true;
   if (/^descendant(-or-self)?::\*/.test(normalized)) return true;
   return false;
@@ -124,7 +126,6 @@ interface ConfigLimits {
 
 interface NormalizedConfig {
   urlPattern: string;
-  side: string;
   selectors: NormalizedSelector[];
   updatedAt: number;
   [key: string]: unknown;
@@ -142,10 +143,13 @@ function normalizeConfigs(configs: unknown, limits: ConfigLimits | null): Normal
     if (!urlPattern) continue;
     var cfg = Object.assign({}, raw, {
       urlPattern: urlPattern,
-      side: normalizeSide(raw.side),
       selectors: normalizeSelectors(raw.selectors, maxSels),
       updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : 0
     }) as NormalizedConfig;
+    // Legacy field: the dock's side is a per-host preference the dock saves
+    // itself (tocBadgePosMap.anchorX). A `side` copied into the site config was
+    // a write-once second copy that went stale when the dock was moved.
+    delete cfg.side;
     var previous = byPattern.get(urlPattern);
     if (!previous || cfg.updatedAt >= previous.cfg.updatedAt) {
       byPattern.set(urlPattern, { cfg: cfg, index: i });
@@ -212,7 +216,6 @@ function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number
   var maxSels = positiveLimit(limits ? limits.maxSelectorsPerSite as number : 0, 50);
   var current: NormalizedConfig = index >= 0 ? normalized[index] : {
     urlPattern: urlPattern,
-    side: normalizeSide(mut.side),
     selectors: [],
     updatedAt: 0
   };
@@ -223,7 +226,6 @@ function applyTocConfigMutation(configs: unknown, mutation: unknown, now: number
   nextSels = nextSels.slice(0, maxSels);
   var nextConfig = Object.assign({}, current, {
     urlPattern: urlPattern,
-    side: normalizeSide(current.side),
     selectors: nextSels,
     updatedAt: timestamp
   }) as NormalizedConfig;

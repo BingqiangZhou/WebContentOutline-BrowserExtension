@@ -124,7 +124,7 @@ async function setEnabledByOrigin(origin: string, enabled: boolean): Promise<{ o
   }) as Promise<{ ok: boolean; enabled: boolean; error: Error | null }>;
 }
 
-async function mutateTocConfigs(mutation: { operation: string; urlPattern: string; selector?: any; side?: string }): Promise<any> {
+async function mutateTocConfigs(mutation: { operation: string; urlPattern: string; selector?: any }): Promise<any> {
   const KEY = BG_STORAGE_KEYS.TOC_CONFIGS;
   return serializedWrite('tocConfigs', async () => {
     try {
@@ -386,6 +386,14 @@ async function handleActionClick(tab: any): Promise<void> {
   await broadcastEnabledToOrigin(origin, true, tab.id);
 }
 
+// Is the sender one of this extension's own pages (the options page) rather
+// than a content script? `sender.tab` cannot tell the two apart — an options
+// page opened in a tab has a tab too — so look at the sender document's URL:
+// only our own pages live under the extension's origin.
+function isFromExtensionPage(sender: any): boolean {
+  return typeof sender?.url === 'string' && sender.url.startsWith(browser.runtime.getURL(''));
+}
+
 let backgroundStarted = false;
 
 function startBackground() {
@@ -514,15 +522,21 @@ browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendRespons
     }
     if (msg.type === TOC_MESSAGE.MUTATE_CONFIG) {
       if (!requireInternal()) return;
-      const expectedPattern = sitePatternFromUrl(senderUrl());
-      if (!expectedPattern || msg.urlPattern !== expectedPattern) { sendResponse?.({ ok: false, reason: 'bad-site' }); return; }
+      // A content script may only touch the config of its own site. One of the
+      // extension's own pages (the options page) has no site and names the
+      // pattern — it goes through this same serialized queue instead of writing
+      // config storage itself, where it could overwrite a selector another tab
+      // is adding at the same moment.
+      if (!isFromExtensionPage(sender)) {
+        const expectedPattern = sitePatternFromUrl(senderUrl());
+        if (!expectedPattern || msg.urlPattern !== expectedPattern) { sendResponse?.({ ok: false, reason: 'bad-site' }); return; }
+      }
       (async () => {
         try {
           const result = await mutateTocConfigs({
             operation: msg.operation,
             urlPattern: msg.urlPattern,
-            selector: msg.selector,
-            side: msg.side
+            selector: msg.selector
           });
           sendResponse?.(result);
         } catch (_) { sendResponse?.({ ok: false, reason: 'storage-write-failed' }); }
@@ -556,9 +570,7 @@ browser.runtime.onMessage.addListener((msg: TocRequest, sender: any, sendRespons
       //  - one of this extension's own pages (the options page): any origin it
       //    can name, because it has no site of its own. An origin that cannot
       //    be resolved is refused ("null" is an opaque origin).
-      // `sender.tab` cannot tell the two apart — an options page opened in a
-      // tab has one too — so look at the sender document's own URL.
-      const fromExtensionPage = typeof sender?.url === 'string' && sender.url.startsWith(browser.runtime.getURL(''));
+      const fromExtensionPage = isFromExtensionPage(sender);
       let origin: string;
       if (fromExtensionPage) {
         origin = originFromUrl(String(msg.origin || ''));

@@ -20,7 +20,6 @@ import { buildClassSelector, cssPathFor } from '../utils/css-selector.js';
 import {
   isContextInvalidatedError,
   isExtensionContextInvalidated,
-  normalizeSide,
   isTocContentIdentical,
   debug
 } from '../utils/core-utils.js';
@@ -50,7 +49,6 @@ import { getTocShadowRootSync } from '../ui/shadow-root.js';
    *  config-manager / findMatchingConfig contracts. */
   interface TocAppConfig {
     selectors?: Array<{ type: string; expr: string }>;
-    side?: string;
     __markConfigDirty?: () => void;
   }
 
@@ -58,16 +56,20 @@ import { getTocShadowRootSync } from '../ui/shadow-root.js';
 
   // Live rebuild callbacks for all active instances. A single module-level
   // fan-out callback is registered once; each initForConfig adds its own
-  // rebuild and destroy() removes it. This survives any destroy/reinit
+  // config refresh and destroy() removes it. This survives any destroy/reinit
   // interleaving (e.g. a rapid disable → re-enable, or a reinject racing the
   // prior destroy) without one instance clobbering another's hook.
   var liveRebuilds = new Set<() => unknown>();
   setOnConfigChanged(function() { liveRebuilds.forEach(function(fn) { try { fn(); } catch (_) {} }); });
 
+  // Where the dock sits before it has restored its saved position. The side is
+  // a per-host preference the dock itself saves (tocBadgePosMap.anchorX) and
+  // restores when it is created — it is not part of the site config.
+  const DEFAULT_DOCK_SIDE = 'right';
+
 export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     options = options || {};
     var onDeactivate = options.onDeactivate;
-    var side: string = normalizeSide(cfg.side);
 
     // Clean up any existing TOC elements from previous instances (e.g., after extension restart)
     cleanupOwnedElements('.toc-edge-dock[data-toc-owner="' + EXTENSION_OWNER + '"], .toc-floating[data-toc-owner="' + EXTENSION_OWNER + '"]');
@@ -289,17 +291,22 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       rebuildInFlight = rebuildOnce().catch(function(e): RebuildStatus {
         console.warn('[toc] rebuildOnce threw:', e);
         return 'fail';
-      }).finally(function() {
+      }).then(function(status): RebuildStatus {
         rebuildInFlight = null;
-        if (!configRefreshQueued) return;
+        // Tell the scheduler this rebuild is over: a request that arrived while
+        // it ran (a panel flush after a navigation) could only be parked, since
+        // this is not a rebuild the scheduler started itself.
+        if (rebuildScheduler && rebuildScheduler.notifySettled) rebuildScheduler.notifySettled(status !== 'fail');
+        if (!configRefreshQueued) return status;
         configRefreshQueued = false;
-        if (destroyed) return;
+        if (destroyed) return status;
         // The rebuild that just finished cleared configDirty AFTER the refresh
         // set it, and may have built on the stale selectors it read before the
         // change — the follow-up has to read the config again.
         configDirty = true;
-        // Deferred, so the follow-up never starts inside this .finally() callback.
+        // Deferred, so the follow-up never starts inside this continuation.
         Promise.resolve().then(function() { rebuild(); });
+        return status;
       });
       return rebuildInFlight;
     };
@@ -313,8 +320,10 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       return rebuild();
     };
 
-    // Register this instance's rebuild with the module-level config-change fan-out.
-    liveRebuilds.add(rebuild);
+    // Register this instance's config refresh with the module-level config-change
+    // fan-out. refreshConfig, not rebuild: the fan-out IS a config change, and it
+    // must not be lost by joining a rebuild that is already in flight.
+    liveRebuilds.add(refreshConfig);
 
     function startPick() {
       try {
@@ -362,13 +371,12 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
     function renderPanelCard(panelOpts?: { focusOnOpen?: boolean }) {
       if (destroyed || panelInstance) return panelInstance;
       if (!dockInstance) return panelInstance;
-      var currentSide = dockInstance.getSide ? dockInstance.getSide() : side;
       panelInstance = renderFloatingPanel({
         navLock: navLock,
-        side: currentSide,
+        // The panel opens from wherever the dock is now.
+        side: dockInstance.getSide(),
         items: items,
         onCollapse: function() { collapse({ focus: true }); },
-        onRefresh: rebuild,
         getPendingRebuild: rebuildScheduler ? rebuildScheduler.getPendingRebuild : function() { return false; },
         setPendingRebuild: rebuildScheduler ? rebuildScheduler.setPendingRebuild : function() {},
         mountTarget: dockInstance.getPanelHost(),
@@ -439,14 +447,20 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
       pickerInstance = null;
       // Remove this instance's rebuild from the config-change fan-out. Other
       // live instances (if any) keep receiving notifications; reinit re-adds.
-      liveRebuilds.delete(rebuild);
+      liveRebuilds.delete(refreshConfig);
     };
 
     try {
-      rebuildScheduler = createRebuildScheduler(rebuild, { onConfigDirty: function() { configDirty = true; }, navLock: navLock });
+      rebuildScheduler = createRebuildScheduler(rebuild, {
+        onConfigDirty: function() { configDirty = true; },
+        navLock: navLock,
+        // Lets the scheduler park a request that lands during a rebuild this
+        // instance started directly (hover-expand, Refresh, a config change).
+        isRebuildInFlight: function() { return !!rebuildInFlight; }
+      });
       rebuildScheduler.start(cfg);
       dockInstance = renderEdgeDock({
-        side: side,
+        side: DEFAULT_DOCK_SIDE,
         initialMode: 'collapsed',
         items: items,
         onModeChange: onDockModeChange,
@@ -460,9 +474,7 @@ export function initForConfig(cfg: TocAppConfig, options: TocAppOptions) {
           navLock.lock(NAV_LOCK_MS);
           scrollToElement(item.el);
         },
-        onSideChange: function(nextSide: string) {
-          side = nextSide;
-          cfg.side = nextSide;
+        onSideChange: function() {
           removePanelCard();
         }
       });

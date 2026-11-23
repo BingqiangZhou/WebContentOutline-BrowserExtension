@@ -48,7 +48,7 @@ function matchWildcard(pattern: string, text: string) {
      * @param {Array} configs
      * @param {string} url
      */
-export function findMatchingConfig(configs: Array<{ urlPattern?: string; selectors?: Array<{ type: string; expr: string }>; side?: string }>, url: string) {
+export function findMatchingConfig(configs: Array<{ urlPattern?: string; selectors?: Array<{ type: string; expr: string }> }>, url: string) {
       return configs.find(function(cfg) {
         if (!cfg || !cfg.urlPattern) return false;
         return matchWildcard(cfg.urlPattern, url);

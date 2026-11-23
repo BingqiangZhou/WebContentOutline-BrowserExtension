@@ -129,7 +129,8 @@ function loadCoreUtilsForValidation() {
     `${primitives}\n${source}
 __exports.validateSelectorExpression = validateSelectorExpression;
 __exports.isSafeXPathExpression = isSafeXPathExpression;
-__exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;`,
+__exports.isHighRiskBroadCssSelector = isHighRiskBroadCssSelector;
+__exports.isHighRiskBroadXPathExpression = isHighRiskBroadXPathExpression;`,
     sandbox,
     { filename: file }
   );
@@ -227,7 +228,6 @@ function loadStorageForNormalization() {
     serializedWrite(_key, fn) { return fn(); },
     isQuotaExceededError() { return false; },
     pruneObjectToLimit(map) { return map; },
-    normalizeSide(side) { return side === 'left' ? 'left' : 'right'; },
     normalizeSelectorList: loadNormalizeSelectorList(),
     showToast() {},
     __exports: {}
@@ -728,7 +728,6 @@ test('config normalization drops unused collapsedDefault field from new and lega
 
   const normalized = normalizeStorageValue('tocConfigs', [{
     urlPattern: 'https://example.com/*',
-    side: 'right',
     collapsedDefault: true,
     selectors: [{ type: 'css', expr: 'article h2' }]
   }]);
@@ -951,4 +950,75 @@ test('release workflow builds and publishes without stale file references', () =
   assert.match(workflow, /steps\.version\.outputs\.zip_file/);
   assert.match(workflow, /webtoc-assistant-v/);
   assert.match(workflow, /action-gh-release/);
+});
+
+test('an XPath star with a predicate is accepted; only a bare descendant star is blocked', () => {
+  // `//*[@id='main']//h2` is the most common way to write XPath. It narrows the
+  // scan as much as a tag name does, yet the validator rejected every leading
+  // `//*[...]` together with the truly broad bare `//*` — with a bare
+  // "Invalid selector" to the user.
+  const { isSafeXPathExpression, validateSelectorExpression } = loadCoreUtilsForValidation();
+
+  for (const expr of ["//*[@id='main']//h2", "//*[contains(@class,'title')]", ".//*[contains(@class,'title')]", '//*[@a][@b]', '//h2', '//body//*']) {
+    assert.equal(isSafeXPathExpression(expr), true, `content-side validator rejects ${expr}`);
+    assert.equal(validateSelectorExpression('xpath', expr), true, `validateSelectorExpression rejects ${expr}`);
+  }
+  for (const expr of ['//*', './/*', '//*/*', '//*/div', '//*|//h2', './/*/p']) {
+    assert.equal(isSafeXPathExpression(expr), false, `content-side validator accepts ${expr}`);
+    assert.equal(validateSelectorExpression('xpath', expr), false, `validateSelectorExpression accepts ${expr}`);
+  }
+});
+
+test('site configs carry no dock side — never written, and legacy values are dropped on read', () => {
+  // Where the dock sits is a per-host preference the dock itself saves in
+  // tocBadgePosMap (anchorX). A `side` copied into the site config when it was
+  // created was a second, write-once copy that went stale the moment the dock
+  // was moved — two sources of truth for one thing. It is gone.
+  const applyTocConfigMutation = loadConfigPrimitivesForSelectors();
+  const normalizeStorageValue = loadStorageForNormalization();
+
+  const added = applyTocConfigMutation([], {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    side: 'left',                                    // a caller that still sends it
+    selector: { type: 'css', expr: 'article h2' }
+  }, 100);
+  assert.equal(added.ok, true);
+  assert.equal(Object.prototype.hasOwnProperty.call(added.configs[0], 'side'), false, 'a new config has no side');
+
+  const legacy = [{ urlPattern: 'https://example.com/*', side: 'left', selectors: [], updatedAt: 1 }];
+  const rewritten = applyTocConfigMutation(legacy, {
+    operation: 'add-selector',
+    urlPattern: 'https://example.com/*',
+    selector: { type: 'css', expr: 'article h2' }
+  }, 101);
+  assert.equal(Object.prototype.hasOwnProperty.call(rewritten.configs[0], 'side'), false, 'the background drops a legacy side on its next write');
+
+  const normalized = normalizeStorageValue('tocConfigs', legacy);
+  assert.equal(Object.prototype.hasOwnProperty.call(normalized[0], 'side'), false, 'the content script drops a legacy side on read');
+
+  // The docs must not present `side` as a config field (quoted or JS-style key).
+  for (const doc of ['README.md', 'README_CN.md', 'AGENTS.md']) {
+    assert.doesNotMatch(read(doc), /\bside"?\s*:\s*"(left|right)"/, doc + ' must not document a config side');
+  }
+});
+
+test('both copies of the XPath rule refuse and allow exactly the same expressions', () => {
+  // The content script validates in the dialog ("Invalid selector"); the background
+  // validates again when it normalizes the config. If the two disagree, the user
+  // saves an expression the dialog accepted and gets a bare "Operation failed"
+  // from the background instead.
+  const { isSafeXPathExpression, isHighRiskBroadXPathExpression } = loadCoreUtilsForValidation();
+
+  const refused = ['//*', './/*', '//*/*', '//*/div', '//html/*', '//body/*', 'descendant::*', 'descendant-or-self::*'];
+  for (const expr of refused) {
+    assert.equal(isSafeXPathExpression(expr), false, `the content script must refuse ${expr}`);
+    assert.equal(isHighRiskBroadXPathExpression(expr), true, `the background must refuse ${expr}`);
+  }
+
+  const allowed = ["//*[@id='main']//h2", "//*[contains(@class,'title')]", './/*[contains(@class,"t")]', '//h2', '//body//*', '//p[@class="x"]/span'];
+  for (const expr of allowed) {
+    assert.equal(isSafeXPathExpression(expr), true, `the content script must allow ${expr}`);
+    assert.equal(isHighRiskBroadXPathExpression(expr), false, `the background must allow ${expr}`);
+  }
 });

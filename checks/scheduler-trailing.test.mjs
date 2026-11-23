@@ -29,8 +29,9 @@ function flush() {
 }
 
 // Load the real rebuild-scheduler with a mutable tab/lock state and captured
-// page listeners. Short timers fire synchronously (collapses the debounce), as
-// in checks/circuit-breaker.test.mjs.
+// page listeners. Short timers fire synchronously here (collapses the debounce);
+// that makes the max-wait timer collide with the debounce-started rebuild on
+// every request, which is harmless for the cases below.
 function loadScheduler(opts) {
   const state = { hidden: false, locked: false };
   const captured = { onMutation: null, onUrlChange: null, visibilityHandler: null };
@@ -70,10 +71,13 @@ function loadScheduler(opts) {
   sandbox.globalThis = sandbox;
   vm.runInNewContext(source + '\n__exports.createRebuildScheduler = createRebuildScheduler;', sandbox, { filename: file });
   const handle = sandbox.__exports.createRebuildScheduler(opts.onRebuild, {
-    navLock: { isLocked: () => state.locked }
+    navLock: { isLocked: () => state.locked },
+    // toc-app's own in-flight state, when a test models a rebuild it started directly.
+    isRebuildInFlight: opts.isRebuildInFlight
   });
   return {
     handle,
+    rebuilds: 0,
     setHidden: (hidden) => { state.hidden = hidden; },
     setLocked: (locked) => { state.locked = locked; },
     fireVisibilityChange: () => { if (captured.visibilityHandler) captured.visibilityHandler(); }
@@ -200,7 +204,7 @@ async function settle() {
 
 test('refreshConfig() landing mid-rebuild runs one trailing rebuild that applies the new config', async () => {
   const env = loadTocApp();
-  const cfg = { urlPattern: 'https://site.example/*', side: 'right', selectors: [] };
+  const cfg = { urlPattern: 'https://site.example/*', selectors: [] };
   const app = env.initForConfig(cfg, {});
   await settle();                                    // the initial rebuild parks inside buildTocItems
   assert.deepEqual({ ...env.counters }, { configReads: 1, builds: 1 });
@@ -225,7 +229,7 @@ test('a refresh that lands before the in-flight rebuild has cleared the dirty fl
   // will clear configDirty AFTER our refresh set it, and then build with the
   // stale selectors it just read — so the follow-up must re-mark the config dirty.
   const env = loadTocApp({ parkConfigReads: true });
-  const cfg = { urlPattern: 'https://site.example/*', side: 'right', selectors: [] };
+  const cfg = { urlPattern: 'https://site.example/*', selectors: [] };
   const app = env.initForConfig(cfg, {});
   await settle();
   assert.equal(env.counters.configReads, 1);
@@ -250,7 +254,7 @@ test('a refresh that lands before the in-flight rebuild has cleared the dirty fl
 
 test('no trailing rebuild runs after the instance was destroyed', async () => {
   const env = loadTocApp();
-  const app = env.initForConfig({ urlPattern: 'https://site.example/*', side: 'right', selectors: [] }, {});
+  const app = env.initForConfig({ urlPattern: 'https://site.example/*', selectors: [] }, {});
   await settle();
 
   app.refreshConfig();
@@ -263,7 +267,7 @@ test('no trailing rebuild runs after the instance was destroyed', async () => {
 
 test('a plain rebuild() call landing mid-rebuild does not schedule a follow-up', async () => {
   const env = loadTocApp();
-  const app = env.initForConfig({ urlPattern: 'https://site.example/*', side: 'right', selectors: [] }, {});
+  const app = env.initForConfig({ urlPattern: 'https://site.example/*', selectors: [] }, {});
   await settle();
 
   app.rebuild();                                     // e.g. a second Refresh click
@@ -272,4 +276,79 @@ test('a plain rebuild() call landing mid-rebuild does not schedule a follow-up',
 
   assert.deepEqual({ ...env.counters }, { configReads: 1, builds: 1 });
   app.destroy();
+});
+
+test('a config change signalled by the config dialog mid-rebuild is applied by a follow-up rebuild', async () => {
+  // config-manager's notifyConfigChanged() fans out to every live instance
+  // right after it mutated the config through the background. That fan-out has
+  // to stand on its own: joining the in-flight rebuild would build on the old
+  // selectors and leave the change for some unrelated event to pick up.
+  const env = loadTocApp();
+  const cfg = { urlPattern: 'https://site.example/*', selectors: [] };
+  const app = env.initForConfig(cfg, {});
+  await settle();                                    // the initial rebuild parks inside buildTocItems
+
+  env.notifyConfigChanged();                         // the user added a selector in the dialog
+  env.finishBuild();                                 // the in-flight rebuild completes with the OLD selectors
+  await settle();
+
+  assert.equal(env.counters.configReads, 2, 'the change is applied without waiting for a storage event');
+  assert.equal(cfg.selectors[0].expr, '.new');
+
+  env.finishBuild();
+  await settle();
+  assert.equal(env.counters.builds, 2, 'exactly one follow-up');
+  app.destroy();
+});
+
+test('the dock starts on the right whatever a legacy config says about its side', async () => {
+  // The dock's side is the per-host position the dock itself restores (from
+  // tocBadgePosMap). A `side` left in an old site config is not consulted.
+  const env = loadTocApp();
+  const app = env.initForConfig({ urlPattern: 'https://site.example/*', side: 'left', selectors: [] }, {});
+  assert.equal(env.dockOptions().side, 'right', 'the initial side does not come from the config');
+  app.destroy();
+});
+
+test('a request that lands while a rebuild the scheduler did not start is in flight is parked, then dispatched when that rebuild settles', async () => {
+  // toc-app also starts rebuilds directly (hover-expand, the Refresh button,
+  // refreshConfig). The scheduler cannot see those in its own in-flight
+  // promise, so toc-app reports them (isRebuildInFlight / notifySettled).
+  // Dispatching into such a rebuild only JOINED it, and the request was lost.
+  let appInFlight = false;
+  const parkedRebuilds = [];
+  const env = loadScheduler({
+    isRebuildInFlight: () => appInFlight,
+    onRebuild: () => { env.rebuilds++; return new Promise((resolve) => parkedRebuilds.push(resolve)); }
+  });
+  env.handle.start({ selectors: [] });
+
+  appInFlight = true;                       // toc-app is rebuilding on its own
+  env.handle.setPendingRebuild(true);       // what the panel's flush / onUnlock does
+  assert.equal(env.rebuilds, 0, 'nothing is dispatched into a rebuild the scheduler does not own');
+  assert.equal(env.handle.getPendingRebuild(), true, 'the request is parked');
+
+  appInFlight = false;
+  env.handle.notifySettled(true);           // toc-app's rebuild finished successfully
+  assert.equal(env.rebuilds, 1, 'the parked request is dispatched once it settles');
+  parkedRebuilds.shift()('ok');
+  await flush();
+  env.handle.disconnect();
+});
+
+test('a request parked behind a rebuild that then fails is not dispatched', async () => {
+  let appInFlight = false;
+  const env = loadScheduler({
+    isRebuildInFlight: () => appInFlight,
+    onRebuild: () => { env.rebuilds++; return Promise.resolve('ok'); }
+  });
+  env.handle.start({ selectors: [] });
+
+  appInFlight = true;
+  env.handle.setPendingRebuild(true);
+  env.handle.notifySettled(false);           // toc-app's rebuild failed
+
+  assert.equal(env.rebuilds, 0, 'no immediate retry behind a failure');
+  assert.equal(env.handle.getPendingRebuild(), true, 'it stays parked for the next external trigger');
+  env.handle.disconnect();
 });

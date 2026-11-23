@@ -416,3 +416,19 @@ test('site-config dialog controls drop the UA button and input styling', () => {
   // Leftovers of the removed Classic badge.
   assert.doesNotMatch(css, /--toc-bg-badge|--toc-shadow-badge/);
 });
+
+test('the reduced-motion rule comes after every transition it has to override', () => {
+  const css = fs.readFileSync(path.join(repoRoot, 'entrypoints/toc.content/style.css'), 'utf8');
+  const block = css.match(/@media \(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\n\}/);
+  assert.ok(block, 'the reduced-motion block exists');
+
+  // Same specificity, later wins: any `transition` declared AFTER the block
+  // silences it for that selector. Five of the selectors the block covers
+  // declare their transitions further down the file, so "reduce motion" never
+  // reached them.
+  const after = css.slice(css.indexOf(block[0]) + block[0].length);
+  assert.equal(
+    (after.match(/transition:\s*(?!none)/g) || []).length, 0,
+    'no transition may be declared after the reduced-motion block — keep the block at the end of the file'
+  );
+});

@@ -549,23 +549,6 @@
 .toc-toast-warning { border-left: 4px solid var(--toc-border-toast-warning, #f29900) !important; }
 .toc-toast-error { border-left: 4px solid var(--toc-border-toast-error, #d93025) !important; }
 
-@media (prefers-reduced-motion: reduce) {
-  .toc-floating-expand {
-    transition: none !important;
-  }
-  .toc-edge-dock-button,
-  .toc-edge-dock-menu,
-  .toc-edge-dock-preview-line,
-  .toc-toast,
-  .toc-overlay,
-  .toc-selector-delete,
-  .toc-item,
-  .toc-btn,
-  .toc-selector-item {
-    transition: none !important;
-  }
-}
-
 .toc-overlay-header {
   display: block !important;
   font-weight: 600 !important;
@@ -1072,5 +1055,29 @@
     --toc-text-item-active: #f5f5f5;
     --toc-text-item-hover: #f5f5f5;
     border-color: rgba(255, 255, 255, 0.14) !important;
+  }
+}
+
+/* ============================================
+   Reduced motion — MUST STAY THE LAST BLOCK
+   ============================================
+   These rules carry the same specificity as the component rules that set
+   the transitions, so they only win by coming later in the file. When this
+   block sat in the middle of the stylesheet, five of the selectors below
+   declared their transitions after it and never went motion-less. */
+@media (prefers-reduced-motion: reduce) {
+  .toc-floating-expand {
+    transition: none !important;
+  }
+  .toc-edge-dock-button,
+  .toc-edge-dock-menu,
+  .toc-edge-dock-preview-line,
+  .toc-toast,
+  .toc-overlay,
+  .toc-selector-delete,
+  .toc-item,
+  .toc-btn,
+  .toc-selector-item {
+    transition: none !important;
   }
 }

@@ -85,9 +85,20 @@ export function isSafeXPathExpression(expr: string): boolean {
     if (typeof expr !== 'string') return false;
     var trimmed = expr.trim();
     if (!trimmed || trimmed.length > SELECTOR_EXPR_MAX_LENGTH) return false;
-    // Block extremely broad document scans
+    // Block extremely broad document scans. This rule has a second copy in the
+    // background (isHighRiskBroadXPathExpression in shared/primitives.ts) that
+    // runs when a config is normalized; both must refuse and allow exactly the
+    // same expressions, or the dialog accepts what the background then rejects
+    // with a bare "Operation failed". checks/stability-performance.test.mjs pins
+    // the parity.
+    //  - a bare descendant star (`//*`, `.//*`, `//*/*`). A star WITH a
+    //    predicate (`//*[@id='main']`) narrows the scan as much as a tag name
+    //    does — and is the most common way to write XPath — so it is allowed;
+    //  - everything under <html>/<body>, and the explicit descendant axis.
     var normalized = trimmed.replace(/\s+/g, '').toLowerCase();
-    if (normalized.indexOf('//*') === 0 || normalized.indexOf('.//*') === 0) return false;
+    if (/^(\.\/\/|\/\/)\*(?!\[)/.test(normalized)) return false;
+    if (/^\/\/(html|body)\/(descendant-or-self::)?\*/.test(normalized)) return false;
+    if (/^descendant(-or-self)?::\*/.test(normalized)) return false;
     // Reject external document/function patterns
     if (/(?:^|[^A-Za-z0-9_-])(?:document|collection|unparsed-text)\s*\(/i.test(trimmed)) return false;
     return true;
