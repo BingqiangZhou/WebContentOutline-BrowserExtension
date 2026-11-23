@@ -2,6 +2,7 @@
   "name": "web-toc-assistant",
   "version": "1.12.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "assets:brand": "node scripts/generate-brand-assets.mjs",
     "assets:intro": "node scripts/generate-intro-images.mjs",

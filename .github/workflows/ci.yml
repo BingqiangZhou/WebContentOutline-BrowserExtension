@@ -1,0 +1,32 @@
+name: CI
+
+# Everyday validation for pushes and pull requests. (Releases are built by
+# release.yml on version tags.) Node matches local development.
+on:
+  push:
+    branches: [dev, main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      # postinstall runs `wxt prepare`; tsconfig.json extends .wxt/tsconfig.json
+      - name: Install dependencies
+        run: npm ci
+
+      # typecheck + Vitest + WXT build
+      - name: Build
+        run: npm run build
