@@ -22,7 +22,7 @@
 - **增强可见性检测**：增强的元素过滤，使用计算样式、边界矩形和父元素裁剪检测，确保只包含真正可见的元素
 - **自动过滤**：自动过滤隐藏元素（display:none、visibility:hidden、opacity:0）、零尺寸元素和溢出裁剪内容
 - **自定义选择器**：支持CSS和XPath选择器，适配各种网站结构
-- **实时更新**：页面内容变化时自动重新生成目录（防抖500ms）
+- **实时更新**：页面内容变化时自动重新生成目录（防抖 400ms，流式内容期间 1200ms）
 
 ### 🎪 可视化元素拾取
 - **鼠标悬停高亮**：移动鼠标实时高亮目标元素
@@ -43,7 +43,7 @@
 ### 🔄 导航体验
 - **当前位置高亮**：自动高亮当前阅读位置对应的目录项（IntersectionObserver）
 - **导航锁定**：用户点击导航时锁定高亮，防止滚动时跳动
-- **导航锁故障保护**：锁定卡死时8秒后自动解锁（v0.6.0+新增）
+- **导航锁故障保护**：锁定卡死时 1 秒后自动解锁
 - **状态恢复**：页面变化后自动恢复高亮状态
 - **防跳动机制**：防止定时刷新和重建时页面跳动
 
@@ -188,7 +188,7 @@
 
 对于复杂的页面结构，可以使用XPath：
 - `//article//h2` - article 下的所有 h2
-- `//*[@class='title']` - 任何 class 为 title 的元素
+- `//article//*[@class='title']` - article 内任何 class 为 title 的元素
 - `//div[@id='content']//h3` - 特定容器内的标题
 
 ## 🛠️ 技术实现
@@ -201,6 +201,7 @@
 ├── vitest.config.ts           # Vitest 配置
 ├── entrypoints/               # WXT 扩展入口
 │   ├── background.ts          # 后台 service worker 入口
+│   ├── options/               # 选项页（站点启用状态、选择器配置）
 │   └── toc.content/           # 运行时注册的内容脚本
 │       ├── index.ts           # 内容脚本入口
 │       └── style.css          # 内容脚本样式
@@ -231,10 +232,13 @@
 │       ├── dom-watcher.ts     # MutationObserver 封装
 │       ├── url-monitor.ts     # URL/hash 变更监控
 │       ├── rebuild-scheduler.ts # 重建调度与协调
-│       └── toc-app.ts         # 主应用逻辑（含内联导航锁）
+│       ├── nav-lock.ts        # 导航锁（点击跳转期间保持高亮）
+│       ├── active-item-tracker.ts # 阅读位置观察器
+│       └── toc-app.ts         # 主应用协调器
 ├── docs/                      # 文档资源
 │   ├── PRIVACY_POLICY.md      # 隐私政策
 │   └── descriptions/          # 截图与应用商店描述
+├── LICENSE                    # MIT
 ├── AGENTS.md                  # AI 编码代理开发指南
 └── README.md                  # 英文版
 ```
@@ -261,13 +265,13 @@
 entrypoints/toc.content/index.ts（运行时内容脚本）
   ├── src/content.ts（启动逻辑）
   ├── src/utils/toc-utils.ts（工具模块聚合重导出）
-  └── src/core/toc-app.ts（编排器，内联 nav-lock）
+  └── src/core/toc-app.ts（编排器）
         ├── ui/ 组件（吸附工具条、元素拾取器、浮动面板）
-        ├── core/config-manager.ts → focus-trap.ts
+        ├── core/config-manager.ts → ui/overlay-dialog.ts → focus-trap.ts
         └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
 ```
 
-**后台脚本**：`entrypoints/background.ts` 使用 WXT 的 `browser` API 包装，并只对已启用站点动态注入 `content-scripts/toc.js` 和 `content-scripts/toc.css`。
+**后台脚本**：`entrypoints/background.ts` 使用 WXT 的 `browser` API 包装，并只对已启用站点动态注入 `content-scripts/toc.js`。`content-scripts/toc.css` 由内容脚本自行加载到它自己的 closed Shadow root 中。
 
 **共享原语**：`src/shared/primitives.ts` 由 WXT entrypoint 和内容脚本模块直接 ESM 引入。
 
@@ -279,7 +283,7 @@ entrypoints/toc.content/index.ts（运行时内容脚本）
 - **防抖重建**：MutationObserver + 固定防抖（常规 400ms，流式内容 1200ms）避免频繁更新
 - **选择器生成**：优先使用 class 选择器，回退到路径选择器
 - **导航锁定**：用户点击时锁定 IntersectionObserver，防止跳动
-- **导航锁故障保护**：卡死时超时自动解锁（默认8秒）
+- **导航锁故障保护**：卡死时 1 秒后自动解锁（`NAV_LOCK_MS`；滚动停止后面板可能更早解锁）
 - **动画帧管理**：调度和清理 requestAnimationFrame 回调
 - **存储配额处理**：配额超出时自动修剪旧数据
 - **串行化配置写入**：在后台 service worker 中校验并串行写入选择器变更

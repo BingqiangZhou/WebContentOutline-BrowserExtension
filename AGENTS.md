@@ -32,7 +32,7 @@ Web TOC Assistant (网页目录助手) is a Manifest V3 browser extension that a
 - Changes to `entrypoints/background.ts`: rebuild and reload the extension
 
 ### Testing
-Automated checks use Vitest: run `npm run test`. Suites live in `checks/**/*.test.mjs` (see `vitest.config.ts`) as plain `.mjs` files — static source assertions plus `node:vm` sandbox evaluation of production modules; shared helpers in `checks/test-helpers.mjs`. Manual browser smoke testing is still required for extension behavior.
+Automated checks use Vitest: run `npm run test`. Suites live in `checks/**/*.test.mjs` (see `vitest.config.ts`) as plain `.mjs` files — static source assertions plus `node:vm` sandbox evaluation of production modules; shared helpers in `checks/test-helpers.mjs`. Prefer executing the real module in a sandbox over asserting on source text when both are possible. CI (`.github/workflows/ci.yml`) runs `npm run build` — typecheck, tests, WXT build — on every push to `dev`/`main` and on pull requests. Manual browser smoke testing is still required for extension behavior.
 
 ## Architecture
 
@@ -49,12 +49,13 @@ entrypoints/toc.content/index.ts
   └── src/content.ts
       ├── utils/toc-utils.ts (barrel re-export)
       └── core/toc-app.ts (orchestrator)
-            ├── utils/toc-builder.ts → dom-utils.ts, content-region.ts
-            ├── ui/shadow-root.ts (single shared open Shadow DOM root + CSS injection)
+            ├── utils/toc-builder.ts → dom-utils.ts, content-region.ts, chatbot-detector.ts
+            ├── ui/shadow-root.ts (single shared closed Shadow DOM root + CSS injection)
             ├── ui/edge-dock.ts, ui/element-picker.ts, ui/floating-panel.ts
             ├── ui/overlay-dialog.ts (shared .toc-overlay dialog) → focus-trap.ts
             ├── core/config-manager.ts → ui/overlay-dialog.ts
-            ├── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
+            ├── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts, chatbot-detector.ts
+            ├── core/active-item-tracker.ts (shared reading-position observer)
             └── core/nav-lock.ts (createNavLock + onUnlock)
 ```
 
@@ -82,7 +83,7 @@ Only a few window globals remain for compatibility/debugging:
 - Uses WXT's `browser` wrapper and ESM imports for shared storage, config, and UI state mutation utilities
 - Manages per-site opt-in enable state in `chrome.storage.local` → `tocSiteEnabledMap` (only an explicit `true` entry enables a site; absent means disabled)
 - Updates extension icon (enabled=blue, disabled=gray)
-- Injects `content-scripts/toc.js` and `content-scripts/toc.css` via `browser.scripting`
+- Injects `content-scripts/toc.js` via `browser.scripting` (only that file: the content script fetches `content-scripts/toc.css` itself — `cssInjectionMode: 'ui'`, web-accessible — into its shadow root)
 - Cross-tab synchronization for same origin
 - Message handling goes through the centralized `TOC_MESSAGE` protocol in `src/shared/messages.ts` (discriminated union with typed payloads — add new message types there, never as raw literals)
 
@@ -127,13 +128,14 @@ Selectors (CSS/XPath)
 
 **5. Dynamic Content Updates**
 Split into three focused modules:
-- `core/dom-watcher.ts` — MutationObserver-based DOM change detection
-- `core/url-monitor.ts` — URL change detection via History API interception, popstate, and polling fallback
-- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock (received via opts), retry logic, and circuit breaker (pauses after 5 consecutive failures)
+- `core/dom-watcher.ts` — MutationObserver-based DOM change detection; with no selectors only heading-touching changes count, and the selector list is read live through `getSelectors()` (the chatbot sentinel is pushed into it after `start()`)
+- `core/url-monitor.ts` — URL change detection: the Navigation API (`navigatesuccess`, Chromium 102+) when present, otherwise popstate/hashchange with History API wrapping, plus a polling fallback
+- `core/rebuild-scheduler.ts` — Coordinates both with debouncing, nav-lock (received via opts), a half-open recovery probe, and circuit breaker (pauses after 5 consecutive failures)
 
 **6. Config Change Notification**
 - Callback pattern via `setOnConfigChanged()` in `core/config-manager.ts`
 - `toc-app.ts` registers a callback that triggers a TOC rebuild when configs change in storage
+- A `refreshConfig()` that lands while a rebuild is in flight queues exactly one follow-up rebuild
 
 ### Storage Schema
 
@@ -147,13 +149,15 @@ Split into three focused modules:
       selectors: [
         { type: "css", expr: "h1, h2, h3" },
         { type: "xpath", expr: "//article//h2" }
-      ],
-      collapsedDefault: false
+      ]
     }
   ],
   "tocSiteEnabledMap": {
     "https://example.com": true,
     "https://another.com": false
+  },
+  "tocBadgePosMap": {
+    "example.com": { "x": 1920, "y": 300, "anchorX": "right" }
   }
 }
 ```
@@ -170,10 +174,10 @@ Split into three focused modules:
 
 ## CSS Architecture (`entrypoints/toc.content/style.css`)
 
-- All UI mounts inside a single open Shadow DOM root (`ui/shadow-root.ts`); the CSS is fetched at runtime and loaded via a constructable stylesheet (`adoptedStyleSheets`, with a `<style>` fallback) — host-page CSS cannot reach the extension's UI
+- All UI mounts inside a single **closed** Shadow DOM root (`ui/shadow-root.ts`); the CSS is fetched at runtime and loaded via a constructable stylesheet (`adoptedStyleSheets`, with a `<style>` fallback) — host-page CSS cannot reach the extension's UI, and page scripts cannot reach it either (`host.shadowRoot` is `null`). Extension code reads the root through `getTocShadowRootSync()`, never through `.shadowRoot`
 - `:host { all: initial }` defends inherited properties at the shadow boundary; a per-element `all: unset` reset neutralizes browser UA defaults on buttons/textareas
 - CSS custom properties for light/dark theming (driven by `prefers-color-scheme`)
-- Per-element reset: `.toc-floating, .toc-floating *, .toc-edge-dock, .toc-edge-dock * { all: unset !important; }`
+- Per-element reset: `.toc-floating, .toc-floating *, .toc-edge-dock, .toc-edge-dock * { all: unset !important; }` (the site-config dialog's own controls get theirs in separate rules, since a `<select>`/`<input>` must keep its native border and arrow)
 - Styles also use `!important` as a secondary defense
 - Components: edge dock, floating panel, overlay dialogs, buttons
 
@@ -187,11 +191,13 @@ Split into three focused modules:
 - Priority: class-based selector
 - Fallback: path selector with nth-of-type
 
-**Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 3 seconds (default) as a safety fallback.
+**Navigation lock**: Prevents IntersectionObserver from interfering during user clicks on TOC items. Auto-unlocks after 1 s (`NAV_LOCK_MS`; the panel may unlock earlier on scroll-stop).
 
 **Rebuild scheduling** (`core/rebuild-scheduler.ts`):
 - Fixed debounce: 400ms (normal), 1200ms (during streaming), with circuit breaker after 5 consecutive failures
+- Max wait: a rebuild always fires within 3 s of the first pending mutation (`MAX_REBUILD_WAIT_MS`), so a continuous mutation stream cannot postpone it forever
 - Circuit breaker: pauses after 5 consecutive failures; self-recovers via a half-open probe every 30s and an immediate reset on URL change (so a transient failure burst never permanently freezes the TOC)
+- A request that lands while a rebuild is in flight is re-dispatched once that rebuild succeeds — not while the tab is hidden, the nav-lock is held or the breaker is tripped (each has its own recovery path), and never right after a failed rebuild
 
 ## Manifest V3 Specifics
 
@@ -223,7 +229,7 @@ Edit `utils/toc-builder.ts` - handles selector execution, filtering, and item ma
 Use `chrome.storage.local` - follow existing patterns in `utils/storage.ts` for storage wrappers. Add the key name to `STORAGE_KEYS` in `utils/constants.ts`.
 
 ### Per-site state changes
-Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocPanelExpandedMap` for UI state
+Use `tocSiteEnabledMap` for enable/disable, `tocConfigs` for selectors, `tocBadgePosMap` for the dock's side and vertical position per host
 
 ### Building and packaging
 Run `npm run build` to:

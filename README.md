@@ -22,7 +22,7 @@ A web table of contents generator that automatically creates interactive floatin
 - **Enhanced Visibility Detection**: Advanced element filtering using computed styles, bounding rects, and parent clipping detection to ensure only truly visible elements are included
 - **Automatic Filtering**: Automatically filters hidden elements (display:none, visibility:hidden, opacity:0), zero-size elements, and overflow-clipped content
 - **Custom Selectors**: Supports CSS and XPath selectors to adapt to various website structures
-- **Real-time Updates**: Automatically regenerates TOC when page content changes (500ms debounce)
+- **Real-time Updates**: Automatically regenerates TOC when page content changes (400ms debounce; 1200ms while a chatbot response is streaming)
 
 ### 🎪 Visual Element Picker
 - **Hover Highlighting**: Real-time highlighting of target elements as you move your mouse
@@ -43,7 +43,7 @@ A web table of contents generator that automatically creates interactive floatin
 ### 🔄 Navigation Experience
 - **Current Position Highlighting**: Automatically highlights the TOC item corresponding to current reading position (IntersectionObserver)
 - **Navigation Locking**: Locks highlighting during user clicks to prevent jumping
-- **Navigation Lock Failsafe**: Auto-unlocks after timeout if stuck
+- **Navigation Lock Failsafe**: Auto-unlocks after 1s if stuck
 - **State Recovery**: Automatically restores highlight state after page changes
 - **Anti-Jump Mechanism**: Prevents page jumping during auto-refresh and rebuilds
 
@@ -195,7 +195,7 @@ You can configure multiple selectors for the same site:
 
 For complex page structures, you can use XPath:
 - `//article//h2` - All h2 under article
-- `//*[@class='title']` - Any element with class "title"
+- `//article//*[@class='title']` - Any element with class "title" inside an article
 - `//div[@id='content']//h3` - Headers within specific container
 
 ### Advanced Features
@@ -222,6 +222,7 @@ For complex page structures, you can use XPath:
 ├── package.json               # Node.js metadata
 ├── entrypoints/               # WXT extension entrypoints
 │   ├── background.ts          # Background service worker entry
+│   ├── options/               # Options page (per-site activation, selector configs)
 │   └── toc.content/           # Runtime-registered content script
 │       ├── index.ts           # Content script entry
 │       └── style.css          # Content script styles
@@ -251,10 +252,13 @@ For complex page structures, you can use XPath:
 │       ├── dom-watcher.ts     # MutationObserver wrapper
 │       ├── url-monitor.ts     # URL/hash change monitor
 │       ├── rebuild-scheduler.ts # Rebuild scheduling & coordination
-│       └── toc-app.ts         # Main application logic (inline nav-lock)
+│       ├── nav-lock.ts        # Navigation lock (holds the highlight during click-to-scroll)
+│       ├── active-item-tracker.ts # Reading-position observer
+│       └── toc-app.ts         # Main application orchestrator
 ├── docs/                      # Documentation assets
 │   ├── PRIVACY_POLICY.md      # Privacy policy
 │   └── descriptions/          # Screenshots & store descriptions
+├── LICENSE                    # MIT
 ├── AGENTS.md                  # AI coding agent development guide
 └── README_CN.md               # Chinese version (中文版)
 ```
@@ -281,13 +285,13 @@ Run `npm run assets:brand` to regenerate the 1.0 transparent white-document icon
 entrypoints/toc.content/index.ts (runtime content script)
   ├── src/content.ts (bootstrap)
   ├── src/utils/toc-utils.ts (barrel re-export of all utils)
-  └── src/core/toc-app.ts (orchestrator, inline nav-lock via createNavLock())
+  └── src/core/toc-app.ts (orchestrator)
         ├── ui/ components (edge-dock, element-picker, floating-panel)
-        ├── core/config-manager.ts → focus-trap.ts
+        ├── core/config-manager.ts → ui/overlay-dialog.ts → focus-trap.ts
         └── core/rebuild-scheduler.ts → dom-watcher.ts, url-monitor.ts
 ```
 
-**Background Script**: `entrypoints/background.ts` uses WXT's `browser` API wrapper and dynamically injects `content-scripts/toc.js` plus `content-scripts/toc.css` only for enabled origins.
+**Background Script**: `entrypoints/background.ts` uses WXT's `browser` API wrapper and dynamically injects `content-scripts/toc.js` only for enabled origins. The content script loads `content-scripts/toc.css` itself, into its own closed shadow root.
 
 **Shared Primitives**: `src/shared/primitives.ts` is imported directly by both WXT entrypoints and content modules.
 
@@ -299,7 +303,7 @@ entrypoints/toc.content/index.ts (runtime content script)
 - **Debounced Rebuild**: MutationObserver + fixed debounce (400ms normal, 1200ms during streaming) to avoid frequent updates
 - **Selector Generation**: Prioritizes class selector, falls back to path selector
 - **Navigation Lock**: Locks IntersectionObserver during user clicks to prevent jumping
-- **Navigation Lock Failsafe**: Auto-unlocks after timeout (8s) if stuck
+- **Navigation Lock Failsafe**: Auto-unlocks after 1s if stuck (`NAV_LOCK_MS`; the panel may unlock earlier once scrolling stops)
 - **Animation Frame Management**: Schedules and cleans up requestAnimationFrame callbacks
 - **Storage Quota Handling**: Auto-prunes old data when quota exceeded
 - **Serialized Config Writes**: Applies selector changes in the background service worker with validation and serialized storage writes

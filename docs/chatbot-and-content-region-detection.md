@@ -1,6 +1,6 @@
 # 聊天机器人页面检测与内容区域检测 — 技术文档
 
-> 本文档讲解 Web TOC Assistant v1.3.0 中两个核心智能检测功能的设计原理与实现细节。
+> 本文档讲解 Web TOC Assistant 中两个核心智能检测功能（聊天页面检测、正文区域检测）的设计原理与实现细节，描述的是当前代码的行为。
 
 ---
 
@@ -90,8 +90,8 @@
 
 ## 2. 聊天机器人页面检测
 
-> 源文件：`src/utils/chatbot-detector.ts`（1101 行）
-> 测试文件：`checks/chatbot-detector.test.mjs`（961 行）
+> 源文件：`src/utils/chatbot-detector.ts`
+> 测试文件：`checks/chatbot-detector.test.mjs`
 
 ### 2.1 设计思路：基于 DOM 分析而非硬编码 URL
 
@@ -104,7 +104,7 @@
 
 ### 2.2 三层检测流水线
 
-`detectChatPage()`（第 784 行）依次执行三层检测，任何一层命中即确认：
+`detectChatPage()`依次执行三层检测，任何一层命中即确认：
 
 ```
 detectChatPage()
@@ -120,7 +120,7 @@ detectChatPage()
         未命中 → 不是聊天页面，返回 null
 ```
 
-#### Layer 1: ARIA 语义信号 — `detectByAria()`（第 123 行）
+#### Layer 1: ARIA 语义信号 — `detectByAria()`
 
 W3C ARIA 规范为聊天界面定义了标准的语义角色。本层检查三种 ARIA 信号：
 
@@ -132,9 +132,9 @@ W3C ARIA 规范为聊天界面定义了标准的语义角色。本层检查三�
 
 这一层速度最快（单个 `querySelector`），且基于 W3C 标准，覆盖面广。
 
-#### Layer 2: 数据属性信号 — `detectByDataAttrs()`（第 176 行）
+#### Layer 2: 数据属性信号 — `detectByDataAttrs()`
 
-前端框架（React、Next.js 等）常在 DOM 元素上添加 `data-*` 属性用于测试或标识。本层检查 10 个已知的数据属性选择器（定义于 `DATA_ATTR_SIGNALS`，第 158 行）：
+前端框架（React、Next.js 等）常在 DOM 元素上添加 `data-*` 属性用于测试或标识。本层检查 10 个已知的数据属性选择器（定义于 `DATA_ATTR_SIGNALS`）：
 
 ```typescript
 var DATA_ATTR_SIGNALS = [
@@ -154,7 +154,7 @@ var DATA_ATTR_SIGNALS = [
 
 匹配规则：任何一个选择器在页面中找到 ≥ 2 个元素即认为命中。命中后，通过 `findCommonAncestor()` 找到这些元素的公共祖先作为聊天容器。
 
-#### Layer 3: 结构启发式 — `detectByStructure()`（第 202 行）
+#### Layer 3: 结构启发式 — `detectByStructure()`
 
 当前两层都未命中时，通过分析页面的宏观结构特征来判断。对四个维度进行评分：
 
@@ -172,11 +172,11 @@ score ≥ 3（高置信度）    → 确认为聊天页面（已有消息内容�
 score ≥ 2 且有输入+发送  → 判定为"聊天落地页"（空对话，但 UI 结构明确是聊天）
 ```
 
-其中，对输入区域的检测还额外检查了"聊天信号"（`hasChatSignalsNearby()`，第 289 行）：查看 `input` 的 `placeholder`、`aria-label` 或 3 层祖先的 class 中是否包含 message/ask/chat/prompt 等关键词，以避免将普通搜索框误判为聊天输入。
+其中，对输入区域的检测还额外检查了"聊天信号"（`hasChatSignalsNearby()`）：查看 `input` 的 `placeholder`、`aria-label` 或 3 层祖先的 class 中是否包含 message/ask/chat/prompt 等关键词，以避免将普通搜索框误判为聊天输入。这只针对 `input[type="text"]`；`textarea` 和 `contenteditable` 直接计入输入区，任何匹配到的发送按钮（包括普通的 `button[type="submit"]`）也直接计入——所以结构层单独并不构成"是聊天页"的结论。
 
-### 2.3 选择器发现：六种策略
+### 2.3 选择器发现：七种策略
 
-页面检测确认是聊天页面后，需要找出"哪些 DOM 元素是用户消息、哪些是 AI 消息"——这就是**选择器发现**。`discoverSelectors()`（第 683 行）依次尝试六种策略（A → F），任何一种成功即返回：
+页面检测确认是聊天页面后，需要找出"哪些 DOM 元素是用户消息、哪些是 AI 消息"——这就是**选择器发现**。`discoverSelectors()`依次尝试七种策略（A → G），任何一种成功即返回：
 
 ```
 discoverSelectors()
@@ -186,10 +186,11 @@ discoverSelectors()
   ├─ 策略 C: discoverByGeminiWebComponent()     — Gemini Web Component
   ├─ 策略 D: discoverByDeepSeekMarkdown()       — DeepSeek Markdown
   ├─ 策略 E: discoverByClassPattern()           — 类名模式匹配
-  └─ 策略 F: discoverByAriaLogAnalysis()        — ARIA Log 子元素分析
+  ├─ 策略 F: discoverByAriaLogAnalysis()        — ARIA Log 子元素分析
+  └─ 策略 G: discoverByAlternation()            — 文本长度交替 + 仅按属性推导
 ```
 
-#### 策略 A: 显式角色属性 — `discoverByExplicitRole()`（第 330 行）
+#### 策略 A: 显式角色属性 — `discoverByExplicitRole()`
 
 按优先级检查四组数据属性，每组要求同时存在 ≥ 1 个用户元素和 ≥ 1 个助手元素：
 
@@ -200,7 +201,7 @@ discoverSelectors()
 | `data-role="user"/"assistant"` | 通用框架 |
 | `data-author-role="user"/"assistant"` | 变体属性名 |
 
-#### 策略 B: testid 模式匹配 — `discoverByTestId()`（第 390 行）
+#### 策略 B: testid 模式匹配 — `discoverByTestId()`
 
 查找 `data-testid` 属性值包含特定子串的元素：
 
@@ -209,47 +210,61 @@ discoverSelectors()
 
 Claude 使用 `data-testid="user-message"` / `data-testid="assistant-message"`，就是通过这一策略发现的。
 
-#### 策略 C: Gemini Web Component — `discoverByGeminiWebComponent()`（第 489 行）
+#### 策略 C: Gemini Web Component — `discoverByGeminiWebComponent()`
 
 Gemini 使用自定义 HTML 元素 `<ms-chat-turn>`，配合 `.chat-turn-container.user` / `.chat-turn-container.model` 类名标识角色。此策略专门处理这一特殊结构。
 
-#### 策略 D: DeepSeek Markdown — `discoverByDeepSeekMarkdown()`（第 520 行）
+#### 策略 D: DeepSeek Markdown — `discoverByDeepSeekMarkdown()`
 
 DeepSeek 的前端使用哈希化的 class 名（每次构建都会变），无法用稳定的 CSS 选择器匹配。但 DeepSeek 的助手回复中始终使用 `.ds-markdown` 类名包裹 Markdown 内容——这是一个相对稳定的标识。
 
 此策略找到 `.ds-markdown` 元素后，向上遍历最多 4 层找到助手消息容器。但它无法独立发现用户消息选择器（返回 `_needsUserSelectorHint: true`），需要由 Hint 表补充。
 
-#### 策略 E: 类名模式匹配 — `discoverByClassPattern()`（第 436 行）
+#### 策略 E: 类名模式匹配 — `discoverByClassPattern()`
 
 查找 class 名包含 user-message、assistant-message、message-user 等模式的元素。这是通用性最强的策略，适用于使用语义化 class 命名的站点。
 
-#### 策略 F: ARIA Log 子元素分析 — `discoverByAriaLogAnalysis()`（第 552 行）
+#### 策略 F: ARIA Log 子元素分析 — `discoverByAriaLogAnalysis()`
 
 对于使用 `[role="log"]` 的聊天页面，分析其直接子元素，依次通过 `data-message-author-role`、`data-testid`、`data-role`、class 名进行分类，将子元素归入"用户组"或"助手组"。
 
-分类成功后，通过 `deriveSelectorFromElements()`（第 628 行）从元素组中推导出通用 CSS 选择器（按优先级尝试 `data-message-author-role` → `data-testid` → `data-turn-role` → `data-role` → class 子串）。
+分类成功后，通过 `deriveSelectorFromElements()`从元素组中推导出通用 CSS 选择器（按优先级尝试 `data-message-author-role` → `data-testid` → `data-turn-role` → `data-role` → class 子串）。
+
+#### 策略 G: 交替模式 — `discoverByAlternation()`
+面向没有任何角色属性的未知平台。在 `[role="log"]`、`[role="feed"]` 或 `<main>` 容器里，取直接子元素中可见且有文本的那些，按文本长度以中位数为界分成"短"（用户）和"长"（助手）两组，要求至少各有 2 个、交替 2 次以上。
+
+**只按属性推导选择器。** 两组的选择器由 `deriveSelectorFromElements()` 从各自的 `data-*` / class 属性得出，而且必须互不相同——相同的选择器意味着它们是同一组节点，不是对话的两方。
+
+这里刻意**没有**"奇数位是用户、偶数位是助手"的位置回退：那种猜测会命中任何长短交替的列表（带评论表单的博客列表页恰好达到 0.7 的置信度阈值），位置不是聊天的证据。
 
 ### 2.4 Hint 表兜底
 
-当自动检测失败或返回不完整结果时，回退到基于 hostname 的 Hint 表（`CHATBOT_HINTS`，第 61 行）：
+当自动检测失败或返回不完整结果时，回退到基于 hostname 的 Hint 表（`CHATBOT_HINTS`）：
 
-| 站点 | hostname 匹配 | 用户选择器 | 助手选择器 |
-|------|--------------|-----------|-----------|
-| **ChatGPT** | `chatgpt.com`, `chat.openai.com` | `[data-message-author-role="user"]` | `[data-message-author-role="assistant"]` |
-| **DeepSeek** | `chat.deepseek.com` | `.ds-chat-user-message, [data-role="user"]` | `.ds-chat-assistant-message, [data-role="assistant"]` |
-| **Claude** | `claude.ai` | `[data-testid="user-message"], [data-testid="human-message"]` | `[data-testid="assistant-message"], .row-start-2` |
-| **Gemini** | `gemini.google.com` | `.query-content, [data-turn-role="user"]` | `.response-container, [data-turn-role="model"]` |
-| **Kimi** | `kimi.moonshot.cn`, `kimi.ai` | `.message-user, [class*="user-message"]` | `.message-assistant, [class*="assistant-message"]` |
+| 站点 | hostname 匹配 | 备注 |
+|------|--------------|------|
+| **ChatGPT** | `chatgpt.com`, `chat.openai.com` | `data-message-author-role` |
+| **DeepSeek** | `chat.deepseek.com` | `.ds-message` 同时包住用户与 AI 消息；AI 消息含 `.ds-markdown` |
+| **Claude** | `claude.ai` | `data-testid="user-message"` / `"assistant-message"` |
+| **Gemini** | `gemini.google.com` | 自定义 `detect()`：新版 `user-query` / `model-response` 自定义元素，旧版 `ms-chat-turn` |
+| **Kimi** | `kimi.moonshot.cn`, `kimi.ai` | |
+| **Perplexity** | `perplexity.ai` | |
+| **Grok** | `grok.com`, `x.ai` | |
+| **Mistral** | `chat.mistral.ai` | |
+| **NotebookLM** | `notebooklm.google.com` | |
+| **Qwen / 通义** | `tongyi.aliyun.com`, `qianwen.aliyun.com` | |
+| **GitHub Copilot Chat** | `github.com` | |
+| **Agnes AI** | `app.agnes-ai.com` | 没有任何角色属性，靠 Tailwind 工具类区分用户与 AI 消息 |
 
 Hint 表有两个使用场景：
 1. **全量兜底**：自动检测完全失败时，通过 hostname 匹配获取完整选择器
 2. **部分补充**：自动检测发现了助手选择器但缺少用户选择器时（如 DeepSeek 场景），只补充缺失部分
 
-每个 Hint 条目提供多个候选选择器（逗号分隔），以便站点更新后某个选择器失效时，其他选择器仍然有效。
+各条目的用户、助手、哨兵选择器以 `src/utils/chatbot-detector.ts` 中的 `CHATBOT_HINTS` 为准。每个 Hint 条目提供多个候选选择器（逗号分隔），以便站点更新后某个选择器失效时，其他选择器仍然有效。
 
 ### 2.5 对话式 TOC 构建
 
-`buildChatbotTocItems()`（第 930 行）将检测到的对话结构转化为 TOC 条目。
+`buildChatbotTocItems()`将检测到的对话结构转化为 TOC 条目。
 
 #### 目录层级规则
 
@@ -265,7 +280,7 @@ Hint 表有两个使用场景：
 
 #### 前向游标 O(N+M) 匹配算法
 
-需要将每个用户消息与其后的第一条助手消息配对。朴素做法是对每个用户消息都遍历所有助手消息，复杂度 O(N×M)。实际实现使用**前向游标**（第 959-998 行）：
+需要将每个用户消息与其后的第一条助手消息配对。朴素做法是对每个用户消息都遍历所有助手消息，复杂度 O(N×M)。实际实现使用**前向游标**：
 
 ```typescript
 var allAssistants = document.querySelectorAll(profile.assistantSelector);
@@ -285,7 +300,7 @@ for (var i = 0; i < userMessages.length; i++) {
 
 #### Markdown 容器内标题提取
 
-AI 回复中的标题通常包裹在 Markdown 渲染容器内。检测器使用一组通用选择器（`GENERIC_HEADING_CONTAINER`，第 113 行）来定位这些容器：
+AI 回复中的标题通常包裹在 Markdown 渲染容器内。检测器使用一组通用选择器（`GENERIC_HEADING_CONTAINER`）来定位这些容器：
 
 ```typescript
 var GENERIC_HEADING_CONTAINER =
@@ -298,12 +313,12 @@ var GENERIC_HEADING_CONTAINER =
 #### 去重与限制
 
 - **用户消息去重**：通过 `Set` 按元素引用去重（同一 DOM 元素可能匹配多个选择器路径）
-- **标题文本去重**：对相同文本的 TOC 条目只保留第一个
+- **镜像副本去重**：文本相同且位置重叠的条目才合并；位于不同位置的重复标题（例如两次相同的提问）都保留
 - **数量限制**：最多处理 50 轮对话（`MAX_TURNS`），最多 400 个 TOC 条目（`MAX_ITEMS`），用户提问文本截断至 120 字符（`PROMPT_MAX_LEN`）
 
 ### 2.6 URL 感知缓存机制
 
-检测结果按 URL 缓存（第 37-48 行），避免在 DOM 重建时重复检测：
+检测结果按 URL 缓存，避免在 DOM 重建时重复检测：
 
 ```typescript
 var _cachedProfile = null;   // 缓存的检测档案
@@ -317,26 +332,29 @@ var _cachedUrl = '';          // 缓存对应的 URL
 **缓存失效时机**：
 - URL 变化（SPA 导航）时，由 `rebuild-scheduler.ts` 调用 `invalidateChatbotCache()` 主动清除
 - 缓存的根元素脱离 DOM（SPA 全量替换）时，下次调用自动检测到并清除
+- **否定结果 5 秒过期**：被判为"非聊天页"的结果只复用 5 秒（`NEGATIVE_CACHE_TTL_MS`），之后重跑检测级联——页面可能在 URL 不变的情况下就地渲染出一段对话
 
 ### 2.7 DOM Watcher 集成（哨兵选择器）
 
 在普通页面中，DOM Watcher 只关注涉及标题元素的 DOM 变化（ Mutation 过滤），以减少不必要的 TOC 重建。但在聊天页面中，新的消息出现不涉及标题变化——用户发送一条新消息只是添加了一个新的 DOM 节点。
 
-为了解决这个问题，`buildTocItems()` 在返回聊天机器人 TOC 时，会向 `cfg.selectors` 注入一个**哨兵选择器**（sentinel selector）（`toc-builder.ts:204-209`）：
+为了解决这个问题，`buildTocItems()` 在返回聊天机器人 TOC 时，会向 `cfg.selectors` 注入一个**哨兵选择器**（sentinel selector）（`toc-builder.ts`）：
 
 ```typescript
 var sentinel = getChatbotSentinelSelector();
-if (sentinel) cfg.selectors.push({ type: 'css', expr: sentinel });
+if (sentinel) cfg.selectors.push({ type: 'css', expr: sentinel, _tocSentinel: true });
 ```
 
 哨兵选择器匹配页面上的聊天消息元素（如 `[data-message-author-role]`），使 DOM Watcher 能够检测到新消息的添加并触发 TOC 重建。
+
+**Watcher 读的是活引用。** 哨兵要到首次重建时才被 push 进 `cfg.selectors`，而那时 DOM Watcher 早已启动，并且那次重建会先把整个数组换掉。所以 Watcher 不保存启动时的快照，而是通过 `getSelectors()` 每次实时读取 `cfg.selectors`。
 
 ---
 
 ## 3. 内容区域检测
 
-> 源文件：`src/utils/content-region.ts`（479 行）
-> 测试文件：`checks/content-region.test.mjs`（442 行）
+> 源文件：`src/utils/content-region.ts`
+> 测试文件：`checks/content-region.test.mjs`
 
 ### 3.1 设计思路
 
@@ -360,9 +378,9 @@ detectContentRegion()
         返回 null，由调用方在整个 document 中查找
 ```
 
-### 3.2 Layer 1: 语义地标 — `detectByLandmark()`（第 206 行）
+### 3.2 Layer 1: 语义地标 — `detectByLandmark()`
 
-HTML5 提供了语义化的地标标签，现代网站普遍使用。本层按优先级检查四个选择器（`LANDMARK_SELECTORS`，第 30 行）：
+HTML5 提供了语义化的地标标签，现代网站普遍使用。本层按优先级检查四个选择器（`LANDMARK_SELECTORS`）：
 
 ```typescript
 var LANDMARK_SELECTORS = [
@@ -373,7 +391,7 @@ var LANDMARK_SELECTORS = [
 ];
 ```
 
-#### `<main>` 的向下钻取 — `drillToPrimaryContent()`（第 165 行）
+#### `<main>` 的向下钻取 — `drillToPrimaryContent()`
 
 `<main>` 标签通常包含正文区域，但也可能同时包含评论区、相关推荐等非核心内容。如果直接把整个 `<main>` 作为内容区域，目录中会混入评论区的标题。
 
@@ -407,9 +425,9 @@ var LANDMARK_SELECTORS = [
 <article>   h2×1, h3×0 → score=3
 ```
 
-### 3.3 Layer 2: 类名/ID 启发式 — `detectByClassHeuristic()`（第 255 行)
+### 3.3 Layer 2: 类名/ID 启发式 — `detectByClassHeuristic()`
 
-当页面没有使用语义化 HTML 标签时，回退到基于 class/id 的模式匹配。本层维护了 29 个候选选择器（`CONTENT_SELECTORS`，第 38 行）：
+当页面没有使用语义化 HTML 标签时，回退到基于 class/id 的模式匹配。本层维护了 29 个候选选择器（`CONTENT_SELECTORS`）：
 
 ```typescript
 var CONTENT_SELECTORS = [
@@ -443,7 +461,7 @@ var CONTENT_SELECTORS = [
 </div>
 ```
 
-### 3.4 Layer 3: 祖先计分法 — `detectByAncestorScoring()`（第 300 行）
+### 3.4 Layer 3: 祖先计分法 — `detectByAncestorScoring()`
 
 > 此方法的思路借鉴自 Smart TOC 扩展。
 
@@ -455,7 +473,7 @@ var CONTENT_SELECTORS = [
 
 #### 步骤二：向上遍历并计分
 
-对每个标题，向上最多遍历 6 层（`MAX_ANCESTOR_DEPTH`），为沿途的每个祖先累加分数：
+对每个标题，向上最多遍历 6 层（`MAX_ANCESTOR_DEPTH`），为沿途的每个祖先累加分数。标题权重按距离衰减：父元素 100%，每上一层减 15%。
 
 **标题权重**（`HEADING_WEIGHTS`）：
 
@@ -476,7 +494,7 @@ var CONTENT_SELECTORS = [
 
 **正/负词汇评分**（`evaluatePatterns()`）：
 
-检查祖先的 class 和 id 中是否包含特定词汇（子串匹配）：
+按 token 检查祖先的 class 和 id（以非字母数字字符切分后整词比较，所以 `thread`、`read-more` 不会被当成 `ad`）：
 
 | 正向词汇 (+150) | 负向词汇 (-300) |
 |-----------------|-----------------|
@@ -490,11 +508,15 @@ var CONTENT_SELECTORS = [
 
 | 信号 | 加分 | 说明 |
 |------|------|------|
-| 宽度 > 400px | +100 | 内容区域通常较宽 |
-| 宽度 > 60% 视口 | +50 | 内容区域占据页面主体宽度 |
+| 宽度占视口 > 30% | 最多 +80 | 按占比连续计分 |
+| 宽度占视口 > 60% | +40 | 额外奖励 |
+| 宽度 > 400px（占比无法计算时） | +60 | 固定宽度容器的回退 |
 | 标题密度 0.5%~15% | +50 | 合理的标题密度 |
-| 链接密度 > 40% | -200 | 导航/侧边栏链接密集 |
-| 高度 > 30% 视口 | +50 | 内容区域通常纵向延伸 |
+| 链接密度 | 连续惩罚 | 得分乘以 `max(0.1, 1 - 链接密度)` |
+| 文本密度 > 10 | +50 | 内容丰富（Boilerpipe：低于约 10.5 多为样板） |
+| 文本密度 < 3 | -100 | 标签密集，多为导航 |
+| 高度占视口 > 20% | 最多 +50 | 按占比连续计分 |
+| 水平中心偏离页面中心 > 35% | -50 | 多为侧边栏 |
 | 是 `<body>` 或 `<html>` | -500 | 避免选中整个页面 |
 
 #### 步骤四：返回最佳候选
@@ -513,7 +535,7 @@ var CONTENT_SELECTORS = [
 
 ### 3.6 缓存机制
 
-与聊天机器人检测类似，内容区域检测结果也按 URL 缓存（第 21-23 行）：
+与聊天机器人检测类似，内容区域检测结果也按 URL 缓存：
 
 ```typescript
 var _cachedResult = null;   // { root: Element|null, source: string }
@@ -528,7 +550,7 @@ var _cachedUrl = '';        // 缓存对应的 URL
 - URL 变化：下次调用时 URL 不匹配，自动重新检测
 - DOM 替换：缓存根元素脱离 DOM，自动清除
 
-**手动失效**：`invalidateContentRegionCache()`（第 475 行），用于页面发生不触发 URL 变化的大规模结构变更。
+**手动失效**：`invalidateContentRegionCache()`，用于页面发生不触发 URL 变化的大规模结构变更。
 
 > 注意：聊天机器人缓存由 `rebuild-scheduler.ts` 在 URL 变化时主动调用 `invalidateChatbotCache()` 清除，而内容区域缓存是**被动检测**——只在下次调用 `detectContentRegion()` 时检查 URL 是否匹配。
 
@@ -546,7 +568,7 @@ var _cachedUrl = '';        // 缓存对应的 URL
        ├─ tryBuildChatbotTocItems()
        │    │
        │    ├─ detectChatPage()           三层 DOM 分析 + Hint 兜底
-       │    │    命中 → discoverSelectors()  六种策略自动提取选择器
+       │    │    命中 → discoverSelectors()  七种策略自动提取选择器
        │    │    未命中 → 返回 null
        │    │
        │    ├─ buildChatbotTocItems()     构建对话式 TOC
@@ -562,13 +584,13 @@ var _cachedUrl = '';        // 缓存对应的 URL
 
 ### 4.2 缓存失效的触发
 
-`rebuild-scheduler.ts`（第 128-131 行）在检测到 URL 变化时，主动清除聊天机器人缓存：
+`rebuild-scheduler.ts`在检测到 URL 变化时，主动清除聊天机器人缓存：
 
 ```typescript
 function onUrlChange() {
   invalidateChatbotCache();       // 主动清除聊天机器人缓存
   // 内容区域缓存由被动 URL 检查自动失效
-  scheduleRebuild('url-change');
+  scheduleRebuild(false);
 }
 ```
 
@@ -597,11 +619,11 @@ function onUrlChange() {
 - 消息元素上有没有 `data-message-author-role`、`data-testid`、`data-role` 等属性能区分用户和 AI？
 - class 名中有没有 `user-message`、`assistant-message` 等模式？
 
-如果有，六种选择器发现策略之一应该能自动提取。
+如果有，七种选择器发现策略之一应该能自动提取。
 
 #### 第三步：添加 Hint 条目（仅在自动检测失败时）
 
-只有当自动检测完全失败时，才需要在 `CHATBOT_HINTS` 数组（`chatbot-detector.ts:61`）末尾添加一个新条目：
+只有当自动检测完全失败时，才需要在 `CHATBOT_HINTS` 数组（`chatbot-detector.ts`）末尾添加一个新条目：
 
 ```typescript
 {
@@ -657,6 +679,8 @@ document.querySelectorAll('[data-message-author-role]');   // Layer 2
 
 **修复方式**：如果某个 `DATA_ATTR_SIGNALS` 选择器过于宽泛导致误判，可以在该选择器的匹配逻辑中增加更严格的条件（如要求更多匹配元素）。
 
+结构层本身不会把页面判成聊天页：真正的判定来自随后的选择器发现，它必须依据属性推导出互不相同的用户/助手选择器。曾经存在的"按子元素奇偶位置猜测"回退已移除——它会命中任何长短交替的列表。
+
 #### 问题：聊天页面没有被检测到（假阴性）
 
 可能原因：
@@ -689,7 +713,7 @@ document.querySelectorAll('[data-message-author-role]');   // Layer 2
 |------|------|---------|
 | **Shadow DOM 内部无法检测** | `document.querySelector` 无法穿透 Shadow DOM 边界 | 目前无解；需要站点将消息放在 light DOM 中 |
 | **空对话页面可能检测失败** | 结构启发式至少需要 `score ≥ 2`，空页面消息块不足 | "聊天落地页"判定（输入+发送即可）部分覆盖此场景 |
-| **非标准聊天气泡（如邮件、评论）可能误判** | 评论区的 DOM 结构可能类似聊天 | 结构启发式对"输入+发送"有较严格的聊天信号检查 |
+| **非标准聊天气泡（如邮件、评论）可能误判** | 评论区的 DOM 结构可能类似聊天 | 结构层只负责放行，不直接下结论：还须由属性推导出互不相同的用户/助手选择器；按子元素位置猜测的回退已移除 |
 | **对话轮次超过 50 轮时截断** | 出于性能考虑（`MAX_TURNS = 50`） | 保留最近的 50 轮，通常够用 |
 | **DeepSeek 哈希 class 名不稳定** | DeepSeek 前端每次构建生成新的哈希 class | 依赖 `.ds-markdown` 这个相对稳定的标识 + Hint 表兜底 |
 | **用户消息和 AI 消息的匹配依赖文档顺序** | 前向游标算法假设消息按文档顺序排列 | 适用于目前所有已知聊天站点的 DOM 结构 |
@@ -702,7 +726,7 @@ document.querySelectorAll('[data-message-author-role]');   // Layer 2
 | **`<main>` 内有多个平级内容区域时难以取舍** | `drillToPrimaryContent()` 的 "2 倍阈值" 是启发式规则 | 无完美解；如果多个子元素得分接近，保留整个 `<main>` |
 | **祖先计分法对极端 DOM 深度/广度有性能开销** | 遍历每个标题的所有祖先 | 采样上限 100 个标题、最多 6 层祖先，控制复杂度 |
 | **纯 JavaScript 渲染的页面可能检测失败** | 初始加载时 DOM 不完整 | DOM Watcher 会在内容变化后触发重建，间接补偿 |
-| **自定义选择器配置优先于内容区域检测** | 用户显式配置时不应被覆盖 | 设计决策：用户意图优先 |
+| **自定义选择器只在正文区域内生效（零命中时回退全页）** | 区域限定用来滤掉导航栏、侧边栏的噪声 | 拾取的元素在区域之外时，区域内零命中会触发一次全页重试；自定义选择器始终优先于聊天机器人检测 |
 
 #### 设计权衡总结
 
@@ -710,7 +734,7 @@ document.querySelectorAll('[data-message-author-role]');   // Layer 2
 |------|------|------|
 | URL 硬编码 vs DOM 分析 | DOM 分析优先 | 新站点无需更新代码；硬编码只在自动失败时兜底 |
 | 检测精度 vs 检测速度 | 分层短路 | Layer 1 只需一个 `querySelector`，命中即返回；只有在前面都失败时才执行昂贵的 Layer 3 |
-| 通用性 vs 特化 | 通用优先 | 六种选择器发现策略覆盖大多数站点，Hint 表只作为最后手段 |
+| 通用性 vs 特化 | 通用优先 | 七种选择器发现策略覆盖大多数站点，Hint 表只作为最后手段 |
 | 缓存一致性 vs 实时性 | URL 感知 + 连接检测 | 同一 URL 复用缓存避免重复检测，但 DOM 元素脱离时自动失效 |
 
 ### 5.4 测试方法
@@ -737,7 +761,7 @@ document.querySelectorAll('[data-message-author-role]');   // Layer 2
 
 #### 测试覆盖的场景
 
-**聊天机器人检测**（`chatbot-detector.test.mjs`，~17 个用例）：
+**聊天机器人检测**（`chatbot-detector.test.mjs`）：
 
 | 场景类别 | 测试内容 |
 |---------|---------|
@@ -749,7 +773,7 @@ document.querySelectorAll('[data-message-author-role]');   // Layer 2
 | 缓存 | URL 变化后缓存失效、强制重新检测 |
 | 边界 | 空对话页面、未知站点的自动检测、哨兵选择器提取 |
 
-**内容区域检测**（`content-region.test.mjs`，~11 个用例）：
+**内容区域检测**（`content-region.test.mjs`）：
 
 | 场景类别 | 测试内容 |
 |---------|---------|
@@ -800,49 +824,52 @@ test('my new scenario', () => {
 
 ## 6. 关键源文件索引
 
-| 文件 | 行数 | 职责 |
-|------|------|------|
-| `src/utils/chatbot-detector.ts` | 1101 | 聊天机器人页面检测、选择器发现、对话式 TOC 构建 |
-| `src/utils/content-region.ts` | 479 | 内容区域检测（四层策略） |
-| `src/utils/toc-builder.ts` | 228 | TOC 构建调度入口，协调两个检测系统 |
-| `src/utils/toc-utils.ts` | — | 桶式重导出（barrel re-export），统一暴露工具函数 |
-| `src/utils/dom-utils.ts` | — | DOM 操作工具（`collectBySelector`、`uniqueInDocumentOrder`、滚动） |
-| `src/core/rebuild-scheduler.ts` | — | 重建调度器，URL 变化时触发缓存失效 |
-| `src/core/dom-watcher.ts` | — | MutationObserver DOM 变化监听，使用哨兵选择器扩展监听范围 |
-| `checks/chatbot-detector.test.mjs` | 961 | 聊天机器人检测的全面测试（~17 个测试用例） |
-| `checks/content-region.test.mjs` | 442 | 内容区域检测的全面测试（~11 个测试用例） |
+行号会随代码变动而过期，这里只列文件与函数的职责。
 
-### 聊天机器人检测核心函数索引
+| 文件 | 职责 |
+|------|------|
+| `src/utils/chatbot-detector.ts` | 聊天机器人页面检测、选择器发现、对话式 TOC 构建 |
+| `src/utils/content-region.ts` | 内容区域检测（四层策略） |
+| `src/utils/toc-builder.ts` | TOC 构建调度入口，协调两个检测系统 |
+| `src/utils/toc-utils.ts` | 桶式重导出（barrel re-export），统一暴露工具函数 |
+| `src/utils/dom-utils.ts` | DOM 操作工具（`collectBySelector`、`uniqueInDocumentOrder`、滚动） |
+| `src/core/rebuild-scheduler.ts` | 重建调度器，URL 变化时触发缓存失效 |
+| `src/core/dom-watcher.ts` | MutationObserver DOM 变化监听，经 `getSelectors()` 读取哨兵选择器 |
+| `checks/chatbot-detector.test.mjs` | 聊天机器人检测的行为测试 |
+| `checks/content-region.test.mjs` | 内容区域检测的行为测试 |
 
-| 函数 | 行号 | 说明 |
-|------|------|------|
-| `detectChatPage()` | 784 | 核心入口：三层检测 + 选择器发现 + Hint 兜底 |
-| `detectByAria()` | 123 | Layer 1: ARIA 语义信号 |
-| `detectByDataAttrs()` | 176 | Layer 2: 数据属性信号 |
-| `detectByStructure()` | 202 | Layer 3: 结构启发式 |
-| `discoverSelectors()` | 683 | 选择器发现入口（六种策略级联） |
-| `discoverByExplicitRole()` | 330 | 策略 A: data-message-author-role 等 |
-| `discoverByTestId()` | 390 | 策略 B: data-testid 模式匹配 |
-| `discoverByGeminiWebComponent()` | 489 | 策略 C: ms-chat-turn Web Component |
-| `discoverByDeepSeekMarkdown()` | 520 | 策略 D: .ds-markdown 启发式 |
-| `discoverByClassPattern()` | 436 | 策略 E: 类名模式匹配 |
-| `discoverByAriaLogAnalysis()` | 552 | 策略 F: role="log" 子元素分析 |
-| `tryHintFallback()` | 715 | Hint 表兜底 |
-| `buildChatbotTocItems()` | 930 | 对话式 TOC 构建 |
-| `tryBuildChatbotTocItems()` | 1078 | 公共 API：检测 + 构建 |
-| `isChatbotPage()` | 1088 | 公共 API：是否聊天页面 |
-| `getChatbotSentinelSelector()` | 1097 | 公共 API：获取哨兵选择器 |
-| `invalidateChatbotCache()` | 45 | 公共 API：清除缓存 |
+### 聊天机器人检测核心函数
 
-### 内容区域检测核心函数索引
+| 函数 | 说明 |
+|------|------|
+| `detectChatPage()` | 核心入口：三层检测 + 选择器发现 + Hint 兜底 |
+| `detectByAria()` | Layer 1: ARIA 语义信号 |
+| `detectByDataAttrs()` | Layer 2: 数据属性信号 |
+| `detectByStructure()` | Layer 3: 结构启发式 |
+| `discoverSelectors()` | 选择器发现入口（七种策略级联） |
+| `discoverByExplicitRole()` | 策略 A: data-message-author-role 等 |
+| `discoverByTestId()` | 策略 B: data-testid 模式匹配 |
+| `discoverByGeminiWebComponent()` | 策略 C: ms-chat-turn Web Component |
+| `discoverByDeepSeekMarkdown()` | 策略 D: .ds-markdown 启发式 |
+| `discoverByClassPattern()` | 策略 E: 类名模式匹配 |
+| `discoverByAriaLogAnalysis()` | 策略 F: role="log" 子元素分析 |
+| `discoverByAlternation()` | 策略 G: 文本长度交替 + 仅按属性推导 |
+| `tryHintFallback()` | Hint 表兜底 |
+| `buildChatbotTocItems()` | 对话式 TOC 构建 |
+| `tryBuildChatbotTocItems()` | 公共 API：检测 + 构建 |
+| `isChatbotPage()` | 公共 API：是否聊天页面 |
+| `getChatbotSentinelSelector()` | 公共 API：获取哨兵选择器 |
+| `invalidateChatbotCache()` | 公共 API：清除缓存 |
 
-| 函数 | 行号 | 说明 |
-|------|------|------|
-| `detectContentRegion()` | 426 | 核心入口：四层策略级联 + 缓存 |
-| `detectByLandmark()` | 206 | Layer 1: 语义地标 |
-| `drillToPrimaryContent()` | 165 | 从 `<main>` 向下钻取最核心内容子元素 |
-| `detectByClassHeuristic()` | 255 | Layer 2: 类名/ID 启发式 |
-| `detectByAncestorScoring()` | 300 | Layer 3: 祖先计分法 |
-| `evaluatePatterns()` | 119 | 正/负词汇评分 |
-| `countHeadings()` | 142 | 标题计数（用于评分） |
-| `invalidateContentRegionCache()` | 475 | 公共 API：清除缓存 |
+### 内容区域检测核心函数
+
+| 函数 | 说明 |
+|------|------|
+| `detectContentRegion()` | 核心入口：四层策略级联 + 缓存 |
+| `detectByLandmark()` | Layer 1: 语义地标 |
+| `drillToPrimaryContent()` | 从 `<main>` 向下钻取最核心内容子元素 |
+| `detectByClassHeuristic()` | Layer 2: 类名/ID 启发式 |
+| `detectByAncestorScoring()` | Layer 3: 祖先计分法 |
+| `evaluatePatterns()` | 正/负词汇评分 |
+| `countHeadings()` | 标题计数（用于评分） |
+| `invalidateContentRegionCache()` | 公共 API：清除缓存 |
